@@ -1,0 +1,651 @@
+<form class="{{cssClass}} dda-item-sheet dda-{{item.type}}-sheet" autocomplete="off">
+  <header class="sheet-header">
+    <img class="profile-img" src="{{item.img}}" data-edit="img" title="{{item.name}}" />
+
+    <div class="header-fields">
+      <h1>
+        <input
+  name="name"
+  type="text"
+  value="{{item.name}}"
+  placeholder="{{localize 'DDA.QualitySheet.Placeholder.QualityName'}}"
+/>
+      </h1>
+      <p>{{localize "DDA.Item.Quality"}}</p>
+    </div>
+  </header>
+
+  <nav class="sheet-tabs tabs" data-group="primary">
+<a class="item" data-tab="details">{{localize "DDA.Label.Details"}}</a>
+<a class="item" data-tab="requirements">{{localize "DDA.Label.Requirements"}}</a>
+<a class="item" data-tab="grants">{{localize "DDA.QualitySheet.Grants"}}</a>
+<a class="item" data-tab="notes">{{localize "DDA.Label.Description"}}</a>
+  </nav>
+
+  <section class="sheet-body">
+    <section class="tab dda-quality-details-tab" data-group="primary" data-tab="details">
+<h2>{{localize "DDA.QualitySheet.Category"}}</h2>
+
+      <div class="checkbox-grid quality-category-grid">
+<label><input type="checkbox" name="system.category.attack" {{checked system.category.attack}} /> {{localize "DDA.QualityCategory.Attack"}}</label>
+<label><input type="checkbox" name="system.category.trigger" {{checked system.category.trigger}} /> {{localize "DDA.QualityCategory.Trigger"}}</label>
+<label><input type="checkbox" name="system.category.static" {{checked system.category.static}} /> {{localize "DDA.QualityCategory.Static"}}</label>
+<label><input type="checkbox" name="system.category.core" {{checked system.category.core}} /> {{localize "DDA.QualityCategory.Core"}}</label>
+<label><input type="checkbox" name="system.category.free" {{checked system.category.free}} /> {{localize "DDA.QualityCategory.Free"}}</label>
+<label><input type="checkbox" name="system.category.negative" {{checked system.category.negative}} /> {{localize "DDA.QualityCategory.Negative"}}</label>
+      </div>
+
+<h2>{{localize "DDA.QualitySheet.CostAndRank"}}</h2>
+
+      <div class="resource-grid">
+        <div class="resource-box">
+<label>{{localize "DDA.QualitySheet.BaseDPCost"}}</label>
+          <input type="number" name="system.cost.dp" value="{{system.cost.dp}}" />
+        </div>
+
+        <div class="resource-box">
+<label>{{localize "DDA.QualitySheet.Rank"}}</label>
+          <input type="number" name="system.rank.value" value="{{system.rank.value}}" />
+        </div>
+
+        <div class="resource-box">
+<label>{{localize "DDA.QualitySheet.MaxRank"}}</label>
+          <input type="number" name="system.rank.max" value="{{system.rank.max}}" />
+        </div>
+
+        <div class="resource-box">
+<label>{{localize "DDA.QualitySheet.TotalCost"}}</label>
+          <input type="number" value="{{system.cost.total}}" readonly />
+        </div>
+      </div>
+
+      <div class="checkbox-grid quality-cost-flags">
+<label><input type="checkbox" name="system.cost.perRank" {{checked system.cost.perRank}} /> {{localize "DDA.QualitySheet.CostPerRank"}}</label>
+<label><input type="checkbox" name="system.cost.isFree" {{checked system.cost.isFree}} /> {{localize "DDA.QualityCategory.Free"}}</label>
+<label><input type="checkbox" name="system.cost.coreDiscountAvailable" {{checked system.cost.coreDiscountAvailable}} /> {{localize "DDA.QualitySheet.CoreDiscountEligible"}}</label>
+<label><input type="checkbox" name="system.rank.limited" {{checked system.rank.limited}} /> {{localize "DDA.QualitySheet.Limited"}}</label>
+<label><input type="checkbox" name="system.cost.countsAgainstFreeLimit" {{checked system.cost.countsAgainstFreeLimit}} /> {{localize "DDA.QualitySheet.CountsAgainstFreeLimit"}}</label>
+      </div>
+
+<h3>{{localize "DDA.QualitySheet.RankLimitByStage"}}</h3>
+
+<div class="grid-2 quality-rank-limit-grid">
+  <div class="form-group">
+<label>{{localize "DDA.QualitySheet.LimitType"}}</label>
+    <select name="system.rankLimit.type">
+<option value="fixed" {{#if (eq system.rankLimit.type "fixed")}}selected{{/if}}>{{localize "DDA.QualitySheet.Fixed"}}</option>
+<option value="byStage" {{#if (eq system.rankLimit.type "byStage")}}selected{{/if}}>{{localize "DDA.QualitySheet.ByStage"}}</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+<label>{{localize "DDA.QualitySheet.FixedLimit"}}</label>
+    <input type="number" name="system.rankLimit.value" value="{{system.rankLimit.value}}" min="0" />
+  </div>
+</div>
+
+<div class="resource-grid quality-rank-by-stage-grid">
+  <div class="resource-box">
+<label>{{localize "DDA.Stage.Baby1"}}</label>
+    <input type="number" name="system.rankLimit.byStage.baby1" value="{{system.rankLimit.byStage.baby1}}" min="0" />
+  </div>
+
+  <div class="resource-box">
+<label>{{localize "DDA.Stage.Baby2"}}</label>
+    <input type="number" name="system.rankLimit.byStage.baby2" value="{{system.rankLimit.byStage.baby2}}" min="0" />
+  </div>
+
+  <div class="resource-box">
+<label>{{localize "DDA.Stage.Child"}}</label>
+    <input type="number" name="system.rankLimit.byStage.child" value="{{system.rankLimit.byStage.child}}" min="0" />
+  </div>
+
+  <div class="resource-box">
+<label>{{localize "DDA.Stage.Adult"}}</label>
+    <input type="number" name="system.rankLimit.byStage.adult" value="{{system.rankLimit.byStage.adult}}" min="0" />
+  </div>
+
+  <div class="resource-box">
+<label>{{localize "DDA.Stage.Perfect"}}</label>
+    <input type="number" name="system.rankLimit.byStage.perfect" value="{{system.rankLimit.byStage.perfect}}" min="0" />
+  </div>
+
+  <div class="resource-box">
+<label>{{localize "DDA.Stage.Ultimate"}}</label>
+    <input type="number" name="system.rankLimit.byStage.ultimate" value="{{system.rankLimit.byStage.ultimate}}" min="0" />
+  </div>
+
+  <div class="resource-box">
+<label>{{localize "DDA.Stage.UltimatePlus"}}</label>
+    <input type="number" name="system.rankLimit.byStage.ultimatePlus" value="{{system.rankLimit.byStage.ultimatePlus}}" min="0" />
+  </div>
+</div>        
+
+    </section>
+
+<section class="tab dda-quality-requirements-tab" data-group="primary" data-tab="requirements">
+  <h2>{{localize "DDA.Label.Requirements"}}</h2>
+
+  <label class="quality-toggle-card">
+    <input type="checkbox" name="system.stageRequirement.enabled" {{checked system.stageRequirement.enabled}} />
+    {{localize "DDA.QualitySheet.HasStageRequirement"}}
+  </label>
+
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.MinimumStage"}}</label>
+<select name="system.stageRequirement.minimum">
+  <option value="">{{localize "DDA.Label.None"}}</option>
+  {{#each config.stages as |stage key|}}
+  <option value="{{key}}" {{#if (eq ../system.stageRequirement.minimum key)}}selected{{/if}}>
+    {{localize stage.label}}
+  </option>
+  {{/each}}
+</select>
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.MaximumStage"}}</label>
+<select name="system.stageRequirement.maximum">
+  <option value="">{{localize "DDA.Label.None"}}</option>
+  {{#each config.stages as |stage key|}}
+  <option value="{{key}}" {{#if (eq ../system.stageRequirement.maximum key)}}selected{{/if}}>
+    {{localize stage.label}}
+  </option>
+  {{/each}}
+</select>
+  </div>
+
+  <div class="form-group stacked">
+    <label>{{localize "DDA.QualitySheet.RequiredQualitiesMechanical"}}</label>
+    <textarea
+      name="system.requirements.qualityNames"
+      placeholder="{{localize 'DDA.QualitySheet.Placeholder.OnePerLineOrComma'}}"
+    >{{system.requirements.qualityNames}}</textarea>
+  </div>
+
+  <div class="form-group stacked">
+    <label>{{localize "DDA.QualitySheet.RequirementsTextDescription"}}</label>
+    <textarea
+      name="system.requirements.text"
+      placeholder="{{localize 'DDA.QualitySheet.Placeholder.RequirementsText'}}"
+    >{{system.requirements.text}}</textarea>
+  </div>
+
+  <div class="form-group stacked">
+    <label>{{localize "DDA.QualitySheet.IncompatibleQualitiesMechanical"}}</label>
+    <textarea
+      name="system.incompatible.qualityNames"
+      placeholder="{{localize 'DDA.QualitySheet.Placeholder.OnePerLineOrComma'}}"
+    >{{system.incompatible.qualityNames}}</textarea>
+  </div>
+
+  <div class="form-group stacked">
+    <label>{{localize "DDA.QualitySheet.IncompatibilitiesTextDescription"}}</label>
+    <textarea
+      name="system.incompatible.text"
+      placeholder="{{localize 'DDA.QualitySheet.Placeholder.IncompatibilitiesText'}}"
+    >{{system.incompatible.text}}</textarea>
+  </div>
+</section>
+
+    <section class="tab dda-quality-grants-tab" data-group="primary" data-tab="grants">
+<h2>{{localize "DDA.QualitySheet.ChoicesAndBenefits"}}</h2>
+
+<label class="quality-toggle-card">
+  <input type="checkbox" name="system.choices.enabled" {{checked system.choices.enabled}} />
+  {{localize "DDA.QualitySheet.HasChoices"}}
+</label>
+
+<h2>{{localize "DDA.QualitySheet.Activation"}}</h2>
+
+<label class="quality-toggle-card">
+  <input type="checkbox" name="system.activation.enabled" {{checked system.activation.enabled}} />
+  {{localize "DDA.QualitySheet.CanBeActivated"}}
+</label>
+
+<div class="grid-2 quality-activation-grid">
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.Mode"}}</label>
+    <select name="system.activation.mode">
+      <option value="toggle" {{#if (eq system.activation.mode "toggle")}}selected{{/if}}>{{localize "DDA.QualitySheet.ToggleMode"}}</option>
+      <option value="instant" {{#if (eq system.activation.mode "instant")}}selected{{/if}}>{{localize "DDA.QualitySheet.InstantUse"}}</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.CurrentState"}}</label>
+    <select name="system.activation.active">
+      <option value="false" {{#unless system.activation.active}}selected{{/unless}}>{{localize "DDA.QualitySheet.Inactive"}}</option>
+      <option value="true" {{#if system.activation.active}}selected{{/if}}>{{localize "DDA.QualitySheet.Active"}}</option>
+    </select>
+  </div>
+</div>
+
+<div class="form-group stacked">
+  <label>{{localize "DDA.QualitySheet.UseMessage"}}</label>
+  <textarea
+    name="system.activation.chatMessage"
+    placeholder="{{localize 'DDA.QualitySheet.Placeholder.UseMessage'}}"
+  >{{system.activation.chatMessage}}</textarea>
+</div>
+
+<h3>{{localize "DDA.Label.Uses"}}</h3>
+
+<label class="quality-toggle-card">
+  <input type="checkbox" name="system.uses.enabled" {{checked system.uses.enabled}} />
+  {{localize "DDA.QualitySheet.HasLimitedUses"}}
+</label>
+
+<div class="grid-2 quality-uses-grid">
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.CurrentUses"}}</label>
+    <input type="number" name="system.uses.value" value="{{system.uses.value}}" />
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.MaximumUses"}}</label>
+    <input type="number" name="system.uses.max" value="{{system.uses.max}}" />
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.Recharge"}}</label>
+    <select name="system.uses.recharge">
+      <option value="" {{#if (eq system.uses.recharge "")}}selected{{/if}}>{{localize "DDA.Label.None"}}</option>
+      <option value="turn" {{#if (eq system.uses.recharge "turn")}}selected{{/if}}>{{localize "DDA.Time.Turn"}}</option>
+      <option value="round" {{#if (eq system.uses.recharge "round")}}selected{{/if}}>{{localize "DDA.Time.Round"}}</option>
+      <option value="scene" {{#if (eq system.uses.recharge "scene")}}selected{{/if}}>{{localize "DDA.Time.Scene"}}</option>
+      <option value="session" {{#if (eq system.uses.recharge "session")}}selected{{/if}}>{{localize "DDA.Time.Session"}}</option>
+      <option value="rest" {{#if (eq system.uses.recharge "rest")}}selected{{/if}}>{{localize "DDA.Time.Rest"}}</option>
+      <option value="special" {{#if (eq system.uses.recharge "special")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.Special"}}</option>
+    </select>
+  </div>
+</div>
+
+<h3>{{localize "DDA.QualitySheet.CostAndFrequency"}}</h3>
+
+<div class="grid-2 quality-trigger-grid">
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.TimingLabel"}}</label>
+    <select name="system.trigger.timing">
+      <option value="">{{localize "DDA.Label.None"}}</option>
+      <option value="passive" {{#if (eq system.trigger.timing "passive")}}selected{{/if}}>{{localize "DDA.TamerTalent.UseType.Passive"}}</option>
+      <option value="onAttack" {{#if (eq system.trigger.timing "onAttack")}}selected{{/if}}>{{localize "DDA.QualitySheet.Timing.OnAttack"}}</option>
+      <option value="onHit" {{#if (eq system.trigger.timing "onHit")}}selected{{/if}}>{{localize "DDA.QualitySheet.Timing.OnHit"}}</option>
+      <option value="onDamage" {{#if (eq system.trigger.timing "onDamage")}}selected{{/if}}>{{localize "DDA.QualitySheet.Timing.OnDamage"}}</option>
+      <option value="onDefend" {{#if (eq system.trigger.timing "onDefend")}}selected{{/if}}>{{localize "DDA.QualitySheet.Timing.OnDefend"}}</option>
+      <option value="onDodge" {{#if (eq system.trigger.timing "onDodge")}}selected{{/if}}>{{localize "DDA.QualitySheet.Timing.OnDodge"}}</option>
+      <option value="startTurn" {{#if (eq system.trigger.timing "startTurn")}}selected{{/if}}>{{localize "DDA.QualitySheet.Timing.StartTurn"}}</option>
+      <option value="endTurn" {{#if (eq system.trigger.timing "endTurn")}}selected{{/if}}>{{localize "DDA.QualitySheet.Timing.EndTurn"}}</option>
+      <option value="other" {{#if (eq system.trigger.timing "other")}}selected{{/if}}>{{localize "DDA.QualitySheet.Other"}}</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DDA.Attack.ActionCost"}}</label>
+    <select name="system.trigger.actionCost">
+      <option value="">{{localize "DDA.Label.None"}}</option>
+      <option value="free" {{#if (eq system.trigger.actionCost "free")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.Free"}}</option>
+      <option value="reaction" {{#if (eq system.trigger.actionCost "reaction")}}selected{{/if}}>{{localize "DDA.QualitySheet.Reaction"}}</option>
+      <option value="1" {{#if (eq system.trigger.actionCost "1")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.One"}}</option>
+      <option value="2" {{#if (eq system.trigger.actionCost "2")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.Two"}}</option>
+      <option value="battery" {{#if (eq system.trigger.actionCost "battery")}}selected{{/if}}>{{localize "DDA.Resource.Battery"}}</option>
+      <option value="special" {{#if (eq system.trigger.actionCost "special")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.Special"}}</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.BatteryCost"}}</label>
+    <input type="number" name="system.trigger.batteryCost" value="{{system.trigger.batteryCost}}" min="0" />
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DDA.Label.Frequency"}}</label>
+    <select name="system.trigger.frequency">
+      <option value="">{{localize "DDA.Label.None"}}</option>
+      <option value="always" {{#if (eq system.trigger.frequency "always")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.Always"}}</option>
+      <option value="oncePerTurn" {{#if (eq system.trigger.frequency "oncePerTurn")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.OncePerTurn"}}</option>
+      <option value="oncePerRound" {{#if (eq system.trigger.frequency "oncePerRound")}}selected{{/if}}>{{localize "DDA.QualitySheet.Frequency.OncePerRound"}}</option>
+      <option value="oncePerScene" {{#if (eq system.trigger.frequency "oncePerScene")}}selected{{/if}}>{{localize "DDA.QualitySheet.Frequency.OncePerScene"}}</option>
+      <option value="oncePerSession" {{#if (eq system.trigger.frequency "oncePerSession")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.OncePerSession"}}</option>
+      <option value="limited" {{#if (eq system.trigger.frequency "limited")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.Limited"}}</option>
+      <option value="special" {{#if (eq system.trigger.frequency "special")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.Special"}}</option>
+    </select>
+  </div>
+</div>
+
+
+
+<div class="form-group">
+  <label>{{localize "DDA.QualitySheet.ChoiceTypeLabel"}}</label>
+  <select name="system.choices.type">
+    <option value="">{{localize "DDA.Label.None"}}</option>
+    <option value="element" {{#if (eq system.choices.type "element")}}selected{{/if}}>{{localize "DDA.QualitySheet.ChoiceType.Element"}}</option>
+    <option value="movement" {{#if (eq system.choices.type "movement")}}selected{{/if}}>{{localize "DDA.Resource.Movement"}}</option>
+    <option value="optimization" {{#if (eq system.choices.type "optimization")}}selected{{/if}}>{{localize "DDA.QualitySheet.ChoiceType.Optimization"}}</option>
+    <option value="attackTag" {{#if (eq system.choices.type "attackTag")}}selected{{/if}}>{{localize "DDA.QualitySheet.ChoiceType.AttackTag"}}</option>
+    <option value="effectTag" {{#if (eq system.choices.type "effectTag")}}selected{{/if}}>{{localize "DDA.AttackSheet.EffectTag"}}</option>
+    <option value="other" {{#if (eq system.choices.type "other")}}selected{{/if}}>{{localize "DDA.QualitySheet.Other"}}</option>
+  </select>
+</div>
+
+<div class="form-group stacked">
+  <label>{{localize "DDA.QualitySheet.MechanicalEffect"}}</label>
+  <textarea name="system.effect">{{system.effect}}</textarea>
+</div>
+
+<h2>{{localize "DDA.QualitySheet.GrantedDP"}}</h2>
+<p class="muted">
+  {{localize "DDA.QualitySheet.GrantedDPHint"}}
+</p>
+
+<div class="resource-grid">
+  <label class="resource-box checkbox-box">
+    <input type="checkbox" name="system.grants.dp.enabled" {{checked system.grants.dp.enabled}} />
+    {{localize "DDA.QualitySheet.GrantsDP"}}
+  </label>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.GrantedDP"}}</label>
+    <input type="number" name="system.grants.dp.value" value="{{system.grants.dp.value}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.TotalGranted"}}</label>
+    <input type="number" value="{{system.grants.dp.total}}" readonly />
+  </div>
+</div>
+
+<h2>{{localize "DDA.QualitySheet.AutomaticBonuses"}}</h2>
+
+<div class="resource-grid">
+  <div class="resource-box">
+    <label>{{localize "DDA.MainStat.Accuracy"}}</label>
+    <input type="number" name="system.grants.mainStats.accuracy" value="{{system.grants.mainStats.accuracy}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.MainStat.Damage"}}</label>
+    <input type="number" name="system.grants.mainStats.damage" value="{{system.grants.mainStats.damage}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.MainStat.Dodge"}}</label>
+    <input type="number" name="system.grants.mainStats.dodge" value="{{system.grants.mainStats.dodge}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.MainStat.Armor"}}</label>
+    <input type="number" name="system.grants.mainStats.armor" value="{{system.grants.mainStats.armor}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.MainStat.Health"}}</label>
+    <input type="number" name="system.grants.mainStats.health" value="{{system.grants.mainStats.health}}" />
+  </div>
+</div>
+
+<h2>{{localize "DDA.QualitySheet.BonusesPerRank"}}</h2>
+
+<div class="resource-grid">
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.AccuracyPerRank"}}</label>
+    <input type="number" name="system.grants.mainStatsPerRank.accuracy" value="{{system.grants.mainStatsPerRank.accuracy}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.DamagePerRank"}}</label>
+    <input type="number" name="system.grants.mainStatsPerRank.damage" value="{{system.grants.mainStatsPerRank.damage}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.DodgePerRank"}}</label>
+    <input type="number" name="system.grants.mainStatsPerRank.dodge" value="{{system.grants.mainStatsPerRank.dodge}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.ArmorPerRank"}}</label>
+    <input type="number" name="system.grants.mainStatsPerRank.armor" value="{{system.grants.mainStatsPerRank.armor}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.HealthPerRank"}}</label>
+    <input type="number" name="system.grants.mainStatsPerRank.health" value="{{system.grants.mainStatsPerRank.health}}" />
+  </div>
+</div>
+
+<h2>{{localize "DDA.QualitySheet.MiscBonuses"}}</h2>
+
+<div class="resource-grid">
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.FixedMovement"}}</label>
+    <input
+      type="number"
+      name="system.grants.miscStats.movement"
+      value="{{system.grants.miscStats.movement}}"
+    />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.MovementPerRank"}}</label>
+    <input
+      type="number"
+      name="system.grants.miscStats.movementPerRank"
+      value="{{system.grants.miscStats.movementPerRank}}"
+    />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.SkillBonus"}}</label>
+    <input
+      type="number"
+      name="system.grants.skillBonus"
+      value="{{system.grants.skillBonus}}"
+    />
+  </div>
+</div>
+
+
+<h2>{{localize "DDA.QualitySheet.AttackApplication"}}</h2>
+
+<label class="quality-toggle-card">
+  <input type="checkbox" name="system.attackModifier.enabled" {{checked system.attackModifier.enabled}} />
+  {{localize "DDA.QualitySheet.ModifiesAttacks"}}
+</label>
+
+<div class="grid-2 quality-attack-modifier-grid">
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.AppliesTo"}}</label>
+<select name="system.attackModifier.appliesTo">
+  <option value="" {{#if (eq system.attackModifier.appliesTo "")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.None"}}
+  </option>
+
+  <option value="all" {{#if (eq system.attackModifier.appliesTo "all")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.AllAttacks"}}
+  </option>
+
+  <option value="melee" {{#if (eq system.attackModifier.appliesTo "melee")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.Melee"}}
+  </option>
+
+  <option value="range" {{#if (eq system.attackModifier.appliesTo "range")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.Ranged"}}
+  </option>
+
+  <option value="damage" {{#if (eq system.attackModifier.appliesTo "damage")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.DamageAttacks"}}
+  </option>
+
+  <option value="support" {{#if (eq system.attackModifier.appliesTo "support")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.SupportAttacks"}}
+  </option>
+
+  <option value="signature" {{#if (eq system.attackModifier.appliesTo "signature")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.SignatureMove"}}
+  </option>
+
+  <option value="oneAttack" {{#if (eq system.attackModifier.appliesTo "oneAttack")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.OneAttack"}}
+  </option>
+
+  <option value="oneDamageAttack" {{#if (eq system.attackModifier.appliesTo "oneDamageAttack")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.OneDamageAttack"}}
+  </option>
+
+  <option value="oneMeleeAttack" {{#if (eq system.attackModifier.appliesTo "oneMeleeAttack")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.OneMeleeAttack"}}
+  </option>
+
+  <option value="oneRangedAttack" {{#if (eq system.attackModifier.appliesTo "oneRangedAttack")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.OneRangedAttack"}}
+  </option>
+
+  <option value="differentAttackPerRank" {{#if (eq system.attackModifier.appliesTo "differentAttackPerRank")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.DifferentAttackPerRank"}}
+  </option>
+
+  <option value="taggedAttack" {{#if (eq system.attackModifier.appliesTo "taggedAttack")}}selected{{/if}}>
+    {{localize "DDA.Attack.AppliesTo.TaggedAttack"}}
+  </option>
+</select>
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DDA.QualitySheet.GrantedEffectTag"}}</label>
+    <select name="system.attackModifier.effectTag">
+      <option value="">{{localize "DDA.Label.None"}}</option>
+
+      <optgroup label="{{localize 'DDA.EffectGroup.ActionControl'}}">
+        <option value="stun" {{#if (eq system.attackModifier.effectTag "stun")}}selected{{/if}}>{{localize "DDA.EffectOption.Stun"}}</option>
+        <option value="paralyze" {{#if (eq system.attackModifier.effectTag "paralyze")}}selected{{/if}}>{{localize "DDA.EffectOption.Paralyze"}}</option>
+        <option value="freeze" {{#if (eq system.attackModifier.effectTag "freeze")}}selected{{/if}}>{{localize "DDA.EffectOption.Freeze"}}</option>
+        <option value="root" {{#if (eq system.attackModifier.effectTag "root")}}selected{{/if}}>{{localize "DDA.EffectOption.Root"}}</option>
+      </optgroup>
+
+      <optgroup label="{{localize 'DDA.EffectGroup.OngoingDamageRecovery'}}">
+        <option value="burn" {{#if (eq system.attackModifier.effectTag "burn")}}selected{{/if}}>{{localize "DDA.EffectOption.Burn"}}</option>
+        <option value="poison" {{#if (eq system.attackModifier.effectTag "poison")}}selected{{/if}}>{{localize "DDA.EffectOption.Poison"}}</option>
+        <option value="ruin" {{#if (eq system.attackModifier.effectTag "ruin")}}selected{{/if}}>{{localize "DDA.EffectOption.Ruin"}}</option>
+        <option value="regen" {{#if (eq system.attackModifier.effectTag "regen")}}selected{{/if}}>{{localize "DDA.EffectOption.Regen"}}</option>
+      </optgroup>
+
+      <optgroup label="{{localize 'DDA.EffectGroup.DefenseProtection'}}">
+        <option value="shield" {{#if (eq system.attackModifier.effectTag "shield")}}selected{{/if}}>{{localize "DDA.EffectOption.Shield"}}</option>
+        <option value="immune" {{#if (eq system.attackModifier.effectTag "immune")}}selected{{/if}}>{{localize "DDA.EffectOption.Immune"}}</option>
+        <option value="sturdy" {{#if (eq system.attackModifier.effectTag "sturdy")}}selected{{/if}}>{{localize "DDA.EffectOption.Sturdy"}}</option>
+        <option value="swift" {{#if (eq system.attackModifier.effectTag "swift")}}selected{{/if}}>{{localize "DDA.EffectOption.Swift"}}</option>
+        <option value="vigil" {{#if (eq system.attackModifier.effectTag "vigil")}}selected{{/if}}>{{localize "DDA.EffectOption.Vigil"}}</option>
+      </optgroup>
+
+      <optgroup label="{{localize 'DDA.EffectGroup.OffensiveBonuses'}}">
+        <option value="keen" {{#if (eq system.attackModifier.effectTag "keen")}}selected{{/if}}>{{localize "DDA.EffectOption.Keen"}}</option>
+        <option value="sharpen" {{#if (eq system.attackModifier.effectTag "sharpen")}}selected{{/if}}>{{localize "DDA.EffectOption.Sharpen"}}</option>
+        <option value="strength" {{#if (eq system.attackModifier.effectTag "strength")}}selected{{/if}}>{{localize "DDA.EffectOption.Strength"}}</option>
+        <option value="fury" {{#if (eq system.attackModifier.effectTag "fury")}}selected{{/if}}>{{localize "DDA.EffectOption.Fury"}}</option>
+        <option value="daring" {{#if (eq system.attackModifier.effectTag "daring")}}selected{{/if}}>{{localize "DDA.EffectOption.Daring"}}</option>
+      </optgroup>
+
+      <optgroup label="{{localize 'DDA.EffectGroup.CombatPenalties'}}">
+        <option value="vague" {{#if (eq system.attackModifier.effectTag "vague")}}selected{{/if}}>{{localize "DDA.EffectOption.Vague"}}</option>
+        <option value="dull" {{#if (eq system.attackModifier.effectTag "dull")}}selected{{/if}}>{{localize "DDA.EffectOption.Dull"}}</option>
+        <option value="frail" {{#if (eq system.attackModifier.effectTag "frail")}}selected{{/if}}>{{localize "DDA.EffectOption.Frail"}}</option>
+        <option value="blind" {{#if (eq system.attackModifier.effectTag "blind")}}selected{{/if}}>{{localize "DDA.EffectOption.Blind"}}</option>
+        <option value="weak" {{#if (eq system.attackModifier.effectTag "weak")}}selected{{/if}}>{{localize "DDA.EffectOption.Weak"}}</option>
+      </optgroup>
+
+      <optgroup label="{{localize 'DDA.EffectGroup.MovementPositioning'}}">
+        <option value="tailwind" {{#if (eq system.attackModifier.effectTag "tailwind")}}selected{{/if}}>{{localize "DDA.EffectOption.Tailwind"}}</option>
+        <option value="push" {{#if (eq system.attackModifier.effectTag "push")}}selected{{/if}}>{{localize "DDA.EffectOption.Push"}}</option>
+        <option value="pull" {{#if (eq system.attackModifier.effectTag "pull")}}selected{{/if}}>{{localize "DDA.EffectOption.Pull"}}</option>
+        <option value="nimble" {{#if (eq system.attackModifier.effectTag "nimble")}}selected{{/if}}>{{localize "DDA.EffectOption.Nimble"}}</option>
+        <option value="heavy" {{#if (eq system.attackModifier.effectTag "heavy")}}selected{{/if}}>{{localize "DDA.EffectOption.Heavy"}}</option>
+      </optgroup>
+
+      <optgroup label="{{localize 'DDA.EffectGroup.MentalSocialInterference'}}">
+        <option value="fear" {{#if (eq system.attackModifier.effectTag "fear")}}selected{{/if}}>{{localize "DDA.EffectOption.Fear"}}</option>
+        <option value="confuse" {{#if (eq system.attackModifier.effectTag "confuse")}}selected{{/if}}>{{localize "DDA.EffectOption.Confuse"}}</option>
+        <option value="distract" {{#if (eq system.attackModifier.effectTag "distract")}}selected{{/if}}>{{localize "DDA.EffectOption.Distract"}}</option>
+        <option value="shaken" {{#if (eq system.attackModifier.effectTag "shaken")}}selected{{/if}}>{{localize "DDA.EffectOption.Shaken"}}</option>
+        <option value="rattled" {{#if (eq system.attackModifier.effectTag "rattled")}}selected{{/if}}>{{localize "DDA.EffectOption.Rattled"}}</option>
+        <option value="taunt" {{#if (eq system.attackModifier.effectTag "taunt")}}selected{{/if}}>{{localize "DDA.EffectOption.Taunt"}}</option>
+        <option value="pacify" {{#if (eq system.attackModifier.effectTag "pacify")}}selected{{/if}}>{{localize "DDA.EffectOption.Pacify"}}</option>
+      </optgroup>
+
+      <optgroup label="{{localize 'DDA.EffectGroup.Special'}}">
+        <option value="cleanse" {{#if (eq system.attackModifier.effectTag "cleanse")}}selected{{/if}}>{{localize "DDA.EffectOption.Cleanse"}}</option>
+        <option value="exploit" {{#if (eq system.attackModifier.effectTag "exploit")}}selected{{/if}}>{{localize "DDA.EffectOption.Exploit"}}</option>
+        <option value="doom" {{#if (eq system.attackModifier.effectTag "doom")}}selected{{/if}}>{{localize "DDA.EffectOption.Doom"}}</option>
+        <option value="deny" {{#if (eq system.attackModifier.effectTag "deny")}}selected{{/if}}>{{localize "DDA.EffectOption.Deny"}}</option>
+        <option value="dot" {{#if (eq system.attackModifier.effectTag "dot")}}selected{{/if}}>{{localize "DDA.EffectOption.Dot"}}</option>
+        <option value="zero" {{#if (eq system.attackModifier.effectTag "zero")}}selected{{/if}}>{{localize "DDA.EffectOption.Zero"}}</option>
+      </optgroup>
+    </select>
+  </div>
+</div>
+
+<div class="resource-grid quality-attack-bonus-grid">
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.AccuracyBonus"}}</label>
+    <input type="number" name="system.attackModifier.accuracyBonus" value="{{system.attackModifier.accuracyBonus}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.DamageBonus"}}</label>
+    <input type="number" name="system.attackModifier.damageBonus" value="{{system.attackModifier.damageBonus}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.Attack.AttackUnalterableDamage"}}</label>
+    <input type="number" name="system.attackModifier.unalterableDamage" value="{{system.attackModifier.unalterableDamage}}" />
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.QualitySheet.ExtraCost"}}</label>
+    <input type="number" name="system.attackModifier.extraActionCost" value="{{system.attackModifier.extraActionCost}}" />
+  </div>
+</div>
+
+{{#if attackChoice.enabled}}
+<div class="form-group stacked dda-quality-attack-choice">
+<label>
+  {{localize "DDA.QualitySheet.ChosenAttack"}}
+  {{#if attackChoice.grantedTagLabel}}
+    <span class="tag">{{attackChoice.grantedTagLabel}}</span>
+  {{/if}}
+</label>
+
+  {{#if attackChoice.hasAvailableAttacks}}
+    <select data-action="select-quality-attack">
+      <option value="">{{localize "DDA.Label.None"}}</option>
+      {{#each attackChoice.availableAttacks as |attack|}}
+        <option value="{{attack.id}}" {{#if attack.selected}}selected{{/if}}>
+          {{attack.name}}
+        </option>
+      {{/each}}
+    </select>
+
+    {{#if attackChoice.selectedAttackMissing}}
+      <p class="muted warning">{{attackChoice.missingWarning}}</p>
+    {{/if}}
+  {{else}}
+    <p class="muted warning">{{attackChoice.emptyWarning}}</p>
+  {{/if}}
+</div>
+{{/if}}
+
+<div class="form-group stacked">
+  <label>{{localize "DDA.QualitySheet.ModificationNote"}}</label>
+  <textarea name="system.attackModifier.notes">{{system.attackModifier.notes}}</textarea>
+</div>
+
+    </section>
+
+    <section class="tab dda-quality-notes-tab" data-group="primary" data-tab="notes">
+  <h2>{{localize "DDA.Label.Description"}}</h2>
+      <textarea name="system.description">{{system.description}}</textarea>
+
+<h2>{{localize "DDA.TamerSheet.Notes"}}</h2>
+      <textarea name="system.notes">{{system.notes}}</textarea>
+    </section>
+  </section>
+</form>

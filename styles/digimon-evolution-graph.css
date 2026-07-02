@@ -1,0 +1,3274 @@
+/* ===================================================== */
+/* DDA — Digimon Evolution Solar Graph                   */
+/* CSS isolado para o grafo evolutivo da ficha Digimon   */
+/* ===================================================== */
+
+.dda-digimon-sheet .dda-evolution-tab {
+  --dda-graph-blue: #54c8ff;
+  --dda-graph-blue-soft: rgba(84, 200, 255, 0.28);
+  --dda-graph-ink: #0c263e;
+  --dda-graph-paper: rgba(237, 248, 255, 0.92);
+  --dda-graph-panel: rgba(8, 32, 58, 0.94);
+
+  padding: 0.35rem 0.15rem 0.85rem !important;
+}
+
+.dda-digimon-sheet .dda-evolution-graph-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  gap: 0.75rem !important;
+
+  margin: 0 0 0.75rem !important;
+  padding: 0.65rem 0.75rem !important;
+
+  color: #f4fbff !important;
+  background:
+    linear-gradient(90deg, rgba(5, 28, 55, 0.98), rgba(10, 70, 120, 0.82)),
+    repeating-linear-gradient(90deg, rgba(130, 220, 255, 0.09) 0, rgba(130, 220, 255, 0.09) 1px, transparent 1px, transparent 12px) !important;
+
+  border: 1px solid rgba(105, 190, 245, 0.44) !important;
+  border-radius: 8px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(180, 235, 255, 0.08),
+    0 3px 10px rgba(0, 0, 0, 0.16) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-graph-header h2 {
+  margin: 0 0 0.2rem !important;
+  color: #f4fbff !important;
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  border: none !important;
+}
+
+.dda-digimon-sheet .dda-evolution-graph-header .muted {
+  margin: 0 !important;
+  color: rgba(225, 245, 255, 0.74) !important;
+  opacity: 1 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-graph-header button,
+.dda-digimon-sheet .dda-evolution-link-panel button,
+.dda-digimon-sheet .dda-evolution-graph-toolbar button,
+.dda-digimon-sheet .dda-evolution-node-actions button {
+  color: #f3fbff !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(16, 78, 118, 0.98), rgba(5, 36, 64, 0.98)) !important;
+
+  border: 1px solid rgba(145, 220, 255, 0.44) !important;
+  border-radius: 7px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(210, 245, 255, 0.08),
+    inset 0 -8px 14px rgba(0, 120, 210, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.18) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-graph-header button:hover,
+.dda-digimon-sheet .dda-evolution-link-panel button:hover,
+.dda-digimon-sheet .dda-evolution-graph-toolbar button:hover,
+.dda-digimon-sheet .dda-evolution-node-actions button:hover {
+  color: #ffffff !important;
+  background:
+    linear-gradient(180deg, rgba(34, 116, 164, 1), rgba(10, 58, 94, 1)) !important;
+  border-color: rgba(195, 240, 255, 0.72) !important;
+  text-shadow: 0 0 5px rgba(120, 220, 255, 0.45) !important;
+}
+
+.dda-digimon-sheet .evolution-solar-drop-zone {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.2rem !important;
+
+  margin: 0 0 0.65rem !important;
+  padding: 0.7rem 0.8rem !important;
+
+  color: #153c58 !important;
+  text-align: center !important;
+
+  background:
+    linear-gradient(180deg, rgba(245, 251, 255, 0.96), rgba(222, 240, 250, 0.90)) !important;
+  border: 1px dashed rgba(35, 115, 175, 0.58) !important;
+  border-radius: 8px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    inset 0 0 14px rgba(80, 165, 220, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.08) !important;
+}
+
+.dda-digimon-sheet .evolution-solar-drop-zone.drag-hover {
+  background:
+    linear-gradient(180deg, rgba(238, 252, 255, 1), rgba(190, 232, 250, 0.95)) !important;
+  border-style: solid !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.68),
+    0 0 14px rgba(80, 180, 255, 0.26) !important;
+}
+
+.dda-digimon-sheet .evolution-solar-drop-zone strong {
+  color: #123854 !important;
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-digimon-sheet .evolution-solar-drop-zone span {
+  color: #345d74 !important;
+  font-size: 0.78rem !important;
+}
+
+.dda-digimon-sheet .dda-evolution-link-panel {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto !important;
+  gap: 0.55rem !important;
+  align-items: end !important;
+
+  margin: 0 0 0.65rem !important;
+  padding: 0.7rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(226, 240, 248, 0.90)) !important;
+  border: 1px solid rgba(35, 75, 105, 0.28) !important;
+  border-radius: 8px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 3px 10px rgba(0, 0, 0, 0.12) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-link-panel .form-group {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.25rem !important;
+  margin: 0 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-link-panel label {
+  min-width: 0 !important;
+  color: #1d4865 !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-digimon-sheet .dda-evolution-link-panel select {
+  width: 100% !important;
+  height: 32px !important;
+  color: #17384f !important;
+  background:
+    linear-gradient(180deg, rgba(250, 253, 255, 0.96), rgba(222, 238, 248, 0.92)) !important;
+  border: 1px solid rgba(45, 100, 135, 0.34) !important;
+  border-radius: 6px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-graph-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+
+  margin: 0 0 0.55rem !important;
+  padding: 0.45rem 0.55rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(8, 32, 58, 0.96), rgba(5, 22, 42, 0.96)) !important;
+  border: 1px solid rgba(100, 195, 255, 0.34) !important;
+  border-radius: 8px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(180, 230, 255, 0.06),
+    0 2px 7px rgba(0, 0, 0, 0.14) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-graph-toolbar button {
+  min-width: 34px !important;
+  height: 30px !important;
+  padding: 0 0.65rem !important;
+  font-size: 0.86rem !important;
+}
+
+.dda-digimon-sheet .dda-evolution-graph-toolbar span {
+  margin-left: auto !important;
+  color: rgba(225, 245, 255, 0.72) !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.035em !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-viewport {
+  position: relative !important;
+  height: 560px !important;
+  min-height: 420px !important;
+  max-height: 70vh !important;
+
+  overflow: hidden !important;
+  cursor: grab !important;
+
+  background:
+    radial-gradient(circle at 50% 50%, rgba(70, 190, 255, 0.14), transparent 38%),
+    repeating-linear-gradient(0deg, rgba(125, 210, 255, 0.045) 0, rgba(125, 210, 255, 0.045) 1px, transparent 1px, transparent 18px),
+    repeating-linear-gradient(90deg, rgba(125, 210, 255, 0.04) 0, rgba(125, 210, 255, 0.04) 1px, transparent 1px, transparent 18px),
+    linear-gradient(180deg, rgba(5, 20, 38, 0.98), rgba(2, 10, 22, 0.98)) !important;
+
+  border: 1px solid rgba(105, 190, 245, 0.36) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(180, 235, 255, 0.05),
+    inset 0 0 40px rgba(0, 140, 255, 0.08),
+    0 4px 14px rgba(0, 0, 0, 0.18) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-viewport.is-panning {
+  cursor: grabbing !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-map {
+  position: relative !important;
+  margin: 0 !important;
+  transform-origin: 0 0 !important;
+  transition: transform 0.08s linear !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring {
+  position: absolute !important;
+  border: 1px solid rgba(120, 215, 255, 0.18) !important;
+  border-radius: 9999px !important;
+  pointer-events: none !important;
+  box-shadow:
+    inset 0 0 18px rgba(80, 180, 255, 0.035),
+    0 0 14px rgba(80, 180, 255, 0.04) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring span {
+  position: absolute !important;
+  left: 50% !important;
+  top: -0.55rem !important;
+  transform: translateX(-50%) !important;
+
+  padding: 0.1rem 0.45rem !important;
+  color: rgba(225, 245, 255, 0.78) !important;
+  font-size: 0.62rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+
+  background: rgba(5, 20, 38, 0.92) !important;
+  border: 1px solid rgba(120, 215, 255, 0.20) !important;
+  border-radius: 999px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-lines {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+  overflow: visible !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge {
+  stroke: rgba(85, 205, 255, 0.60) !important;
+  stroke-width: 3 !important;
+  stroke-linecap: round !important;
+  filter: drop-shadow(0 0 4px rgba(80, 190, 255, 0.35));
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-slide {
+  stroke: rgba(195, 125, 255, 0.78) !important;
+  stroke-dasharray: 8 5 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-warp {
+  stroke: rgba(255, 205, 72, 0.86) !important;
+  stroke-width: 4 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-dark {
+  stroke: rgba(255, 76, 105, 0.86) !important;
+  stroke-width: 4 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-armor {
+  stroke: rgba(105, 225, 150, 0.82) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-jogress {
+  stroke: rgba(120, 235, 255, 0.90) !important;
+  stroke-width: 4 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node {
+  position: absolute !important;
+  width: 92px !important;
+  min-height: 116px !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.18rem !important;
+
+  padding: 0.42rem 0.35rem !important;
+  color: #12324a !important;
+
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.96), rgba(214, 238, 252, 0.95) 48%, rgba(124, 195, 230, 0.86) 100%) !important;
+
+  border: 2px solid rgba(95, 190, 245, 0.66) !important;
+  border-radius: 999px 999px 18px 18px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.68),
+    inset 0 -10px 16px rgba(0, 95, 160, 0.12),
+    0 0 0 1px rgba(120, 220, 255, 0.18),
+    0 4px 10px rgba(0, 0, 0, 0.22),
+    0 0 14px rgba(80, 190, 255, 0.16) !important;
+
+  transform: translate(-50%, -50%) !important;
+  overflow: visible !important;
+  cursor: pointer !important;
+  z-index: 4 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node:hover {
+  filter: brightness(1.08) !important;
+  border-color: rgba(190, 245, 255, 0.86) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.78),
+    inset 0 -10px 16px rgba(0, 95, 160, 0.12),
+    0 4px 10px rgba(0, 0, 0, 0.22),
+    0 0 18px rgba(90, 210, 255, 0.34) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node.is-self {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 1), rgba(255, 244, 190, 0.96) 48%, rgba(245, 185, 70, 0.88) 100%) !important;
+  border-color: rgba(255, 230, 120, 0.90) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.82),
+    inset 0 -10px 16px rgba(120, 75, 0, 0.12),
+    0 0 0 2px rgba(255, 220, 90, 0.20),
+    0 4px 10px rgba(0, 0, 0, 0.22),
+    0 0 22px rgba(255, 205, 80, 0.38) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node img {
+  width: 46px !important;
+  height: 46px !important;
+  object-fit: contain !important;
+  object-position: center !important;
+
+  background: rgba(255, 255, 255, 0.34) !important;
+  border: 1px solid rgba(45, 100, 135, 0.28) !important;
+  border-radius: 999px !important;
+  box-shadow:
+    inset 0 0 6px rgba(0, 0, 0, 0.08),
+    0 1px 4px rgba(0, 0, 0, 0.14) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node strong {
+  display: block !important;
+  max-width: 78px !important;
+  overflow: hidden !important;
+  color: #102f46 !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+  text-align: center !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  max-width: 78px !important;
+  padding: 0.08rem 0.38rem !important;
+  color: #eaf8ff !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(18, 76, 112, 0.95), rgba(5, 36, 62, 0.95)) !important;
+  border: 1px solid rgba(145, 220, 255, 0.36) !important;
+  border-radius: 999px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node-actions {
+  display: flex !important;
+  justify-content: center !important;
+  gap: 0.25rem !important;
+  margin-top: 0.15rem !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node-actions button {
+  min-width: 0 !important;
+  height: 20px !important;
+  padding: 0 0.28rem !important;
+  font-size: 0.54rem !important;
+  line-height: 20px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node::after {
+  content: attr(data-evolution-tooltip);
+  position: absolute !important;
+  left: 50% !important;
+  bottom: calc(100% + 8px) !important;
+  transform: translateX(-50%) !important;
+
+  display: none !important;
+  min-width: max-content !important;
+  max-width: 240px !important;
+  padding: 0.35rem 0.55rem !important;
+
+  color: #eef7ff !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+
+  background:
+    linear-gradient(180deg, rgba(8, 42, 75, 0.98), rgba(4, 25, 48, 0.98)) !important;
+  border: 1px solid rgba(130, 220, 255, 0.42) !important;
+  border-radius: 6px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(210, 245, 255, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.28) !important;
+
+  pointer-events: none !important;
+  z-index: 999 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node:hover::after {
+  display: block !important;
+}
+
+.dda-digimon-sheet .dda-evolution-empty {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+
+  margin: 0 !important;
+  padding: 0.8rem 1rem !important;
+  color: rgba(225, 245, 255, 0.78) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+
+  background: rgba(5, 20, 38, 0.82) !important;
+  border: 1px solid rgba(130, 220, 255, 0.28) !important;
+  border-radius: 8px !important;
+}
+
+@media (max-width: 860px) {
+  .dda-digimon-sheet .dda-evolution-link-panel {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dda-digimon-sheet .dda-evolution-graph-toolbar {
+    flex-wrap: wrap !important;
+  }
+
+  .dda-digimon-sheet .dda-evolution-graph-toolbar span {
+    flex: 1 1 100% !important;
+    margin-left: 0 !important;
+  }
+
+  .dda-digimon-sheet .dda-evolution-solar-viewport {
+    height: 460px !important;
+  }
+}
+
+/* ===================================================== */
+/* DDA — Evolution Graph: orbit refinement               */
+/* Nodes menores, órbitas mais abertas e pan limitado    */
+/* ===================================================== */
+
+.dda-digimon-sheet .dda-evolution-solar-viewport {
+  height: 560px !important;
+  min-height: 500px !important;
+  max-height: 64vh !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+
+  background:
+    radial-gradient(circle at 50% 50%, rgba(210, 242, 255, 0.62), rgba(202, 234, 250, 0.56) 38%, rgba(180, 216, 238, 0.48) 100%),
+    repeating-linear-gradient(0deg, rgba(52, 148, 210, 0.10) 0, rgba(52, 148, 210, 0.10) 1px, transparent 1px, transparent 18px),
+    repeating-linear-gradient(90deg, rgba(52, 148, 210, 0.10) 0, rgba(52, 148, 210, 0.10) 1px, transparent 1px, transparent 18px),
+    linear-gradient(180deg, rgba(222, 241, 250, 0.96), rgba(198, 225, 242, 0.94)) !important;
+
+  border: 1px solid rgba(65, 150, 205, 0.48) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.38),
+    inset 0 0 38px rgba(30, 120, 190, 0.12),
+    0 4px 14px rgba(0, 0, 0, 0.16) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-viewport::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 10px !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+
+  border: 1px solid rgba(55, 145, 205, 0.10) !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 0 28px rgba(255, 255, 255, 0.18) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-map {
+  background: transparent !important;
+  overflow: visible !important;
+  z-index: 1 !important;
+  will-change: transform !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring {
+  border: 1px dashed rgba(38, 126, 190, 0.26) !important;
+  background: transparent !important;
+  box-shadow:
+    inset 0 0 24px rgba(80, 180, 255, 0.030),
+    0 0 18px rgba(80, 180, 255, 0.035) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 50% auto auto 50% !important;
+  width: 5px !important;
+  height: 5px !important;
+  transform: translate(-50%, -50%) !important;
+  border-radius: 999px !important;
+  background: rgba(35, 125, 190, 0.18) !important;
+  box-shadow: 0 0 10px rgba(60, 170, 235, 0.18) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring span {
+  top: -0.68rem !important;
+  padding: 0.08rem 0.5rem !important;
+  color: rgba(20, 68, 100, 0.84) !important;
+  font-size: 0.62rem !important;
+  background: rgba(237, 249, 255, 0.90) !important;
+  border: 1px solid rgba(55, 145, 205, 0.24) !important;
+  box-shadow: 0 1px 4px rgba(0, 40, 70, 0.08) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-lines {
+  z-index: 2 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge {
+  stroke: rgba(25, 128, 190, 0.44) !important;
+  stroke-width: 2.25 !important;
+  filter: drop-shadow(0 0 3px rgba(80, 190, 255, 0.18)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-slide {
+  stroke: rgba(130, 86, 210, 0.58) !important;
+  stroke-dasharray: 7 6 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-warp {
+  stroke: rgba(210, 150, 36, 0.72) !important;
+  stroke-width: 3 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-dark {
+  stroke: rgba(205, 52, 80, 0.72) !important;
+  stroke-width: 3 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node {
+  width: 68px !important;
+  height: 78px !important;
+  min-height: 0 !important;
+
+  display: grid !important;
+  grid-template-rows: 37px 17px 15px !important;
+  justify-items: center !important;
+  align-items: center !important;
+  gap: 1px !important;
+
+  padding: 5px 4px 4px !important;
+  color: #103148 !important;
+
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.10) 0, rgba(255, 255, 255, 0.10) 1px, transparent 1px, transparent 5px),
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.98), rgba(223, 245, 255, 0.96) 42%, rgba(130, 208, 242, 0.92) 72%, rgba(46, 132, 190, 0.92) 100%) !important;
+
+  border: 2px solid rgba(62, 160, 225, 0.70) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.70),
+    inset 0 -9px 14px rgba(0, 82, 140, 0.14),
+    0 0 0 1px rgba(145, 225, 255, 0.22),
+    0 3px 8px rgba(0, 30, 55, 0.20),
+    0 0 13px rgba(72, 182, 242, 0.16) !important;
+
+  transform: translate(-50%, -50%) !important;
+  overflow: visible !important;
+  cursor: pointer !important;
+  z-index: 5 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 6px !important;
+  left: 13px !important;
+  width: 30px !important;
+  height: 12px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.06)) !important;
+  transform: rotate(-16deg) !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node:hover {
+  filter: brightness(1.08) saturate(1.07) !important;
+  border-color: rgba(225, 250, 255, 0.92) !important;
+  z-index: 20 !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.82),
+    inset 0 -9px 14px rgba(0, 82, 140, 0.14),
+    0 4px 10px rgba(0, 30, 55, 0.24),
+    0 0 20px rgba(90, 210, 255, 0.36) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node.is-self {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.12) 0, rgba(255, 255, 255, 0.12) 1px, transparent 1px, transparent 5px),
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 1), rgba(255, 244, 196, 0.98) 42%, rgba(255, 205, 88, 0.94) 72%, rgba(210, 138, 32, 0.92) 100%) !important;
+  border-color: rgba(255, 232, 128, 0.95) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.84),
+    inset 0 -9px 14px rgba(125, 80, 0, 0.14),
+    0 0 0 2px rgba(255, 220, 90, 0.22),
+    0 4px 10px rgba(0, 30, 55, 0.24),
+    0 0 22px rgba(255, 205, 80, 0.40) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node img {
+  position: relative !important;
+  z-index: 2 !important;
+  width: 34px !important;
+  height: 34px !important;
+  object-fit: contain !important;
+  object-position: center !important;
+
+  background: rgba(255, 255, 255, 0.30) !important;
+  border: none !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  image-rendering: pixelated !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node strong {
+  position: relative !important;
+  z-index: 2 !important;
+  display: block !important;
+  max-width: 60px !important;
+  overflow: hidden !important;
+  color: #092a42 !important;
+  font-size: 0.62rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.58) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node span {
+  position: relative !important;
+  z-index: 2 !important;
+  max-width: 58px !important;
+  height: 14px !important;
+  padding: 0 0.28rem !important;
+  color: #eaf8ff !important;
+  font-size: 0.50rem !important;
+  line-height: 13px !important;
+
+  background:
+    linear-gradient(180deg, rgba(18, 76, 112, 0.95), rgba(5, 36, 62, 0.95)) !important;
+  border: 1px solid rgba(145, 220, 255, 0.34) !important;
+  border-radius: 999px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node-actions {
+  position: absolute !important;
+  left: 50% !important;
+  top: calc(100% + 4px) !important;
+  transform: translateX(-50%) !important;
+
+  display: none !important;
+  justify-content: center !important;
+  gap: 0.2rem !important;
+  margin: 0 !important;
+  z-index: 30 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node:hover .dda-evolution-node-actions {
+  display: flex !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node-actions button {
+  min-width: 0 !important;
+  height: 18px !important;
+  padding: 0 0.26rem !important;
+  font-size: 0.48rem !important;
+  line-height: 18px !important;
+  border-radius: 5px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node::after {
+  bottom: calc(100% + 10px) !important;
+  max-width: 280px !important;
+  padding: 0.38rem 0.6rem !important;
+  color: #eef7ff !important;
+  font-size: 0.68rem !important;
+  background:
+    linear-gradient(180deg, rgba(8, 42, 75, 0.98), rgba(4, 25, 48, 0.98)) !important;
+  border: 1px solid rgba(130, 220, 255, 0.42) !important;
+  border-radius: 7px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-empty {
+  color: rgba(20, 68, 100, 0.78) !important;
+  background: rgba(237, 249, 255, 0.86) !important;
+  border: 1px solid rgba(55, 145, 205, 0.24) !important;
+}
+
+@media (max-width: 860px) {
+  .dda-digimon-sheet .dda-evolution-solar-viewport {
+    height: 500px !important;
+  }
+}
+
+/* ===================================================== */
+/* DDA — Evolution Graph: viewport limitado e legível     */
+/* ===================================================== */
+
+.dda-digimon-sheet .dda-evolution-graph-toolbar output[data-evolution-zoom-output] {
+  flex: 0 0 auto !important;
+  min-width: 44px !important;
+  height: 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-left: 0.35rem !important;
+  color: #dff7ff !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  background: rgba(3, 18, 34, 0.72) !important;
+  border: 1px solid rgba(120, 215, 255, 0.28) !important;
+  border-radius: 999px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-viewport {
+  height: 600px !important;
+  min-height: 520px !important;
+  max-height: 72vh !important;
+  overflow: hidden !important;
+
+  background:
+    linear-gradient(180deg, rgba(4, 16, 32, 0.96), rgba(2, 9, 20, 0.98)) !important;
+
+  border: 2px solid rgba(75, 170, 230, 0.48) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(220, 250, 255, 0.05),
+    inset 0 0 42px rgba(0, 115, 210, 0.10),
+    0 4px 14px rgba(0, 0, 0, 0.20) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-viewport::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 10px !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+
+  background:
+    repeating-linear-gradient(0deg, rgba(125, 210, 255, 0.035) 0, rgba(125, 210, 255, 0.035) 1px, transparent 1px, transparent 18px),
+    repeating-linear-gradient(90deg, rgba(125, 210, 255, 0.035) 0, rgba(125, 210, 255, 0.035) 1px, transparent 1px, transparent 18px) !important;
+
+  border: 1px solid rgba(110, 205, 255, 0.12) !important;
+  border-radius: 8px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-viewport::after {
+  content: "Área do Grafo — arraste Digimon aqui" !important;
+  position: absolute !important;
+  left: 12px !important;
+  bottom: 10px !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+
+  padding: 0.18rem 0.5rem !important;
+  color: rgba(210, 240, 255, 0.44) !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.66rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+
+  background: rgba(3, 18, 34, 0.44) !important;
+  border: 1px solid rgba(120, 215, 255, 0.12) !important;
+  border-radius: 999px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-viewport.drag-hover {
+  border-color: rgba(190, 245, 255, 0.82) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(220, 250, 255, 0.10),
+    inset 0 0 52px rgba(0, 145, 235, 0.18),
+    0 0 18px rgba(90, 210, 255, 0.24) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-viewport.drag-hover::after {
+  content: "Solte para registrar no grafo" !important;
+  color: rgba(235, 252, 255, 0.92) !important;
+  background: rgba(5, 56, 92, 0.80) !important;
+  border-color: rgba(170, 235, 255, 0.44) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-map {
+  z-index: 2 !important;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.34), rgba(221, 243, 255, 0.96) 12%, rgba(205, 233, 248, 0.94) 100%),
+    repeating-linear-gradient(0deg, rgba(60, 145, 205, 0.10) 0, rgba(60, 145, 205, 0.10) 1px, transparent 1px, transparent 24px),
+    repeating-linear-gradient(90deg, rgba(60, 145, 205, 0.10) 0, rgba(60, 145, 205, 0.10) 1px, transparent 1px, transparent 24px) !important;
+
+  border: 2px solid rgba(80, 170, 230, 0.30) !important;
+  border-radius: 9999px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.36),
+    inset 0 0 65px rgba(45, 155, 220, 0.16),
+    0 0 24px rgba(60, 180, 245, 0.11) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring {
+  border-color: rgba(65, 155, 220, 0.22) !important;
+  box-shadow:
+    inset 0 0 20px rgba(80, 180, 255, 0.030),
+    0 0 10px rgba(80, 180, 255, 0.035) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring span {
+  color: rgba(15, 62, 98, 0.78) !important;
+  background: rgba(239, 250, 255, 0.92) !important;
+  border-color: rgba(55, 145, 205, 0.28) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node {
+  width: 62px !important;
+  height: 70px !important;
+  grid-template-rows: 32px 16px 13px !important;
+  padding: 4px 4px 3px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node img {
+  width: 30px !important;
+  height: 30px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node strong {
+  max-width: 54px !important;
+  font-size: 0.58rem !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node span {
+  max-width: 54px !important;
+  height: 12px !important;
+  font-size: 0.46rem !important;
+  line-height: 11px !important;
+}
+
+/* ===================================================== */
+/* DDA — Evolution Graph: foco, ações e remoção de links */
+/* ===================================================== */
+
+.dda-digimon-sheet .dda-evolution-edge-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.35rem !important;
+
+  margin: 0 0 0.65rem !important;
+  padding: 0.55rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(247, 253, 255, 0.94), rgba(222, 239, 248, 0.90)) !important;
+
+  border: 1px solid rgba(45, 100, 135, 0.24) !important;
+  border-radius: 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.48),
+    0 2px 7px rgba(0, 0, 0, 0.10) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto !important;
+  gap: 0.45rem !important;
+  align-items: center !important;
+
+  min-height: 30px !important;
+  padding: 0.3rem 0.35rem 0.3rem 0.55rem !important;
+
+  color: #133a58 !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(226, 241, 250, 0.72)) !important;
+
+  border: 1px solid rgba(70, 145, 200, 0.20) !important;
+  border-left: 4px solid rgba(25, 128, 190, 0.52) !important;
+  border-radius: 7px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-slide {
+  border-left-color: rgba(130, 86, 210, 0.68) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-warp {
+  border-left-color: rgba(210, 150, 36, 0.76) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-dark {
+  border-left-color: rgba(205, 52, 80, 0.76) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-armor {
+  border-left-color: rgba(80, 178, 110, 0.74) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-jogress {
+  border-left-color: rgba(65, 190, 220, 0.78) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-path {
+  min-width: 0 !important;
+  overflow: hidden !important;
+
+  color: #123a58 !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.78rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.025em !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-method {
+  padding: 0.12rem 0.45rem !important;
+
+  color: #eaf8ff !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+
+  background:
+    linear-gradient(180deg, rgba(18, 76, 112, 0.94), rgba(5, 36, 62, 0.94)) !important;
+
+  border: 1px solid rgba(145, 220, 255, 0.34) !important;
+  border-radius: 999px !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row button.remove-evolution-edge {
+  width: auto !important;
+  min-width: 62px !important;
+  height: 24px !important;
+
+  padding: 0 0.5rem !important;
+  margin: 0 !important;
+
+  color: #f3fbff !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.62rem !important;
+  font-weight: 900 !important;
+  line-height: 24px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(110, 44, 58, 0.96), rgba(56, 18, 32, 0.98)) !important;
+
+  border: 1px solid rgba(255, 155, 170, 0.42) !important;
+  border-radius: 5px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 2px 5px rgba(0, 0, 0, 0.18) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row button.remove-evolution-edge:hover {
+  background:
+    linear-gradient(180deg, rgba(146, 56, 72, 0.98), rgba(78, 22, 38, 1)) !important;
+
+  border-color: rgba(255, 190, 200, 0.64) !important;
+}
+
+/* Mantém os botões do node clicáveis: sem gap entre a bolinha e os botões. */
+.dda-digimon-sheet .dda-evolution-node-actions {
+  display: flex !important;
+  top: calc(100% - 5px) !important;
+  padding-top: 5px !important;
+  opacity: 0 !important;
+  pointer-events: auto !important;
+  transition: opacity 0.08s ease !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node:hover .dda-evolution-node-actions,
+.dda-digimon-sheet .dda-evolution-node-actions:hover,
+.dda-digimon-sheet .dda-evolution-node:focus-within .dda-evolution-node-actions {
+  opacity: 1 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node-actions button {
+  box-shadow:
+    inset 0 0 0 1px rgba(210, 245, 255, 0.08),
+    0 2px 5px rgba(0, 0, 0, 0.24) !important;
+}
+
+@media (max-width: 860px) {
+  .dda-digimon-sheet .dda-evolution-edge-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+
+  .dda-digimon-sheet .dda-evolution-edge-method {
+    display: none !important;
+  }
+}
+/* ===================================================== */
+/* DDA — Evolution Graph: header / clear graph polish    */
+/* ===================================================== */
+
+.dda-evolution-graph-header,
+.dda-evolution-solar-header,
+.dda-evolution-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(220px, 1.15fr) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+
+  padding: 12px 14px !important;
+
+  background:
+    radial-gradient(circle at top left, rgba(95, 200, 255, 0.14), transparent 34%),
+    linear-gradient(90deg, rgba(5, 26, 48, 0.98), rgba(18, 66, 104, 0.94)) !important;
+
+  border: 1px solid rgba(120, 215, 255, 0.34) !important;
+  border-radius: 7px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(220, 245, 255, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.20) !important;
+}
+
+/* Caixinha de texto explicativo */
+.dda-evolution-graph-help,
+.dda-evolution-solar-help,
+.dda-evolution-drop-help,
+.dda-evolution-toolbar p {
+  min-height: 46px !important;
+
+  display: flex !important;
+  align-items: center !important;
+
+  margin: 0 !important;
+  padding: 9px 12px !important;
+
+  color: #dff5ff !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.88rem !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0.035em !important;
+
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.55),
+    0 0 6px rgba(90, 190, 255, 0.26) !important;
+
+  background:
+    linear-gradient(180deg, rgba(20, 76, 112, 0.74), rgba(6, 34, 62, 0.80)) !important;
+
+  border: 1px dashed rgba(170, 230, 255, 0.46) !important;
+  border-radius: 5px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 -8px 16px rgba(0, 0, 0, 0.12) !important;
+
+  opacity: 1 !important;
+}
+
+/* Botão Clear Graph */
+.dda-evolution-clear-graph,
+button.dda-evolution-clear-graph,
+button[data-action="clear-evolution-graph"],
+button[data-action="evolution-clear-graph"],
+.clear-evolution-graph {
+  width: 100% !important;
+  min-height: 46px !important;
+
+  margin: 0 !important;
+  padding: 0 18px !important;
+
+  color: #f2fbff !important;
+
+  font-family: "PixelOperatorBold", "Chronotype", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.96rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(20, 96, 138, 0.98), rgba(5, 40, 72, 0.98)) !important;
+
+  border: 1px solid rgba(160, 230, 255, 0.54) !important;
+  border-radius: 7px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(235, 250, 255, 0.08),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.18),
+    0 2px 7px rgba(0, 0, 0, 0.22),
+    0 0 10px rgba(70, 185, 255, 0.10) !important;
+
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.55),
+    0 0 6px rgba(120, 220, 255, 0.32) !important;
+
+  cursor: pointer !important;
+}
+
+.dda-evolution-clear-graph:hover,
+button.dda-evolution-clear-graph:hover,
+button[data-action="clear-evolution-graph"]:hover,
+button[data-action="evolution-clear-graph"]:hover,
+.clear-evolution-graph:hover {
+  color: #ffffff !important;
+
+  background:
+    linear-gradient(180deg, rgba(34, 128, 176, 1), rgba(8, 58, 94, 1)) !important;
+
+  border-color: rgba(205, 245, 255, 0.78) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.26),
+    0 0 16px rgba(90, 205, 255, 0.22) !important;
+}
+
+.dda-evolution-clear-graph:active,
+button.dda-evolution-clear-graph:active,
+button[data-action="clear-evolution-graph"]:active,
+button[data-action="evolution-clear-graph"]:active,
+.clear-evolution-graph:active {
+  transform: translateY(1px) !important;
+}
+/* ===================================================== */
+/* DDA — Evolution Graph: header exact fix               */
+/* ===================================================== */
+
+section.dda-evolution-tab .dda-evolution-graph-header {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(260px, 1.1fr) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+
+  margin: 0 0 14px 0 !important;
+  padding: 12px 14px !important;
+
+  background:
+    radial-gradient(circle at top left, rgba(85, 190, 255, 0.16), transparent 34%),
+    linear-gradient(90deg, rgba(5, 25, 46, 0.98), rgba(18, 70, 108, 0.94)) !important;
+
+  border: 1px solid rgba(130, 220, 255, 0.38) !important;
+  border-radius: 7px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(230, 250, 255, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.20) !important;
+}
+
+section.dda-evolution-tab .dda-evolution-graph-header > div {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+
+  min-height: 58px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+section.dda-evolution-tab .dda-evolution-graph-header h2 {
+  margin: 0 0 6px 0 !important;
+  padding: 0 !important;
+
+  color: #f2fbff !important;
+
+  font-family: "PixelOperatorBold", "Chronotype", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 1.16rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.75),
+    0 0 7px rgba(120, 220, 255, 0.35) !important;
+}
+
+/* Mensagem do lado esquerdo */
+section.dda-evolution-tab .dda-evolution-graph-header p.muted {
+  display: flex !important;
+  align-items: center !important;
+
+  min-height: 34px !important;
+
+  margin: 0 !important;
+  padding: 7px 10px !important;
+
+  color: #dff6ff !important;
+  opacity: 1 !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.86rem !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0.025em !important;
+
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.72),
+    0 0 6px rgba(90, 190, 255, 0.32) !important;
+
+  background:
+    linear-gradient(180deg, rgba(28, 88, 124, 0.82), rgba(8, 38, 66, 0.88)) !important;
+
+  border: 1px dashed rgba(185, 235, 255, 0.52) !important;
+  border-radius: 5px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.14) !important;
+}
+
+/* Botão Clear Graph */
+section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-graph {
+  align-self: stretch !important;
+
+  width: 100% !important;
+  min-height: 58px !important;
+  height: auto !important;
+
+  margin: 0 !important;
+  padding: 0 18px !important;
+
+  color: #f4fbff !important;
+
+  font-family: "PixelOperatorBold", "Chronotype", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(22, 98, 142, 0.98), rgba(5, 40, 72, 0.99)) !important;
+
+  border: 1px solid rgba(165, 232, 255, 0.58) !important;
+  border-radius: 7px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 252, 255, 0.09),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.18),
+    0 2px 7px rgba(0, 0, 0, 0.24),
+    0 0 11px rgba(70, 185, 255, 0.12) !important;
+
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.65),
+    0 0 6px rgba(120, 220, 255, 0.34) !important;
+
+  cursor: pointer !important;
+}
+
+section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-graph:hover {
+  color: #ffffff !important;
+
+  background:
+    linear-gradient(180deg, rgba(38, 132, 180, 1), rgba(9, 58, 96, 1)) !important;
+
+  border-color: rgba(210, 248, 255, 0.82) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.26),
+    0 0 18px rgba(90, 205, 255, 0.25) !important;
+}
+
+section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-graph:active {
+  transform: translateY(1px) !important;
+}
+
+/* ===================================================== */
+/* DDA — Dark Evolution chat warning                     */
+/* ===================================================== */
+
+.dda-chat-card .dda-dark-evolution-warning {
+  margin-top: 0.75rem !important;
+  padding: 0.65rem 0.75rem !important;
+
+  color: #ffe8ee !important;
+
+  background:
+    radial-gradient(circle at top left, rgba(255, 80, 120, 0.18), transparent 42%),
+    linear-gradient(180deg, rgba(58, 8, 24, 0.96), rgba(24, 4, 14, 0.98)) !important;
+
+  border: 1px solid rgba(255, 96, 128, 0.48) !important;
+  border-radius: 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 220, 230, 0.06),
+    0 0 12px rgba(255, 60, 100, 0.16) !important;
+}
+
+.dda-chat-card .dda-dark-evolution-warning h3 {
+  margin: 0 0 0.45rem !important;
+
+  color: #fff5f7 !important;
+  font-size: 0.9rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+
+  text-shadow:
+    0 0 6px rgba(255, 80, 120, 0.42) !important;
+}
+
+.dda-chat-card .dda-dark-evolution-warning .dda-effect-list {
+  margin-bottom: 0 !important;
+}
+
+/* ----------------------------------------- */
+/* DDA — Grafo Solar em pop-out              */
+/* ----------------------------------------- */
+
+.dda-digimon-sheet .dda-evolution-popout-panel {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  margin: 0.65rem 0 0 !important;
+  padding: 0.85rem !important;
+  color: #f4fbff !important;
+  background:
+    linear-gradient(180deg, rgba(8, 42, 75, 0.98), rgba(4, 25, 48, 0.98)) !important;
+  border: 1px solid rgba(115, 205, 255, 0.38) !important;
+  border-radius: 8px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(210, 245, 255, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.16) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-popout-panel strong {
+  display: block !important;
+  margin-bottom: 0.2rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-digimon-sheet .dda-evolution-popout-panel p {
+  margin: 0 !important;
+  color: rgba(225, 245, 255, 0.76) !important;
+}
+
+.dda-digimon-sheet .open-evolution-graph-popout {
+  min-width: 170px !important;
+  height: 38px !important;
+  color: #f3fbff !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  background: linear-gradient(180deg, rgba(34, 116, 164, 1), rgba(10, 58, 94, 1)) !important;
+  border: 1px solid rgba(195, 240, 255, 0.58) !important;
+  border-radius: 7px !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-content {
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #061425 !important;
+}
+
+.dda-evolution-graph-popout {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0.65rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(70, 190, 255, 0.12), transparent 36%),
+    linear-gradient(180deg, rgba(5, 20, 38, 0.98), rgba(2, 10, 22, 0.98));
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar {
+  flex: 0 0 auto !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-solar-viewport {
+  flex: 1 1 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+}
+/* ===================================================== */
+/* DDA — Evolution Graph Pop-out Scope Fix               */
+/* Faz o mapa solar herdar o visual também no pop-up      */
+/* ===================================================== */
+
+.window-app.dda-evolution-graph-popout-window .window-content {
+  padding: 0 !important;
+  overflow: hidden !important;
+  background:
+    linear-gradient(180deg, rgba(7, 24, 43, 0.98), rgba(3, 12, 24, 0.98)) !important;
+}
+
+.dda-evolution-graph-popout {
+  height: 100% !important;
+  min-height: 0 !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.55rem !important;
+
+  padding: 0.65rem !important;
+  box-sizing: border-box !important;
+
+  color: #eaf7ff !important;
+  background:
+    radial-gradient(circle at top, rgba(55, 150, 220, 0.18), transparent 42%),
+    linear-gradient(180deg, rgba(6, 26, 48, 0.98), rgba(3, 12, 24, 0.98)) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar {
+  flex: 0 0 auto !important;
+
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+
+  margin: 0 !important;
+  padding: 0.45rem 0.55rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(14, 62, 98, 0.96), rgba(4, 28, 52, 0.98)) !important;
+
+  border: 1px solid rgba(120, 215, 255, 0.30) !important;
+  border-radius: 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(235, 250, 255, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.22) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button {
+  flex: 0 0 auto !important;
+
+  min-width: 28px !important;
+  height: 26px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 0.55rem !important;
+
+  color: #eaf7ff !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+
+  background:
+    linear-gradient(180deg, rgba(32, 118, 168, 0.98), rgba(7, 48, 82, 0.98)) !important;
+
+  border: 1px solid rgba(145, 225, 255, 0.38) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -6px 10px rgba(0, 0, 0, 0.18),
+    0 1px 4px rgba(0, 0, 0, 0.22) !important;
+
+  cursor: pointer !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button:hover {
+  filter: brightness(1.12) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar span {
+  margin-left: 0.35rem !important;
+  color: rgba(225, 246, 255, 0.78) !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar output[data-evolution-zoom-output] {
+  flex: 0 0 auto !important;
+
+  min-width: 44px !important;
+  height: 24px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin-left: auto !important;
+  padding: 0 0.35rem !important;
+
+  color: #dff7ff !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+
+  background: rgba(3, 18, 34, 0.72) !important;
+  border: 1px solid rgba(120, 215, 255, 0.28) !important;
+  border-radius: 999px !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-solar-viewport {
+  position: relative !important;
+  flex: 1 1 auto !important;
+
+  height: auto !important;
+  min-height: 420px !important;
+
+  overflow: hidden !important;
+  isolation: isolate !important;
+
+  background:
+    radial-gradient(circle at 50% 50%, rgba(210, 242, 255, 0.62), rgba(202, 234, 250, 0.56) 38%, rgba(180, 216, 238, 0.48) 100%),
+    repeating-linear-gradient(0deg, rgba(52, 148, 210, 0.10) 0, rgba(52, 148, 210, 0.10) 1px, transparent 1px, transparent 18px),
+    repeating-linear-gradient(90deg, rgba(52, 148, 210, 0.10) 0, rgba(52, 148, 210, 0.10) 1px, transparent 1px, transparent 18px),
+    linear-gradient(180deg, rgba(222, 241, 250, 0.96), rgba(198, 225, 242, 0.94)) !important;
+
+  border: 1px solid rgba(65, 150, 205, 0.48) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.38),
+    inset 0 0 38px rgba(30, 120, 190, 0.12),
+    0 4px 14px rgba(0, 0, 0, 0.16) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-solar-viewport::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 10px !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+
+  border: 1px solid rgba(55, 145, 205, 0.10) !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 0 28px rgba(255, 255, 255, 0.18) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-solar-map {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+
+  overflow: visible !important;
+  z-index: 2 !important;
+  transform-origin: 0 0 !important;
+  will-change: transform !important;
+
+  background: transparent !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-ring {
+  position: absolute !important;
+  box-sizing: border-box !important;
+
+  border: 1px dashed rgba(38, 126, 180, 0.30) !important;
+  border-radius: 50% !important;
+
+  pointer-events: none !important;
+  z-index: 1 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-ring span {
+  position: absolute !important;
+  left: 50% !important;
+  top: -0.65rem !important;
+  transform: translateX(-50%) !important;
+
+  padding: 0.08rem 0.35rem !important;
+
+  color: rgba(20, 74, 105, 0.72) !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+
+  background: rgba(235, 249, 255, 0.82) !important;
+  border: 1px solid rgba(55, 145, 205, 0.18) !important;
+  border-radius: 999px !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-lines {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+
+  width: 100% !important;
+  height: 100% !important;
+
+  overflow: visible !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge {
+  stroke: rgba(20, 92, 145, 0.64) !important;
+  stroke-width: 3 !important;
+  stroke-linecap: round !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-slide {
+  stroke-dasharray: 7 5 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-warp {
+  stroke: rgba(140, 82, 210, 0.70) !important;
+  stroke-dasharray: 3 6 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-dark {
+  stroke: rgba(170, 35, 68, 0.74) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node {
+  position: absolute !important;
+  box-sizing: border-box !important;
+
+  width: 74px !important;
+  min-height: 92px !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.18rem !important;
+
+  margin: 0 !important;
+  padding: 0.3rem 0.25rem 0.38rem !important;
+
+  transform: translate(-50%, -50%) !important;
+
+  color: #123a55 !important;
+  text-align: center !important;
+
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(219, 238, 249, 0.94)) !important;
+
+  border: 1px solid rgba(42, 120, 170, 0.42) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 4px 12px rgba(5, 45, 80, 0.20) !important;
+
+  z-index: 8 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node.is-self {
+  border-color: rgba(255, 170, 55, 0.88) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65),
+    0 0 0 2px rgba(255, 190, 70, 0.30),
+    0 4px 14px rgba(5, 45, 80, 0.24) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node img {
+  width: 48px !important;
+  height: 48px !important;
+
+  object-fit: cover !important;
+
+  background: rgba(255, 255, 255, 0.78) !important;
+  border: 1px solid rgba(40, 120, 170, 0.34) !important;
+  border-radius: 50% !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node strong {
+  max-width: 66px !important;
+
+  color: #103852 !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node > span {
+  max-width: 58px !important;
+  height: 14px !important;
+  padding: 0 0.28rem !important;
+
+  color: #eaf8ff !important;
+  font-size: 0.50rem !important;
+  line-height: 13px !important;
+
+  background:
+    linear-gradient(180deg, rgba(18, 76, 112, 0.95), rgba(5, 36, 62, 0.95)) !important;
+
+  border: 1px solid rgba(145, 220, 255, 0.34) !important;
+  border-radius: 999px !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node-actions {
+  position: absolute !important;
+  left: 50% !important;
+  top: calc(100% + 4px) !important;
+  transform: translateX(-50%) !important;
+
+  display: none !important;
+  justify-content: center !important;
+  gap: 0.2rem !important;
+
+  z-index: 30 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node:hover .dda-evolution-node-actions {
+  display: flex !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node-actions button {
+  min-width: 0 !important;
+  height: 18px !important;
+
+  padding: 0 0.26rem !important;
+
+  font-size: 0.48rem !important;
+  line-height: 18px !important;
+
+  border-radius: 5px !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-empty {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+
+  margin: 0 !important;
+  padding: 0.8rem 1rem !important;
+
+  color: rgba(20, 68, 100, 0.78) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+
+  background: rgba(237, 249, 255, 0.86) !important;
+  border: 1px solid rgba(55, 145, 205, 0.24) !important;
+  border-radius: 8px !important;
+
+  z-index: 10 !important;
+}
+/* ===================================================== */
+/* DDA — Evolution Graph Pop-out: Item Sheet Shell        */
+/* ===================================================== */
+
+.window-app.dda-evolution-graph-popout-window {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+/* Barra superior padrão do Foundry transformada em aba estilo ficha */
+.window-app.dda-evolution-graph-popout-window .window-header {
+  position: relative !important;
+
+  height: 34px !important;
+  min-height: 34px !important;
+
+  margin: 0 0 -1px 18px !important;
+  padding: 0 12px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+
+  width: auto !important;
+  max-width: calc(100% - 42px) !important;
+
+  color: #edf9ff !important;
+
+  background:
+    linear-gradient(180deg, #127fb0 0%, #07456a 100%) !important;
+
+  border: 2px solid #0a74a6 !important;
+  border-bottom: none !important;
+  border-radius: 9px 9px 0 0 !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 2px 0 rgba(0, 0, 0, 0.20) !important;
+
+  z-index: 5 !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-title {
+  color: #f3fbff !important;
+
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.76rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.10em !important;
+  text-transform: uppercase !important;
+
+  white-space: nowrap !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55) !important;
+}
+
+/* Esconde botões nativos extras, se existirem */
+.window-app.dda-evolution-graph-popout-window .window-header .header-button:not(.close) {
+  display: none !important;
+}
+
+/* Botão nativo de fechar, estilo bolinha vermelha da ficha */
+.window-app.dda-evolution-graph-popout-window .window-header .close {
+  position: fixed !important;
+
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #ffffff !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+
+  background:
+    radial-gradient(circle at 35% 30%, #ffedf2 0%, #d74b68 38%, #76192c 100%) !important;
+
+  border: 2px solid rgba(255, 210, 220, 0.72) !important;
+  border-radius: 50% !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 2px 6px rgba(0, 0, 0, 0.35) !important;
+
+  z-index: 20 !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-header .close::before {
+  content: "×" !important;
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-header .close i {
+  display: none !important;
+}
+
+/* Casca principal igual às fichas de item */
+.window-app.dda-evolution-graph-popout-window .window-content {
+  padding: 10px !important;
+  overflow: hidden !important;
+
+  background:
+    linear-gradient(180deg, #06273c 0%, #021724 100%) !important;
+
+  border: 4px solid #06283d !important;
+  border-radius: 0 8px 8px 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(126, 218, 255, 0.18),
+    0 8px 22px rgba(0, 0, 0, 0.42) !important;
+}
+
+/* Remove a necessidade do botão fechar interno no mapa */
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button[data-evolution-popout-close] {
+  display: none !important;
+}
+
+/* Corpo do pop-up */
+.dda-evolution-graph-popout {
+  position: relative !important;
+
+  height: 100% !important;
+  min-height: 0 !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+
+  padding: 8px !important;
+  box-sizing: border-box !important;
+
+  background:
+    linear-gradient(180deg, rgba(230, 246, 255, 0.98), rgba(202, 229, 244, 0.96)) !important;
+
+  border: 1px solid rgba(138, 206, 235, 0.70) !important;
+  border-radius: 6px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.60),
+    inset 0 0 22px rgba(42, 126, 180, 0.10) !important;
+}
+
+/* Controles discretos no canto */
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar {
+  position: absolute !important;
+  top: 14px !important;
+  right: 14px !important;
+  z-index: 60 !important;
+
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 4px !important;
+
+  margin: 0 !important;
+  padding: 4px !important;
+
+  background:
+    linear-gradient(180deg, rgba(12, 55, 88, 0.92), rgba(4, 25, 45, 0.95)) !important;
+
+  border: 1px solid rgba(125, 216, 255, 0.32) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 3px 10px rgba(0, 0, 0, 0.28) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar span {
+  display: none !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button {
+  width: 24px !important;
+  min-width: 24px !important;
+  max-width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #eaf8ff !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  background:
+    linear-gradient(180deg, rgba(38, 137, 188, 0.95), rgba(8, 55, 90, 0.98)) !important;
+
+  border: 1px solid rgba(150, 230, 255, 0.38) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -5px 8px rgba(0, 0, 0, 0.16) !important;
+
+  cursor: pointer !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button:hover {
+  filter: brightness(1.14) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button[data-evolution-zoom="reset"] {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 52px !important;
+
+  padding: 0 8px !important;
+
+  font-size: 0 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button[data-evolution-zoom="reset"]::before {
+  content: "Reset" !important;
+  font-size: 0.56rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar output[data-evolution-zoom-output] {
+  width: 38px !important;
+  min-width: 38px !important;
+  height: 22px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 4px !important;
+
+  color: rgba(225, 247, 255, 0.86) !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+
+  background: rgba(2, 14, 27, 0.62) !important;
+  border: 1px solid rgba(120, 215, 255, 0.22) !important;
+  border-radius: 999px !important;
+}
+
+/* Mapa ocupa o miolo */
+.dda-evolution-graph-popout .dda-evolution-solar-viewport {
+  position: relative !important;
+  flex: 1 1 auto !important;
+
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+
+  overflow: hidden !important;
+  isolation: isolate !important;
+  cursor: grab !important;
+
+  background:
+    radial-gradient(circle at 50% 50%, rgba(226, 247, 255, 0.74), rgba(205, 232, 248, 0.68) 38%, rgba(175, 213, 238, 0.62) 100%),
+    repeating-linear-gradient(0deg, rgba(52, 148, 210, 0.10) 0, rgba(52, 148, 210, 0.10) 1px, transparent 1px, transparent 18px),
+    repeating-linear-gradient(90deg, rgba(52, 148, 210, 0.10) 0, rgba(52, 148, 210, 0.10) 1px, transparent 1px, transparent 18px),
+    linear-gradient(180deg, rgba(225, 244, 252, 0.98), rgba(196, 224, 242, 0.96)) !important;
+
+  border: 1px solid rgba(88, 183, 235, 0.42) !important;
+  border-radius: 6px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.40),
+    inset 0 0 42px rgba(30, 120, 190, 0.14) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-solar-viewport.is-panning {
+  cursor: grabbing !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-solar-map {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+
+  overflow: visible !important;
+  z-index: 2 !important;
+
+  transform-origin: 0 0 !important;
+  will-change: transform !important;
+
+  background: transparent !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-ring {
+  position: absolute !important;
+  box-sizing: border-box !important;
+
+  border: 1px dashed rgba(38, 126, 180, 0.30) !important;
+  border-radius: 50% !important;
+
+  pointer-events: none !important;
+  z-index: 1 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-ring span {
+  position: absolute !important;
+  left: 50% !important;
+  top: -0.65rem !important;
+  transform: translateX(-50%) !important;
+
+  padding: 0.08rem 0.35rem !important;
+
+  color: rgba(20, 74, 105, 0.72) !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+
+  background: rgba(235, 249, 255, 0.82) !important;
+  border: 1px solid rgba(55, 145, 205, 0.18) !important;
+  border-radius: 999px !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-lines {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+
+  width: 100% !important;
+  height: 100% !important;
+
+  overflow: visible !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge {
+  stroke: rgba(20, 92, 145, 0.64) !important;
+  stroke-width: 3 !important;
+  stroke-linecap: round !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-slide {
+  stroke-dasharray: 7 5 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-warp {
+  stroke: rgba(140, 82, 210, 0.70) !important;
+  stroke-dasharray: 3 6 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-dark {
+  stroke: rgba(170, 35, 68, 0.74) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node {
+  position: absolute !important;
+  box-sizing: border-box !important;
+
+  width: 74px !important;
+  min-height: 92px !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.18rem !important;
+
+  margin: 0 !important;
+  padding: 0.3rem 0.25rem 0.38rem !important;
+
+  transform: translate(-50%, -50%) !important;
+
+  color: #123a55 !important;
+  text-align: center !important;
+
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(219, 238, 249, 0.94)) !important;
+
+  border: 1px solid rgba(42, 120, 170, 0.42) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 4px 12px rgba(5, 45, 80, 0.20) !important;
+
+  z-index: 8 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node.is-self {
+  border-color: rgba(255, 170, 55, 0.88) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65),
+    0 0 0 2px rgba(255, 190, 70, 0.30),
+    0 4px 14px rgba(5, 45, 80, 0.24) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node img {
+  width: 48px !important;
+  height: 48px !important;
+
+  object-fit: cover !important;
+
+  background: rgba(255, 255, 255, 0.78) !important;
+  border: 1px solid rgba(40, 120, 170, 0.34) !important;
+  border-radius: 50% !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node strong {
+  max-width: 66px !important;
+
+  color: #103852 !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node > span {
+  max-width: 58px !important;
+  height: 14px !important;
+
+  padding: 0 0.28rem !important;
+
+  color: #eaf8ff !important;
+  font-size: 0.50rem !important;
+  line-height: 13px !important;
+
+  background:
+    linear-gradient(180deg, rgba(18, 76, 112, 0.95), rgba(5, 36, 62, 0.95)) !important;
+
+  border: 1px solid rgba(145, 220, 255, 0.34) !important;
+  border-radius: 999px !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node-actions {
+  position: absolute !important;
+  left: 50% !important;
+  top: calc(100% + 4px) !important;
+  transform: translateX(-50%) !important;
+
+  display: none !important;
+  justify-content: center !important;
+  gap: 0.2rem !important;
+
+  z-index: 30 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node:hover .dda-evolution-node-actions {
+  display: flex !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node-actions button {
+  min-width: 0 !important;
+  height: 18px !important;
+
+  padding: 0 0.26rem !important;
+
+  font-size: 0.48rem !important;
+  line-height: 18px !important;
+
+  border-radius: 5px !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-empty {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+
+  margin: 0 !important;
+  padding: 0.8rem 1rem !important;
+
+  color: rgba(20, 68, 100, 0.78) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+
+  background: rgba(237, 249, 255, 0.86) !important;
+  border: 1px solid rgba(55, 145, 205, 0.24) !important;
+  border-radius: 8px !important;
+
+  z-index: 10 !important;
+}
+
+.dda-evolution-graph-popout .drag-hover {
+  outline: 2px dashed rgba(255, 190, 70, 0.88) !important;
+  outline-offset: -6px !important;
+}
+/* ===================================================== */
+/* DDA — Evolution Graph Pop-out Fine Tuning             */
+/* ===================================================== */
+
+/* ---------- Casca / header ---------- */
+
+.window-app.dda-evolution-graph-popout-window {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-header {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+
+  width: auto !important;
+  max-width: calc(100% - 28px) !important;
+  min-height: 28px !important;
+  height: 28px !important;
+
+  margin: 0 0 -1px 18px !important;
+  padding: 0 40px 0 10px !important;
+
+  background: linear-gradient(180deg, #1483b4 0%, #0a527d 100%) !important;
+  border: 2px solid #0a6e9f !important;
+  border-bottom: none !important;
+  border-radius: 8px 8px 0 0 !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.08),
+    0 2px 0 rgba(0,0,0,0.20) !important;
+
+  z-index: 5 !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-title {
+  color: #eefbff !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.45) !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-header .header-button:not(.close) {
+  display: none !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-header .close {
+  position: absolute !important;
+  right: 6px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  background: radial-gradient(circle at 35% 30%, #ffeef3 0%, #da5772 38%, #7a1c30 100%) !important;
+  border: 1px solid rgba(255, 214, 224, 0.9) !important;
+  border-radius: 50% !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.18),
+    0 1px 4px rgba(0,0,0,0.35) !important;
+
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  z-index: 8 !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-header .close::before {
+  content: "×" !important;
+  color: #fff !important;
+  font-size: 0.86rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-header .close i {
+  display: none !important;
+}
+
+.window-app.dda-evolution-graph-popout-window .window-content {
+  padding: 10px !important;
+  overflow: hidden !important;
+
+  background: linear-gradient(180deg, #06273c 0%, #021724 100%) !important;
+  border: 4px solid #06283d !important;
+  border-radius: 0 8px 8px 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(126, 218, 255, 0.18),
+    0 8px 22px rgba(0, 0, 0, 0.42) !important;
+}
+
+/* ---------- Corpo ---------- */
+
+.dda-evolution-graph-popout {
+  position: relative !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 8px !important;
+  box-sizing: border-box !important;
+
+  background: linear-gradient(180deg, rgba(230,246,255,0.98), rgba(202,229,244,0.96)) !important;
+  border: 1px solid rgba(138, 206, 235, 0.70) !important;
+  border-radius: 6px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.60),
+    inset 0 0 22px rgba(42,126,180,0.10) !important;
+}
+
+/* ---------- Toolbar pequena ---------- */
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar {
+  position: absolute !important;
+  top: 14px !important;
+  right: 14px !important;
+  z-index: 60 !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+
+  margin: 0 !important;
+  padding: 4px !important;
+
+  background: linear-gradient(180deg, rgba(12,55,88,0.92), rgba(4,25,45,0.95)) !important;
+  border: 1px solid rgba(125,216,255,0.32) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.06),
+    0 3px 10px rgba(0,0,0,0.28) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar span {
+  display: none !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button {
+  width: 22px !important;
+  min-width: 22px !important;
+  max-width: 22px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  color: #eaf8ff !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.66rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  background: linear-gradient(180deg, rgba(38,137,188,0.95), rgba(8,55,90,0.98)) !important;
+  border: 1px solid rgba(150,230,255,0.38) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.08),
+    inset 0 -5px 8px rgba(0,0,0,0.16) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button:hover {
+  filter: brightness(1.14) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button[data-evolution-zoom="reset"] {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 48px !important;
+  padding: 0 8px !important;
+  font-size: 0.56rem !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar output[data-evolution-zoom-output] {
+  width: 38px !important;
+  min-width: 38px !important;
+  height: 20px !important;
+  margin: 0 !important;
+  padding: 0 4px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  color: rgba(225,247,255,0.86) !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.56rem !important;
+  font-weight: 900 !important;
+
+  background: rgba(2,14,27,0.62) !important;
+  border: 1px solid rgba(120,215,255,0.22) !important;
+  border-radius: 999px !important;
+}
+
+/* ---------- Viewport ---------- */
+
+.dda-evolution-graph-popout .dda-evolution-solar-viewport {
+  position: relative !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  cursor: grab !important;
+
+  background:
+    radial-gradient(circle at 50% 50%, rgba(226,247,255,0.74), rgba(205,232,248,0.68) 38%, rgba(175,213,238,0.62) 100%),
+    repeating-linear-gradient(0deg, rgba(52,148,210,0.10) 0, rgba(52,148,210,0.10) 1px, transparent 1px, transparent 18px),
+    repeating-linear-gradient(90deg, rgba(52,148,210,0.10) 0, rgba(52,148,210,0.10) 1px, transparent 1px, transparent 18px),
+    linear-gradient(180deg, rgba(225,244,252,0.98), rgba(196,224,242,0.96)) !important;
+
+  border: 1px solid rgba(88,183,235,0.42) !important;
+  border-radius: 6px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.40),
+    inset 0 0 42px rgba(30,120,190,0.14) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-solar-viewport.is-panning {
+  cursor: grabbing !important;
+}
+
+/* ---------- Nó do digimon: volta ao "ovinho" ---------- */
+
+.dda-evolution-graph-popout .dda-evolution-node {
+  position: absolute !important;
+  width: 78px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.14rem !important;
+
+  transform: translate(-50%, -50%) !important;
+
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-align: center !important;
+
+  z-index: 8 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node.is-self {
+  box-shadow: none !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node img {
+  width: 60px !important;
+  height: 60px !important;
+  object-fit: cover !important;
+
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(238,245,250,0.96)) !important;
+  border: 2px solid rgba(242, 181, 68, 0.95) !important;
+  border-radius: 18px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.55),
+    0 4px 12px rgba(0,0,0,0.16) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node strong {
+  max-width: 76px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+
+  color: #17384f !important;
+  font-size: 0.56rem !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  max-width: 56px !important;
+  min-width: 40px !important;
+  height: 14px !important;
+  padding: 0 0.28rem !important;
+
+  color: #f4fbff !important;
+  font-size: 0.48rem !important;
+  line-height: 13px !important;
+
+  background: linear-gradient(180deg, rgba(24,90,130,0.96), rgba(7,45,75,0.96)) !important;
+  border: 1px solid rgba(145,220,255,0.34) !important;
+  border-radius: 999px !important;
+}
+
+/* ---------- Botões Abrir / Remover ---------- */
+
+.dda-evolution-graph-popout .dda-evolution-node-actions {
+  position: absolute !important;
+  left: 50% !important;
+  top: calc(100% + 4px) !important;
+  transform: translateX(-50%) !important;
+
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+
+  z-index: 30 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node:hover .dda-evolution-node-actions,
+.dda-evolution-graph-popout .dda-evolution-node:focus-within .dda-evolution-node-actions {
+  display: inline-flex !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node-actions button {
+  min-width: 0 !important;
+  height: 18px !important;
+  padding: 0 0.42rem !important;
+
+  color: #f2fbff !important;
+  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
+  font-size: 0.46rem !important;
+  font-weight: 900 !important;
+  line-height: 18px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+
+  border: 1px solid rgba(140, 215, 255, 0.34) !important;
+  border-radius: 999px !important;
+
+  background: linear-gradient(180deg, rgba(31,111,161,0.96), rgba(8,48,79,0.96)) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.06),
+    0 2px 6px rgba(0,0,0,0.18) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node-actions button:hover {
+  filter: brightness(1.12) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-node-actions .remove-evolution-node {
+  background: linear-gradient(180deg, rgba(120,130,145,0.96), rgba(70,80,92,0.96)) !important;
+  border-color: rgba(214, 224, 232, 0.30) !important;
+}
+
+/* ---------- Mapa / resto ---------- */
+
+.dda-evolution-graph-popout .dda-evolution-solar-map {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  overflow: visible !important;
+  z-index: 2 !important;
+  transform-origin: 0 0 !important;
+  will-change: transform !important;
+  background: transparent !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-ring {
+  position: absolute !important;
+  box-sizing: border-box !important;
+  border: 1px dashed rgba(38,126,180,0.30) !important;
+  border-radius: 50% !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-ring span {
+  position: absolute !important;
+  left: 50% !important;
+  top: -0.65rem !important;
+  transform: translateX(-50%) !important;
+  padding: 0.08rem 0.35rem !important;
+
+  color: rgba(20,74,105,0.72) !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+
+  background: rgba(235,249,255,0.82) !important;
+  border: 1px solid rgba(55,145,205,0.18) !important;
+  border-radius: 999px !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-lines {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: visible !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge {
+  stroke: rgba(20,92,145,0.64) !important;
+  stroke-width: 3 !important;
+  stroke-linecap: round !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-slide {
+  stroke-dasharray: 7 5 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-warp {
+  stroke: rgba(140,82,210,0.70) !important;
+  stroke-dasharray: 3 6 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-dark {
+  stroke: rgba(170,35,68,0.74) !important;
+}
+/* ===================================================== */
+/* DDA — Evolution Pop-out Node Actions Hover Fix         */
+/* ===================================================== */
+
+/* Cria uma ponte invisível entre o nó e os botões */
+.dda-evolution-graph-popout .dda-evolution-node::after {
+  content: "" !important;
+  position: absolute !important;
+
+  left: 50% !important;
+  top: 100% !important;
+  transform: translateX(-50%) !important;
+
+  width: 96px !important;
+  height: 16px !important;
+
+  background: transparent !important;
+  pointer-events: auto !important;
+  z-index: 20 !important;
+}
+
+/* Deixa os botões um pouco mais próximos do nó */
+.dda-evolution-graph-popout .dda-evolution-node-actions {
+  top: calc(100% + 1px) !important;
+  pointer-events: auto !important;
+}
+
+/* Mantém os botões visíveis enquanto o mouse estiver neles */
+.dda-evolution-graph-popout .dda-evolution-node:hover .dda-evolution-node-actions,
+.dda-evolution-graph-popout .dda-evolution-node:focus-within .dda-evolution-node-actions,
+.dda-evolution-graph-popout .dda-evolution-node-actions:hover {
+  display: inline-flex !important;
+}
+
+/* Garante que os botões fiquem acima da ponte invisível */
+.dda-evolution-graph-popout .dda-evolution-node-actions button {
+  position: relative !important;
+  z-index: 31 !important;
+}
+
+
+/* ===================================================== */
+/* DDA — Evolution Graph: live pop-out / colored paths   */
+/* Patch final: path curvo, métodos coloridos e reset    */
+/* ===================================================== */
+
+.dda-evolution-graph-popout .dda-evolution-edge,
+.dda-digimon-sheet .dda-evolution-edge {
+  fill: none !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  vector-effect: non-scaling-stroke !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge,
+.dda-digimon-sheet .dda-evolution-edge {
+  stroke: rgba(28, 116, 176, 0.72) !important;
+  stroke-width: 3 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.24))
+    drop-shadow(0 0 4px rgba(60, 175, 245, 0.16)) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-normal,
+.dda-digimon-sheet .dda-evolution-edge.edge-normal {
+  stroke: rgba(34, 126, 190, 0.76) !important;
+  stroke-width: 3 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-slide,
+.dda-digimon-sheet .dda-evolution-edge.edge-slide {
+  stroke: rgba(142, 82, 224, 0.78) !important;
+  stroke-width: 3 !important;
+  stroke-dasharray: 9 6 !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-warp,
+.dda-digimon-sheet .dda-evolution-edge.edge-warp {
+  stroke: rgba(232, 169, 38, 0.88) !important;
+  stroke-width: 3.75 !important;
+  stroke-dasharray: none !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 246, 200, 0.38))
+    drop-shadow(0 0 6px rgba(232, 169, 38, 0.24)) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-armor,
+.dda-digimon-sheet .dda-evolution-edge.edge-armor {
+  stroke: rgba(231, 132, 35, 0.88) !important;
+  stroke-width: 3.5 !important;
+  stroke-dasharray: 11 4 3 4 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 235, 190, 0.40))
+    drop-shadow(0 0 6px rgba(231, 132, 35, 0.22)) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-dark,
+.dda-digimon-sheet .dda-evolution-edge.edge-dark {
+  stroke: rgba(210, 38, 76, 0.90) !important;
+  stroke-width: 4 !important;
+  stroke-dasharray: none !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 210, 220, 0.30))
+    drop-shadow(0 0 7px rgba(210, 38, 76, 0.30)) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-jogress,
+.dda-digimon-sheet .dda-evolution-edge.edge-jogress {
+  stroke: rgba(32, 196, 224, 0.88) !important;
+  stroke-width: 3.75 !important;
+  stroke-dasharray: 4 4 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(210, 252, 255, 0.32))
+    drop-shadow(0 0 6px rgba(32, 196, 224, 0.24)) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-modeChange,
+.dda-digimon-sheet .dda-evolution-edge.edge-modeChange {
+  stroke: rgba(42, 176, 135, 0.86) !important;
+  stroke-width: 3.5 !important;
+  stroke-dasharray: 3 5 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-normal {
+  border-left-color: rgba(34, 126, 190, 0.76) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-armor {
+  border-left-color: rgba(231, 132, 35, 0.86) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-modeChange {
+  border-left-color: rgba(42, 176, 135, 0.84) !important;
+}
+
+/* O botão já recebe "Resetar Visão" / "Reset View" do i18n.
+   Este override remove o "Reset" extra injetado por CSS antigo. */
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button[data-evolution-zoom="reset"] {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 76px !important;
+  padding: 0 9px !important;
+  font-size: 0.56rem !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button[data-evolution-zoom="reset"]::before {
+  content: none !important;
+  display: none !important;
+}
+
+
+/* ===================================================== */
+/* DDA — Evolution Graph: branched solar polish           */
+/* Layout em árvore solar + linhas com mais personalidade */
+/* ===================================================== */
+
+.dda-digimon-sheet .dda-evolution-solar-viewport,
+.dda-evolution-graph-popout .dda-evolution-solar-viewport {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.72), rgba(214, 239, 252, 0.64) 28%, rgba(176, 216, 240, 0.58) 55%, rgba(142, 193, 226, 0.52) 100%),
+    repeating-linear-gradient(0deg, rgba(40, 128, 190, 0.105) 0, rgba(40, 128, 190, 0.105) 1px, transparent 1px, transparent 18px),
+    repeating-linear-gradient(90deg, rgba(40, 128, 190, 0.09) 0, rgba(40, 128, 190, 0.09) 1px, transparent 1px, transparent 18px),
+    linear-gradient(180deg, rgba(221, 244, 253, 0.98), rgba(188, 224, 244, 0.96)) !important;
+
+  border-color: rgba(66, 158, 214, 0.56) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.44),
+    inset 0 0 54px rgba(33, 125, 188, 0.16),
+    0 5px 18px rgba(0, 35, 68, 0.20) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-map,
+.dda-evolution-graph-popout .dda-evolution-solar-map {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.58), rgba(228, 247, 255, 0.40) 16%, rgba(194, 229, 248, 0.28) 42%, transparent 69%),
+    repeating-linear-gradient(0deg, rgba(55, 145, 205, 0.085) 0, rgba(55, 145, 205, 0.085) 1px, transparent 1px, transparent 24px),
+    repeating-linear-gradient(90deg, rgba(55, 145, 205, 0.078) 0, rgba(55, 145, 205, 0.078) 1px, transparent 1px, transparent 24px) !important;
+
+  border-radius: 50% !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.18),
+    inset 0 0 76px rgba(48, 144, 205, 0.10),
+    0 0 26px rgba(60, 170, 235, 0.10) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring,
+.dda-evolution-graph-popout .dda-evolution-ring {
+  border: 1px dashed rgba(42, 132, 195, 0.28) !important;
+  box-shadow:
+    inset 0 0 22px rgba(80, 180, 255, 0.035),
+    0 0 12px rgba(80, 180, 255, 0.045) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring:nth-child(odd),
+.dda-evolution-graph-popout .dda-evolution-ring:nth-child(odd) {
+  border-style: dotted !important;
+  border-color: rgba(42, 132, 195, 0.22) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-ring span,
+.dda-evolution-graph-popout .dda-evolution-ring span {
+  color: rgba(15, 67, 102, 0.78) !important;
+  background:
+    linear-gradient(180deg, rgba(248, 253, 255, 0.96), rgba(224, 243, 252, 0.92)) !important;
+  border: 1px solid rgba(48, 138, 198, 0.24) !important;
+  box-shadow:
+    0 1px 4px rgba(0, 44, 78, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.50) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-lines,
+.dda-evolution-graph-popout .dda-evolution-lines {
+  z-index: 3 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge,
+.dda-evolution-graph-popout .dda-evolution-edge {
+  fill: none !important;
+  stroke: rgba(30, 126, 190, 0.68) !important;
+  stroke-width: 3.1 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  opacity: 0.92 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.58))
+    drop-shadow(0 0 4px rgba(45, 145, 215, 0.26)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-normal,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-normal {
+  stroke: rgba(35, 126, 190, 0.68) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-slide,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-slide {
+  stroke: rgba(133, 92, 214, 0.78) !important;
+  stroke-width: 3 !important;
+  stroke-dasharray: 9 6 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.45))
+    drop-shadow(0 0 5px rgba(120, 75, 220, 0.36)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-warp,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-warp {
+  stroke: rgba(236, 172, 42, 0.88) !important;
+  stroke-width: 3.8 !important;
+  stroke-dasharray: 2 7 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.60))
+    drop-shadow(0 0 7px rgba(235, 170, 35, 0.44)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-armor,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-armor {
+  stroke: rgba(229, 135, 34, 0.86) !important;
+  stroke-width: 3.5 !important;
+  stroke-dasharray: 13 4 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.58))
+    drop-shadow(0 0 6px rgba(240, 150, 40, 0.42)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-jogress,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-jogress {
+  stroke: rgba(52, 207, 228, 0.86) !important;
+  stroke-width: 4 !important;
+  stroke-dasharray: 5 3 12 3 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.62))
+    drop-shadow(0 0 8px rgba(40, 205, 230, 0.46)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-modeChange,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-modeChange {
+  stroke: rgba(40, 172, 143, 0.82) !important;
+  stroke-width: 3.3 !important;
+  stroke-dasharray: 11 3 3 3 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.50))
+    drop-shadow(0 0 6px rgba(40, 170, 145, 0.36)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-dark,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-dark {
+  stroke: rgba(156, 27, 214, 0.92) !important;
+  stroke-width: 4.6 !important;
+  stroke-dasharray: 12 4 2 4 !important;
+  opacity: 0.96 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 225, 245, 0.55))
+    drop-shadow(0 0 7px rgba(158, 22, 220, 0.64))
+    drop-shadow(0 0 4px rgba(255, 35, 82, 0.58)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-normal {
+  border-left-color: rgba(35, 126, 190, 0.70) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-armor {
+  border-left-color: rgba(229, 135, 34, 0.88) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-modeChange {
+  border-left-color: rgba(40, 172, 143, 0.78) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-dark {
+  border-left-color: rgba(156, 27, 214, 0.88) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(242, 226, 250, 0.70)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-dark .dda-evolution-edge-method {
+  color: #fff3fb !important;
+  background:
+    linear-gradient(180deg, rgba(126, 32, 160, 0.96), rgba(70, 10, 98, 0.98)) !important;
+  border-color: rgba(246, 126, 255, 0.36) !important;
+  box-shadow: 0 0 8px rgba(160, 30, 220, 0.20) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node,
+.dda-evolution-graph-popout .dda-evolution-node {
+  filter: drop-shadow(0 5px 9px rgba(0, 42, 78, 0.16)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node img,
+.dda-evolution-graph-popout .dda-evolution-node img {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.48),
+    0 3px 9px rgba(0, 42, 78, 0.18),
+    0 0 0 1px rgba(255, 198, 86, 0.20) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node.is-self img,
+.dda-evolution-graph-popout .dda-evolution-node.is-self img {
+  border-color: rgba(255, 192, 64, 0.96) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 4px 12px rgba(0, 42, 78, 0.22),
+    0 0 14px rgba(255, 184, 55, 0.40) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button[data-evolution-zoom="reset"] {
+  font-size: 0.56rem !important;
+  color: #eaf8ff !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button[data-evolution-zoom="reset"]::before {
+  content: none !important;
+}
+
+
+/* DDA — special evolution graph methods */
+.dda-digimon-sheet .dda-evolution-edge.edge-hybrid {
+  stroke: rgba(225, 150, 255, 0.82) !important;
+  stroke-width: 3 !important;
+  stroke-dasharray: 5 4 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-biomerge {
+  stroke: rgba(255, 170, 80, 0.90) !important;
+  stroke-width: 4 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-mindLink {
+  stroke: rgba(130, 255, 225, 0.82) !important;
+  stroke-width: 3 !important;
+  stroke-dasharray: 3 5 !important;
+}
+
+/* ===================================================== */
+/* DDA — Bio-Merge no Grafo: dupla hélice / DNA chain    */
+/* ===================================================== */
+
+.dda-digimon-sheet .dda-evolution-edge.edge-biomerge,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-biomerge {
+  stroke: rgba(255, 168, 74, 0.24) !important;
+  stroke-width: 8 !important;
+  stroke-linecap: round !important;
+  fill: none !important;
+  filter:
+    drop-shadow(0 0 5px rgba(255, 170, 80, 0.24))
+    drop-shadow(0 0 10px rgba(90, 220, 255, 0.12)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-biomerge-strand,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-biomerge-strand {
+  fill: none !important;
+  stroke-width: 2.6 !important;
+  stroke-linecap: round !important;
+  stroke-dasharray: 10 7 !important;
+  filter:
+    drop-shadow(0 0 4px rgba(255, 190, 100, 0.28))
+    drop-shadow(0 0 7px rgba(90, 220, 255, 0.18)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-biomerge-strand-a,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-biomerge-strand-a {
+  stroke: rgba(255, 190, 86, 0.95) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge.edge-biomerge-strand-b,
+.dda-evolution-graph-popout .dda-evolution-edge.edge-biomerge-strand-b {
+  stroke: rgba(92, 225, 255, 0.92) !important;
+  stroke-dashoffset: 9 !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-biomerge,
+.dda-evolution-graph-popout .dda-evolution-edge-row.edge-biomerge {
+  border-color: rgba(255, 185, 95, 0.45) !important;
+  background:
+    linear-gradient(180deg, rgba(74, 34, 12, 0.92), rgba(25, 16, 22, 0.94)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-biomerge .dda-evolution-edge-method,
+.dda-evolution-graph-popout .dda-evolution-edge-row.edge-biomerge .dda-evolution-edge-method {
+  color: #fff4df !important;
+  background: rgba(116, 58, 18, 0.92) !important;
+  border-color: rgba(255, 205, 145, 0.46) !important;
+}
+
+/* ===================================================== */
+/* DDA — Hotfix: leitura das conexões Bio-Merge          */
+/* ===================================================== */
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-biomerge .dda-evolution-edge-path,
+.dda-evolution-graph-popout .dda-evolution-edge-row.edge-biomerge .dda-evolution-edge-path {
+  color: #ffffff !important;
+  text-shadow: 0 0 5px rgba(255, 190, 100, 0.35) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-biomerge button.remove-evolution-edge,
+.dda-evolution-graph-popout .dda-evolution-edge-row.edge-biomerge button.remove-evolution-edge {
+  color: #fff7f2 !important;
+}
+
+/* DDA — Burst/Blast graph methods */
+.dda-evolution-graph-popout .dda-evolution-edge.edge-burst,
+.dda-digimon-sheet .dda-evolution-edge.edge-burst {
+  stroke: rgba(255, 205, 70, 0.92) !important;
+  stroke-width: 4 !important;
+  stroke-dasharray: 2 3 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 235, 170, 0.45))
+    drop-shadow(0 0 8px rgba(255, 180, 60, 0.32)) !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-edge.edge-blast,
+.dda-digimon-sheet .dda-evolution-edge.edge-blast {
+  stroke: rgba(255, 110, 60, 0.92) !important;
+  stroke-width: 4.5 !important;
+  stroke-dasharray: 8 3 2 3 !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 210, 170, 0.45))
+    drop-shadow(0 0 10px rgba(255, 90, 40, 0.36)) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-burst {
+  border-left-color: rgba(255, 205, 70, 0.9) !important;
+}
+
+.dda-digimon-sheet .dda-evolution-edge-row.edge-blast {
+  border-left-color: rgba(255, 110, 60, 0.9) !important;
+}
+
+/* ===================================================== */
+/* DDA — Evolution Graph: draggable stage-bound nodes     */
+/* ===================================================== */
+
+.dda-digimon-sheet .dda-evolution-node,
+.dda-evolution-graph-popout .dda-evolution-node {
+  touch-action: none !important;
+  user-select: none !important;
+  cursor: grab !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node.is-node-dragging,
+.dda-evolution-graph-popout .dda-evolution-node.is-node-dragging {
+  cursor: grabbing !important;
+  z-index: 80 !important;
+  filter: brightness(1.12) saturate(1.08) !important;
+  pointer-events: auto !important;
+}
+
+.dda-digimon-sheet .dda-evolution-solar-viewport.is-dragging-node,
+.dda-evolution-graph-popout .dda-evolution-solar-viewport.is-dragging-node {
+  cursor: grabbing !important;
+}
+
+.dda-digimon-sheet .dda-evolution-node.is-node-dragging .dda-evolution-node-actions,
+.dda-evolution-graph-popout .dda-evolution-node.is-node-dragging .dda-evolution-node-actions {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.dda-evolution-graph-popout .dda-evolution-graph-toolbar button[data-evolution-reset-node-layout] {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 52px !important;
+  padding: 0 8px !important;
+  font-size: 0.56rem !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase !important;
+}

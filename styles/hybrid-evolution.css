@@ -1,0 +1,380 @@
+/* ===================================================== */
+/* DDA — Hybrid / Bio-Merge / Mind Link Evolution         */
+/* ===================================================== */
+
+.dda-hybrid-active-panel {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto !important;
+  gap: 0.75rem !important;
+  align-items: center !important;
+  margin: 0 0 12px 0 !important;
+  padding: 0.75rem 0.9rem !important;
+  color: #eaf8ff !important;
+  background:
+    radial-gradient(circle at top left, rgba(130, 230, 255, 0.16), transparent 42%),
+    linear-gradient(180deg, rgba(9, 34, 62, 0.98), rgba(4, 18, 34, 0.98)) !important;
+  border: 1px solid rgba(125, 220, 255, 0.42) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(220, 250, 255, 0.07),
+    0 4px 12px rgba(0, 0, 0, 0.18),
+    0 0 18px rgba(50, 180, 255, 0.10) !important;
+  overflow: hidden !important;
+}
+
+.dda-hybrid-active-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.38;
+  background:
+    repeating-linear-gradient(0deg, rgba(150, 230, 255, 0.09) 0px, rgba(150, 230, 255, 0.09) 1px, transparent 1px, transparent 7px),
+    repeating-linear-gradient(90deg, rgba(150, 230, 255, 0.05) 0px, rgba(150, 230, 255, 0.05) 1px, transparent 1px, transparent 13px);
+}
+
+.dda-hybrid-panel-main,
+.dda-hybrid-panel-rules,
+.dda-hybrid-panel-actions {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.dda-hybrid-kicker {
+  display: inline-flex !important;
+  align-items: center !important;
+  width: fit-content !important;
+  margin: 0 0 0.22rem 0 !important;
+  padding: 0.14rem 0.5rem !important;
+  color: #001f32 !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  background: linear-gradient(180deg, rgba(190, 250, 255, 0.98), rgba(80, 210, 255, 0.92)) !important;
+  border: 1px solid rgba(230, 255, 255, 0.78) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 0 10px rgba(90, 220, 255, 0.28) !important;
+}
+
+.dda-hybrid-panel-main h2 {
+  margin: 0 !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Reactor7", Arial, sans-serif !important;
+  font-size: 1.25rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 0 7px rgba(100, 220, 255, 0.42) !important;
+}
+
+.dda-hybrid-panel-main p {
+  margin: 0.28rem 0 0 !important;
+  color: #cdefff !important;
+  font-size: 0.82rem !important;
+  line-height: 1.25 !important;
+}
+
+.dda-hybrid-panel-rules {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.3rem !important;
+  min-width: 160px !important;
+}
+
+.dda-hybrid-panel-rules span {
+  display: inline-flex !important;
+  justify-content: center !important;
+  padding: 0.22rem 0.55rem !important;
+  color: #dff7ff !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.74rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  background: rgba(5, 28, 48, 0.74) !important;
+  border: 1px solid rgba(140, 225, 255, 0.24) !important;
+  border-radius: 999px !important;
+}
+
+.dda-hybrid-panel-actions {
+  display: flex !important;
+  gap: 0.45rem !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+}
+
+.dda-hybrid-panel-actions button,
+form.dda-tamer-window-sheet .hybrid-partner,
+form.dda-tamer-window-sheet .end-hybrid-partner,
+form.dda-tamer-window-sheet .open-hybrid-sheet {
+  min-width: 92px !important;
+  height: 30px !important;
+  padding: 0 0.75rem !important;
+  color: #f3fbff !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.86rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  background: linear-gradient(180deg, rgba(18, 82, 125, 0.98), rgba(5, 38, 72, 0.98)) !important;
+  border: 1px solid rgba(145, 225, 255, 0.46) !important;
+  border-radius: 6px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(210, 245, 255, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.22) !important;
+}
+
+.dda-hybrid-panel-actions button:hover,
+form.dda-tamer-window-sheet .hybrid-partner:hover,
+form.dda-tamer-window-sheet .end-hybrid-partner:hover,
+form.dda-tamer-window-sheet .open-hybrid-sheet:hover {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, rgba(36, 122, 170, 1), rgba(8, 56, 96, 1)) !important;
+  border-color: rgba(190, 245, 255, 0.72) !important;
+  text-shadow: 0 0 6px rgba(120, 220, 255, 0.52) !important;
+}
+
+.dda-hybrid-form-badge {
+  position: absolute !important;
+  right: 12px !important;
+  top: 12px !important;
+  z-index: 12 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 0.18rem !important;
+  padding: 0.38rem 0.55rem !important;
+  color: #eaf8ff !important;
+  background:
+    radial-gradient(circle at top right, rgba(140, 230, 255, 0.22), transparent 58%),
+    linear-gradient(180deg, rgba(7, 36, 66, 0.96), rgba(3, 18, 34, 0.98)) !important;
+  border: 1px solid rgba(130, 220, 255, 0.46) !important;
+  border-radius: 8px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(220, 250, 255, 0.08),
+    0 0 12px rgba(50, 190, 255, 0.16) !important;
+}
+
+.dda-hybrid-form-badge span {
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.78rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.065em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-hybrid-form-badge strong {
+  color: #bfeeff !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-chat-card.dda-hybrid-card {
+  border-left: 6px solid rgba(90, 210, 255, 0.82) !important;
+}
+
+@media (max-width: 760px) {
+  .dda-hybrid-active-panel {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dda-hybrid-panel-rules,
+  .dda-hybrid-panel-actions {
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+  }
+}
+
+
+.dda-hybrid-form-badge span::before {
+  content: "◆ ";
+}
+
+.dda-hybrid-panel-digimon .dda-hybrid-panel-rules span:last-child {
+  white-space: normal !important;
+}
+
+/* ===================================================== */
+/* DDA — Hotfix Bio-Merge: painel e badge no cabeçalho   */
+/* ===================================================== */
+
+.dda-hybrid-active-panel {
+  min-height: 84px !important;
+  align-items: stretch !important;
+  overflow: visible !important;
+}
+
+.dda-hybrid-panel-main,
+.dda-hybrid-panel-rules,
+.dda-hybrid-panel-actions {
+  min-height: 0 !important;
+}
+
+.dda-hybrid-panel-main p {
+  overflow: visible !important;
+  white-space: normal !important;
+}
+
+.dda-digimon-sheet .dda-header-species.has-special-form-badge {
+  position: relative !important;
+  min-height: 52px !important;
+}
+
+.dda-digimon-sheet .dda-header-species.has-special-form-badge > label,
+.dda-digimon-sheet .dda-header-species.has-special-form-badge > input {
+  visibility: hidden !important;
+}
+
+.dda-digimon-sheet .dda-header-species.has-special-form-badge .dda-hybrid-form-badge {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 52px !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0.45rem 0.75rem !important;
+  box-sizing: border-box !important;
+}
+
+.dda-digimon-sheet .dda-header-species.has-special-form-badge .dda-hybrid-form-badge span,
+.dda-digimon-sheet .dda-header-species.has-special-form-badge .dda-hybrid-form-badge strong {
+  max-width: 100% !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.dda-special-form-evolution-panel {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 0.75rem !important;
+  align-items: center !important;
+
+  margin: 0 0 0.65rem !important;
+  padding: 0.65rem 0.75rem !important;
+
+  color: #fff7ec !important;
+  background:
+    radial-gradient(circle at top left, rgba(255, 190, 95, 0.18), transparent 44%),
+    linear-gradient(180deg, rgba(74, 34, 12, 0.98), rgba(34, 16, 8, 0.98)) !important;
+
+  border: 1px solid rgba(255, 205, 145, 0.50) !important;
+  border-radius: 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 235, 205, 0.08),
+    0 3px 10px rgba(0, 0, 0, 0.18),
+    0 0 14px rgba(255, 165, 70, 0.10) !important;
+}
+
+.dda-special-form-evolution-panel strong {
+  display: block !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.9rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-special-form-evolution-panel span {
+  display: block !important;
+  margin-top: 0.12rem !important;
+  color: #ffdcb4 !important;
+  font-size: 0.78rem !important;
+  line-height: 1.2 !important;
+}
+
+.dda-special-form-evolution-panel button {
+  min-width: 132px !important;
+  height: 32px !important;
+  padding: 0 0.85rem !important;
+
+  color: #fff8f2 !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(142, 70, 30, 0.98), rgba(78, 34, 8, 0.98)) !important;
+  border: 1px solid rgba(255, 205, 145, 0.54) !important;
+  border-radius: 6px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 235, 205, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.22) !important;
+}
+
+.dda-special-form-evolution-panel button:hover {
+  color: #ffffff !important;
+  background:
+    linear-gradient(180deg, rgba(176, 100, 52, 1), rgba(104, 52, 12, 1)) !important;
+  border-color: rgba(255, 228, 190, 0.74) !important;
+}
+
+/* ===================================================== */
+/* DDA — Hotfix: painéis Hybrid/Bio-Merge                */
+/* ===================================================== */
+
+.dda-hybrid-active-panel.dda-hybrid-panel-tamer,
+.dda-hybrid-active-panel.dda-hybrid-panel-digimon {
+  min-height: 98px !important;
+  margin-bottom: 16px !important;
+  padding-top: 0.85rem !important;
+  padding-bottom: 0.95rem !important;
+  box-sizing: border-box !important;
+}
+
+.dda-hybrid-active-panel .dda-hybrid-panel-main p {
+  line-height: 1.35 !important;
+  padding-bottom: 0.1rem !important;
+}
+
+.dda-digimon-sheet .dda-header-species.has-special-form-badge {
+  position: relative !important;
+  margin-left: -34px !important;
+  width: calc(100% + 34px) !important;
+  max-width: calc(100% + 34px) !important;
+}
+
+.dda-digimon-sheet .dda-header-species.has-special-form-badge .dda-hybrid-form-badge {
+  left: 0 !important;
+  right: 0 !important;
+  max-width: 100% !important;
+}
+
+
+/* ===================================================== */
+/* DDA — Mode Change / Burst como forma especial         */
+/* ===================================================== */
+
+.dda-hybrid-form-badge.dda-hybrid-method-modeChange,
+.dda-hybrid-form-badge.dda-hybrid-method-burst {
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.dda-hybrid-form-badge.dda-hybrid-method-burst,
+.dda-mode-change-active-panel.dda-mode-change-method-burst {
+  border-color: rgba(255, 215, 120, 0.58) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 245, 210, 0.08),
+    0 0 14px rgba(255, 190, 70, 0.18) !important;
+}

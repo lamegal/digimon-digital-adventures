@@ -1,0 +1,129 @@
+<section class="dda-gm-progress-root">
+  {{#unless isGM}}
+    <p class="dda-gm-progress-empty">{{localize "DDA.GMPartnerProgress.OnlyGM"}}</p>
+  {{else}}
+    <header class="dda-gm-progress-header">
+      <div>
+        <h2>{{localize "DDA.GMPartnerProgress.Title"}}</h2>
+        <p>{{localize "DDA.GMPartnerProgress.UnlockedStages"}} &bull; {{localize "DDA.GMPartnerProgress.BonusDP"}}</p>
+      </div>
+
+      <div class="dda-gm-progress-tools">
+        <label>
+          <span>{{localize "DDA.GMPartnerProgress.TargetMode"}}</span>
+          <select data-action="select-target-mode">
+            <option value="individual" {{#if (eq targetMode "individual")}}selected{{/if}}>{{localize "DDA.GMPartnerProgress.TargetIndividual"}}</option>
+            <option value="group" {{#if (eq targetMode "group")}}selected{{/if}}>{{localize "DDA.GMPartnerProgress.TargetGroup"}}</option>
+            <option value="all" {{#if (eq targetMode "all")}}selected{{/if}}>{{localize "DDA.GMPartnerProgress.TargetAll"}}</option>
+          </select>
+        </label>
+
+        <label class="dda-gm-progress-target-control {{#unless (eq targetMode "individual")}}is-muted{{/unless}}">
+          <span>{{localize "DDA.GMPartnerProgress.Tamer"}}</span>
+          <select data-action="select-tamer">
+            {{#each tamerOptions as |tamer|}}
+              <option value="{{tamer.uuid}}" {{#if (eq ../selectedTamerUuid tamer.uuid)}}selected{{/if}}>{{tamer.name}}</option>
+            {{/each}}
+          </select>
+        </label>
+
+        <label class="dda-gm-progress-target-control {{#unless (eq targetMode "group")}}is-muted{{/unless}}">
+          <span>{{localize "DDA.GMPartnerProgress.Group"}}</span>
+          <select data-action="select-group">
+            <option value="all" {{#if (eq selectedGroupUuid "all")}}selected{{/if}}>{{localize "DDA.GMPartnerProgress.AllGroups"}}</option>
+            {{#each groups as |group|}}
+              <option value="{{group.uuid}}" {{#if (eq ../selectedGroupUuid group.uuid)}}selected{{/if}}>{{group.name}}</option>
+            {{/each}}
+          </select>
+        </label>
+
+        <button type="button" data-action="refresh">
+          <i class="fas fa-sync-alt"></i>
+          {{localize "DDA.GMPartnerProgress.Refresh"}}
+        </button>
+      </div>
+    </header>
+
+    {{#unless hasTamers}}
+      <p class="dda-gm-progress-empty">{{localize "DDA.GMPartnerProgress.NoTamers"}}</p>
+    {{/unless}}
+
+    <div class="dda-gm-progress-list">
+      {{#each tamers as |tamer|}}
+        <article class="dda-gm-progress-card">
+          <header class="dda-gm-progress-card-header">
+            <img src="{{tamer.img}}" alt="{{tamer.name}}" />
+            <div>
+              <h3>{{tamer.name}}</h3>
+              <span>{{localize "DDA.Actor.Tamer"}}</span>
+            </div>
+            <button type="button" data-action="open-tamer" data-uuid="{{tamer.uuid}}">
+              {{localize "DDA.GMPartnerProgress.OpenTamer"}}
+            </button>
+          </header>
+
+          <div class="dda-gm-progress-partner-row">
+            <div class="dda-gm-progress-partner-box">
+              <label>{{localize "DDA.GMPartnerProgress.Partner"}}</label>
+              <div>
+                <img src="{{tamer.partnerImg}}" alt="{{tamer.partnerName}}" />
+                <strong>{{tamer.partnerName}}</strong>
+              </div>
+              {{#if tamer.partnerUuid}}
+                <button type="button" data-action="open-partner" data-uuid="{{tamer.partnerUuid}}">{{localize "DDA.GMPartnerProgress.OpenPartner"}}</button>
+              {{/if}}
+            </div>
+
+            <div class="dda-gm-progress-partner-box">
+              <label>{{localize "DDA.GMPartnerProgress.CurrentForm"}}</label>
+              <div>
+                <img src="{{tamer.currentFormImg}}" alt="{{tamer.currentFormName}}" />
+                <strong>{{tamer.currentFormName}}</strong>
+                <span>{{tamer.currentStageLabel}}</span>
+              </div>
+            </div>
+
+            <div class="dda-gm-progress-bonus-box">
+              <label>{{localize "DDA.GMPartnerProgress.BonusDP"}}</label>
+              <div>
+                <button type="button" data-action="bonus-step" data-step="-1" data-tamer-uuid="{{tamer.uuid}}">−</button>
+                <input type="number" min="0" value="{{tamer.bonusDp}}" data-action="set-bonus-dp" data-tamer-uuid="{{tamer.uuid}}" />
+                <button type="button" data-action="bonus-step" data-step="1" data-tamer-uuid="{{tamer.uuid}}">+</button>
+              </div>
+            </div>
+
+            <div class="dda-gm-progress-crest-box {{#unless tamer.hasCrest}}is-muted{{/unless}}">
+              <label>{{localize "DDA.GMPartnerProgress.CrestDigivice"}}</label>
+              <button
+                type="button"
+                class="dda-gm-crest-toggle {{#if tamer.digiviceRevealed}}is-on{{/if}}"
+                data-action="toggle-crest-digivice"
+                data-tamer-uuid="{{tamer.uuid}}"
+                {{#unless tamer.hasCrest}}disabled{{/unless}}{{#unless tamer.questionnaireEnabled}}disabled{{/unless}}
+              >
+                {{#if tamer.digiviceRevealed}}{{localize "DDA.GMPartnerProgress.CrestDigiviceOn"}}{{else}}{{localize "DDA.GMPartnerProgress.CrestDigiviceOff"}}{{/if}}
+              </button>
+            </div>
+          </div>
+
+          <section class="dda-gm-progress-stage-panel">
+            <h4>{{localize "DDA.GMPartnerProgress.UnlockedStages"}}</h4>
+            <div class="dda-gm-progress-stage-list">
+              {{#each tamer.stages as |stage|}}
+                <button
+                  type="button"
+                  class="dda-gm-stage-toggle {{#if stage.unlocked}}is-unlocked{{else}}is-locked{{/if}}"
+                  data-action="toggle-stage"
+                  data-tamer-uuid="{{../uuid}}"
+                  data-stage-key="{{stage.key}}"
+                >
+                  {{stage.label}}
+                </button>
+              {{/each}}
+            </div>
+          </section>
+        </article>
+      {{/each}}
+    </div>
+  {{/unless}}
+</section>

@@ -1,0 +1,954 @@
+/* ===================================================== */
+/* DDA — Digimon Quality Browser                         */
+/* Arquivo: styles/quality-browser.css                   */
+/* ===================================================== */
+
+/* ========================= */
+/* Janela                    */
+/* ========================= */
+
+.window-app.dda.quality-browser-window {
+  min-width: 720px !important;
+}
+
+.window-app.dda.quality-browser-window .window-content {
+  padding: 0 !important;
+  overflow: hidden !important;
+
+  color: #173148 !important;
+
+  background:
+    linear-gradient(180deg, rgba(244, 250, 255, 0.98), rgba(224, 238, 248, 0.94)) !important;
+}
+
+.window-app.dda.quality-browser-window .window-header {
+  background:
+    linear-gradient(180deg, rgba(27, 78, 112, 0.98), rgba(8, 38, 62, 0.98)) !important;
+
+  border-bottom: 1px solid rgba(120, 200, 245, 0.35) !important;
+}
+
+.window-app.dda.quality-browser-window .window-title,
+.window-app.dda.quality-browser-window .header-button {
+  color: #eaf7ff !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* ========================= */
+/* Corpo                     */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .dda-quality-browser {
+  height: 100% !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+
+  padding: 0.85rem !important;
+
+  color: #173148 !important;
+
+  background:
+    linear-gradient(180deg, rgba(248, 252, 255, 0.98), rgba(224, 238, 248, 0.92)) !important;
+
+  overflow: hidden !important;
+}
+
+/* ========================= */
+/* Header: busca + filtros   */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-browser-header {
+  flex: 0 0 auto !important;
+
+  display: grid !important;
+  grid-template-columns: minmax(220px, 0.95fr) minmax(360px, 1.55fr) !important;
+  align-items: center !important;
+  gap: 0.65rem !important;
+
+  margin: 0 !important;
+  padding: 0.65rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(239, 249, 255, 0.98), rgba(212, 231, 244, 0.94)) !important;
+
+  border: 1px solid rgba(45, 100, 135, 0.28) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 2px 6px rgba(0, 0, 0, 0.10) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-browser-header input[type="search"] {
+  width: 100% !important;
+  height: 32px !important;
+  min-height: 32px !important;
+
+  margin: 0 !important;
+  padding: 0 0.85rem !important;
+
+  color: #17384f !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.035em !important;
+
+  background:
+    linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(226, 239, 248, 0.96)) !important;
+
+  border: 1px solid rgba(45, 100, 135, 0.34) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 6px rgba(0, 0, 0, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.52) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-browser-header input[type="search"]:focus {
+  outline: none !important;
+  border-color: rgba(80, 185, 240, 0.78) !important;
+
+  box-shadow:
+    inset 0 0 6px rgba(0, 0, 0, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 0 8px rgba(80, 190, 255, 0.30) !important;
+}
+
+/* ========================= */
+/* Filtros                   */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-browser-filters {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 0.35rem !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.window-app.dda.quality-browser-window .quality-browser-filters button {
+  width: auto !important;
+  min-width: 74px !important;
+
+  height: 28px !important;
+  min-height: 28px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 0.75rem !important;
+
+  color: #eaf7ff !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.7rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(27, 78, 112, 0.96), rgba(8, 38, 62, 0.98)) !important;
+
+  border: 1px solid rgba(120, 200, 245, 0.34) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    inset 0 -5px 8px rgba(0, 0, 0, 0.20),
+    0 1px 3px rgba(0, 0, 0, 0.15) !important;
+
+  cursor: pointer !important;
+}
+
+.window-app.dda.quality-browser-window .quality-browser-filters button:hover {
+  filter: brightness(1.12) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-browser-filters button.active {
+  color: #ffffff !important;
+
+  background:
+    linear-gradient(180deg, rgba(55, 150, 205, 0.98), rgba(18, 82, 125, 0.98)) !important;
+
+  border-color: rgba(150, 225, 255, 0.70) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 -5px 8px rgba(0, 0, 0, 0.18),
+    0 0 8px rgba(80, 190, 255, 0.32) !important;
+}
+
+/* ========================= */
+/* Lista                     */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-browser-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+
+  display: block !important;
+  column-count: 2 !important;
+  column-gap: 0.9rem !important;
+
+  margin: 0 !important;
+  padding: 0.25rem 0.35rem 1.25rem !important;
+
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* ========================= */
+/* Card                      */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-card {
+  position: relative !important;
+  isolation: isolate !important;
+
+  box-sizing: border-box !important;
+
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.58rem !important;
+
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+
+  margin: 0 0 0.9rem !important;
+  padding: 0.8rem 0.8rem 0.9rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(247, 251, 255, 0.98), rgba(219, 232, 242, 0.96)) !important;
+
+  border: 1px solid rgba(70, 116, 145, 0.34) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.52),
+    0 2px 7px rgba(0, 0, 0, 0.10) !important;
+
+  overflow: visible !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card::before {
+  content: "";
+  position: absolute !important;
+
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+
+  width: 5px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(70, 190, 245, 0.88),
+      rgba(22, 80, 120, 0.96)
+    ) !important;
+
+  box-shadow:
+    0 0 8px rgba(80, 190, 255, 0.28) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card.free::before {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(95, 210, 135, 0.92),
+      rgba(28, 105, 58, 0.96)
+    ) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card.negative::before {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(190, 75, 95, 0.92),
+      rgba(95, 28, 45, 0.96)
+    ) !important;
+}
+
+/* ========================= */
+/* Header do card            */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-card-header {
+  position: relative !important;
+  z-index: 1 !important;
+
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 104px !important;
+  align-items: start !important;
+  gap: 0.65rem !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card-header h3 {
+  margin: 0 !important;
+
+  color: #183149 !important;
+
+  font-family: "PixelOperatorBold", "Reactor7", Arial, sans-serif !important;
+  font-size: 1.02rem !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.30) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-original {
+  display: block !important;
+
+  margin-top: 0.15rem !important;
+
+  color: #5a6f82 !important;
+
+  font-family: "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+
+  opacity: 1 !important;
+}
+
+/* ========================= */
+/* Botão do card             */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-card-header button {
+  width: 104px !important;
+  min-width: 104px !important;
+  max-width: 104px !important;
+
+  height: 28px !important;
+  min-height: 28px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #eaf7ff !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.66rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(27, 78, 112, 0.98), rgba(8, 38, 62, 0.98)) !important;
+
+  border: 1px solid rgba(120, 200, 245, 0.36) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    inset 0 -5px 8px rgba(0, 0, 0, 0.20),
+    0 1px 3px rgba(0, 0, 0, 0.16) !important;
+
+  cursor: pointer !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card-header button:hover:not(:disabled) {
+  filter: brightness(1.12) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card-header button:disabled {
+  color: #f0f6fb !important;
+
+  background:
+    linear-gradient(180deg, rgba(150, 158, 168, 0.96), rgba(112, 121, 132, 0.96)) !important;
+
+  border-color: rgba(160, 175, 188, 0.42) !important;
+
+  opacity: 0.95 !important;
+  cursor: default !important;
+}
+
+/* ========================= */
+/* Tags/meta                 */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-card-meta {
+  position: relative !important;
+  z-index: 1 !important;
+
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.28rem !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card-meta span {
+  min-height: 18px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  padding: 0 0.48rem !important;
+
+  color: #f4fbff !important;
+
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.62rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(56, 92, 122, 0.98), rgba(23, 54, 79, 0.98)) !important;
+
+  border: 1px solid rgba(120, 185, 225, 0.28) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    inset 0 -4px 6px rgba(0, 0, 0, 0.18) !important;
+}
+
+/* ========================= */
+/* Rank                      */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-rank-info {
+  position: relative !important;
+  z-index: 1 !important;
+
+  width: fit-content !important;
+  max-width: 100% !important;
+
+  margin: 0.1rem 0 0 !important;
+  padding: 0.35rem 0.55rem !important;
+
+  color: #ffffff !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.78rem !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0.035em !important;
+
+  background:
+    linear-gradient(180deg, rgba(92, 95, 175, 0.98), rgba(40, 42, 105, 0.98)) !important;
+
+  border: 1px solid rgba(180, 190, 255, 0.46) !important;
+  border-radius: 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 -4px 6px rgba(0, 0, 0, 0.18),
+    0 1px 3px rgba(0, 0, 0, 0.12) !important;
+
+  overflow: visible !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  text-shadow: none !important;
+}
+
+.window-app.dda.quality-browser-window .quality-rank-info strong,
+.window-app.dda.quality-browser-window .quality-rank-info span {
+  color: #ffffff !important;
+  font: inherit !important;
+}
+
+/* ========================= */
+/* Requisitos / avisos       */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-requirements,
+.window-app.dda.quality-browser-window .quality-blocked,
+.window-app.dda.quality-browser-window .quality-incompatible {
+  position: relative !important;
+  z-index: 1 !important;
+
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  margin: 0 !important;
+  padding: 0.55rem 0.7rem !important;
+
+  font-family: "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.88rem !important;
+  line-height: 1.4 !important;
+
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+
+  overflow: visible !important;
+
+  border-radius: 8px !important;
+}
+
+.window-app.dda.quality-browser-window .quality-requirements {
+  color: #21384d !important;
+
+  background:
+    linear-gradient(180deg, rgba(235, 245, 252, 0.98), rgba(210, 226, 238, 0.96)) !important;
+
+  border: 1px solid rgba(105, 145, 172, 0.34) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-blocked,
+.window-app.dda.quality-browser-window .quality-incompatible {
+  color: #3f1018 !important;
+
+  background:
+    linear-gradient(180deg, rgba(255, 218, 224, 0.98), rgba(238, 170, 181, 0.96)) !important;
+
+  border: 1px solid rgba(155, 45, 65, 0.58) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.34),
+    0 1px 3px rgba(90, 20, 35, 0.12) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-blocked strong,
+.window-app.dda.quality-browser-window .quality-incompatible strong {
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  text-shadow:
+    0 1px 1px rgba(80, 0, 20, 0.65),
+    0 0 3px rgba(80, 0, 20, 0.45) !important;
+}
+
+/* ========================= */
+/* Efeito                    */
+/* ========================= */
+
+.window-app.dda.quality-browser-window .quality-effect {
+  position: relative !important;
+  z-index: 1 !important;
+
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  margin: 0 !important;
+  padding: 0.55rem 0.65rem !important;
+
+  color: #21384a !important;
+
+  font-family: "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.88rem !important;
+  line-height: 1.42 !important;
+
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+
+  background:
+    linear-gradient(180deg, rgba(248, 252, 255, 0.76), rgba(226, 238, 248, 0.68)) !important;
+
+  border: 1px solid rgba(90, 130, 155, 0.24) !important;
+  border-radius: 8px !important;
+
+  overflow: visible !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card *,
+.window-app.dda.quality-browser-window .quality-card *::before,
+.window-app.dda.quality-browser-window .quality-card *::after {
+  box-sizing: border-box !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card p,
+.window-app.dda.quality-browser-window .quality-card h3,
+.window-app.dda.quality-browser-window .quality-card span,
+.window-app.dda.quality-browser-window .quality-card strong {
+  max-width: 100% !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+
+/* ========================= */
+/* Responsivo                */
+/* ========================= */
+
+@media (max-width: 760px) {
+  .window-app.dda.quality-browser-window .quality-browser-header {
+    grid-template-columns: 1fr !important;
+  }
+
+  .window-app.dda.quality-browser-window .quality-browser-filters {
+    justify-content: flex-start !important;
+  }
+
+  .window-app.dda.quality-browser-window .quality-browser-list {
+    column-count: 1 !important;
+  }
+}
+/* ===================================================== */
+/* Ajuste — Pílula de Requisito das Qualidades           */
+/* ===================================================== */
+
+.window-app.dda.quality-browser-window .quality-requirements {
+  color: #183149 !important;
+
+  background:
+    linear-gradient(180deg, rgba(222, 243, 252, 0.98), rgba(186, 220, 238, 0.96)) !important;
+
+  border: 1px solid rgba(58, 126, 166, 0.46) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42),
+    0 1px 3px rgba(20, 70, 105, 0.10) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-requirements strong {
+  color: #ffffff !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+
+  margin-right: 0.25rem !important;
+  padding: 0.12rem 0.42rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(42, 132, 170, 0.98), rgba(17, 72, 105, 0.98)) !important;
+
+  border: 1px solid rgba(155, 230, 255, 0.48) !important;
+  border-radius: 999px !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+
+  text-shadow:
+    0 1px 1px rgba(0, 35, 65, 0.75),
+    0 0 3px rgba(0, 35, 65, 0.45) !important;
+}
+/* ===================================================== */
+/* Cores por tipo de Qualidade                           */
+/* Inicial / Adulto / Perfeito / Mega / Gratuita / Negativa */
+/* ===================================================== */
+
+/* Inicial — Azul Digivice */
+.window-app.dda.quality-browser-window .quality-card.tier-starting::before {
+  background:
+    linear-gradient(180deg, rgba(70, 190, 245, 0.92), rgba(22, 80, 120, 0.98)) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card.tier-starting .quality-card-meta span {
+  background:
+    linear-gradient(180deg, rgba(56, 120, 165, 0.98), rgba(22, 70, 105, 0.98)) !important;
+
+  border-color: rgba(140, 215, 255, 0.38) !important;
+}
+
+/* Adulto — Verde */
+.window-app.dda.quality-browser-window .quality-card.tier-champion::before {
+  background:
+    linear-gradient(180deg, rgba(92, 215, 135, 0.94), rgba(24, 115, 62, 0.98)) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card.tier-champion .quality-card-meta span {
+  background:
+    linear-gradient(180deg, rgba(58, 150, 92, 0.98), rgba(24, 92, 55, 0.98)) !important;
+
+  border-color: rgba(150, 240, 180, 0.38) !important;
+}
+
+/* Perfeito — Roxo */
+.window-app.dda.quality-browser-window .quality-card.tier-perfect::before {
+  background:
+    linear-gradient(180deg, rgba(165, 105, 245, 0.94), rgba(78, 42, 145, 0.98)) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card.tier-perfect .quality-card-meta span {
+  background:
+    linear-gradient(180deg, rgba(115, 82, 175, 0.98), rgba(58, 38, 112, 0.98)) !important;
+
+  border-color: rgba(205, 175, 255, 0.40) !important;
+}
+
+/* Mega — Dourado/Laranja */
+.window-app.dda.quality-browser-window .quality-card.tier-mega::before {
+  background:
+    linear-gradient(180deg, rgba(255, 190, 82, 0.96), rgba(170, 82, 18, 0.98)) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card.tier-mega .quality-card-meta span {
+  color: #fff7e4 !important;
+
+  background:
+    linear-gradient(180deg, rgba(190, 125, 42, 0.98), rgba(116, 58, 18, 0.98)) !important;
+
+  border-color: rgba(255, 215, 125, 0.46) !important;
+}
+
+/* Gratuita — Ciano/Verde claro */
+.window-app.dda.quality-browser-window .quality-card.tier-free::before,
+.window-app.dda.quality-browser-window .quality-card.free::before {
+  background:
+    linear-gradient(180deg, rgba(105, 235, 205, 0.94), rgba(28, 130, 112, 0.98)) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card.tier-free .quality-card-meta span,
+.window-app.dda.quality-browser-window .quality-card.free .quality-card-meta span {
+  background:
+    linear-gradient(180deg, rgba(48, 160, 145, 0.98), rgba(18, 92, 88, 0.98)) !important;
+
+  border-color: rgba(150, 255, 230, 0.42) !important;
+}
+
+/* Negativa — Vermelho */
+.window-app.dda.quality-browser-window .quality-card.tier-negative::before,
+.window-app.dda.quality-browser-window .quality-card.negative::before {
+  background:
+    linear-gradient(180deg, rgba(210, 75, 95, 0.94), rgba(105, 28, 45, 0.98)) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-card.tier-negative .quality-card-meta span,
+.window-app.dda.quality-browser-window .quality-card.negative .quality-card-meta span {
+  background:
+    linear-gradient(180deg, rgba(160, 58, 78, 0.98), rgba(88, 25, 40, 0.98)) !important;
+
+  border-color: rgba(245, 150, 170, 0.42) !important;
+}
+
+/* ===================================================== */
+/* Footer / Botão Fechar — Loja de Qualidades            */
+/* Seguro: não mexe na estrutura global do Foundry       */
+/* ===================================================== */
+
+.window-app.dda.quality-browser-window .quality-browser-footer {
+  flex: 0 0 auto !important;
+
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+
+  margin: 0 !important;
+  padding: 0.65rem 0.85rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(218, 230, 238, 0.98), rgba(195, 211, 224, 0.98)) !important;
+
+  border-top: 1px solid rgba(123, 166, 194, 0.72) !important;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32) !important;
+}
+
+.window-app.dda.quality-browser-window .quality-browser-footer button {
+  min-width: 118px !important;
+  height: 30px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 0.95rem !important;
+
+  color: #eaf7ff !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(24, 83, 124, 0.98), rgba(8, 43, 72, 0.98)) !important;
+
+  border: 1px solid rgba(95, 183, 235, 0.55) !important;
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.20),
+    0 1px 3px rgba(0, 0, 0, 0.14) !important;
+
+  cursor: pointer !important;
+}
+
+.window-app.dda.quality-browser-window .quality-browser-footer button:hover {
+  filter: brightness(1.08) !important;
+}
+
+/* ===================================================== */
+/* Topo — remove apenas o botão Fechar desta janela       */
+/* Seguro: não altera posição, largura, resize ou layout  */
+/* ===================================================== */
+
+.window-app.dda.quality-browser-window .window-header .header-button.close,
+.window-app.dda.quality-browser-window .window-header a.close {
+  display: none !important;
+}
+
+/* ===================================================== */
+/* DDA — Quality Browser: navegador / viewport scroll fix */
+/* Mantém o cabeçalho e rodapé visíveis; a lista rola.     */
+/* ===================================================== */
+
+html body .window-app.dda.quality-browser-window,
+html body .app.window-app.dda.quality-browser-window {
+  max-height: calc(100vh - 48px) !important;
+  min-height: 420px !important;
+}
+
+html body .window-app.dda.quality-browser-window .window-content,
+html body .app.window-app.dda.quality-browser-window .window-content {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: calc(100vh - 86px) !important;
+  overflow: hidden !important;
+}
+
+html body .window-app.dda.quality-browser-window .dda-quality-browser,
+html body .app.window-app.dda.quality-browser-window .dda-quality-browser {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
+html body .window-app.dda.quality-browser-window .quality-browser-header,
+html body .window-app.dda.quality-browser-window .quality-browser-footer,
+html body .app.window-app.dda.quality-browser-window .quality-browser-header,
+html body .app.window-app.dda.quality-browser-window .quality-browser-footer {
+  flex: 0 0 auto !important;
+}
+
+html body .window-app.dda.quality-browser-window .quality-browser-list,
+html body .app.window-app.dda.quality-browser-window .quality-browser-list {
+  flex: 1 1 auto !important;
+  min-height: 160px !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #0d5f9c rgba(220, 225, 228, 0.9) !important;
+}
+
+html body .window-app.dda.quality-browser-window .quality-browser-list::-webkit-scrollbar,
+html body .app.window-app.dda.quality-browser-window .quality-browser-list::-webkit-scrollbar {
+  width: 10px !important;
+}
+
+html body .window-app.dda.quality-browser-window .quality-browser-list::-webkit-scrollbar-track,
+html body .app.window-app.dda.quality-browser-window .quality-browser-list::-webkit-scrollbar-track {
+  background: rgba(220, 225, 228, 0.9) !important;
+}
+
+html body .window-app.dda.quality-browser-window .quality-browser-list::-webkit-scrollbar-thumb,
+html body .app.window-app.dda.quality-browser-window .quality-browser-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(18, 105, 165, 0.98), rgba(5, 48, 88, 0.98)) !important;
+  border: 2px solid rgba(220, 225, 228, 0.9) !important;
+  border-radius: 8px !important;
+}
+
+@media (max-height: 680px) {
+  html body .window-app.dda.quality-browser-window .quality-browser-header,
+  html body .app.window-app.dda.quality-browser-window .quality-browser-header {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+
+  html body .window-app.dda.quality-browser-window .quality-browser-filters,
+  html body .app.window-app.dda.quality-browser-window .quality-browser-filters {
+    justify-content: flex-start !important;
+  }
+}
+
+
+/* ===================================================== */
+/* DDA — Quality Browser: grid scroll hotfix v2           */
+/* Evita CSS multicolumn, que no navegador cria colunas   */
+/* horizontais e esconde cards em vez de rolar vertical.  */
+/* ===================================================== */
+
+html body .window-app.dda.quality-browser-window .quality-browser-list,
+html body .app.window-app.dda.quality-browser-window .quality-browser-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-auto-rows: min-content !important;
+  align-content: start !important;
+  gap: 0.9rem !important;
+
+  column-count: auto !important;
+  column-gap: normal !important;
+
+  flex: 1 1 auto !important;
+  min-height: 160px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+html body .window-app.dda.quality-browser-window .quality-card,
+html body .app.window-app.dda.quality-browser-window .quality-card {
+  width: 100% !important;
+  margin: 0 !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+}
+
+@media (max-width: 760px), (max-height: 680px) {
+  html body .window-app.dda.quality-browser-window .quality-browser-list,
+  html body .app.window-app.dda.quality-browser-window .quality-browser-list {
+    grid-template-columns: 1fr !important;
+  }
+}

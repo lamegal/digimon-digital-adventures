@@ -1,0 +1,1689 @@
+<form class="dda-wizard-form dda-digimon-wizard-form">
+
+  <header class="dda-wizard-header">
+    <div>
+      <h1>{{wizardTitle}}</h1>
+      <p>{{progressLabel}} — {{localize "DDA.Wizard.StepLower"}} {{stepIndex}} {{localize "DDA.Wizard.Of"}} {{totalSteps}}</p>
+    </div>
+
+<div class="dda-wizard-progress">
+  {{#each progressSteps as |stepDot|}}
+    <span class="dda-wizard-dot {{#if stepDot.active}}active{{/if}} {{#if stepDot.done}}done{{/if}}"></span>
+  {{/each}}
+</div>
+  </header>
+
+  <main class="dda-wizard-body">
+
+    <aside class="dda-wizard-guide">
+      <div class="dda-wizard-guide-portrait" aria-label="Wizardmon"><img src="systems/digimon-digital-adventures/assets/ui/wizardmon%20-%20portrait.webp" alt="Wizardmon"></div>
+
+      <div class="dda-wizard-guide-text">
+        <strong>{{guide.title}}</strong>
+        <p>{{guide.text}}</p>
+      </div>
+    </aside>
+
+
+    {{#if (eq step "welcome")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.DigimonWizard.Welcome.Title"}}</h2>
+
+        <p>
+          {{localize "DDA.DigimonWizard.Welcome.Text1"}}
+          {{localize "DDA.DigimonWizard.Welcome.Text2"}}
+        </p>
+
+        <p class="dda-wizard-hint">
+          {{localize "DDA.DigimonWizard.Welcome.Hint"}}
+        </p>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "origin")}}
+      <section class="dda-wizard-step dda-wizard-origin-step">
+        <h2>{{localize "DDA.DigimonWizard.Origin.Title"}}</h2>
+
+        <p>{{localize "DDA.DigimonWizard.Origin.Help"}}</p>
+
+        <div class="dda-wizard-mode-grid">
+          <button
+            type="button"
+            class="dda-wizard-mode-card {{#if (eq data.creationMode 'custom')}}selected{{/if}}"
+            data-action="select-creation-mode"
+            data-mode="custom"
+          >
+            <strong>{{localize "DDA.DigimonWizard.Origin.CustomTitle"}}</strong>
+            <span>{{localize "DDA.DigimonWizard.Origin.CustomText"}}</span>
+          </button>
+
+          <button
+            type="button"
+            class="dda-wizard-mode-card {{#if (eq data.creationMode 'existing')}}selected{{/if}}"
+            data-action="select-creation-mode"
+            data-mode="existing"
+          >
+            <strong>{{localize "DDA.DigimonWizard.Origin.ExistingTitle"}}</strong>
+            <span>{{localize "DDA.DigimonWizard.Origin.ExistingText"}}</span>
+          </button>
+        </div>
+
+        <label class="dda-wizard-tutorial-toggle">
+          <input type="checkbox" {{#if data.tutorialMode}}checked{{/if}} data-action="toggle-tutorial">
+          <span>{{localize "DDA.DigimonWizard.Tutorial.Toggle"}}</span>
+        </label>
+
+                <label class="dda-wizard-build-template-toggle {{#if data.buildTemplate.enabled}}active{{/if}}">
+          <input type="checkbox" {{#if data.buildTemplate.enabled}}checked{{/if}} data-action="toggle-build-template">
+
+          <span class="dda-build-template-toggle-icon">✨</span>
+
+          <span class="dda-build-template-toggle-copy">
+            <strong>{{localize "DDA.DigimonWizard.BuildTemplate.Toggle"}}</strong>
+            <small>{{localize "DDA.DigimonWizard.BuildTemplate.ToggleHint"}}</small>
+          </span>
+        </label>
+
+        <p class="dda-wizard-build-template-note">
+          {{localize "DDA.DigimonWizard.BuildTemplate.RookieOnlyHint"}}
+        </p>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "compatibilityIntro")}}
+      <section class="dda-wizard-step dda-compatibility-intro-step">
+        <h2>{{localize "DDA.DigimonWizard.Questionnaire.Title"}}</h2>
+
+        <div class="dda-compatibility-intro-card">
+          <div class="dda-compatibility-device-glow"></div>
+          <h3>{{localize "DDA.DigimonWizard.Questionnaire.DetectTitle"}}</h3>
+          <p>
+            {{localize "DDA.DigimonWizard.Questionnaire.Intro1"}}
+            {{localize "DDA.DigimonWizard.Questionnaire.Intro2"}}
+          </p>
+          <p class="dda-wizard-hint">
+            {{localize "DDA.DigimonWizard.Questionnaire.SecretHint"}}
+          </p>
+
+          <div class="dda-questionnaire-choice-actions">
+            <button type="button" class="primary" data-action="questionnaire-choice" data-value="yes">{{localize "DDA.DigimonWizard.Questionnaire.AnswerButton"}}</button>
+            <button type="button" data-action="questionnaire-choice" data-value="no">{{localize "DDA.DigimonWizard.Questionnaire.SkipForNow"}}</button>
+          </div>
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "compatibility")}}
+      <section class="dda-wizard-step dda-compatibility-step">
+        <h2>{{localize "DDA.DigimonWizard.Questionnaire.TamerTitle"}}</h2>
+
+        <p>
+          {{localize "DDA.DigimonWizard.Questionnaire.TamerIntro1"}}
+          {{localize "DDA.DigimonWizard.Questionnaire.TamerIntro2"}}
+        </p>
+
+<div class="dda-compatibility-progress-card">
+  <strong>{{localize "DDA.DigimonWizard.Questionnaire.RegisteredAnswers"}}</strong>
+  <span>{{data.compatibility.answerList.length}} / 16</span>
+</div>
+
+<div class="dda-compatibility-question-list">
+  {{#each compatibilityQuestions as |question|}}
+            <article class="dda-compatibility-question {{#if question.answered}}answered{{/if}}">
+              <h3>{{question.number}}. {{question.text}}</h3>
+
+              <div class="dda-compatibility-answer-grid">
+                {{#each question.answers as |answer|}}
+                  <button
+                    type="button"
+                    class="dda-compatibility-answer {{#if answer.selected}}selected{{/if}}"
+                    data-compatibility-answer
+                    data-question-id="{{question.id}}"
+                    data-answer-key="{{answer.key}}"
+                  >
+                    <strong>{{answer.key}}</strong>
+                    <span>{{answer.text}}</span>
+                  </button>
+                {{/each}}
+              </div>
+            </article>
+          {{/each}}
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "digitama")}}
+      <section class="dda-wizard-step dda-digitama-step">
+        <h2>{{compatibilityFinalQuestion.text}}</h2>
+
+        <p>
+          {{localize "DDA.DigimonWizard.Questionnaire.FinalHint"}}
+        </p>
+
+        <div class="dda-hidden-crest-card dda-hidden-crest-card-secret">
+          <div class="dda-hidden-crest-symbol">?</div>
+          <div>
+            <strong>{{localize "DDA.DigimonWizard.Questionnaire.ResonanceTitle"}}</strong>
+            <span>{{localize "DDA.DigimonWizard.Questionnaire.ResonanceText"}}</span>
+          </div>
+        </div>
+
+        <div class="dda-digitama-choice-grid">
+          {{#each compatibilityRecommendations as |digitama|}}
+            <button
+              type="button"
+              class="dda-digitama-choice {{#if digitama.selected}}selected{{/if}} {{#if digitama.used}}used{{/if}}"
+              data-action="select-digitama"
+              data-digitama-key="{{digitama.key}}"
+              title="Digitama"
+              aria-label="{{localize 'DDA.DigimonWizard.Questionnaire.ChooseAnswer'}} {{digitama.finalAnswerKey}}"
+            >
+              <span class="dda-digitama-orb dda-digitama-orb-{{digitama.visualClass}}" style="{{digitama.visualStyle}}">
+                <img
+                  src="{{digitama.img}}"
+                  data-fallback-index="0"
+                  data-fallback-srcs="{{digitama.fallbackSrcs}}"
+                  alt="Digitama"
+                  onerror="const fallbacks = String(this.dataset.fallbackSrcs || '').split('|').filter(Boolean); const index = Number(this.dataset.fallbackIndex || 0); if (index < fallbacks.length) { this.dataset.fallbackIndex = String(index + 1); this.classList.remove('missing'); this.classList.add('fallback'); this.src = fallbacks[index]; } else { this.classList.add('missing'); this.removeAttribute('src'); }"
+                >
+              </span>
+              <strong>{{digitama.finalAnswerKey}}</strong>
+              <small>{{digitama.finalAnswerText}}</small>
+            </button>
+          {{/each}}
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "identity")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.DigimonWizard.Identity.Title"}}</h2>
+
+        <p>
+          {{localize "DDA.DigimonWizard.Identity.Help1"}}
+          {{localize "DDA.DigimonWizard.Identity.Help2"}}
+        </p>
+
+{{#unless data.initialLine.baby1LockedByQuestionnaire}}
+  {{#if (eq data.creationMode "existing")}}
+    <div class="dda-main-form-browser">
+            <h3>{{localize "DDA.DigimonWizard.MainForm.DatabaseTitle"}}</h3>
+
+            <div class="dda-main-form-grid">
+              {{#each mainFormOptions as |option|}}
+                <button
+                  type="button"
+                  class="dda-main-form-card {{#if option.selected}}selected{{/if}}"
+                  data-action="select-main-form"
+                  data-stage-key="{{option.stageKey}}"
+                  data-digimon-id="{{option.id}}"
+                >
+                  <img
+                  src="{{option.img}}"
+                  data-fallback-index="0"
+                  data-fallback-srcs="{{option.imageFallbacks}}"
+                  alt="{{option.name}}"
+                  onerror="const fallbacks = String(this.dataset.fallbackSrcs || '').split('|').filter(Boolean); const index = Number(this.dataset.fallbackIndex || 0); if (index < fallbacks.length) { this.dataset.fallbackIndex = String(index + 1); this.src = fallbacks[index]; } else { this.src = 'icons/svg/mystery-man.svg'; }"
+                >
+                  <strong>{{option.name}}</strong>
+
+                  {{#if option.originalName}}
+                    <small>{{option.originalName}}</small>
+                  {{/if}}
+
+                  <span>{{option.stageLabel}}</span>
+                </button>
+              {{/each}}
+            </div>
+          </div>
+        {{/if}}
+        {{/unless}}
+
+        {{#if data.compatibility.digitama}}
+          <div class="dda-wizard-revealed-partner-card dda-wizard-auto-identity-card">
+            <div class="dda-auto-identity-portrait {{#if identityPixelArt}}has-pixelart{{/if}}">
+              <div class="dda-auto-identity-screen">
+                {{#if identityPixelArt}}
+                  <img class="dda-auto-identity-ghost" src="{{data.identity.img}}" alt="" aria-hidden="true">
+                  <img class="dda-auto-identity-pixelart" src="{{identityPixelArt}}" alt="{{data.identity.species}}">
+                {{else}}
+                  <img class="dda-auto-identity-mainart" src="{{data.identity.img}}" alt="{{data.identity.species}}">
+                {{/if}}
+              </div>
+            </div>
+
+            <div class="dda-auto-identity-content">
+              <header class="dda-auto-identity-header">
+                <div>
+                  <span class="dda-auto-identity-kicker">{{localize "DDA.DigimonWizard.Identity.AutoSpecies"}}</span>
+                  <strong>{{data.identity.species}}</strong>
+                </div>
+
+                <span class="dda-auto-identity-stage">{{data.stage}}</span>
+              </header>
+
+              <dl class="dda-auto-identity-grid">
+                <div>
+                  <dt>{{localize "DDA.Label.Name"}}</dt>
+                  <dd>{{data.identity.name}}</dd>
+                </div>
+
+                <div>
+                  <dt>{{localize "DDA.Label.Attribute"}}</dt>
+                  <dd>{{identityLabels.attribute}}</dd>
+                </div>
+
+                <div>
+                  <dt>{{localize "DDA.Label.Type"}}</dt>
+                  <dd>{{identityLabels.type}}</dd>
+                </div>
+
+                <div>
+                  <dt>{{localize "DDA.Label.Group"}}</dt>
+                  <dd>{{identityLabels.group}}</dd>
+                </div>
+
+                <div>
+                  <dt>{{localize "DDA.Label.Field"}}</dt>
+                  <dd>{{identityLabels.field}}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <input type="hidden" data-path="identity.name" value="{{data.identity.name}}">
+            <input type="hidden" data-path="identity.species" value="{{data.identity.species}}">
+            <input type="hidden" data-path="identity.attribute" value="{{data.identity.attribute}}">
+            <input type="hidden" data-path="identity.type" value="{{data.identity.type}}">
+            <input type="hidden" data-path="identity.group" value="{{data.identity.group}}">
+            <input type="hidden" data-path="identity.field" value="{{data.identity.field}}">
+          </div>
+        {{else}}
+          <div class="dda-wizard-identity-grid">
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.DigimonWizard.Identity.DigimonName"}}</label>
+              <input type="text" data-path="identity.name" value="{{data.identity.name}}" placeholder="{{localize 'DDA.DigimonWizard.Identity.NamePlaceholder'}}">
+              <small>{{localize "DDA.DigimonWizard.Identity.NameHint"}}</small>
+            </div>
+
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.DigimonWizard.Identity.Species"}}</label>
+              <input type="text" data-path="identity.species" value="{{data.identity.species}}" placeholder="Ex.: Agumon">
+              <small>{{localize "DDA.DigimonWizard.Identity.SpeciesHint"}}</small>
+            </div>
+
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.Label.Attribute"}}</label>
+              <select data-path="identity.attribute">
+                <option value="">{{localize "DDA.DigimonWizard.Identity.ChooseAttribute"}}</option>
+
+                {{#each identityOptions.attributes as |option|}}
+                  <option value="{{option.key}}" {{#if (eq ../data.identity.attribute option.key)}}selected{{/if}}>
+                    {{option.label}}
+                  </option>
+                {{/each}}
+              </select>
+              <small>{{localize "DDA.DigimonWizard.Identity.AttributeHint"}}</small>
+            </div>
+
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.Label.Type"}}</label>
+              <select data-path="identity.type">
+                <option value="">{{localize "DDA.DigimonWizard.Identity.ChooseType"}}</option>
+
+                {{#each identityOptions.types as |option|}}
+                  <option value="{{option.key}}" {{#if (eq ../data.identity.type option.key)}}selected{{/if}}>
+                    {{option.label}}
+                  </option>
+                {{/each}}
+              </select>
+              <small>{{localize "DDA.DigimonWizard.Identity.TypeHint"}}</small>
+            </div>
+
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.Label.Group"}}</label>
+              <input type="text" data-path="identity.group" value="{{data.identity.group}}" placeholder="{{localize 'DDA.DigimonWizard.Identity.GroupPlaceholder'}}">
+              <small>{{localize "DDA.DigimonWizard.Identity.GroupHint"}}</small>
+            </div>
+
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.Label.Field"}}</label>
+              <select data-path="identity.field">
+                <option value="">{{localize "DDA.DigimonWizard.Identity.ChooseField"}}</option>
+
+                {{#each identityOptions.fields as |option|}}
+                  <option value="{{option.key}}" {{#if (eq ../data.identity.field option.key)}}selected{{/if}}>
+                    {{option.label}}
+                  </option>
+                {{/each}}
+              </select>
+              <small>{{localize "DDA.DigimonWizard.Identity.FieldHint"}}</small>
+            </div>
+          </div>
+
+          <p class="dda-wizard-soft-note">
+            {{identityFallbackHint}}
+          </p>
+        {{/if}}
+
+        <div class="dda-wizard-field">
+          <label>{{localize "DDA.DigimonWizard.Identity.ShortDescription"}}</label>
+          <textarea data-path="identity.description" rows="4" placeholder="{{localize 'DDA.DigimonWizard.Identity.DescriptionPlaceholder'}}">{{data.identity.description}}</textarea>
+        </div>
+      </section>
+    {{/if}}
+
+{{#if (eq step "evolutionLine")}}
+  <section class="dda-wizard-step dda-initial-line-step dda-line-form-step">
+    <h2>{{localize "DDA.DigimonWizard.InitialLine.Title"}}</h2>
+
+    <p>
+      {{localize "DDA.DigimonWizard.InitialLine.Help"}}
+    </p>
+
+    {{#if data.tutorialMode}}
+      <aside class="dda-wizard-guide">
+        <div class="dda-wizard-guide-portrait" aria-label="Wizardmon">
+          <img src="systems/digimon-digital-adventures/assets/ui/wizardmon%20-%20portrait.webp" alt="Wizardmon">
+        </div>
+
+        <div class="dda-wizard-guide-text">
+          <strong>{{localize "DDA.Wizard.Guide.DefaultTitle"}}</strong>
+          <p>{{localize "DDA.DigimonWizard.InitialLine.Tutorial"}}</p>
+        </div>
+      </aside>
+    {{/if}}
+
+    <p class="dda-wizard-hint">
+      {{localize "DDA.DigimonWizard.InitialLine.LockedHint"}}
+    </p>
+
+    <div class="dda-line-form-chain">
+      {{#each initialLineOptions.stageBlocks as |block|}}
+        <article class="dda-line-form-card {{#if block.isMain}}main-form{{/if}} {{#unless block.form.species}}empty{{/unless}}">
+          <header>
+            <span>{{block.title}}</span>
+
+<button
+  type="button"
+  class="dda-line-main-toggle {{#if block.isMain}}active{{/if}} {{#if block.mainLocked}}locked{{/if}}"
+  data-action="set-main-form"
+  data-stage-key="{{block.stageKey}}"
+  {{#if block.mainLocked}}disabled{{/if}}
+>
+              {{#if block.isMain}}
+                {{localize "DDA.DigimonWizard.InitialLine.MainFormBadge"}}
+              {{else}}
+                {{localize "DDA.DigimonWizard.InitialLine.MakeMainForm"}}
+              {{/if}}
+            </button>
+          </header>
+
+<div class="dda-line-form-preview">
+  <img
+    src="{{block.form.img}}"
+    data-fallback-index="0"
+    data-fallback-srcs="{{block.form.imageFallbacks}}"
+    alt="{{block.form.species}}"
+    onerror="const fallbacks = String(this.dataset.fallbackSrcs || '').split('|').filter(Boolean); const index = Number(this.dataset.fallbackIndex || 0); if (index < fallbacks.length) { this.dataset.fallbackIndex = String(index + 1); this.src = fallbacks[index]; } else { this.src = 'icons/svg/mystery-man.svg'; }"
+  >
+</div>
+
+          <div class="dda-line-form-fields">
+            <label>
+              {{localize "DDA.DigimonWizard.InitialLine.SpeciesField"}}
+            <input
+              type="text"
+              data-path="lineForms.{{block.stageKey}}.species"
+              value="{{block.form.species}}"
+              placeholder="{{block.title}}"
+              {{#if block.lockedByQuestionnaire}}readonly{{/if}}
+            >
+            {{#if block.lockedByQuestionnaire}}
+              <small class="dda-line-questionnaire-lock">
+                {{localize "DDA.DigimonWizard.InitialLine.QuestionnaireLockedBaby1"}}
+              </small>
+            {{/if}}
+            </label>
+
+            <div class="dda-line-form-image-actions">
+              <button
+                type="button"
+                data-action="select-line-form-image"
+                data-stage-key="{{block.stageKey}}"
+                data-image-kind="portrait"
+              >
+                {{localize "DDA.DigimonWizard.InitialLine.SelectPortrait"}}
+              </button>
+
+              <button
+                type="button"
+                data-action="select-line-form-image"
+                data-stage-key="{{block.stageKey}}"
+                data-image-kind="token"
+              >
+                {{localize "DDA.DigimonWizard.InitialLine.SelectToken"}}
+              </button>
+            </div>
+
+            <small>
+              {{localize "DDA.DigimonWizard.InitialLine.TokenHint"}}
+            </small>
+          </div>
+
+          <section class="dda-line-form-attacks">
+            <h4>{{localize "DDA.DigimonWizard.Attacks.Title"}}</h4>
+
+            <div class="dda-line-attack-list">
+              {{#each block.form.attackSlots as |attack|}}
+                <div class="dda-line-attack-row">
+                  <label>
+                    {{localize "DDA.DigimonWizard.Attacks.Name"}}
+                    <input
+                      type="text"
+                      data-path="lineForms.{{block.stageKey}}.attacks.{{@index}}.name"
+                      value="{{attack.name}}"
+                      placeholder="{{localize 'DDA.DigimonWizard.Attacks.Placeholder'}}"
+                    >
+                  </label>
+
+                  <label>
+                    {{localize "DDA.DigimonWizard.Attacks.Range"}}
+                    <select data-path="lineForms.{{block.stageKey}}.attacks.{{@index}}.rangeType">
+                      <option value="melee" {{#if (eq attack.rangeType "melee")}}selected{{/if}}>
+                        {{localize "DDA.Attack.Range.Melee"}}
+                      </option>
+                      <option value="range" {{#if (eq attack.rangeType "range")}}selected{{/if}}>
+                        {{localize "DDA.Attack.Range.Ranged"}}
+                      </option>
+                    </select>
+                  </label>
+
+                  <label>
+                    {{localize "DDA.DigimonWizard.Attacks.Function"}}
+                    <select data-path="lineForms.{{block.stageKey}}.attacks.{{@index}}.functionType">
+                      <option value="damage" {{#if (eq attack.functionType "damage")}}selected{{/if}}>
+                        {{localize "DDA.Attack.Function.Damage"}}
+                      </option>
+                      <option value="support" {{#if (eq attack.functionType "support")}}selected{{/if}}>
+                        {{localize "DDA.Attack.Function.Support"}}
+                      </option>
+                    </select>
+                  </label>
+                </div>
+              {{/each}}
+            </div>
+
+            <p class="dda-wizard-hint">
+              {{localize "DDA.DigimonWizard.Attacks.Help"}}
+            </p>
+          </section>
+
+{{#if block.lockedByQuestionnaire}}
+  <p class="dda-initial-line-empty dda-line-questionnaire-lock-card">
+    {{localize "DDA.DigimonWizard.InitialLine.QuestionnaireLockedBaby1"}}
+  </p>
+{{else}}
+  {{#if (eq ../data.creationMode "existing")}}
+    <section class="dda-line-form-suggestions">
+  <header class="dda-line-suggestion-header">
+    <div>
+      <h4>{{block.choiceTitle}}</h4>
+      <p>{{block.compatibilityHint}}</p>
+    </div>
+
+    <div class="dda-line-suggestion-controls">
+      <input
+        type="search"
+        data-line-search
+        data-stage-key="{{block.stageKey}}"
+        value="{{block.searchTerm}}"
+        placeholder="{{block.searchPlaceholder}}"
+      >
+
+      <div class="dda-line-suggestion-modes">
+        <button
+          type="button"
+          class="{{#if block.suggestedActive}}active{{/if}}"
+          data-line-mode="suggested"
+          data-stage-key="{{block.stageKey}}"
+        >
+          {{block.suggestedLabel}}
+        </button>
+
+        <button
+          type="button"
+          class="{{#if block.allActive}}active{{/if}}"
+          data-line-mode="all"
+          data-stage-key="{{block.stageKey}}"
+        >
+          {{block.allLabel}}
+        </button>
+      </div>
+    </div>
+  </header>
+
+  {{#if block.hasOptions}}
+    <div class="dda-initial-line-grid dda-compat-line-grid">
+      {{#each block.options as |option|}}
+        <button
+          type="button"
+          class="dda-initial-line-card dda-compat-line-card compat-{{option.compatibility.tier}} {{#if option.selected}}selected{{/if}} {{#if option.primary}}primary-line{{/if}}"
+          data-action="select-line-form"
+          data-stage-key="{{block.stageKey}}"
+          data-digimon-id="{{option.id}}"
+          title="{{option.compatibility.tooltip}}"
+        >
+          <span class="dda-compat-badge" aria-label="{{option.compatibility.tooltip}}">
+            <i></i>
+            <strong>{{option.compatibility.score}}%</strong>
+          </span>
+
+          {{#if option.img}}
+            <img
+              src="{{option.img}}"
+              data-fallback-index="0"
+              data-fallback-srcs="{{option.imageFallbacks}}"
+              alt="{{option.name}}"
+              onerror="const fallbacks = String(this.dataset.fallbackSrcs || '').split('|').filter(Boolean); const index = Number(this.dataset.fallbackIndex || 0); if (index < fallbacks.length) { this.dataset.fallbackIndex = String(index + 1); this.src = fallbacks[index]; } else { this.src = 'icons/svg/mystery-man.svg'; }"
+            >
+          {{/if}}
+
+          <strong class="dda-line-card-name">{{option.name}}</strong>
+
+          {{#if option.originalName}}
+            <small>{{option.originalName}}</small>
+          {{/if}}
+
+          <span>{{option.stageLabel}}</span>
+
+          <em class="dda-compat-reason">{{option.compatibility.reason}}</em>
+
+          {{#if option.primary}}
+            <em class="dda-line-rank-pill">{{localize "DDA.DigimonWizard.InitialLine.Primary"}}</em>
+          {{else}}
+            {{#if option.compatibility.direct}}
+              <em class="dda-line-rank-pill">{{localize "DDA.DigimonWizard.InitialLine.Alternate"}}</em>
+            {{/if}}
+          {{/if}}
+        </button>
+      {{/each}}
+    </div>
+  {{else}}
+    <p class="dda-initial-line-empty">
+      {{initialLineOptions.noSuggestionsMessage}}
+    </p>
+  {{/if}}
+    </section>
+  {{else}}
+    <p class="dda-initial-line-empty">
+      {{localize "DDA.DigimonWizard.InitialLine.CustomHint"}}
+    </p>
+  {{/if}}
+{{/if}}
+        </article>
+      {{/each}}
+    </div>
+  </section>
+{{/if}}
+
+    {{#if (eq step "stage")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.DigimonWizard.Stage.Title"}}</h2>
+
+        <p>
+          {{localize "DDA.DigimonWizard.Stage.Help"}}
+        </p>
+
+        {{#if data.partnerStartingStage.hint}}
+  <aside class="dda-wizard-alert info">
+    <p>{{data.partnerStartingStage.hint}}</p>
+  </aside>
+{{/if}}
+
+        <div class="dda-stage-grid">
+          {{#each stageOptions as |stage|}}
+<button
+  type="button"
+  class="dda-stage-card {{#if (eq ../data.stage stage.key)}}selected{{/if}} {{#if stage.lockedByStartingStage}}locked{{/if}}"
+  data-action="select-stage"
+  data-stage="{{stage.key}}"
+  {{#if stage.lockedByStartingStage}}disabled{{/if}}
+>
+              <div class="dda-stage-card-title">
+                <strong>{{stage.label}}</strong>
+                {{#if stage.recommended}}
+                  <span>{{localize "DDA.DigimonWizard.Stage.Recommended"}}</span>
+                {{/if}}
+
+{{#if stage.campaignLimit}}
+  <span>{{../data.partnerStartingStage.limitLabel}}</span>
+{{/if}}
+              </div>
+
+              <ul>
+                <li><b>{{localize "DDA.Resource.DP.Short"}}:</b> {{stage.startingDp}}</li>
+                <li><b>{{localize "DDA.Resource.Movement"}}:</b> {{stage.movement}}</li>
+                <li><b>{{localize "DDA.DigimonWizard.Summary.Attacks"}}:</b> {{stage.attacks}}</li>
+                <li><b>{{localize "DDA.DigimonWizard.Stage.MaxSize"}}:</b> {{stage.maxSizeLabel}}</li>
+              </ul>
+
+              <p>{{stage.recommendation}}</p>
+            </button>
+          {{/each}}
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "buildTemplate")}}
+  <section class="dda-wizard-step dda-build-template-step">
+    <h2>{{localize "DDA.DigimonWizard.BuildTemplate.Title"}}</h2>
+
+    <p>
+      {{localize "DDA.DigimonWizard.BuildTemplate.Help"}}
+    </p>
+
+    <p class="dda-wizard-hint">
+      {{localize "DDA.DigimonWizard.BuildTemplate.Hint"}}
+    </p>
+
+    <div class="dda-build-template-grid">
+      {{#each buildTemplates as |template|}}
+        <button
+          type="button"
+          class="dda-build-template-card {{#if template.selected}}selected{{/if}}"
+          data-action="select-build-template"
+          data-template-id="{{template.id}}"
+          {{#if template.disabled}}disabled{{/if}}
+        >
+          <header>
+            <span class="dda-build-template-icon">{{template.icon}}</span>
+
+            <div>
+              <strong>{{template.nameLabel}}</strong>
+              <small>{{template.subtitleLabel}}</small>
+            </div>
+          </header>
+
+          <p>{{template.descriptionLabel}}</p>
+
+          <dl>
+            <div>
+              <dt>{{localize "DDA.MainStat.Accuracy"}}</dt>
+              <dd>+{{template.stats.accuracy}}</dd>
+            </div>
+
+            <div>
+              <dt>{{localize "DDA.MainStat.Damage"}}</dt>
+              <dd>+{{template.stats.damage}}</dd>
+            </div>
+
+            <div>
+              <dt>{{localize "DDA.MainStat.Dodge"}}</dt>
+              <dd>+{{template.stats.dodge}}</dd>
+            </div>
+
+            <div>
+              <dt>{{localize "DDA.MainStat.Armor"}}</dt>
+              <dd>+{{template.stats.armor}}</dd>
+            </div>
+
+            <div>
+              <dt>{{localize "DDA.MainStat.Health"}}</dt>
+              <dd>+{{template.stats.health}}</dd>
+            </div>
+          </dl>
+
+          <div class="dda-build-template-quality-count">
+            {{template.qualities.length}} {{localize "DDA.DigimonWizard.BuildTemplate.QualityCount"}}
+          </div>
+        </button>
+      {{/each}}
+    </div>
+  </section>
+{{/if}}
+
+{{#if (eq step "templateChoices")}}
+  <section class="dda-wizard-step dda-template-choices-step">
+    <h2>{{localize "DDA.DigimonWizard.TemplateChoices.Title"}}</h2>
+
+    <p>
+      {{localize "DDA.DigimonWizard.TemplateChoices.Help"}}
+    </p>
+
+    {{#if buildTemplateChoices.hasChoices}}
+      <div class="dda-template-choice-progress">
+        <strong>{{buildTemplateChoices.resolved}}/{{buildTemplateChoices.total}}</strong>
+        <span>{{localize "DDA.DigimonWizard.TemplateChoices.Progress"}}</span>
+      </div>
+
+      <div class="dda-template-choice-list">
+        {{#each buildTemplateChoices.rows as |choice|}}
+          <article class="dda-template-choice-card {{#if choice.resolved}}resolved{{/if}}">
+            <header>
+              <div>
+                <strong>{{choice.qualityName}}</strong>
+
+                {{#if choice.originalName}}
+                  <small>{{choice.originalName}}</small>
+                {{/if}}
+              </div>
+
+              <span>Rank {{choice.rankNumber}}</span>
+            </header>
+
+            {{#if choice.tagLabel}}
+              <p class="dda-template-choice-tag">
+                {{choice.tagLabel}}
+              </p>
+            {{/if}}
+
+            <p>{{choice.hint}}</p>
+
+            {{#if choice.hasOptions}}
+              <select data-action="update-build-template-choice" data-choice-key="{{choice.choiceKey}}">
+                <option value="">{{localize "DDA.DigimonWizard.TemplateChoices.SelectPlaceholder"}}</option>
+
+                {{#each choice.options as |option|}}
+                  <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>
+                    {{option.label}}
+                  </option>
+                {{/each}}
+              </select>
+            {{else}}
+              <div class="dda-wizard-alert warning">
+                <p>{{localize "DDA.DigimonWizard.TemplateChoices.NoOptions"}}</p>
+              </div>
+            {{/if}}
+          </article>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="dda-summary-box">
+        <h3>{{localize "DDA.DigimonWizard.TemplateChoices.NoneTitle"}}</h3>
+        <p>{{localize "DDA.DigimonWizard.TemplateChoices.NoneHelp"}}</p>
+      </div>
+    {{/if}}
+  </section>
+{{/if}}
+
+    {{#if (eq step "stats")}}
+      <section class="dda-wizard-step dda-stats-step">
+        <h2>{{localize "DDA.DigimonWizard.Stats.Title"}}</h2>
+
+        <aside class="dda-wizard-guide">
+          <div class="dda-wizard-guide-portrait" aria-label="Wizardmon"><img src="systems/digimon-digital-adventures/assets/ui/wizardmon%20-%20portrait.webp" alt="Wizardmon"></div>
+
+          <div class="dda-wizard-guide-text">
+            <strong>{{localize "DDA.Wizard.Guide.DefaultTitle"}}</strong>
+            <p>
+              {{localize "DDA.DigimonWizard.Stats.Help"}}
+            </p>
+          </div>
+        </aside>
+
+        {{#if formBuildView.enabled}}
+          <section class="dda-form-build-tabs">
+            <h3>{{localize "DDA.DigimonWizard.FormBuildTabs.Title"}}</h3>
+
+            <div class="dda-form-build-tab-list">
+              {{#each formBuildView.tabs as |tab|}}
+                <button
+                  type="button"
+                  class="dda-form-build-tab {{#if tab.active}}active{{/if}} {{#if tab.locked}}locked{{/if}}"
+                  data-action="select-form-build-stage"
+                  data-stage="{{tab.stageKey}}"
+                  title="{{tab.title}}"
+                >
+                  <strong>{{tab.label}}</strong>
+
+                  {{#if tab.species}}
+                    <span>{{tab.species}}</span>
+                  {{/if}}
+
+                  <small>{{tab.dpRemaining}}/{{tab.dpBase}} DP</small>
+
+                  {{#if tab.locked}}
+                    <em>{{localize "DDA.DigimonWizard.FormBuildTabs.Fixed"}}</em>
+                  {{/if}}
+                </button>
+              {{/each}}
+            </div>
+          </section>
+        {{/if}}
+
+        <div class="dda-quality-budget">
+          <span><strong>{{localize "DDA.Creation.BaseDP"}}:</strong> {{data.dp.base}}</span>
+          <span><strong>{{localize "DDA.Creation.SpentDP"}}:</strong> {{data.dp.spent}}</span>
+          <span><strong>{{localize "DDA.Creation.RemainingDP"}}:</strong> {{data.dp.remaining}}</span>
+        </div>
+
+        <div class="dda-stat-allocation-layout">
+          <section class="dda-stat-list">
+            {{#each data.statAllocation as |stat statKey|}}
+              <article class="dda-stat-row">
+                <div class="dda-stat-info">
+                  <strong>{{stat.label}}</strong>
+                  <small>{{stat.description}}</small>
+                </div>
+
+                <div class="dda-stat-controls">
+                  <button
+                    type="button"
+                    data-stat-decrease="{{statKey}}"
+                    {{#unless stat.spent}}disabled{{/unless}}
+                  >
+                    −
+                  </button>
+
+                  <div class="dda-stat-values">
+                    <span class="dda-stat-total">{{stat.total}}</span>
+                    <small>{{localize "DDA.DigimonWizard.Stats.Base"}} {{stat.base}} + {{stat.spent}} {{localize "DDA.Resource.DP.Short"}}</small>
+                  </div>
+
+                  <button
+                    type="button"
+                    data-stat-increase="{{statKey}}"
+                    {{#unless ../data.dp.remaining}}disabled{{/unless}}
+                  >
+                    +
+                  </button>
+                </div>
+              </article>
+            {{/each}}
+          </section>
+
+          <aside class="dda-derived-preview">
+            <h3>{{localize "DDA.DigimonWizard.Stats.DerivedPreview"}}</h3>
+
+            <dl>
+              <dt>BIT</dt>
+              <dd>{{data.derivedStatsPreview.bit}}</dd>
+
+              <dt>DOS</dt>
+              <dd>{{data.derivedStatsPreview.dos}}</dd>
+
+              <dt>RAM</dt>
+              <dd>{{data.derivedStatsPreview.ram}}</dd>
+
+              <dt>CPU</dt>
+              <dd>{{data.derivedStatsPreview.cpu}}</dd>
+
+              <dt>{{localize "DDA.Resource.WoundBoxes"}}</dt>
+              <dd>{{data.derivedStatsPreview.woundBoxes}}</dd>
+
+              <dt>{{localize "DDA.Resource.Range"}}</dt>
+              <dd>{{data.derivedStatsPreview.range}}</dd>
+
+              <dt>{{localize "DDA.Resource.EffectiveLimit"}}</dt>
+              <dd>{{data.derivedStatsPreview.effectiveLimit}}</dd>
+
+              <dt>{{localize "DDA.Resource.Initiative"}}</dt>
+              <dd>{{data.derivedStatsPreview.initiative}}</dd>
+            </dl>
+          </aside>
+        </div>
+      </section>
+    {{/if}}
+
+{{#if (eq step "qualities")}}
+  <section class="dda-wizard-step">
+    <h2>{{localize "DDA.DigimonWizard.Qualities.Title"}}</h2>
+
+    <p>
+      {{localize "DDA.DigimonWizard.Qualities.Help"}}
+    </p>
+
+    {{#if formBuildView.enabled}}
+      <section class="dda-form-build-tabs">
+        <h3>{{localize "DDA.DigimonWizard.FormBuildTabs.Title"}}</h3>
+
+        <div class="dda-form-build-tab-list">
+          {{#each formBuildView.tabs as |tab|}}
+            <button
+              type="button"
+              class="dda-form-build-tab {{#if tab.active}}active{{/if}} {{#if tab.locked}}locked{{/if}}"
+              data-action="select-form-build-stage"
+              data-stage="{{tab.stageKey}}"
+              title="{{tab.title}}"
+            >
+              <strong>{{tab.label}}</strong>
+
+              {{#if tab.species}}
+                <span>{{tab.species}}</span>
+              {{/if}}
+
+              <small>{{tab.dpRemaining}}/{{tab.dpBase}} DP</small>
+
+              {{#if tab.locked}}
+                <em>{{localize "DDA.DigimonWizard.FormBuildTabs.Fixed"}}</em>
+              {{/if}}
+            </button>
+          {{/each}}
+        </div>
+      </section>
+    {{/if}}
+
+    <div class="dda-quality-budget">
+      <span><strong>{{localize "DDA.Creation.BaseDP"}}:</strong> {{data.dp.base}}</span>
+      <span><strong>{{localize "DDA.Creation.SpentDP"}}:</strong> {{data.dp.spent}}</span>
+      <span><strong>{{localize "DDA.Creation.TotalDP"}}:</strong> {{data.dp.totalAvailable}}</span>
+      <span><strong>{{localize "DDA.Creation.RemainingDP"}}:</strong> {{data.dp.remaining}}</span>
+      <span><strong>{{localize "DDA.Creation.NegativeDP"}}:</strong> {{data.dp.negativeUsed}} / {{data.dp.negativeLimit}}</span>
+      <span><strong>{{localize "DDA.DigimonWizard.Qualities.Free"}}:</strong> {{data.dp.freeQualityUsed}} / {{data.dp.freeQualityLimit}}</span>
+      <span><strong>{{localize "DDA.Creation.CoreDiscount"}}:</strong> {{data.dp.coreDiscountUsed}} / {{data.dp.coreDiscountBase}}</span>
+    </div>
+
+    <div class="dda-core-discount-help">
+  <strong>{{localize "DDA.DigimonWizard.Qualities.CoreDiscountHelpTitle"}}</strong>
+  <p>
+    {{localize "DDA.DigimonWizard.Qualities.CoreDiscountHelpBody"}}
+  </p>
+</div>
+
+    <section class="dda-quality-browser dda-wizard-quality-browser">
+      <header class="quality-browser-header dda-wizard-quality-sticky-header">
+        <details class="dda-wizard-quality-filter-panel">
+          <summary>{{localize "DDA.DigimonWizard.Qualities.Filters"}}</summary>
+
+          <input
+            type="search"
+            value="{{qualityBrowser.searchTerm}}"
+            placeholder="{{localize "DDA.QualityBrowser.SearchPlaceholder"}}"
+            data-quality-search
+          />
+
+          <button
+            type="button"
+            class="quality-available-toggle {{#if qualityBrowser.onlyAvailable}}active{{/if}}"
+            data-toggle-available
+          >
+            {{#if qualityBrowser.onlyAvailable}}
+              {{localize "DDA.DigimonWizard.Qualities.OnlyAvailable"}}
+            {{else}}
+              {{localize "DDA.QualityBrowser.Filter.All"}}
+            {{/if}}
+          </button>
+
+          <div class="dda-wizard-quality-filter-content">
+              <nav class="quality-browser-filters quality-browser-tier-filters" aria-label="{{localize "DDA.DigimonWizard.Qualities.Filters"}}">
+                {{#each qualityTiers as |tier|}}
+                  <button
+                    type="button"
+                    class="{{#if (eq ../qualityBrowser.activeTier tier.key)}}active{{/if}}"
+                    data-tier-filter="{{tier.key}}"
+                  >
+                    {{tier.label}}
+                  </button>
+                {{/each}}
+              </nav>
+
+              <nav class="quality-browser-filters quality-browser-category-filters" aria-label="{{localize "DDA.DigimonWizard.Qualities.Filters"}}">
+                {{#each qualityCategories as |category|}}
+                  <button
+                    type="button"
+                    class="{{#if (eq ../qualityBrowser.activeCategory category.key)}}active{{/if}}"
+                    data-category-filter="{{category.key}}"
+                  >
+                    {{category.label}}
+                  </button>
+                {{/each}}
+              </nav>
+          </div>
+        </details>
+      </header>
+
+      <div class="dda-quality-layout">
+        <section class="quality-browser-list">
+          {{#if availableQualities.length}}
+            {{#each availableQualities as |quality|}}
+              <article class="quality-card tier-{{quality.tier}} {{#if quality.isNegative}}negative{{/if}} {{#if quality.isFree}}free{{/if}}">
+                <header class="quality-card-header">
+                  <div>
+                    <h3>{{quality.name}}</h3>
+
+                    {{#if quality.originalName}}
+                      <span class="quality-original">{{quality.originalName}}</span>
+                    {{/if}}
+                  </div>
+
+<button
+  type="button"
+  data-action="add-quality"
+  data-quality-id="{{quality.id}}"
+  data-add-quality="{{quality.id}}"
+  data-owned-item-id="{{quality.ownedItemId}}"
+  {{#unless quality.canBuy}}
+    {{#unless quality.canIncreaseRank}}
+      disabled
+    {{/unless}}
+  {{/unless}}
+  {{#if quality.owned}}
+    {{#unless quality.canIncreaseRank}}
+      disabled
+    {{/unless}}
+  {{/if}}
+>
+  {{#if quality.owned}}
+    {{#if quality.canIncreaseRank}}
+      {{localize "DDA.QualityBrowser.Button.IncreaseRank"}}
+    {{else}}
+      {{localize "DDA.DigimonWizard.Qualities.Maximum"}}
+    {{/if}}
+  {{else}}
+    {{#if quality.canBuy}}
+      {{localize "DDA.Button.Add"}}
+    {{else}}
+      {{localize "DDA.QualityBrowser.Button.Locked"}}
+    {{/if}}
+  {{/if}}
+</button>
+                </header>
+
+                <div class="quality-card-meta">
+                  <span>{{quality.tierLabel}}</span>
+                  <span>{{quality.section}}</span>
+                  <span>{{quality.costLabel}}</span>
+                </div>
+
+                {{#if quality.showRankInfo}}
+                  <p class="quality-rank-info">
+                    <strong>{{quality.rankLabel}}</strong>
+                  </p>
+                {{/if}}
+
+                {{#if quality.requirements.text}}
+                  <p class="quality-requirements">
+                    <strong>{{localize "DDA.Label.Requirement"}}:</strong> {{quality.requirements.text}}
+                  </p>
+                {{/if}}
+
+                {{#unless quality.owned}}
+                  {{#unless quality.canBuy}}
+                    <p class="quality-blocked">
+                      <strong>{{localize "DDA.QualityBrowser.Blocked"}}:</strong> {{quality.blockedReason}}
+                    </p>
+                  {{/unless}}
+                {{/unless}}
+
+                {{#if quality.incompatible.text}}
+                  <p class="quality-incompatible">
+                    <strong>{{localize "DDA.DigimonWizard.Qualities.Incompatible"}}:</strong> {{quality.incompatible.text}}
+                  </p>
+                {{/if}}
+
+{{#if quality.choices.required}}
+  <p class="dda-quality-choice-warning">
+    {{localize "DDA.DigimonWizard.Qualities.ChoiceWarning"}}
+  </p>
+{{/if}}
+
+                <p class="quality-effect">{{quality.effect}}</p>
+              </article>
+            {{/each}}
+          {{else}}
+            <p class="quality-empty">
+              {{localize "DDA.DigimonWizard.Qualities.NoneFound"}}
+            </p>
+          {{/if}}
+        </section>
+
+        <aside class="dda-selected-qualities">
+          <h3>{{localize "DDA.DigimonWizard.Qualities.Selected"}}</h3>
+
+          <div class="dda-selected-quality-group">
+            <h4>{{localize "DDA.DigimonWizard.Qualities.Positive"}}</h4>
+
+            {{#if data.qualities.positive.length}}
+              {{#each data.qualities.positive as |quality|}}
+                <div class="dda-selected-quality">
+<span>
+  {{quality.name}}
+  {{#if quality.perRank}}
+    — {{localize "DDA.DigimonWizard.Qualities.Rank"}} {{quality.rank.value}}
+  {{/if}}
+  {{#if quality.isFree}}
+  — {{localize "DDA.DigimonWizard.Qualities.Free"}}
+{{else}}
+  — {{quality.cost}} {{localize "DDA.Resource.DP.Short"}}
+{{/if}}
+
+  {{#if quality.discountedByCore}}
+    <div class="dda-selected-quality-discount">
+      {{localize "DDA.DigimonWizard.Qualities.CoreDiscountApplied"}}: -{{quality.coreDiscountUsed}} {{localize "DDA.Resource.DP.Short"}}
+    </div>
+  {{/if}}
+
+
+  {{#if quality.choices.selectedRanks.length}}
+    <div class="dda-selected-quality-choices">
+      {{#each quality.choices.selectedRanks as |choice|}}
+        <small>
+          <strong>{{localize "DDA.DigimonWizard.Qualities.Rank"}} {{choice.rank}}:</strong> {{choice.label}}
+        </small>
+      {{/each}}
+    </div>
+  {{/if}}
+</span>
+
+                  <button
+                    type="button"
+                    data-action="remove-quality"
+                    data-quality-id="{{quality.id}}"
+                    data-kind="positive"
+                  >
+                    {{localize "DDA.Button.Remove"}}
+                  </button>
+                </div>
+              {{/each}}
+            {{else}}
+              <p>{{localize "DDA.DigimonWizard.Qualities.NoPositiveSelected"}}</p>
+            {{/if}}
+          </div>
+
+          <div class="dda-selected-quality-group">
+            <h4>{{localize "DDA.DigimonWizard.Qualities.Negative"}}</h4>
+
+            {{#if data.qualities.negative.length}}
+              {{#each data.qualities.negative as |quality|}}
+                <div class="dda-selected-quality negative">
+<span>
+  {{quality.name}}
+  {{#if quality.perRank}}
+    — {{localize "DDA.DigimonWizard.Qualities.Rank"}} {{quality.rank.value}}
+  {{/if}}
+  {{#if quality.isFree}}
+  — {{localize "DDA.DigimonWizard.Qualities.Free"}}
+{{else}}
+  — +{{quality.cost}} {{localize "DDA.Resource.DP.Short"}}
+{{/if}}
+
+  {{#if quality.discountedByCore}}
+    <div class="dda-selected-quality-discount">
+      {{localize "DDA.DigimonWizard.Qualities.CoreDiscountApplied"}}: -{{quality.coreDiscountUsed}} {{localize "DDA.Resource.DP.Short"}}
+    </div>
+  {{/if}}
+
+
+  {{#if quality.choices.selectedRanks.length}}
+    <div class="dda-selected-quality-choices">
+      {{#each quality.choices.selectedRanks as |choice|}}
+        <small>
+          <strong>{{localize "DDA.DigimonWizard.Qualities.Rank"}} {{choice.rank}}:</strong> {{choice.label}}
+        </small>
+      {{/each}}
+    </div>
+  {{/if}}
+</span>
+
+                  <button
+                    type="button"
+                    data-action="remove-quality"
+                    data-quality-id="{{quality.id}}"
+                    data-kind="negative"
+                  >
+                    {{localize "DDA.Button.Remove"}}
+                  </button>
+                </div>
+              {{/each}}
+            {{else}}
+              <p>{{localize "DDA.DigimonWizard.Qualities.NoNegativeSelected"}}</p>
+            {{/if}}
+          </div>
+        </aside>
+      </div>
+    </section>
+  </section>
+{{/if}}
+
+{{#if (eq step "partnerQuestions")}}
+  <section class="dda-wizard-step dda-partner-questions-step">
+    <h2>{{localize "DDA.DigimonWizard.PartnerQuestions.Title"}}</h2>
+
+    <p>
+      {{localize "DDA.DigimonWizard.PartnerQuestions.Help"}}
+    </p>
+
+    <p class="dda-wizard-hint">
+      {{localize "DDA.DigimonWizard.PartnerQuestions.Hint"}}
+    </p>
+
+    <div class="dda-partner-question-grid">
+      <label class="dda-partner-question-card wide">
+        <span>{{localize "DDA.DigimonWizard.PartnerQuestions.Appearance"}}</span>
+        <small>{{localize "DDA.DigimonWizard.PartnerQuestions.AppearanceHint"}}</small>
+        <textarea
+          data-path="partnerQuestions.appearance"
+          placeholder="{{localize 'DDA.DigimonWizard.PartnerQuestions.AppearancePlaceholder'}}"
+        >{{data.partnerQuestions.appearance}}</textarea>
+      </label>
+
+      <label class="dda-partner-question-card wide">
+        <span>{{localize "DDA.DigimonWizard.PartnerQuestions.Personality"}}</span>
+        <small>{{localize "DDA.DigimonWizard.PartnerQuestions.PersonalityHint"}}</small>
+        <textarea
+          data-path="partnerQuestions.personality"
+          placeholder="{{localize 'DDA.DigimonWizard.PartnerQuestions.PersonalityPlaceholder'}}"
+        >{{data.partnerQuestions.personality}}</textarea>
+      </label>
+
+      <label class="dda-partner-question-card">
+        <span>{{localize "DDA.DigimonWizard.PartnerQuestions.FavoriteFood"}}</span>
+        <small>{{localize "DDA.DigimonWizard.PartnerQuestions.FavoriteFoodHint"}}</small>
+        <textarea
+          data-path="partnerQuestions.favoriteFood"
+          placeholder="{{localize 'DDA.DigimonWizard.PartnerQuestions.FavoriteFoodPlaceholder'}}"
+        >{{data.partnerQuestions.favoriteFood}}</textarea>
+      </label>
+
+      <label class="dda-partner-question-card">
+        <span>{{localize "DDA.DigimonWizard.PartnerQuestions.Goals"}}</span>
+        <small>{{localize "DDA.DigimonWizard.PartnerQuestions.GoalsHint"}}</small>
+        <textarea
+          data-path="partnerQuestions.goals"
+          placeholder="{{localize 'DDA.DigimonWizard.PartnerQuestions.GoalsPlaceholder'}}"
+        >{{data.partnerQuestions.goals}}</textarea>
+      </label>
+
+      <label class="dda-partner-question-card">
+        <span>{{localize "DDA.DigimonWizard.PartnerQuestions.Protection"}}</span>
+        <small>{{localize "DDA.DigimonWizard.PartnerQuestions.ProtectionHint"}}</small>
+        <textarea
+          data-path="partnerQuestions.protection"
+          placeholder="{{localize 'DDA.DigimonWizard.PartnerQuestions.ProtectionPlaceholder'}}"
+        >{{data.partnerQuestions.protection}}</textarea>
+      </label>
+
+      <label class="dda-partner-question-card">
+        <span>{{localize "DDA.DigimonWizard.PartnerQuestions.Tactics"}}</span>
+        <small>{{localize "DDA.DigimonWizard.PartnerQuestions.TacticsHint"}}</small>
+        <textarea
+          data-path="partnerQuestions.tactics"
+          placeholder="{{localize 'DDA.DigimonWizard.PartnerQuestions.TacticsPlaceholder'}}"
+        >{{data.partnerQuestions.tactics}}</textarea>
+      </label>
+
+      <label class="dda-partner-question-card">
+        <span>{{localize "DDA.DigimonWizard.PartnerQuestions.Age"}}</span>
+        <small>{{localize "DDA.DigimonWizard.PartnerQuestions.AgeHint"}}</small>
+        <textarea
+          data-path="partnerQuestions.age"
+          placeholder="{{localize 'DDA.DigimonWizard.PartnerQuestions.AgePlaceholder'}}"
+        >{{data.partnerQuestions.age}}</textarea>
+      </label>
+
+      <label class="dda-partner-question-card">
+        <span>{{localize "DDA.DigimonWizard.PartnerQuestions.SelfImage"}}</span>
+        <small>{{localize "DDA.DigimonWizard.PartnerQuestions.SelfImageHint"}}</small>
+        <textarea
+          data-path="partnerQuestions.selfImage"
+          placeholder="{{localize 'DDA.DigimonWizard.PartnerQuestions.SelfImagePlaceholder'}}"
+        >{{data.partnerQuestions.selfImage}}</textarea>
+      </label>
+
+      <label class="dda-partner-question-card wide">
+        <span>{{localize "DDA.DigimonWizard.PartnerQuestions.SeparatedReaction"}}</span>
+        <small>{{localize "DDA.DigimonWizard.PartnerQuestions.SeparatedReactionHint"}}</small>
+        <textarea
+          data-path="partnerQuestions.separatedReaction"
+          placeholder="{{localize 'DDA.DigimonWizard.PartnerQuestions.SeparatedReactionPlaceholder'}}"
+        >{{data.partnerQuestions.separatedReaction}}</textarea>
+      </label>
+    </div>
+  </section>
+{{/if}}
+
+    {{#if (eq step "summary")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.DigimonWizard.Summary.Title"}}</h2>
+
+        <p>
+          {{localize "DDA.DigimonWizard.Summary.Help"}}
+          <strong>{{createButtonLabel}}</strong>.
+        </p>
+
+        {{#if data.compatibility.digitama}}
+          <div class="dda-summary-box dda-compatibility-summary-box">
+            <h3>{{localize "DDA.DigimonWizard.Summary.CompatibilityRegistered"}}</h3>
+            <p>
+              {{localize "DDA.DigimonWizard.Summary.Secret1"}}
+              {{localize "DDA.DigimonWizard.Summary.Secret2"}}
+            </p>
+          </div>
+        {{/if}}
+
+        <div class="dda-wizard-final-options">
+          <article class="dda-wizard-final-card dda-wizard-image-card">
+            <div>
+              <h3>{{localize "DDA.DigimonWizard.Summary.DigimonImage"}}</h3>
+              <p>{{localize "DDA.DigimonWizard.Summary.ImageHint"}}</p>
+            </div>
+
+            <div class="dda-wizard-image-row dda-wizard-image-picker-row">
+              <button
+                type="button"
+                class="dda-wizard-image-picker-button"
+                data-action="select-digimon-image"
+                title="{{localize 'DDA.DigimonWizard.Summary.ImagePickerHint'}}"
+              >
+                <img src="{{data.identity.img}}" alt="{{data.identity.name}}">
+              </button>
+              <input type="hidden" data-path="identity.img" value="{{data.identity.img}}">
+              <input type="hidden" data-path="identity.tokenImg" value="{{data.identity.tokenImg}}">
+              {{#if data.compatibility.digitama}}
+                <p class="dda-wizard-secret-image-note">{{localize "DDA.DigimonWizard.Summary.SecretImage"}}</p>
+              {{else}}
+                <p class="dda-wizard-secret-image-note">{{localize "DDA.DigimonWizard.Summary.ImagePickerHint"}}</p>
+              {{/if}}
+            </div>
+          </article>
+
+          {{#unless formMode}}
+            {{#unless data.postCreate.hidden}}
+              <article class="dda-wizard-final-card">
+                <label class="dda-wizard-chain-option">
+                  <input type="checkbox" data-path="postCreate.createTamer" {{#if data.postCreate.createTamer}}checked{{/if}}>
+                  <span>
+                    <strong>{{localize "DDA.DigimonWizard.Summary.CreateTamerNext"}}</strong>
+                    <small>{{localize "DDA.DigimonWizard.Summary.CreateTamerNextHint"}}</small>
+                  </span>
+                </label>
+              </article>
+            {{/unless}}
+          {{/unless}}
+        </div>
+
+<div class="dda-summary-box dda-summary-line-box">
+  <h3>{{localize "DDA.DigimonWizard.Summary.InitialLine"}}</h3>
+
+  <div class="dda-summary-line-grid">
+    {{#each initialLineOptions.stageBlocks as |block|}}
+      <article class="{{#if block.isMain}}main-form{{/if}}">
+        <img src="{{block.form.img}}" alt="{{block.form.species}}">
+        <span>{{block.title}}</span>
+        <strong>{{block.form.species}}</strong>
+
+        {{#if block.isMain}}
+          <em>{{localize "DDA.DigimonWizard.InitialLine.MainFormBadge"}}</em>
+        {{/if}}
+      </article>
+    {{/each}}
+  </div>
+</div>
+
+{{#if formBuildSummary.enabled}}
+  <div class="dda-summary-box dda-form-build-summary">
+    <h3>{{localize "DDA.DigimonWizard.Summary.FormBuilds"}}</h3>
+
+    <div class="dda-form-build-summary-grid">
+      {{#each formBuildSummary.forms as |form|}}
+        <article class="dda-form-build-summary-card {{#if form.active}}main-form{{/if}} {{#if form.locked}}locked{{/if}}">
+          <header>
+            <img src="{{form.img}}" alt="{{form.species}}">
+            <div>
+              <span>{{form.stageLabel}}</span>
+              <strong>{{form.species}}</strong>
+
+              {{#if form.active}}
+                <em>{{localize "DDA.DigimonWizard.InitialLine.MainFormBadge"}}</em>
+              {{/if}}
+
+              {{#if form.locked}}
+                <em>{{localize "DDA.DigimonWizard.FormBuildTabs.Fixed"}}</em>
+              {{/if}}
+            </div>
+          </header>
+
+          <dl>
+            <dt>{{localize "DDA.Resource.DP.Short"}}</dt>
+            <dd>{{form.dp.spent}} / {{form.dp.totalAvailable}} — {{form.dp.remaining}} {{localize "DDA.Creation.RemainingDP"}}</dd>
+
+            <dt>{{localize "DDA.MainStat.Accuracy"}}</dt>
+            <dd>{{form.statAllocation.accuracy.total}}</dd>
+
+            <dt>{{localize "DDA.MainStat.Damage"}}</dt>
+            <dd>{{form.statAllocation.damage.total}}</dd>
+
+            <dt>{{localize "DDA.MainStat.Dodge"}}</dt>
+            <dd>{{form.statAllocation.dodge.total}}</dd>
+
+            <dt>{{localize "DDA.MainStat.Armor"}}</dt>
+            <dd>{{form.statAllocation.armor.total}}</dd>
+
+            <dt>{{localize "DDA.DigimonWizard.Summary.Health"}}</dt>
+            <dd>{{form.statAllocation.health.total}}</dd>
+
+            <dt>BIT / DOS / RAM / CPU</dt>
+            <dd>
+              {{form.derivedStatsPreview.bit}} /
+              {{form.derivedStatsPreview.dos}} /
+              {{form.derivedStatsPreview.ram}} /
+              {{form.derivedStatsPreview.cpu}}
+            </dd>
+
+            <dt>{{localize "DDA.Resource.WoundBoxes"}}</dt>
+            <dd>{{form.derivedStatsPreview.woundBoxes}}</dd>
+
+            <dt>{{localize "DDA.Resource.Movement"}}</dt>
+            <dd>{{form.stats.movement}}</dd>
+          </dl>
+
+          <div class="dda-form-build-summary-section">
+            <h4>{{localize "DDA.DigimonWizard.Summary.Attacks"}}</h4>
+
+            {{#if form.attacks.length}}
+              <ul>
+                {{#each form.attacks as |attack|}}
+                  <li>{{attack.name}}</li>
+                {{/each}}
+              </ul>
+            {{else}}
+              <p>{{localize "DDA.Label.None"}}.</p>
+            {{/if}}
+          </div>
+
+          <div class="dda-form-build-summary-section">
+            <h4>{{localize "DDA.DigimonWizard.Qualities.Positive"}}</h4>
+
+            {{#if form.qualitiesPositive.length}}
+              <ul>
+                {{#each form.qualitiesPositive as |quality|}}
+                  <li>{{quality.name}} — {{quality.cost}} {{localize "DDA.Resource.DP.Short"}}</li>
+                {{/each}}
+              </ul>
+            {{else}}
+              <p>{{localize "DDA.Label.None"}}.</p>
+            {{/if}}
+
+            <h4>{{localize "DDA.DigimonWizard.Qualities.Negative"}}</h4>
+
+            {{#if form.qualitiesNegative.length}}
+              <ul>
+                {{#each form.qualitiesNegative as |quality|}}
+                  <li>{{quality.name}} — +{{quality.cost}} {{localize "DDA.Resource.DP.Short"}}</li>
+                {{/each}}
+              </ul>
+            {{else}}
+              <p>{{localize "DDA.Label.None"}}.</p>
+            {{/if}}
+          </div>
+        </article>
+      {{/each}}
+    </div>
+  </div>
+{{/if}}
+
+        <div class="dda-summary-box">
+          <h3>{{data.identity.name}}</h3>
+
+          <dl>
+          <dt>{{localize "DDA.DigimonWizard.Summary.Species"}}</dt>
+          <dd>{{identityLabels.species}}</dd>
+
+          <dt>{{localize "DDA.Label.Attribute"}}</dt>
+          <dd>{{identityLabels.attribute}}</dd>
+
+          <dt>{{localize "DDA.Label.Type"}}</dt>
+          <dd>{{identityLabels.type}}</dd>
+
+          <dt>{{localize "DDA.Label.Group"}}</dt>
+          <dd>{{identityLabels.group}}</dd>
+
+          <dt>{{localize "DDA.Label.Field"}}</dt>
+          <dd>{{identityLabels.field}}</dd>
+
+            <dt>{{localize "DDA.DigimonWizard.Summary.Stage"}}</dt>
+            <dd>{{data.stage}}</dd>
+
+            <dt>{{localize "DDA.DigimonWizard.Summary.InitialDP"}}</dt>
+            <dd>{{data.dp.base}}</dd>
+
+            <dt>{{localize "DDA.MainStat.Accuracy"}}</dt>
+            <dd>{{data.statAllocation.accuracy.total}}</dd>
+
+            <dt>{{localize "DDA.MainStat.Damage"}}</dt>
+            <dd>{{data.statAllocation.damage.total}}</dd>
+
+            <dt>{{localize "DDA.MainStat.Dodge"}}</dt>
+            <dd>{{data.statAllocation.dodge.total}}</dd>
+
+            <dt>{{localize "DDA.MainStat.Armor"}}</dt>
+            <dd>{{data.statAllocation.armor.total}}</dd>
+
+            <dt>{{localize "DDA.DigimonWizard.Summary.Health"}}</dt>
+            <dd>{{data.statAllocation.health.total}}</dd>
+
+            <dt>BIT / DOS / RAM / CPU</dt>
+            <dd>
+              {{data.derivedStatsPreview.bit}} /
+              {{data.derivedStatsPreview.dos}} /
+              {{data.derivedStatsPreview.ram}} /
+              {{data.derivedStatsPreview.cpu}}
+            </dd>
+
+            <dt>{{localize "DDA.Resource.WoundBoxes"}}</dt>
+            <dd>{{data.derivedStatsPreview.woundBoxes}}</dd>
+
+            <dt>{{localize "DDA.Resource.Movement"}}</dt>
+            <dd>{{data.stats.movement}}</dd>
+
+            <dt>{{localize "DDA.DigimonWizard.Summary.Attacks"}}</dt>
+            <dd>{{data.stats.attackSlots}}</dd>
+
+            <dt>{{localize "DDA.DigimonWizard.Summary.MaxSize"}}</dt>
+            <dd>{{data.stats.maxSize}}</dd>
+          </dl>
+
+            <div class="dda-summary-qualities">
+  <h4>{{localize "DDA.DigimonWizard.Qualities.Positive"}}</h4>
+
+  {{#if data.qualities.positive.length}}
+    <ul>
+      {{#each data.qualities.positive as |quality|}}
+        <li>{{quality.name}} — {{quality.cost}} {{localize "DDA.Resource.DP.Short"}}</li>
+      {{/each}}
+    </ul>
+  {{else}}
+    <p>{{localize "DDA.Label.None"}}.</p>
+  {{/if}}
+
+  <h4>{{localize "DDA.DigimonWizard.Qualities.Negative"}}</h4>
+
+  {{#if data.qualities.negative.length}}
+    <ul>
+      {{#each data.qualities.negative as |quality|}}
+        <li>{{quality.name}} — +{{quality.cost}} {{localize "DDA.Resource.DP.Short"}}</li>
+      {{/each}}
+    </ul>
+  {{else}}
+    <p>{{localize "DDA.Label.None"}}.</p>
+  {{/if}}
+</div>
+
+          {{#if data.identity.description}}
+            <div class="dda-summary-description">
+              <strong>{{localize "DDA.DigimonWizard.Summary.Description"}}</strong>
+              <p>{{data.identity.description}}</p>
+            </div>
+          {{/if}}
+
+        {{#if partnerQuestionsSummary.hasAny}}
+  <div class="dda-summary-description dda-summary-partner-questions">
+    <strong>{{localize "DDA.DigimonWizard.PartnerQuestions.SummaryTitle"}}</strong>
+
+    <ul>
+      <li>
+        {{localize "DDA.DigimonWizard.PartnerQuestions.SummaryAppearance"}}:
+        {{#if partnerQuestionsSummary.appearanceFilled}}{{localize "DDA.Label.Yes"}}{{else}}{{localize "DDA.Label.No"}}{{/if}}
+      </li>
+
+      <li>
+        {{localize "DDA.DigimonWizard.PartnerQuestions.SummaryPersonality"}}:
+        {{#if partnerQuestionsSummary.personalityFilled}}{{localize "DDA.Label.Yes"}}{{else}}{{localize "DDA.Label.No"}}{{/if}}
+      </li>
+
+      <li>
+        {{localize "DDA.DigimonWizard.PartnerQuestions.SummaryNotes"}}:
+        {{partnerQuestionsSummary.notesCount}}
+      </li>
+    </ul>
+  </div>
+{{/if}}
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if data.validation.errors.length}}
+      <aside class="dda-wizard-alert error">
+        {{#each data.validation.errors as |error|}}
+          <p>{{error}}</p>
+        {{/each}}
+      </aside>
+    {{/if}}
+
+    {{#if data.validation.warnings.length}}
+      <aside class="dda-wizard-alert warning">
+        {{#each data.validation.warnings as |warning|}}
+          <p>{{warning}}</p>
+        {{/each}}
+      </aside>
+    {{/if}}
+
+  </main>
+
+  <footer class="dda-wizard-footer">
+    <div class="dda-wizard-footer-left">
+      {{#if (eq step "compatibility")}}
+        {{#if crestTendency.length}}
+          <div class="dda-crest-tendency dda-crest-tendency-footer" aria-label="Crest tendency">
+            {{#each crestTendency as |crest|}}
+              <img
+                class="dda-crest-tendency-icon {{#if crest.leader}}leader{{/if}}"
+                src="{{crest.img}}"
+                alt=""
+                title="{{crest.label}}"
+                style="{{crest.style}}"
+              >
+            {{/each}}
+          </div>
+        {{/if}}
+      {{/if}}
+    </div>
+
+    <div class="dda-wizard-buttons">
+      <button type="button" data-action="back" {{#if isFirstStep}}disabled{{/if}}>
+        {{localize "DDA.Wizard.Back"}}
+      </button>
+
+      {{#if isLastStep}}
+        <button type="button" class="primary" data-action="create">
+          {{createButtonLabel}}
+        </button>
+      {{else}}
+        <button type="button" class="primary" data-action="next">
+          {{localize "DDA.Wizard.Next"}}
+        </button>
+      {{/if}}
+    </div>
+  </footer>
+
+</form>

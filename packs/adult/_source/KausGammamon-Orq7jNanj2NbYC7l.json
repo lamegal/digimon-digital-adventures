@@ -1,0 +1,556 @@
+{
+  "name": "KausGammamon",
+  "type": "digimon",
+  "img": "systems/digimon-digital-adventures/assets/digimon/adult/KausGammamon.webp",
+  "folder": null,
+  "system": {
+    "description": "Anime & Manga Video Games A form in which",
+    "notes": "Gerado automaticamente a partir de dados da Wikimon/Reference Book. Revise antes de publicar em compêndio final.",
+    "combat": {
+      "actions": {
+        "value": 2,
+        "max": 2
+      },
+      "initiative": {
+        "value": 0,
+        "side": "players"
+      },
+      "hasAttackedThisRound": false,
+      "surprised": false,
+      "defeated": false,
+      "attacksMadeThisTurn": 0,
+      "multiattackPenalty": 0,
+      "dodgePenalty": 0,
+      "currentStance": "neutral",
+      "signatureMoveUsedThisTurn": false,
+      "energizeUsedThisTurn": false,
+      "digitama": false,
+      "clash": {
+        "active": false,
+        "opponentUuid": "",
+        "controllerUuid": "",
+        "initiatorUuid": "",
+        "pinned": false,
+        "pinUses": 0,
+        "comebackBonus": 0,
+        "extendedReach": 0
+      }
+    },
+    "effects": {
+      "active": []
+    },
+    "mainStats": {
+      "accuracy": {
+        "label": "DDA.MainStat.Accuracy",
+        "base": 4,
+        "bonus": 0,
+        "total": 4
+      },
+      "damage": {
+        "label": "DDA.MainStat.Damage",
+        "base": 5,
+        "bonus": 0,
+        "total": 5
+      },
+      "dodge": {
+        "label": "DDA.MainStat.Dodge",
+        "base": 4,
+        "bonus": 0,
+        "total": 4
+      },
+      "armor": {
+        "label": "DDA.MainStat.Armor",
+        "base": 4,
+        "bonus": 0,
+        "total": 4
+      },
+      "health": {
+        "label": "DDA.MainStat.Health",
+        "base": 4,
+        "bonus": 0,
+        "total": 4
+      }
+    },
+    "derivedStats": {
+      "bit": {
+        "label": "DDA.DerivedStat.BIT",
+        "value": 0
+      },
+      "dos": {
+        "label": "DDA.DerivedStat.DOS",
+        "value": 0
+      },
+      "ram": {
+        "label": "DDA.DerivedStat.RAM",
+        "value": 0
+      },
+      "cpu": {
+        "label": "DDA.DerivedStat.CPU",
+        "value": 0
+      }
+    },
+    "miscStats": {
+      "movement": {
+        "label": "DDA.Resource.Movement",
+        "base": 4,
+        "bonus": 0,
+        "qualityBonus": 0,
+        "effectBonus": 0,
+        "value": 4,
+        "total": 4
+      },
+      "wounds": {
+        "label": "DDA.Resource.WoundBoxes",
+        "value": 4,
+        "max": 4,
+        "temp": {
+          "value": 0,
+          "source": "",
+          "duration": ""
+        }
+      },
+      "range": {
+        "label": "DDA.Resource.Range",
+        "value": 2
+      },
+      "effectiveLimit": {
+        "label": "DDA.Resource.EffectiveLimit",
+        "value": 0
+      },
+      "initiative": {
+        "label": "DDA.Resource.Initiative",
+        "value": 4
+      },
+      "resistance": {
+        "label": "DDA.Resource.Resistance",
+        "value": 0
+      },
+      "clash": {
+        "label": "DDA.Resource.Clash",
+        "value": 0
+      }
+    },
+    "species": "KausGammamon",
+    "nickname": "",
+    "stage": "adult",
+    "stageValue": 3,
+    "size": "huge",
+    "role": "none",
+    "field": "virusBusters",
+    "family": "dragon",
+    "attribute": "data",
+    "type": "Dragon Man",
+    "group": "Dragon Man",
+    "profile": {
+      "appearance": "Anime & Manga Video Games A form in which",
+      "personality": "",
+      "favoriteFood": "",
+      "goals": "",
+      "tactics": "",
+      "age": "",
+      "selfImage": "",
+      "separatedReaction": ""
+    },
+    "tamer": {
+      "id": "",
+      "uuid": "",
+      "name": ""
+    },
+    "creation": {
+      "dp": {
+        "base": 20,
+        "bonus": 0,
+        "negative": 0,
+        "total": 20,
+        "spentBaseStats": 11,
+        "spentBaseQualities": 9,
+        "spentBonusStats": 0,
+        "spentBonusQualities": 0,
+        "spentTotal": 20,
+        "remaining": 0
+      },
+      "coreDiscount": {
+        "base": 3,
+        "spent": 0,
+        "remaining": 3
+      },
+      "buildStyle": "database-basic-image-first"
+    },
+    "qualityLimits": {
+      "freeQualities": {
+        "max": 1,
+        "used": 0
+      },
+      "negativeDp": {
+        "max": 2,
+        "used": 0
+      }
+    },
+    "resources": {
+      "battery": {
+        "value": 0,
+        "max": 3
+      },
+      "resolve": {
+        "enabled": false,
+        "value": 0,
+        "max": 4
+      },
+      "creationLimit": {
+        "enabled": false,
+        "value": 0,
+        "max": 0
+      },
+      "mood": {
+        "enabled": false,
+        "value": 3,
+        "die": "1d6"
+      }
+    },
+    "currentMovementType": "land",
+    "movementTypes": {
+      "land": {
+        "label": "DDA.Movement.Land",
+        "value": 4,
+        "enabled": true,
+        "total": 4
+      },
+      "jump": {
+        "label": "DDA.Movement.Jump",
+        "value": 2,
+        "enabled": true,
+        "total": 2
+      },
+      "swim": {
+        "label": "DDA.Movement.Swim",
+        "value": 2,
+        "enabled": true,
+        "total": 2
+      },
+      "fly": {
+        "label": "DDA.Movement.Fly",
+        "value": 0,
+        "enabled": false,
+        "total": 0
+      },
+      "dig": {
+        "label": "DDA.Movement.Dig",
+        "value": 0,
+        "enabled": false,
+        "total": 0
+      },
+      "climb": {
+        "label": "DDA.Movement.Climb",
+        "value": 0,
+        "enabled": false,
+        "total": 0
+      },
+      "teleport": {
+        "label": "DDA.Movement.Teleport",
+        "value": 0,
+        "enabled": false,
+        "total": 0
+      }
+    },
+    "signatureMove": {
+      "attackId": ""
+    },
+    "status": {
+      "sight": "unobscured",
+      "hidden": false,
+      "submerged": false,
+      "drowning": false,
+      "cover": "none"
+    },
+    "stances": {
+      "current": "neutral",
+      "available": [
+        "neutral",
+        "offensive",
+        "defensive"
+      ]
+    },
+    "evolutionLine": {
+      "lineId": "",
+      "baseFormUuid": "",
+      "previousForms": [],
+      "nextForms": [],
+      "defaultStage": false,
+      "isCurrentForm": false,
+      "forms": {}
+    },
+    "evolution": {
+      "defaultStage": "child",
+      "currentStage": "child",
+      "unlockedStages": [
+        "baby1",
+        "baby2",
+        "child"
+      ],
+      "forms": [],
+      "currentFormUuid": "",
+      "currentFormName": "",
+      "sourceFormUuid": "",
+      "sourceFormName": "",
+      "previousFormUuid": "",
+      "previousFormName": "",
+      "lastTransitionType": "",
+      "lastEvolvedAt": "",
+      "formSnapshots": {}
+    },
+    "advancement": {
+      "bonusDp": {
+        "total": 0,
+        "spentStats": 0,
+        "spentQualities": 0,
+        "remaining": 0
+      },
+      "sharedStatBonus": {
+        "accuracy": 0,
+        "damage": 0,
+        "dodge": 0,
+        "armor": 0,
+        "health": 0
+      },
+      "sharedQualityDp": {
+        "allocated": 0,
+        "spent": 0
+      }
+    },
+    "evolutionGraph": {
+      "layout": {
+        "mode": "solar"
+      },
+      "nodes": [],
+      "edges": [],
+      "legacyImported": false,
+      "generatedMode": "hard-reset-v6.3",
+      "maxPreviousForms": 8,
+      "maxNextForms": 8,
+      "maxBranchesPerNode": 12,
+      "maxNodesPerGraph": 180,
+      "removedActorUuids": [],
+      "removedEdgeIds": []
+    },
+    "compatibility": {
+      "enabled": false,
+      "wantsQuestionnaire": false,
+      "answered": false,
+      "skipped": false,
+      "hidden": true,
+      "answers": {},
+      "answerList": [],
+      "crestScores": {},
+      "traitScores": {},
+      "hiddenCrest": {
+        "key": "",
+        "label": "",
+        "img": "",
+        "score": 0
+      },
+      "digitama": {
+        "key": "",
+        "name": "",
+        "fileName": "",
+        "img": "",
+        "traits": [],
+        "score": 0
+      },
+      "recommendations": [],
+      "assignedAt": ""
+    },
+    "specialEvolutions": {
+      "jogress": {
+        "active": false,
+        "componentBonusDp": 0,
+        "state": {
+          "active": false,
+          "recipeId": "",
+          "resultUuid": "",
+          "resultName": "",
+          "primaryTamerUuid": "",
+          "primaryDigimonUuid": "",
+          "secondaryTamerUuid": "",
+          "secondaryDigimonUuid": "",
+          "startedAt": "",
+          "historyKey": "",
+          "primaryTamerName": "",
+          "primaryDigimonName": "",
+          "secondaryTamerName": "",
+          "secondaryDigimonName": "",
+          "masteredBeforeUse": false,
+          "firstSuccessfulUse": false,
+          "sharedInitiative": 0,
+          "componentBonusDp": 0,
+          "primaryDigimonBonusDp": 0,
+          "secondaryDigimonBonusDp": 0
+        }
+      },
+      "hybrid": {
+        "active": false,
+        "method": "",
+        "equivalentStage": "",
+        "state": {
+          "active": false,
+          "method": "",
+          "recipeId": "",
+          "resultUuid": "",
+          "resultName": "",
+          "resultStage": "",
+          "equivalentStage": "",
+          "tamerUuid": "",
+          "tamerName": "",
+          "sourceDigimonUuid": "",
+          "sourceDigimonName": "",
+          "previousFormUuid": "",
+          "previousFormName": "",
+          "hadPartner": false,
+          "startedAt": "",
+          "actionsMax": 3,
+          "directAllyPenaltyReduction": 1,
+          "partnerUuid": "",
+          "partnerName": "",
+          "partnerRequirement": "none",
+          "partnerAvailability": "unchanged",
+          "partnerIsMerged": false,
+          "resultIsPartnerCurrentForm": false
+        }
+      }
+    },
+    "specialForm": {
+      "kind": "",
+      "method": "",
+      "equivalentStage": "",
+      "sourceTamerUuid": "",
+      "sourceDigimonUuid": ""
+    }
+  },
+  "prototypeToken": {
+    "name": "KausGammamon",
+    "texture": {
+      "src": "systems/digimon-digital-adventures/assets/digimon/adult/KausGammamon.webp",
+      "anchorX": 0.5,
+      "anchorY": 0.5,
+      "offsetX": 0,
+      "offsetY": 0,
+      "fit": "contain",
+      "scaleX": 1,
+      "scaleY": 1,
+      "rotation": 0,
+      "tint": "#ffffff",
+      "alphaThreshold": 0.75
+    },
+    "displayName": 0,
+    "actorLink": false,
+    "width": 1,
+    "height": 1,
+    "lockRotation": false,
+    "rotation": 0,
+    "alpha": 1,
+    "disposition": -1,
+    "displayBars": 0,
+    "bar1": {
+      "attribute": "combat.wounds"
+    },
+    "bar2": {
+      "attribute": "combat.actions"
+    },
+    "light": {
+      "negative": false,
+      "priority": 0,
+      "alpha": 0.5,
+      "angle": 360,
+      "bright": 0,
+      "color": null,
+      "coloration": 1,
+      "dim": 0,
+      "attenuation": 0.5,
+      "luminosity": 0.5,
+      "saturation": 0,
+      "contrast": 0,
+      "shadows": 0,
+      "animation": {
+        "type": null,
+        "speed": 5,
+        "intensity": 5,
+        "reverse": false
+      },
+      "darkness": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    "sight": {
+      "enabled": false,
+      "range": 0,
+      "angle": 360,
+      "visionMode": "basic",
+      "color": null,
+      "attenuation": 0.1,
+      "brightness": 0,
+      "saturation": 0,
+      "contrast": 0
+    },
+    "detectionModes": [],
+    "occludable": {
+      "radius": 0
+    },
+    "ring": {
+      "enabled": false,
+      "colors": {
+        "ring": null,
+        "background": null
+      },
+      "effects": 1,
+      "subject": {
+        "scale": 1,
+        "texture": null
+      }
+    },
+    "turnMarker": {
+      "mode": 1,
+      "animation": null,
+      "src": null,
+      "disposition": false
+    },
+    "movementAction": null,
+    "flags": {},
+    "randomImg": false,
+    "appendNumber": false,
+    "prependAdjective": false
+  },
+  "flags": {
+    "digimon-digital-adventures": {
+      "imageActorKey": "adult:kausgammamon",
+      "databaseKey": "kaus_gammamon",
+      "source": "dda-digimon-database-v6.3-image-first",
+      "importedBy": "import-image-first-v6.3",
+      "imageBaseName": "KausGammamon",
+      "imageFileName": "KausGammamon.webp",
+      "imageStage": "adult",
+      "dbMatchType": "stage-name",
+      "dbName": "Kaus Gammamon",
+      "wikimonUrl": "https://wikimon.net/Kaus_Gammamon",
+      "officialDirectoryName": "kaus_gammamon"
+    }
+  },
+  "_id": "Orq7jNanj2NbYC7l",
+  "items": [],
+  "effects": [],
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null,
+    "coreVersion": "13.351",
+    "systemId": "digimon-digital-adventures",
+    "systemVersion": "2.0.0-alpha.1",
+    "createdTime": 1780844303160,
+    "modifiedTime": 1780844303160,
+    "lastModifiedBy": "wEPKDJr69AMzLcrk"
+  },
+  "ownership": {
+    "default": 0,
+    "wEPKDJr69AMzLcrk": 3
+  },
+  "sort": 0
+}

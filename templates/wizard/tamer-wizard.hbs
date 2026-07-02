@@ -1,0 +1,418 @@
+<form class="dda-wizard-form dda-tamer-wizard-form">
+
+  <header class="dda-wizard-header">
+    <div>
+      <h1>{{localize "DDA.TamerWizard.Title"}}</h1>
+      <p>{{progressLabel}} — {{localize "DDA.Wizard.Step"}} {{stepIndex}} {{localize "DDA.Wizard.Of"}} {{totalSteps}}</p>
+    </div>
+
+    <div class="dda-wizard-progress">
+      {{#each progressSteps as |stepDot|}}
+        <span class="dda-wizard-dot {{#if stepDot.active}}active{{/if}} {{#if stepDot.done}}done{{/if}}"></span>
+      {{/each}}
+    </div>
+  </header>
+
+  <main class="dda-wizard-body">
+
+    <aside class="dda-wizard-guide">
+      <div class="dda-wizard-guide-portrait" aria-label="Wizardmon">W</div>
+
+      <div class="dda-wizard-guide-text">
+        <strong>{{guide.title}}</strong>
+        <p>{{guide.text}}</p>
+      </div>
+    </aside>
+
+    <section class="dda-wizard-campaign-summary">
+      <header>
+        <strong>{{localize "DDA.TamerWizard.Campaign.Title"}}</strong>
+        <span>{{data.campaignRules.label}}</span>
+      </header>
+
+      <div class="dda-wizard-campaign-grid">
+        <span><strong>AP</strong> {{data.ap.base}}</span>
+        <span><strong>SP</strong> {{data.sp.base}}</span>
+        <span><strong>{{localize "DDA.TamerWizard.Campaign.AttributeCapShort"}}</strong> {{data.ap.startingCap}}</span>
+        <span><strong>{{localize "DDA.TamerWizard.Campaign.SkillCapShort"}}</strong> {{data.sp.startingCap}}</span>
+        <span><strong>{{localize "DDA.TamerWizard.Campaign.TormentsShort"}}</strong> {{data.tormentBudget.requiredMarked}}</span>
+        <span><strong>{{localize "DDA.TamerWizard.Campaign.TNShort"}}</strong> {{data.campaignRules.skillTnModifier}}</span>
+      </div>
+    </section>
+
+    {{#if (eq step "welcome")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.TamerWizard.Welcome.Title"}}</h2>
+
+        <p>{{localize "DDA.TamerWizard.Welcome.Text"}}</p>
+
+        <p class="dda-wizard-hint">{{localize "DDA.TamerWizard.Welcome.Hint"}}</p>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "identity")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.TamerWizard.Identity.Title"}}</h2>
+
+        <div class="dda-wizard-field">
+          <label>{{localize "DDA.TamerWizard.Identity.Name"}}</label>
+          <input type="text" data-path="identity.name" value="{{data.identity.name}}" placeholder="{{localize 'DDA.TamerWizard.Identity.NamePlaceholder'}}">
+        </div>
+
+        <div class="dda-wizard-identity-grid">
+          <div class="dda-wizard-field">
+            <label>{{localize "DDA.TamerWizard.Identity.Age"}}</label>
+            <input type="text" data-path="identity.age" value="{{data.identity.age}}" placeholder="{{localize 'DDA.TamerWizard.Identity.AgePlaceholder'}}">
+          </div>
+
+          <div class="dda-wizard-field">
+            <label>{{localize "DDA.TamerWizard.Identity.Pronouns"}}</label>
+            <input type="text" data-path="identity.pronouns" value="{{data.identity.pronouns}}" placeholder="{{localize 'DDA.TamerWizard.Identity.PronounsPlaceholder'}}">
+          </div>
+        </div>
+
+        <div class="dda-wizard-field">
+          <label>{{localize "DDA.TamerWizard.Identity.Concept"}}</label>
+          <input type="text" data-path="identity.concept" value="{{data.identity.concept}}" placeholder="{{localize 'DDA.TamerWizard.Identity.ConceptPlaceholder'}}">
+        </div>
+
+        <div class="dda-wizard-field">
+          <label>{{localize "DDA.TamerWizard.Identity.ShortDescription"}}</label>
+          <textarea data-path="identity.description" rows="5" placeholder="{{localize 'DDA.TamerWizard.Identity.ShortDescriptionPlaceholder'}}">{{data.identity.description}}</textarea>
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "aspects")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.TamerWizard.Aspects.Title"}}</h2>
+
+        <p>{{localize "DDA.TamerWizard.Aspects.Text"}}</p>
+
+        <div class="dda-aspect-grid">
+          <article class="dda-aspect-card">
+            <h3>{{localize "DDA.TamerWizard.Aspects.Major"}}</h3>
+
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.TamerWizard.Identity.Name"}}</label>
+              <input type="text" data-path="aspects.major.name" value="{{data.aspects.major.name}}" placeholder="{{localize 'DDA.TamerWizard.Aspects.MajorPlaceholder'}}">
+            </div>
+
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.TamerWizard.Label.Description"}}</label>
+              <textarea data-path="aspects.major.description" rows="4">{{data.aspects.major.description}}</textarea>
+            </div>
+          </article>
+
+          <article class="dda-aspect-card">
+            <h3>{{localize "DDA.TamerWizard.Aspects.Minor"}}</h3>
+
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.TamerWizard.Identity.Name"}}</label>
+              <input type="text" data-path="aspects.minor.name" value="{{data.aspects.minor.name}}" placeholder="{{localize 'DDA.TamerWizard.Aspects.MinorPlaceholder'}}">
+            </div>
+
+            <div class="dda-wizard-field">
+              <label>{{localize "DDA.TamerWizard.Label.Description"}}</label>
+              <textarea data-path="aspects.minor.description" rows="4">{{data.aspects.minor.description}}</textarea>
+            </div>
+          </article>
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "attributes")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.TamerWizard.Attributes.Title"}}</h2>
+
+        <div class="dda-quality-budget">
+          <span><strong>AP:</strong> {{data.ap.remaining}} / {{data.ap.base}}</span>
+          <span><strong>{{localize "DDA.TamerWizard.Budget.Spent"}}:</strong> {{data.ap.spent}}</span>
+          <span><strong>{{localize "DDA.TamerWizard.Budget.AtCap" cap=data.ap.startingCap}}:</strong> {{data.ap.capUsed}} / {{data.ap.capLimit}}</span>
+        </div>
+
+        <section class="dda-stat-list">
+          {{#each data.attributes as |attribute attributeKey|}}
+            <article class="dda-stat-row">
+              <div class="dda-stat-info">
+                <strong>{{attribute.label}}</strong>
+                <small>{{attribute.description}}</small>
+              </div>
+
+              <div class="dda-stat-controls">
+                <button
+                  type="button"
+                  data-attribute-decrease="{{attributeKey}}"
+                  {{#unless attribute.spent}}disabled{{/unless}}
+                >
+                  −
+                </button>
+
+                <div class="dda-stat-values">
+                  <span class="dda-stat-total">{{attribute.total}}</span>
+                  <small>{{localize "DDA.TamerWizard.Attribute.BaseLine" base=attribute.base spent=attribute.spent cap=../data.ap.startingCap}}</small>
+                </div>
+
+                <button
+                  type="button"
+                  data-attribute-increase="{{attributeKey}}"
+                  {{#unless ../data.ap.remaining}}disabled{{/unless}}
+                >
+                  +
+                </button>
+              </div>
+            </article>
+          {{/each}}
+        </section>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "skills")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.TamerWizard.Skills.Title"}}</h2>
+
+<div class="dda-quality-budget">
+  <span><strong>SP:</strong> {{data.sp.remaining}} / {{data.sp.base}}</span>
+  <span><strong>{{localize "DDA.TamerWizard.Budget.Spent"}}:</strong> {{data.sp.spent}}</span>
+  <span><strong>{{localize "DDA.TamerWizard.Budget.AtCap" cap=data.sp.startingCap}}:</strong> {{data.sp.capUsed}} / {{data.sp.capLimit}}</span>
+</div>
+
+<p class="dda-skill-zero-warning">
+  {{localize "DDA.TamerWizard.SkillZeroWarning"}}
+</p>
+
+<section class="dda-skill-list">
+          {{#each data.skills as |skill skillKey|}}
+            <article class="dda-skill-row">
+              <div class="dda-stat-info">
+                <strong>{{skill.label}}</strong>
+                <small>{{skill.description}}</small>
+                <small>{{localize "DDA.TamerWizard.Skill.CurrentLimit" cap=skill.cap}}</small>
+              </div>
+
+              <div class="dda-stat-controls">
+                <button
+                  type="button"
+                  data-skill-decrease="{{skillKey}}"
+                  {{#unless skill.spent}}disabled{{/unless}}
+                >
+                  −
+                </button>
+
+<div class="dda-stat-values">
+  <span class="dda-stat-total">{{skill.total}}</span>
+  <small>{{localize "DDA.TamerWizard.Skill.SpentLine" spent=skill.spent}}</small>
+
+  {{#if (eq skill.total 0)}}
+    <small class="dda-skill-untrained-pill">
+      {{localize "DDA.TamerWizard.SkillUntrainedPenaltyShort"}}
+    </small>
+  {{/if}}
+</div>
+
+                <button
+                  type="button"
+                  data-skill-increase="{{skillKey}}"
+                  {{#unless ../data.sp.remaining}}disabled{{/unless}}
+                >
+                  +
+                </button>
+              </div>
+            </article>
+          {{/each}}
+        </section>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "inspiration")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.TamerWizard.Inspiration.Title"}}</h2>
+
+        <div class="dda-summary-box">
+          <dl>
+            <dt>{{localize "DDA.TamerWizard.Inspiration.InitialIP"}}</dt>
+            <dd>{{data.inspiration.value}}</dd>
+
+            <dt>{{localize "DDA.TamerWizard.Inspiration.MaxIP"}}</dt>
+            <dd>{{data.inspiration.max}}</dd>
+
+            <dt>{{localize "DDA.TamerWizard.Inspiration.Formula"}}</dt>
+            <dd>{{localize "DDA.TamerWizard.Inspiration.FormulaValue"}}</dd>
+          </dl>
+        </div>
+
+        <h3>{{localize "DDA.TamerWizard.Inspiration.LuckyNumber"}}</h3>
+
+        <div class="dda-lucky-grid">
+          {{#each (array 1 2 3 4 5 6) as |number|}}
+            <button
+              type="button"
+              class="{{#if (eq ../data.inspiration.luckyNumber number)}}active{{/if}}"
+              data-lucky-number="{{number}}"
+            >
+              {{number}}
+            </button>
+          {{/each}}
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "torments")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.TamerWizard.Torments.Title"}}</h2>
+
+        <div class="dda-quality-budget">
+          <span><strong>{{localize "DDA.TamerWizard.Torments.MarkedBoxes"}}:</strong> {{data.tormentBudget.usedMarked}} / {{data.tormentBudget.requiredMarked}}</span>
+          <span><strong>{{localize "DDA.TamerWizard.Torments.Remaining"}}:</strong> {{data.tormentBudget.remainingMarked}}</span>
+        </div>
+
+        <section class="dda-torment-list">
+          {{#each data.torments as |torment index|}}
+            <article class="dda-torment-card">
+              <h3>{{localize "DDA.TamerWizard.Torments.TormentNumber" number=(add index 1)}}</h3>
+
+              <div class="dda-wizard-field">
+                <label>{{localize "DDA.TamerWizard.Identity.Name"}}</label>
+                <input type="text" data-path="torments.{{index}}.name" value="{{torment.name}}" placeholder="{{localize 'DDA.TamerWizard.Torments.NamePlaceholder'}}">
+              </div>
+
+              <div class="dda-wizard-field">
+                <label>{{localize "DDA.TamerWizard.Label.Description"}}</label>
+                <textarea data-path="torments.{{index}}.description" rows="3">{{torment.description}}</textarea>
+              </div>
+
+              <div class="dda-stat-controls">
+                <button type="button" data-torment-decrease="{{index}}">−</button>
+
+                <div class="dda-stat-values">
+                  <span class="dda-stat-total">{{torment.marked}}</span>
+                  <small>{{localize "DDA.TamerWizard.Torments.BoxLine" max=torment.max}}</small>
+                </div>
+
+                <button type="button" data-torment-increase="{{index}}">+</button>
+              </div>
+            </article>
+          {{/each}}
+        </section>
+      </section>
+    {{/if}}
+
+    {{#if (eq step "summary")}}
+      <section class="dda-wizard-step">
+        <h2>{{localize "DDA.TamerWizard.Summary.Title"}}</h2>
+
+        <div class="dda-wizard-final-options">
+          <article class="dda-wizard-final-card dda-wizard-image-card">
+            <div>
+              <h3>Imagem do personagem</h3>
+              <p>{{localize "DDA.TamerWizard.Summary.ImageHint"}}</p>
+            </div>
+
+            <div class="dda-wizard-image-row">
+              <img src="{{data.identity.img}}" alt="{{data.identity.name}}">
+              <input type="text" data-path="identity.img" value="{{data.identity.img}}" placeholder="icons/svg/mystery-man.svg">
+            </div>
+          </article>
+
+          {{#unless data.postCreate.hidden}}
+            <article class="dda-wizard-final-card">
+              <label class="dda-wizard-chain-option">
+                <input type="checkbox" data-path="postCreate.createDigimon" {{#if data.postCreate.createDigimon}}checked{{/if}}>
+                <span>
+                  <strong>{{localize "DDA.TamerWizard.Summary.CreateDigimonNext"}}</strong>
+                  <small>{{localize "DDA.TamerWizard.Summary.CreateDigimonNextHint"}}</small>
+                </span>
+              </label>
+            </article>
+          {{/unless}}
+        </div>
+
+        {{#if data.compatibility.digitama}}
+          <div class="dda-summary-box dda-compatibility-summary-box">
+            <h3>{{localize "DDA.Compatibility.Inherited"}}</h3>
+            <p>
+              {{localize "DDA.TamerWizard.Summary.Secret1"}}
+              {{localize "DDA.TamerWizard.Summary.Secret2"}}
+            </p>
+          </div>
+        {{/if}}
+
+        <div class="dda-summary-box">
+          <h3>{{data.identity.name}}</h3>
+
+          <dl>
+            <dt>{{localize "DDA.TamerWizard.Summary.Concept"}}</dt>
+            <dd>{{data.identity.concept}}</dd>
+
+            <dt>{{localize "DDA.TamerWizard.Summary.CampaignLevel"}}</dt>
+            <dd>{{data.campaignRules.label}}</dd>
+
+            <dt>AP</dt>
+            <dd>{{data.ap.spent}} / {{data.ap.base}}</dd>
+
+            <dt>SP</dt>
+            <dd>{{data.sp.spent}} / {{data.sp.base}}</dd>
+
+            <dt>IP</dt>
+            <dd>{{data.inspiration.value}} / {{data.inspiration.max}}</dd>
+
+            <dt>{{localize "DDA.TamerWizard.Summary.LuckyNumber"}}</dt>
+            <dd>{{data.inspiration.luckyNumber}}</dd>
+
+            <dt>{{localize "DDA.TamerWizard.Summary.MarkedTorments"}}</dt>
+            <dd>{{data.tormentBudget.usedMarked}} / {{data.tormentBudget.requiredMarked}}</dd>
+
+            <dt>{{localize "DDA.TamerWizard.Summary.Wounds"}}</dt>
+            <dd>{{data.derived.woundBoxes}}</dd>
+
+            <dt>{{localize "DDA.TamerWizard.Summary.Movement"}}</dt>
+            <dd>{{data.derived.movement}}</dd>
+          </dl>
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if data.validation.errors.length}}
+      <aside class="dda-wizard-alert error">
+        {{#each data.validation.errors as |error|}}
+          <p>{{error}}</p>
+        {{/each}}
+      </aside>
+    {{/if}}
+
+    {{#if data.validation.warnings.length}}
+      <aside class="dda-wizard-alert warning">
+        {{#each data.validation.warnings as |warning|}}
+          <p>{{warning}}</p>
+        {{/each}}
+      </aside>
+    {{/if}}
+
+  </main>
+
+  <footer class="dda-wizard-footer">
+    <div class="dda-wizard-status">
+      <span><strong>AP:</strong> {{data.ap.remaining}} / {{data.ap.base}}</span>
+      <span><strong>SP:</strong> {{data.sp.remaining}} / {{data.sp.base}}</span>
+      <span><strong>IP:</strong> {{data.inspiration.value}} / {{data.inspiration.max}}</span>
+      <span><strong>{{localize "DDA.TamerWizard.Footer.Level"}}:</strong> {{data.campaignRules.label}}</span>
+    </div>
+
+    <div class="dda-wizard-buttons">
+      <button type="button" data-action="back" {{#if isFirstStep}}disabled{{/if}}>
+        {{localize "DDA.TamerWizard.Button.Back"}}
+      </button>
+
+      {{#if isLastStep}}
+        <button type="button" class="primary" data-action="create">
+          {{localize "DDA.TamerWizard.Button.Create"}}
+        </button>
+      {{else}}
+        <button type="button" class="primary" data-action="next">
+          {{localize "DDA.TamerWizard.Button.Next"}}
+        </button>
+      {{/if}}
+    </div>
+  </footer>
+
+</form>

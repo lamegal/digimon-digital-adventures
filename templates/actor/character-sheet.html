@@ -1,0 +1,829 @@
+<form class="{{cssClass}} dda-character-sheet dda-tamer-window-sheet" autocomplete="off">
+  <div class="dda-window-shell dda-tamer-window-shell">
+
+    <div class="dda-window-side-device {{#if digiviceSkin.revealed}}has-crest-digivice{{/if}} {{#if digiviceSkin.active}}is-crest-resonating{{/if}}" style="--dda-digivice-frame: url('{{digiviceSkin.frame}}');">
+    <img
+      class="dda-device-portrait"
+      src="{{actor.img}}"
+      data-edit="img"
+      title="{{actor.name}}"
+    />
+
+    {{#if crestPlaque.visible}}
+    <div class="dda-crest-plaque {{#if crestPlaque.pulse}}is-pulsing{{/if}}" title="{{crestPlaque.label}}">
+      <img src="{{crestPlaque.img}}" alt="{{crestPlaque.label}}" />
+    </div>
+    {{/if}}
+
+    <button
+      type="button"
+      class="dda-device-button dda-device-button-sheet"
+      data-action="digivice-sheet"
+      data-tooltip="{{localize 'DDA.TamerSheet.Tooltip.SheetConfig'}}"
+      title="{{localize 'DDA.TamerSheet.Tooltip.SheetConfig'}}"
+      aria-label="{{localize 'DDA.TamerSheet.Tooltip.SheetConfig'}}">
+    </button>
+
+    <button
+      type="button"
+      class="dda-device-button dda-device-button-token"
+      data-action="digivice-token"
+      data-tooltip="{{localize 'DDA.TamerSheet.Tooltip.TokenPrototype'}}"
+      title="{{localize 'DDA.TamerSheet.Tooltip.TokenPrototype'}}"
+      aria-label="{{localize 'DDA.TamerSheet.Tooltip.TokenPrototype'}}">
+    </button>
+
+    <button
+      type="button"
+      class="dda-device-button dda-device-button-close"
+      data-action="digivice-close"
+      data-tooltip="{{localize 'DDA.Button.Close'}}"
+      title="{{localize 'DDA.Button.Close'}}"
+      aria-label="{{localize 'DDA.Button.Close'}}">
+    </button>
+    </div>
+
+<div class="dda-luck-orb">
+  <div class="dda-luck-crt" aria-hidden="true"></div>
+
+  <div class="dda-luck-orb-label" aria-hidden="true">
+    <img
+      class="dda-luck-clover-img"
+      src="systems/digimon-digital-adventures/assets/ui/clover-pixel.png"
+      alt=""
+    />
+  </div>
+
+  <input
+    class="dda-luck-orb-value"
+    type="number"
+    name="system.luckyNumber"
+    value="{{system.luckyNumber}}"
+    min="1"
+    max="6"
+    aria-label="{{localize "DDA.TamerSheet.LuckyNumber"}}"
+  />
+</div>
+
+    <div class="dda-window-frame">
+      <div class="dda-window-frame-glow"></div>
+
+      <div class="dda-window-paper">
+    <header class="sheet-header">
+      <div class="header-fields">
+
+<div class="dda-tamer-header-grid">
+
+  <div class="dda-name-block">
+    <h1>
+      <input
+        name="name"
+        type="text"
+        value="{{actor.name}}"
+        placeholder="{{localize "DDA.TamerSheet.Placeholder.TamerName"}}"
+      />
+    </h1>
+  </div>
+
+  <div class="dda-tamer-header-resources">
+    <div class="form-group compact resource-row pi-block">
+      <label>{{localize "DDA.Resource.IP.Short"}}</label>
+      <div class="inline-inputs small-resource">
+        <input type="number" name="system.resources.ip.value" value="{{system.resources.ip.value}}" />
+        <span>/</span>
+        <input type="number" name="system.resources.ip.max" value="{{system.resources.ip.max}}" readonly />
+      </div>
+    </div>
+
+    <div class="form-group compact resource-row pe-block">
+      <label>{{localize "DDA.Resource.EvolutionPoints.Short"}}</label>
+      <div class="inline-inputs small-resource">
+        <input type="number" name="system.resources.evolutionPoints.value" value="{{system.resources.evolutionPoints.value}}" />
+        <span>/</span>
+        <input type="number" name="system.resources.evolutionPoints.max" value="{{system.resources.evolutionPoints.max}}" readonly />
+      </div>
+    </div>
+  </div>
+
+  <div class="form-group compact partner-block">
+    <label>{{localize "DDA.TamerSheet.Partner"}}</label>
+    <input type="text" value="{{partnerIdentityName}}" readonly />
+  </div>
+
+  <div class="partner-actions">
+    <button type="button" class="open-partner-sheet" title="{{localize "DDA.TamerSheet.Tooltip.OpenPartnerSheet"}}">
+      {{localize "DDA.Button.Open"}}
+    </button>
+
+    {{#if specialEvolutionSettings.enableHybridEvolution}}
+    <button type="button" class="hybrid-partner" title="{{localize "DDA.TamerSheet.Tooltip.HybridPartner"}}">
+      {{localize "DDA.Button.Hybrid"}}
+    </button>
+    {{/if}}
+
+    {{#if specialEvolutionSettings.enableBioMergeEvolution}}
+    <button type="button" class="biomerge-partner" title="{{localize "DDA.TamerSheet.Tooltip.BioMergePartner"}}">
+      {{localize "DDA.Button.BioMerge"}}
+    </button>
+    {{/if}}
+  </div>
+
+  <div class="dda-header-separator" aria-hidden="true"></div>
+
+  <div class="form-group compact current-form-block">
+    <label>{{localize "DDA.TamerSheet.CurrentForm"}}</label>
+    <input type="text" value="{{partnerCurrentSpecies}}" readonly />
+  </div>
+
+  <div class="current-form-actions evolution-form-actions">
+    <button type="button" class="evolution-options-partner" title="{{localize "DDA.TamerSheet.Tooltip.DigivolvePartner"}}">
+      {{localize "DDA.Button.Digivolve"}}
+    </button>
+
+    {{#if specialEvolutionSettings.enableJogressEvolution}}
+    <button type="button" class="jogress-partner" title="{{localize "DDA.TamerSheet.Tooltip.JogressPartner"}}">
+      {{localize "DDA.Button.Jogress"}}
+    </button>
+    {{/if}}
+  </div>
+
+</div>
+    </header>
+
+{{#if hybridActive}}
+<section class="dda-hybrid-active-panel dda-hybrid-panel-tamer">
+  <div class="dda-hybrid-panel-main">
+    <span class="dda-hybrid-kicker">{{hybridState.methodLabel}}</span>
+    <h2>{{hybridState.resultName}}</h2>
+    <p>
+      {{localize "DDA.Hybrid.EquivalentStage"}}: <strong>{{hybridState.equivalentStageLabel}}</strong>
+      {{#if hybridState.sourceDigimonName}} • {{localize "DDA.Hybrid.SourceDigimon"}}: <strong>{{hybridState.sourceDigimonName}}</strong>{{/if}}
+      {{#if hybridState.partnerAvailabilityLabel}} • {{localize "DDA.Hybrid.PartnerAvailability.Label"}}: <strong>{{hybridState.partnerAvailabilityLabel}}</strong>{{/if}}
+    </p>
+  </div>
+
+  <div class="dda-hybrid-panel-rules">
+    <span>{{localize "DDA.Hybrid.ResultActions"}}: <strong>3</strong></span>
+    <span>{{localize "DDA.Hybrid.DirectPenaltyReductionShort"}}</span>
+  </div>
+
+  <div class="dda-hybrid-panel-actions">
+    <button type="button" class="open-hybrid-sheet">{{localize "DDA.Button.OpenHybrid"}}</button>
+    <button type="button" class="end-hybrid-partner">{{localize "DDA.Button.EndHybrid"}}</button>
+  </div>
+</section>
+{{/if}}
+
+  <nav class="sheet-tabs tabs" data-group="primary">
+    <a class="item" data-tab="stats">{{localize "DDA.TamerSheet.Tab.StatsAndSkills"}}</a>
+    <a class="item" data-tab="aspects">{{localize "DDA.TamerSheet.Tab.Aspects"}}</a>    
+    <a class="item" data-tab="combat">{{localize "DDA.TamerSheet.Tab.Combat"}}</a>
+    <a class="item" data-tab="inventory">{{localize "DDA.TamerSheet.Tab.Inventory"}}</a>
+    <a class="item" data-tab="torments">{{localize "DDA.TamerSheet.Tab.TalentsAndTorments"}}</a>
+    <a class="item" data-tab="advancement">{{localize "DDA.TamerSheet.Tab.Advancement"}}</a>
+    <a class="item" data-tab="notes">{{localize "DDA.TamerSheet.Tab.Notes"}}</a>
+  </nav>
+
+  <section class="sheet-body">
+<section class="tab dda-tamer-aspects-tab" data-group="primary" data-tab="aspects">
+  <div class="dda-aspect-card-grid">
+
+    <article class="dda-aspect-card dda-aspect-major-card">
+      <header class="dda-aspect-card-header">
+        <div>
+          <span class="dda-aspect-kicker">{{localize "DDA.TamerSheet.Aspect"}}</span>
+          <h2>{{localize "DDA.TamerSheet.Major"}}</h2>
+        </div>
+
+        <div class="dda-aspect-uses">
+          <label>{{localize "DDA.Label.Uses"}}</label>
+          <div class="inline-inputs">
+            <input type="number" name="system.aspects.major.uses.value" value="{{system.aspects.major.uses.value}}" />
+            <span>/</span>
+            <input type="number" name="system.aspects.major.uses.max" value="{{system.aspects.major.uses.max}}" readonly />
+          </div>
+        </div>
+      </header>
+
+      <div class="form-group stacked dda-aspect-name">
+        <label>{{localize "DDA.Label.Name"}}</label>
+        <input type="text" name="system.aspects.major.name" value="{{system.aspects.major.name}}" />
+      </div>
+
+      <div class="form-group stacked">
+        <label>{{localize "DDA.Label.Description"}}</label>
+        <textarea name="system.aspects.major.description">{{system.aspects.major.description}}</textarea>
+      </div>
+
+      <div class="dda-aspect-use-grid">
+        <div class="form-group stacked dda-aspect-positive">
+          <label>{{localize "DDA.TamerSheet.PositiveUse"}} <span>+4</span></label>
+          <textarea name="system.aspects.major.positiveUse">{{system.aspects.major.positiveUse}}</textarea>
+        </div>
+
+        <div class="form-group stacked dda-aspect-negative">
+          <label>{{localize "DDA.TamerSheet.NegativeUse"}} <span>-4</span></label>
+          <textarea name="system.aspects.major.negativeUse">{{system.aspects.major.negativeUse}}</textarea>
+        </div>
+      </div>
+    </article>
+
+    <article class="dda-aspect-card dda-aspect-minor-card">
+      <header class="dda-aspect-card-header">
+        <div>
+          <span class="dda-aspect-kicker">{{localize "DDA.TamerSheet.Aspect"}}</span>
+          <h2>{{localize "DDA.TamerSheet.Minor"}}</h2>
+        </div>
+
+        <div class="dda-aspect-uses">
+          <label>{{localize "DDA.Label.Uses"}}</label>
+          <div class="inline-inputs">
+            <input type="number" name="system.aspects.minor.uses.value" value="{{system.aspects.minor.uses.value}}" />
+            <span>/</span>
+            <input type="number" name="system.aspects.minor.uses.max" value="{{system.aspects.minor.uses.max}}" readonly />
+          </div>
+        </div>
+      </header>
+
+      <div class="form-group stacked dda-aspect-name">
+        <label>{{localize "DDA.Label.Name"}}</label>
+        <input type="text" name="system.aspects.minor.name" value="{{system.aspects.minor.name}}" />
+      </div>
+
+      <div class="form-group stacked">
+        <label>{{localize "DDA.Label.Description"}}</label>
+        <textarea name="system.aspects.minor.description">{{system.aspects.minor.description}}</textarea>
+      </div>
+
+      <div class="dda-aspect-use-grid">
+        <div class="form-group stacked dda-aspect-positive">
+          <label>{{localize "DDA.TamerSheet.PositiveUse"}} <span>+2</span></label>
+          <textarea name="system.aspects.minor.positiveUse">{{system.aspects.minor.positiveUse}}</textarea>
+        </div>
+
+        <div class="form-group stacked dda-aspect-negative">
+          <label>{{localize "DDA.TamerSheet.NegativeUse"}} <span>-2</span></label>
+          <textarea name="system.aspects.minor.negativeUse">{{system.aspects.minor.negativeUse}}</textarea>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+    <section class="tab dda-tamer-stats-tab" data-group="primary" data-tab="stats">
+      <h2>{{localize "DDA.TamerSheet.Attributes"}}</h2>
+
+      <div class="resource-grid">
+        {{#each system.attributes as |attribute key|}}
+        <div class="resource-box">
+          <label>{{localize attribute.label}}</label>
+            <input
+              type="number"
+              name="system.attributes.{{key}}.value"
+              value="{{attribute.value}}"
+              min="1"
+              max="{{../campaignRules.attributeCap}}"
+            />
+        </div>
+        {{/each}}
+      </div>
+
+<h2>{{localize "DDA.TamerSheet.Skills"}}</h2>
+
+<p class="dda-skill-zero-warning">
+  {{localize "DDA.TamerSheet.SkillZeroWarning"}}
+</p>
+
+<div class="dda-skill-card-grid">
+  {{#each sortedSkills as |skill|}}
+  <article class="dda-skill-card">
+    <button type="button" class="dda-skill-name roll-skill" data-skill="{{skill.key}}">
+      {{skill.localizedLabel}}
+    </button>
+
+<input
+  class="dda-skill-value-orb"
+  type="number"
+  name="system.skills.{{skill.key}}.value"
+  value="{{skill.value}}"
+  min="0"
+  max="{{../campaignRules.skillCap}}"
+/>
+
+{{#if (eq skill.value 0)}}
+  <span class="dda-skill-untrained-pill">
+    {{localize "DDA.TamerSheet.SkillUntrainedPenaltyShort"}}
+  </span>
+{{/if}}
+
+<span class="skill-attribute-pills">
+      {{#each skill.attributes as |attribute|}}
+        <span class="skill-attribute-pill attr-{{attribute}}">
+          {{ddaTamerAttributeShortLabel attribute}}
+        </span>
+      {{/each}}
+    </span>
+  </article>
+  {{/each}}
+</div>
+    </section>
+
+    <section class="tab dda-tamer-combat-tab" data-group="primary" data-tab="combat">
+      <h2>{{localize "DDA.TamerSheet.Combat"}}</h2>
+
+      <div class="combat-actions">
+        <button type="button" class="recovery-menu">{{localize "DDA.Button.RecoveryOptions"}}</button>
+        {{#if specialEvolutionSettings.enableForcedEvolution}}
+        <button type="button" class="end-forced-evolution-partner">{{localize "DDA.Button.EndForcedEvolution"}}</button>
+        {{/if}}
+      </div>
+
+      <div class="resource-grid character-combat-main-resources">
+        <div class="resource-box">
+          <label>{{localize "DDA.Resource.Actions"}}</label>
+          <div class="inline-inputs">
+            <input type="number" value="{{system.combat.actions.value}}" readonly />
+            <span>/</span>
+            <input type="number" value="{{system.combat.actions.max}}" readonly />
+          </div>
+        </div>
+
+        <div class="resource-box health-box {{system.derived.wounds.healthClass}}">
+          <label>{{localize "DDA.Resource.Health"}}</label>
+          <div class="inline-inputs">
+            <input type="number" name="system.derived.wounds.value" value="{{system.derived.wounds.value}}" />
+            <span>/</span>
+            <input type="number" value="{{system.derived.wounds.max}}" readonly />
+          </div>
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.Resource.Temp"}}</label>
+          <input type="number" name="system.derived.wounds.temp.value" value="{{system.derived.wounds.temp.value}}" />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.Resource.Movement"}}</label>
+          <input type="number" value="{{system.derived.movement.value}}" readonly />
+        </div>
+      </div>
+
+<h3>{{localize "DDA.TamerSheet.ActiveEffects"}}</h3>
+
+<div class="active-effects-panel">
+  {{#if system.effects.active.length}}
+    <div class="active-effect-list">
+      {{#each system.effects.active as |effect|}}
+      <div class="active-effect-row" data-effect-id="{{effect.id}}">
+        <div class="active-effect-main">
+          <strong>{{effect.label}}</strong>
+          <span>{{effect.sourceAttackName}}</span>
+        </div>
+
+        <div class="active-effect-meta">
+          <span>{{localize "DDA.Label.Source"}}: {{effect.sourceActorName}}</span>
+          <span>{{localize "DDA.Label.Duration"}}: {{effect.remaining}}</span>
+        </div>
+
+        <button type="button" class="remove-active-effect" data-effect-id="{{effect.id}}">{{localize "DDA.Button.Remove"}}</button>
+      </div>
+      {{/each}}
+    </div>
+  {{else}}
+    <p class="muted">{{localize "DDA.TamerSheet.NoActiveEffects"}}</p>
+  {{/if}}
+</div>
+
+      <h3>{{localize "DDA.TamerSheet.TormentState"}}</h3>
+
+      <div class="resource-grid">
+        <div class="resource-box">
+          <label>{{localize "DDA.TamerSheet.RollPenalty"}}</label>
+          <input type="number" name="system.tormentState.rollPenalty" value="{{system.tormentState.rollPenalty}}" />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.TamerSheet.ActionPenalty"}}</label>
+          <input type="number" name="system.tormentState.tamerActionPenalty" value="{{system.tormentState.tamerActionPenalty}}" />
+        </div>
+
+        <label class="resource-box checkbox-box">
+          <input type="checkbox" name="system.tormentState.combatActionLocked" {{checked system.tormentState.combatActionLocked}} />
+          {{localize "DDA.TamerSheet.NoCombatActions"}}
+        </label>
+
+        <label class="resource-box checkbox-box">
+          <input type="checkbox" name="system.combat.defeated" {{checked system.combat.defeated}} />
+          {{localize "DDA.TamerSheet.Defeated"}}
+        </label>
+      </div>
+    </section>
+
+
+    <section class="tab dda-tamer-inventory-tab" data-group="primary" data-tab="inventory">
+      <header class="dda-inventory-page-header">
+        <div>
+          <h2>{{localize "DDA.Inventory.Title"}}</h2>
+          <p>{{localize "DDA.Inventory.Subtitle"}}</p>
+        </div>
+
+        <span class="dda-inventory-count">{{inventory.total}} {{localize "DDA.Inventory.TotalItems"}}</span>
+      </header>
+
+      <div class="dda-inventory-category-grid">
+        {{#each inventory.categories as |category|}}
+        <section class="dda-inventory-category dda-inventory-category-{{category.key}}">
+          <header class="dda-inventory-category-header">
+            <div>
+              <h3>{{category.label}}</h3>
+              <span>{{category.count}} {{localize "DDA.Inventory.Items"}}</span>
+            </div>
+
+            <button
+              type="button"
+              class="item-create dda-inventory-add-button"
+              data-type="{{category.createType}}"
+              data-name="{{category.createName}}"
+              title="{{localize 'DDA.Button.Add'}}: {{category.label}}"
+              aria-label="{{localize 'DDA.Button.Add'}}: {{category.label}}"
+            >
+              +
+            </button>
+          </header>
+
+          {{#if category.items.length}}
+          <div class="item-list dda-inventory-list">
+            {{#each category.items as |item|}}
+            <div class="item-row dda-inventory-row item-type-{{item.typeClass}}" data-item-id="{{item.id}}">
+              <img src="{{item.img}}" title="{{item.name}}" />
+
+              <div class="item-name dda-inventory-item-main">
+                <strong>{{item.name}}</strong>
+                <span>{{item.meta}}</span>
+
+                <div class="dda-inventory-tags">
+                  <span class="dda-inventory-tag tag-type-{{item.typeClass}}">{{item.typeLabel}}</span>
+
+                  {{#if item.hasUses}}
+                    <span class="dda-inventory-tag tag-uses">{{localize "DDA.Label.Uses"}} {{item.usesValue}}/{{item.usesMax}}</span>
+                  {{/if}}
+
+                  {{#if item.usedUntilRest}}
+                    <span class="dda-inventory-tag tag-spent">{{localize "DDA.Inventory.UsedUntilRest"}}</span>
+                  {{/if}}
+                </div>
+              </div>
+
+              <div class="item-controls dda-inventory-controls">
+                {{#if item.canUse}}
+                  <button type="button" class="inventory-use-item dda-inventory-use-button" title="{{item.useTitle}}">▶</button>
+                {{else}}
+                  <button type="button" class="dda-inventory-use-button" title="{{item.useTitle}}" disabled>▶</button>
+                {{/if}}
+
+                <button type="button" class="item-edit">{{localize "DDA.Button.Edit"}}</button>
+                <button type="button" class="item-delete">{{localize "DDA.Button.Delete"}}</button>
+              </div>
+            </div>
+            {{/each}}
+          </div>
+          {{else}}
+            <p class="muted dda-inventory-empty">{{category.emptyLabel}}</p>
+          {{/if}}
+        </section>
+        {{/each}}
+      </div>
+    </section>
+
+    <section class="tab dda-tamer-torments-tab" data-group="primary" data-tab="torments">
+      <div class="combat-actions">
+        <button type="button" class="recovery-menu">{{localize "DDA.Button.RecoveryOptions"}}</button>
+      </div>
+
+      <div class="section-header">
+        <h2>{{localize "DDA.TamerSheet.Torments"}}</h2>
+        <button type="button" class="item-create" data-type="torment" data-name="{{localize "DDA.TamerSheet.NewTorment"}}">{{localize "DDA.Button.AddTorment"}}</button>
+      </div>
+
+      <div class="item-list torment-list">
+        {{#each itemsByType.torment as |item|}}
+        <div class="item-row" data-item-id="{{item.id}}">
+          <img src="{{item.img}}" title="{{item.name}}" />
+
+          <div class="item-name">
+            <strong>{{item.name}}</strong>
+            <span>{{item.system.boxes.value}} / {{item.system.boxes.max}} {{localize "DDA.TamerSheet.Boxes"}}</span>
+          </div>
+
+          <div class="item-controls">
+            <button type="button" class="roll-torment">{{localize "DDA.Button.Roll"}}</button>
+            <button type="button" class="item-edit">{{localize "DDA.Button.Edit"}}</button>
+            <button type="button" class="item-delete">{{localize "DDA.Button.Delete"}}</button>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+
+<div class="section-header">
+  <h2>{{localize "DDA.TamerSheet.Talents"}}</h2>
+
+<div class="section-actions">
+  <button type="button" class="open-tamer-talent-compendium">
+    {{localize "DDA.Button.Compendium"}}
+  </button>
+
+  <button type="button" class="item-create" data-type="tamerTalent" data-name="{{localize "DDA.TamerSheet.NewTalent"}}">
+    {{localize "DDA.Button.AddHomebrew"}}
+  </button>
+</div>
+</div>
+
+      <div class="item-list talent-list">
+        {{#each itemsByType.tamerTalent as |item|}}
+        <div class="item-row" data-item-id="{{item.id}}">
+          <img src="{{item.img}}" title="{{item.name}}" />
+
+          <div class="item-name">
+            <strong>{{item.name}}</strong>
+            <div class="tamer-talent-tags">
+  <span class="tamer-talent-tag {{item.statusClass}}">
+    {{item.statusLabel}}
+  </span>
+
+  <span class="tamer-talent-tag requirement">
+    {{item.requirementText}}
+  </span>
+
+  {{#if item.system.isAdvanced}}
+    <span class="tamer-talent-tag advanced">{{localize "DDA.TamerTalent.Advanced"}}</span>
+  {{/if}}
+
+  {{#if item.system.isSpecialOrder}}
+    <span class="tamer-talent-tag special-order">{{localize "DDA.TamerTalent.SpecialOrder"}}</span>
+  {{/if}}
+
+  {{#if item.system.uses.enabled}}
+    <span class="tamer-talent-tag uses">
+      {{localize "DDA.Label.Uses"}} {{item.system.uses.value}}/{{item.system.uses.max}}
+    </span>
+  {{/if}}
+</div>
+            {{#if item.system.requirement.display}}
+            <span>{{item.system.requirement.display}}</span>
+            {{/if}}
+          </div>
+            
+<div class="item-controls">
+  {{#if (eq item.source "official")}}
+    <button
+      type="button"
+      class="open-official-tamer-talent"
+      data-talent-id="{{item.id}}"
+    >
+      {{localize "DDA.Button.Open"}}
+    </button>
+
+    {{#unless (eq item.system.useType "passive")}}
+      <button
+        type="button"
+        class="use-tamer-talent"
+        data-talent-id="{{item.id}}"
+        data-talent-source="official"
+      >
+        {{localize "DDA.Button.Use"}}
+      </button>
+    {{/unless}}
+  {{else}}
+    <button type="button" class="item-edit">{{localize "DDA.Button.Edit"}}</button>
+    <button type="button" class="item-delete">{{localize "DDA.Button.Delete"}}</button>
+
+    {{#if item.requirementMet}}
+      {{#unless (eq item.system.useType "passive")}}
+        <button
+          type="button"
+          class="use-tamer-talent"
+          data-talent-id="{{item.id}}"
+          data-talent-source="item"
+        >
+          {{localize "DDA.Button.Use"}}
+        </button>
+      {{/unless}}
+    {{/if}}
+  {{/if}}
+</div>
+</div>
+        {{/each}}
+      </div>
+    </section>
+
+    <section class="tab dda-tamer-advancement-tab" data-group="primary" data-tab="advancement">
+      <h2>{{localize "DDA.TamerSheet.Advancement"}}</h2>
+
+      <details class="dda-campaign-rules-summary dda-campaign-rules-details">
+        <summary>
+          <span>{{localize "DDA.CampaignRules.Title"}}</span>
+          <small>
+            {{campaignRules.label}} •
+            {{localize "DDA.CampaignRules.AttributePoints"}} {{campaignRules.attributeTotal}}/{{campaignRules.startingAttributePoints}} •
+            {{localize "DDA.CampaignRules.SkillPoints"}} {{campaignRules.skillTotal}}/{{campaignRules.startingSkillPoints}}
+          </small>
+        </summary>
+
+        <div class="resource-grid dda-campaign-rules-grid">
+          <div class="resource-box">
+            <label>{{localize "DDA.CampaignRules.Level"}}</label>
+            <input type="text" value="{{campaignRules.label}}" readonly />
+          </div>
+
+          <div class="resource-box">
+            <label>{{localize "DDA.CampaignRules.AttributePoints"}}</label>
+            <input type="text" value="{{campaignRules.attributeTotal}} / {{campaignRules.startingAttributePoints}}" readonly />
+          </div>
+
+          <div class="resource-box">
+            <label>{{localize "DDA.CampaignRules.SkillPoints"}}</label>
+            <input type="text" value="{{campaignRules.skillTotal}} / {{campaignRules.startingSkillPoints}}" readonly />
+          </div>
+
+          <div class="resource-box">
+            <label>{{localize "DDA.CampaignRules.AttributeCap"}}</label>
+            <input type="number" value="{{campaignRules.attributeCap}}" readonly />
+          </div>
+
+          <div class="resource-box">
+            <label>{{localize "DDA.CampaignRules.SkillCap"}}</label>
+            <input type="number" value="{{campaignRules.skillCap}}" readonly />
+          </div>
+
+          <div class="resource-box">
+            <label>{{localize "DDA.CampaignRules.RecommendedMilestones"}}</label>
+            <input type="number" value="{{campaignRules.recommendedMilestones}}" readonly />
+          </div>
+
+          <div class="resource-box">
+            <label>{{localize "DDA.CampaignRules.SkillTnModifier"}}</label>
+            <input type="number" value="{{campaignRules.skillTnModifier}}" readonly />
+          </div>
+
+          <div class="resource-box">
+            <label>{{localize "DDA.CampaignRules.StartingTormentBoxes"}}</label>
+            <input type="number" value="{{campaignRules.startingMarkedTormentBoxes}}" readonly />
+          </div>
+        </div>
+
+        {{#if campaignRules.hasPointWarning}}
+          <p class="dda-campaign-warning">{{localize "DDA.CampaignRules.PointWarning"}}</p>
+        {{/if}}
+
+        {{#if campaignRules.hasAttributeOverCap}}
+          <p class="dda-campaign-warning">{{localize "DDA.CampaignRules.AttributeCapWarning"}}</p>
+        {{/if}}
+
+        {{#if campaignRules.hasSkillOverCap}}
+          <p class="dda-campaign-warning">{{localize "DDA.CampaignRules.SkillCapWarning"}}</p>
+        {{/if}}
+      </details>
+
+      <div class="resource-grid">
+        <div class="resource-box">
+          <label>{{localize "DDA.TamerSheet.Milestones"}}</label>
+          <input type="number" name="system.advancement.milestones.completed" value="{{system.advancement.milestones.completed}}" />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.TamerSheet.PartyXP"}}</label>
+          <div class="inline-inputs">
+            <input type="number" name="system.advancement.experience.party.value" value="{{system.advancement.experience.party.value}}" />
+            <span>/</span>
+            <input type="number" name="system.advancement.experience.party.max" value="{{system.advancement.experience.party.max}}" />
+          </div>
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.TamerSheet.GrowthPoints"}}</label>
+          <input type="number" name="system.advancement.growthPoints.available" value="{{system.advancement.growthPoints.available}}" />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.TamerSheet.AttributeCap"}}</label>
+          <input type="number" value="{{campaignRules.attributeFinalCap}}" readonly />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.TamerSheet.DefaultRange"}}</label>
+          <input type="number" name="system.evolution.defaultRange.value" value="{{system.evolution.defaultRange.value}}" />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.TamerSheet.BlastEvolution"}}</label>
+          <div class="inline-inputs">
+            <input type="number" name="system.blastEvolution.uses.value" value="{{system.blastEvolution.uses.value}}" />
+            <span>/</span>
+            <input type="number" name="system.blastEvolution.uses.max" value="{{system.blastEvolution.uses.max}}" />
+          </div>
+        </div>
+      </div>
+
+<h3>{{localize "DDA.TamerSheet.PartnerBond"}}</h3>
+
+<div class="partner-drop-zone">
+  <strong>{{localize "DDA.TamerSheet.DropPartnerTitle"}}</strong>
+  <span>{{localize "DDA.TamerSheet.DropPartnerHint"}}</span>
+</div>
+
+<div class="combat-actions">
+  <button type="button" class="open-partner-sheet">{{localize "DDA.Button.OpenPartner"}}</button>
+  <button type="button" class="evolution-options-partner">{{localize "DDA.Button.DigivolvePartner"}}</button>
+  <button type="button" class="open-current-form-wizard">{{localize "DDA.Button.CurrentFormWizard"}}</button>
+  <button type="button" class="jogress-partner">{{localize "DDA.Button.Jogress"}}</button>
+  {{#if hybridActive}}
+  <button type="button" class="end-hybrid-partner">{{localize "DDA.Button.EndHybrid"}}</button>
+  {{else}}
+  <button type="button" class="hybrid-partner">{{localize "DDA.Button.Hybrid"}}</button>
+  {{/if}}
+  <button type="button" class="unlink-partner">{{localize "DDA.Button.UnlinkPair"}}</button>
+</div>
+
+<div class="dda-partner-info-grid">
+  <div class="form-group dda-partner-name-field">
+    <label>{{localize "DDA.Label.Name"}}</label>
+    <input type="text" name="system.partner.name" value="{{partnerIdentityName}}" readonly />
+  </div>
+
+<div class="form-group dda-partner-form-field">
+  <label>{{localize "DDA.TamerSheet.CurrentForm"}}</label>
+  <input type="text" value="{{partnerCurrentSpecies}}" readonly />
+</div>
+
+<div class="form-group dda-partner-starting-stage-field">
+  <label>{{localize "DDA.TamerSheet.PartnerStartingStage.Label"}}</label>
+
+  {{#if isGM}}
+<select name="system.partner.startingStageOverride">
+  <option
+    value=""
+    {{#unless partnerStartingStage.overrideStage}}selected{{/unless}}
+  >
+    {{partnerStartingStage.useDefaultLabel}}
+  </option>
+
+  {{#each partnerStartingStage.options as |label stageKey|}}
+    <option
+      value="{{stageKey}}"
+      {{#if (eq ../partnerStartingStage.overrideStage stageKey)}}selected{{/if}}
+    >
+      {{label}}
+    </option>
+  {{/each}}
+</select>
+
+    <small>{{partnerStartingStage.effectiveHint}}</small>
+  {{else}}
+    <input type="text" value="{{partnerStartingStage.effectiveLabel}}" readonly />
+  {{/if}}
+</div>
+
+  <div class="form-group dda-partner-uuid-field">
+    <label>{{localize "DDA.TamerSheet.PartnerUUID"}}</label>
+    <input type="text" name="system.partner.uuid" value="{{system.partner.uuid}}" readonly />
+  </div>
+
+  <div class="form-group dda-partner-form-uuid-field">
+    <label>{{localize "DDA.TamerSheet.CurrentFormUUID"}}</label>
+    <input type="text" value="{{system.partner.currentFormUuid}}" readonly />
+  </div>
+</div>
+
+</section>
+
+<section class="tab dda-tamer-notes-tab" data-group="primary" data-tab="notes">
+  <h2>{{localize "DDA.TamerSheet.Notes"}}</h2>
+
+  <div class="grid-2">
+    <div class="form-group stacked">
+      <label>{{localize "DDA.TamerSheet.Appearance"}}</label>
+      <textarea name="system.profile.appearance">{{system.profile.appearance}}</textarea>
+    </div>
+
+    <div class="form-group stacked">
+      <label>{{localize "DDA.TamerSheet.Personality"}}</label>
+      <textarea name="system.profile.personality">{{system.profile.personality}}</textarea>
+    </div>
+  </div>
+
+  <div class="form-group stacked">
+    <label>{{localize "DDA.TamerSheet.Background"}}</label>
+    <textarea name="system.profile.background">{{system.profile.background}}</textarea>
+  </div>
+
+  <div class="form-group stacked">
+    <label>{{localize "DDA.TamerSheet.FreeNotes"}}</label>
+    <textarea name="system.notes">{{system.notes}}</textarea>
+  </div>
+</section>
+  </section>
+      </div>
+    </div>
+  </div>
+</form>
