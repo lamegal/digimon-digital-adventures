@@ -675,7 +675,11 @@ function crestPath(fileName = "") {
     .replace(/^_+|_+$/g, "")
     .toLowerCase();
 
-  return `systems/digimon-digital-adventures/assets/crests/crest_of_${key}.webp`;
+  const crestFileName = key
+    ? `${key.charAt(0).toUpperCase()}${key.slice(1)}`
+    : "";
+
+  return `systems/digimon-digital-adventures/assets/crests/Crest_of_${crestFileName}.webp`;
 }
 
 const DDA_CRESTS = {

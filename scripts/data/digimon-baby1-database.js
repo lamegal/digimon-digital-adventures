@@ -108,7 +108,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "social",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Bommon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_bommon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Bommon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -137,7 +137,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "resilient",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Botamon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_botamon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Botamon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -166,7 +166,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "social",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Bubbmon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_bubbmon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Bubbmon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -224,7 +224,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "beast",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Chicomon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_chicomon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Chicomon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -253,7 +253,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "curious",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Choromon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_choromon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Choromon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -282,7 +282,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "beast",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Cocomon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_cocomon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Cocomon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -369,7 +369,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "protective",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Dodomon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_dodomon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Dodomon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -427,7 +427,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "resilient",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Fufumon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_fufumon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Fufumon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -514,7 +514,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "instinctive",
       "resilient"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Jyarimon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_jyarimon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Jyarimon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -601,7 +601,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "observant",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Kuramon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_kuramon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Kuramon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -630,7 +630,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "calm",
       "emotional"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Leafmon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_leafmon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Leafmon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -659,7 +659,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "emotional",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Mokumon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_mokumon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Mokumon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -688,7 +688,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "hopeful",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Nyokimon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_nyokimon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Nyokimon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -746,7 +746,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "hopeful",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Pafumon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_pafumon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Pafumon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -775,7 +775,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "hopeful",
       "empathetic"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Paomon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_paomon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Paomon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -804,7 +804,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "resilient",
       "social"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Petitmon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_petitmon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Petitmon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -891,7 +891,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "hopeful",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Pitchmon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_pitchmon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Pitchmon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -920,7 +920,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "social",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Popomon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_popomon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Popomon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -949,7 +949,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "hopeful",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Poyomon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_poyomon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Poyomon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -978,7 +978,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "resilient",
       "social"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Punimon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_punimon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Punimon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -1007,7 +1007,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "playful",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Pupumon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_pupumon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Pupumon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -1036,7 +1036,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "empathetic",
       "social"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Pururumon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_pururumon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Pururumon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -1094,7 +1094,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "wind",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Puwamon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_puwamon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Puwamon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -1152,7 +1152,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "social",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Relemon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_relemon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Relemon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -1326,7 +1326,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "resilient",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Tsubumon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_tsubumon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Tsubumon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -1384,7 +1384,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "gentle",
       "internal"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Yukimi%20Botamon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_yukimibotamon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Yukimi%20Botamon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -1413,7 +1413,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "playful",
       "empathetic"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Yuramon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_yuramon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Yuramon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -1442,7 +1442,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "social",
       "protective"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Zerimon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_zerimon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Zerimon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
@@ -1471,7 +1471,7 @@ export const DDA_BABY1_DIGIMON_DATABASE = [
       "playful",
       "external"
     ],
-    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_Zurumon.webp",
+    "digitamaImg": "systems/digimon-digital-adventures/assets/digitamas/Digitama_zurumon.webp",
     "actorImg": "systems/digimon-digital-adventures/assets/digimon/baby1/Zurumon.webp",
     "evolvesTo": [],
     "devolvesTo": [],
