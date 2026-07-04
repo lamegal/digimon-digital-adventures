@@ -15,6 +15,14 @@ import {
 } from "../helpers/digimon-terms.js";
 const STAGE_ORDER = ["baby1", "baby2", "child", "adult", "perfect", "ultimate", "ultimatePlus"];
 
+const DDA_EVOLUTION_CARD_STATIC_IMAGE_OVERRIDES = Object.freeze({
+  "adult:algomon": "systems/digimon-digital-adventures/assets/digimon/portraits/Argomon_Adult.webp",
+  "adult:algomonadult": "systems/digimon-digital-adventures/assets/digimon/portraits/Argomon_Adult.webp",
+  "adult:argomon": "systems/digimon-digital-adventures/assets/digimon/portraits/Argomon_Adult.webp",
+  "adult:argomonadult": "systems/digimon-digital-adventures/assets/digimon/portraits/Argomon_Adult.webp",
+  "adult:redvdramon": "systems/digimon-digital-adventures/assets/digimon/portraits/Red_V_Dramon.webp"
+});
+
 // Ferramenta temporária de desenvolvedor.
 // Use chaves normalizadas: "relemon", "viximon", "renamon" etc.
 // Exemplos:
@@ -378,32 +386,125 @@ function findCurrentEvolutionGraphNode(graph = {}, actor = null) {
     ?? null;
 }
 
-function resolveDigimonImagePath({ path = "", name = "", species = "", key = "", stage = "" } = {}) {
+function resolveDigimonImagePath({
+  path = "",
+  name = "",
+  species = "",
+  key = "",
+  stage = ""
+} = {}) {
   const cleanPath = String(path ?? "").trim();
   const stageKey = String(stage ?? "").trim();
-  const isExplicitAssetPath = /^(icons\/|systems\/|modules\/|worlds\/|uploads\/|https?:\/\/|data:)/i.test(cleanPath);
-  const isFallbackIcon = cleanPath.includes("icons/svg/mystery-man.svg");
 
-  // Se o usuário escolheu um arquivo real, respeita esse arquivo.
-  // Não tenta "corrigir" para o manifest oficial.
-  if (isExplicitAssetPath && !isFallbackIcon) {
+  const isFallbackIcon = cleanPath.includes(
+    "icons/svg/mystery-man.svg"
+  );
+
+  const isStaticImage = /\.(?:webp|png|jpe?g|gif)(?:$|[?#])/i.test(
+    cleanPath
+  );
+
+  const isSystemDigimonAsset =
+    /^systems\/digimon-digital-adventures\/assets\/digimon\//i.test(
+      cleanPath
+    );
+
+  const toStaticPortraitPath = (candidatePath = "") => {
+    const rawPath = String(candidatePath ?? "").trim();
+
+    if (!rawPath) return "";
+
+    if (!/\.(?:webp|png|jpe?g|gif)(?:$|[?#])/i.test(rawPath)) {
+      return "";
+    }
+
+    const match = rawPath.match(
+      /^(systems\/digimon-digital-adventures\/assets\/digimon)\/([^?#]+?)([?#].*)?$/i
+    );
+
+    // Imagem externa ou upload manual: mantém o caminho original.
+    if (!match) return rawPath;
+
+    const [, root, relativePath, suffix = ""] = match;
+    const cleanRelativePath = String(relativePath ?? "");
+
+    // Portraits e tokens já usam pastas reais.
+    if (/^(?:portraits|tokens)\//i.test(cleanRelativePath)) {
+      return rawPath;
+    }
+
+    const fileName = cleanRelativePath.split("/").pop();
+
+    return fileName
+      ? `${root}/portraits/${fileName}${suffix}`
+      : "";
+  };
+
+  // Imagem manual externa deve sempre vencer.
+  if (
+    isStaticImage &&
+    !isFallbackIcon &&
+    !isSystemDigimonAsset
+  ) {
     return cleanPath;
   }
 
-  const candidates = [species, name, key].filter(Boolean);
+  const staticOverrideKeys = [key, species, name]
+    .map((value) => imageLookupKey(value))
+    .filter(Boolean)
+    .map((lookup) => `${stageKey}:${lookup}`);
+
+  for (const overrideKey of staticOverrideKeys) {
+    const overridePath =
+      DDA_EVOLUTION_CARD_STATIC_IMAGE_OVERRIDES[overrideKey];
+
+    if (overridePath) return overridePath;
+  }
+
+  // Corrige diretamente paths legados como adult/Ankylomon.webp.
+  const directStaticPath = toStaticPortraitPath(cleanPath);
+
+  if (directStaticPath && !isFallbackIcon) {
+    return directStaticPath;
+  }
+
+  const candidates = [key, species, name].filter(Boolean);
 
   for (const candidate of candidates) {
     const lookup = imageLookupKey(candidate);
+
     if (!lookup) continue;
 
-    const stagePath = stageKey ? DDA_DIGIMON_IMAGE_PATH_BY_STAGE_KEY?.[`${stageKey}:${lookup}`] : "";
-    if (stagePath) return stagePath;
+    const stagePath = stageKey
+      ? DDA_DIGIMON_IMAGE_PATH_BY_STAGE_KEY?.[
+          `${stageKey}:${lookup}`
+        ]
+      : "";
+
+    const staticStagePath = toStaticPortraitPath(stagePath);
+
+    if (staticStagePath) return staticStagePath;
 
     const anyPath = DDA_DIGIMON_IMAGE_PATH_BY_KEY?.[lookup];
-    if (anyPath) return anyPath;
+    const staticAnyPath = toStaticPortraitPath(anyPath);
+
+    if (staticAnyPath) return staticAnyPath;
   }
 
-  if (isExplicitAssetPath) {
+  // Casos curados manualmente, como Red V-Dramon.
+  const approvedPortraitPath = getDdaPortraitPath({
+    key,
+    name,
+    species
+  });
+
+  const approvedStaticPath = toStaticPortraitPath(
+    approvedPortraitPath
+  );
+
+  if (approvedStaticPath) return approvedStaticPath;
+
+  if (isStaticImage && !isFallbackIcon) {
     return cleanPath;
   }
 
@@ -558,27 +659,108 @@ function databaseEntryToCandidate(entry) {
   const system = entry.system ?? {};
   const names = system.names ?? {};
 
-  const uuid = String(entry.uuid || entry.actorUuid || entry.documentUuid || entry.compendiumUuid || "").trim();
-  const sourceId = String(system.sourceId || entry.sourceId || entry.key || entry._id || "").trim();
+  const uuid = String(
+    entry.uuid ||
+    entry.actorUuid ||
+    entry.documentUuid ||
+    entry.compendiumUuid ||
+    ""
+  ).trim();
 
-  const name = entry.name || system.species || names.original || names.canonical || sourceId || "Digimon";
-  const species = system.species || entry.species || names.original || entry.name || sourceId || "Digimon";
-  const originalName = names.original || species;
-  const dubName = names.dub || "";
-  const aliases = Array.isArray(names.aliases) ? names.aliases : [];
+  const sourceId = String(
+    system.sourceId ||
+    entry.sourceId ||
+    entry.key ||
+    entry._id ||
+    ""
+  ).trim();
+
+  const originalName =
+    getDigimonOriginalName(entry) ||
+    names.original ||
+    system.species ||
+    entry.name ||
+    sourceId ||
+    "Digimon";
+
+  const dubName =
+    getDigimonDubName(entry) ||
+    names.dub ||
+    originalName;
+
+  const displayName =
+    getDigimonDisplayName(entry) ||
+    dubName ||
+    originalName;
+
+  const name =
+    entry.name ||
+    system.species ||
+    originalName;
+
+  const species =
+    system.species ||
+    entry.species ||
+    originalName ||
+    name;
+
+  const aliases = Array.from(new Set([
+    ...getDigimonAliases(entry),
+    ...(Array.isArray(names.aliases)
+      ? names.aliases
+      : []),
+    originalName,
+    dubName,
+    name,
+    species,
+    sourceId
+  ].filter(Boolean)));
 
   const stage = system.stage || entry.stage || "";
-  const attribute = system.attribute || entry.attribute || "";
-  const field = system.field || entry.field || (Array.isArray(system.fields) ? system.fields[0] : "") || (Array.isArray(entry.fields) ? entry.fields[0] : "");
-  const family = system.family || entry.family || "";
 
-  const rawEvolutionCategory = String(system.evolutionCategory || entry.evolutionCategory || "normal").trim() || "normal";
-  const rawIsSpecialForm = Boolean(system.isSpecialForm ?? entry.isSpecialForm);
-  const evolutionCategory = getEffectiveEvolutionCategory(entry);
-  const isSpecialForm = getEffectiveIsSpecialForm(entry);
+  const attribute =
+    system.attribute ||
+    entry.attribute ||
+    "";
+
+  const field =
+    system.field ||
+    entry.field ||
+    (Array.isArray(system.fields)
+      ? system.fields[0]
+      : "") ||
+    (Array.isArray(entry.fields)
+      ? entry.fields[0]
+      : "");
+
+  const family =
+    system.family ||
+    entry.family ||
+    "";
+
+  const rawEvolutionCategory = String(
+    system.evolutionCategory ||
+    entry.evolutionCategory ||
+    "normal"
+  ).trim() || "normal";
+
+  const rawIsSpecialForm = Boolean(
+    system.isSpecialForm ??
+    entry.isSpecialForm
+  );
+
+  const evolutionCategory =
+    getEffectiveEvolutionCategory(entry);
+
+  const isSpecialForm =
+    getEffectiveIsSpecialForm(entry);
 
   const img = getCandidateImagePath(
-    entry.img || entry.image || entry.imgPath || entry.prototypeToken?.texture?.src || "icons/svg/mystery-man.svg",
+    entry.img ||
+    entry.image ||
+    entry.imgPath ||
+    entry.prototypeToken?.texture?.src ||
+    "icons/svg/mystery-man.svg",
     {
       name,
       species,
@@ -589,7 +771,12 @@ function databaseEntryToCandidate(entry) {
 
   const portraitImg = String(
     system.images?.portraitImagePath ||
-    getDdaPortraitPath({ key: sourceId, name, species, aliases }) ||
+    getDdaPortraitPath({
+      key: sourceId,
+      name,
+      species,
+      aliases
+    }) ||
     img ||
     "icons/svg/mystery-man.svg"
   );
@@ -600,30 +787,42 @@ function databaseEntryToCandidate(entry) {
     uuid,
     key: sourceId || entry.key || name,
     sourceId,
+
     name,
-    displayName: getCandidateDisplayName(species || name),
+    displayName,
     species,
+
     originalName,
     dubName,
     aliases,
     aliasesText: aliases.join("|"),
+
     img,
     portraitImg,
+
     stage,
     attribute,
     field,
     family,
+
     evolutionCategory,
     isSpecialForm,
     rawEvolutionCategory,
     rawIsSpecialForm,
+
     isRawHybrid: rawEvolutionCategory === "hybrid",
-    hybridTreatedAsNormal: rawEvolutionCategory === "hybrid" && evolutionCategory === "normal",
+
+    hybridTreatedAsNormal:
+      rawEvolutionCategory === "hybrid" &&
+      evolutionCategory === "normal",
+
     source: "database",
     direct: false,
+
     usable,
     selectable: usable,
     missingActor: !usable,
+
     actorData: entry
   };
 }
@@ -802,9 +1001,17 @@ constructor(digimonActor, options = {}) {
     const savedChoice = tamer?.system?.partner?.evolutionChoices?.[targetStage] ?? null;
     const selectedChoice = this.pendingChoice ?? savedChoice ?? null;
     const selectionIsPending = Boolean(this.pendingChoice);
-    const hybridRulesEnabled = isHybridRulesEnabled();    const primaryCandidates = directCandidates.length ? directCandidates : explorationCandidates.slice(0, 3);
-    const primaryNames = new Set(primaryCandidates.map((entry) => normalize(entry.species || entry.name)));
-    const visibleExploration = explorationCandidates.filter((entry) => !primaryNames.has(normalize(entry.species || entry.name)));
+    const hybridRulesEnabled = isHybridRulesEnabled();    
+// A área principal mostra somente evoluções diretas confirmadas.
+// Resultados de exploração nunca viram “evolução direta”.
+const primaryCandidates = directCandidates;
+const primaryNames = new Set(
+  primaryCandidates.map((entry) => normalize(entry.species || entry.name))
+);
+
+const visibleExploration = explorationCandidates.filter((entry) => {
+  return !primaryNames.has(normalize(entry.species || entry.name));
+});
 
     return {
       ...context,
@@ -857,14 +1064,32 @@ constructor(digimonActor, options = {}) {
       this.showExploration = !this.showExploration;
       this.render(true);
     });
-    root.find("[data-action='exploration-search']").on("keydown", (event) => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      event.stopPropagation();
-      this.searchTerm = event.currentTarget.value ?? "";
-      this.showExploration = true;
-      this.render(true);
-    });
+const updateExplorationSearch = (event) => {
+  this.searchTerm = event.currentTarget.value ?? "";
+  this.showExploration = true;
+
+  clearTimeout(this._explorationSearchTimeout);
+
+  this._explorationSearchTimeout = setTimeout(() => {
+    this.render(true);
+  }, 180);
+};
+
+root.find("[data-action='exploration-search']")
+  .on("input", updateExplorationSearch)
+  .on("keydown", (event) => {
+    if (event.key !== "Enter") return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    clearTimeout(this._explorationSearchTimeout);
+
+    this.searchTerm = event.currentTarget.value ?? "";
+    this.showExploration = true;
+
+    this.render(true);
+  });
   }
 
   _onCandidateImageError(event) {
@@ -898,30 +1123,336 @@ constructor(digimonActor, options = {}) {
     return Boolean(unlocked[stageKey]);
   }
 
-  async _getDirectCandidates(targetStage) {
-    const graph = this.actor.system?.evolutionGraph ?? {};
-    const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
-    const edges = Array.isArray(graph.edges) ? graph.edges : [];
-    const currentNode = findCurrentEvolutionGraphNode(graph, this.actor);
-    const outgoing = edges.filter((edge) => edge.from === currentNode?.id);
-    const byId = new Map(nodes.map((node) => [node.id, node]));
-    const candidates = [];
+async _getDirectCandidates(targetStage) {
+  const [curatedCandidates, graphCandidates] = await Promise.all([
+    this._getCuratedDirectCandidates(targetStage),
+    this._getGraphDirectCandidates(targetStage)
+  ]);
 
-    for (const edge of outgoing) {
-      const node = byId.get(edge.to);
-      if (!node?.actorUuid) continue;
-      const actor = await resolveActor(node.actorUuid);
-      const useFrozenNode = Boolean(actor?.uuid === this.actor.uuid && node.stage && node.stage !== this.actor.system?.stage);
-      const candidate = useFrozenNode
-        ? nodeToCandidate(node, { source: "graph", direct: true })
-        : (actorToCandidate(actor, { source: "graph", direct: true }) ?? nodeToCandidate(node, { source: "graph", direct: true }));
-      if (!candidate || candidate.stage !== targetStage) continue;
-      const enriched = this._withCompatibility(candidate, new Set([normalize(candidate.species || candidate.name)]));
-      if (enriched) candidates.push(enriched);
+  const byIdentity = new Map();
+
+  for (const candidate of [
+    ...curatedCandidates,
+    ...graphCandidates
+  ]) {
+    const identity = [
+      candidate.stage,
+      devLookupKey(
+        candidate.sourceId ||
+        candidate.species ||
+        candidate.name
+      )
+    ].join(":");
+
+    if (!identity) continue;
+
+    const existing = byIdentity.get(identity);
+
+    /*
+     * A database curada vence o grafo local.
+     * O grafo só complementa linhas homebrew ou antigas.
+     */
+    if (!existing || candidate.source === "database") {
+      byIdentity.set(identity, candidate);
+    }
+  }
+
+  const rankWeight = (rank = "") => {
+    if (rank === "primary") return 0;
+    if (rank === "secondary") return 1;
+    return 2;
+  };
+
+  return [...byIdentity.values()].sort((a, b) => {
+    const rankDifference =
+      rankWeight(a.relationRank) -
+      rankWeight(b.relationRank);
+
+    if (rankDifference !== 0) {
+      return rankDifference;
     }
 
-    return candidates.sort((a, b) => b.compatibility.score - a.compatibility.score || a.name.localeCompare(b.name, game.i18n.lang));
+    const scoreDifference =
+      Number(b.compatibility?.score ?? 0) -
+      Number(a.compatibility?.score ?? 0);
+
+    if (scoreDifference !== 0) {
+      return scoreDifference;
+    }
+
+    return String(a.displayName ?? a.name ?? "").localeCompare(
+      String(b.displayName ?? b.name ?? ""),
+      game.i18n.lang
+    );
+  });
+}
+
+async _findCuratedDatabaseActor() {
+  const directMatch = await DDADigimonDatabase.findForActor(
+    this.actor
+  );
+
+  if (directMatch) return directMatch;
+
+  const currentStage = String(
+    this.actor.system?.stage ?? ""
+  ).trim();
+
+  const actorKeys = new Set(
+    getActorLookupKeys(this.actor)
+  );
+
+  const allEntries = await DDADigimonDatabase.getAll();
+
+  return allEntries.find((entry) => {
+    const entryStage = String(
+      entry.system?.stage ??
+      entry.stage ??
+      ""
+    ).trim();
+
+    if (currentStage && entryStage !== currentStage) {
+      return false;
+    }
+
+    const candidate = databaseEntryToCandidate(entry);
+
+    return getCandidateLookupKeys(candidate).some((key) => {
+      return actorKeys.has(key);
+    });
+  }) ?? null;
+}
+
+async _getCuratedDirectCandidates(targetStage) {
+  const origin = await this._findCuratedDatabaseActor();
+
+  if (!origin) return [];
+
+  const originCandidate = databaseEntryToCandidate(origin);
+
+  const originKeys = new Set(
+    getCandidateLookupKeys(originCandidate)
+  );
+
+  const allEntries = await DDADigimonDatabase.getAll();
+  const candidatesByIdentity = new Map();
+
+  const isNormalRelation = (relation = {}) => {
+    const relationType = String(
+      relation.relationType ?? "normal"
+    ).trim().toLowerCase();
+
+    const evolutionCategory = String(
+      relation.evolutionCategory ?? "normal"
+    ).trim().toLowerCase();
+
+    return (
+      relationType === "normal" &&
+      evolutionCategory === "normal"
+    );
+  };
+
+  const relationReferencesOrigin = (relation = {}) => {
+    const possibleKeys = [
+      relation.databaseId,
+      relation.key,
+      relation.sourceId,
+      relation.sourceName,
+      relation.species,
+      relation.name,
+      relation.id
+    ];
+
+    return possibleKeys.some((value) => {
+      return originKeys.has(devLookupKey(value));
+    });
+  };
+
+  const addCandidate = (entry, relation = {}) => {
+    const candidate = databaseEntryToCandidate(entry);
+
+    if (!candidate || candidate.stage !== targetStage) {
+      return;
+    }
+
+    if (
+      String(
+        candidate.rawEvolutionCategory ??
+        candidate.evolutionCategory ??
+        "normal"
+      ) !== "normal" ||
+      Boolean(candidate.rawIsSpecialForm ?? candidate.isSpecialForm)
+    ) {
+      return;
+    }
+
+    const identity = [
+      candidate.stage,
+      devLookupKey(
+        candidate.sourceId ||
+        candidate.species ||
+        candidate.name
+      )
+    ].join(":");
+
+    if (!identity || candidatesByIdentity.has(identity)) {
+      return;
+    }
+
+    const enriched = this._withCompatibility(
+      {
+        ...candidate,
+        direct: true,
+        relationRank: relation.rank ?? "secondary"
+      },
+      new Set([
+        normalize(candidate.species || candidate.name)
+      ])
+    );
+
+    if (enriched) {
+      candidatesByIdentity.set(identity, enriched);
+    }
+  };
+
+  /*
+   * Primeiro: relações salvas diretamente na forma atual.
+   * Exemplo: Renamon -> Tenkomon.
+   */
+  const outgoingRelations = Array.isArray(
+    origin.system?.evolutionIndex?.normalTo
+  )
+    ? origin.system.evolutionIndex.normalTo
+    : [];
+
+  for (const relation of outgoingRelations) {
+    if (!isNormalRelation(relation)) continue;
+
+    const entry = await DDADigimonDatabase.getByReference(
+      relation,
+      targetStage
+    );
+
+    addCandidate(entry, relation);
   }
+
+  /*
+   * Depois: procura candidatos que registram Renamon
+   * como evolução anterior.
+   *
+   * Isso cobre relações curadas que ficaram gravadas
+   * no normalFrom do Adulto em vez do normalTo do Rookie.
+   */
+  for (const entry of allEntries) {
+    const incomingRelations = Array.isArray(
+      entry.system?.evolutionIndex?.normalFrom
+    )
+      ? entry.system.evolutionIndex.normalFrom
+      : [];
+
+    const matchingRelation = incomingRelations.find((relation) => {
+      return (
+        isNormalRelation(relation) &&
+        relationReferencesOrigin(relation)
+      );
+    });
+
+    if (!matchingRelation) continue;
+
+    addCandidate(entry, matchingRelation);
+  }
+
+  const rankWeight = (rank = "") => {
+    if (rank === "primary") return 0;
+    if (rank === "secondary") return 1;
+    return 2;
+  };
+
+  return [...candidatesByIdentity.values()].sort((a, b) => {
+    const rankDifference =
+      rankWeight(a.relationRank) -
+      rankWeight(b.relationRank);
+
+    if (rankDifference !== 0) {
+      return rankDifference;
+    }
+
+    const scoreDifference =
+      Number(b.compatibility?.score ?? 0) -
+      Number(a.compatibility?.score ?? 0);
+
+    if (scoreDifference !== 0) {
+      return scoreDifference;
+    }
+
+    return String(a.displayName ?? a.name ?? "").localeCompare(
+      String(b.displayName ?? b.name ?? ""),
+      game.i18n.lang
+    );
+  });
+}
+
+async _getGraphDirectCandidates(targetStage) {
+  const graph = this.actor.system?.evolutionGraph ?? {};
+  const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+  const edges = Array.isArray(graph.edges) ? graph.edges : [];
+  const currentNode = findCurrentEvolutionGraphNode(graph, this.actor);
+
+  const outgoing = edges.filter((edge) => {
+    return edge.from === currentNode?.id;
+  });
+
+  const byId = new Map(
+    nodes.map((node) => [node.id, node])
+  );
+
+  const candidates = [];
+
+  for (const edge of outgoing) {
+    const node = byId.get(edge.to);
+
+    if (!node?.actorUuid) continue;
+
+    const actor = await resolveActor(node.actorUuid);
+
+    const useFrozenNode = Boolean(
+      actor?.uuid === this.actor.uuid &&
+      node.stage &&
+      node.stage !== this.actor.system?.stage
+    );
+
+    const candidate = useFrozenNode
+      ? nodeToCandidate(node, {
+          source: "graph",
+          direct: true
+        })
+      : (
+          actorToCandidate(actor, {
+            source: "graph",
+            direct: true
+          }) ??
+          nodeToCandidate(node, {
+            source: "graph",
+            direct: true
+          })
+        );
+
+    if (!candidate || candidate.stage !== targetStage) {
+      continue;
+    }
+
+    const enriched = this._withCompatibility(
+      candidate,
+      new Set()
+    );
+
+    if (enriched) {
+      candidates.push(enriched);
+    }
+  }
+
+  return candidates;
+}
 
   async _getExplorationCandidates(targetStage, directNames) {
     const candidates = [];
@@ -933,7 +1464,9 @@ constructor(digimonActor, options = {}) {
       if (!candidate || candidate.stage !== targetStage) continue;
       const nameKey = normalize(candidate.species || candidate.name);
       if (seen.has(nameKey)) continue;
-      if (term && !normalize(`${candidate.name} ${candidate.species}`).includes(term)) continue;
+      if (term && !this._matchesExplorationSearch(candidate, term)) {
+  continue;
+}
       const enriched = this._withCompatibility(candidate, directNames);
       if (!enriched) continue;
       seen.add(nameKey);
@@ -945,7 +1478,9 @@ constructor(digimonActor, options = {}) {
       if (!candidate || candidate.stage !== targetStage) continue;
       const nameKey = normalize(candidate.species || candidate.name);
       if (seen.has(nameKey)) continue;
-      if (term && !normalize(`${candidate.name} ${candidate.species}`).includes(term)) continue;
+      if (term && !this._matchesExplorationSearch(candidate, term)) {
+  continue;
+}
       const enriched = this._withCompatibility(candidate, directNames);
       if (!enriched) continue;
       seen.add(nameKey);
@@ -963,6 +1498,25 @@ constructor(digimonActor, options = {}) {
       return String(a.displayName ?? a.name ?? "").localeCompare(String(b.displayName ?? b.name ?? ""), game.i18n.lang);
     });
   }
+
+  _matchesExplorationSearch(candidate = {}, term = "") {
+  const searchable = [
+    candidate.name,
+    candidate.displayName,
+    candidate.species,
+    candidate.originalName,
+    candidate.dubName,
+    candidate.sourceId,
+    candidate.key,
+    ...(Array.isArray(candidate.aliases)
+      ? candidate.aliases
+      : [])
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return normalize(searchable).includes(normalize(term));
+}
 
   _withCompatibility(candidate, directNames) {
     if (isCandidateExcludedByDev(candidate, this.actor)) return null;
@@ -1177,6 +1731,7 @@ async _saveChoiceToTamer(tamer, choice) {
 
   await tamer.update({ "system.partner.evolutionChoices": choices });
 }
+
 
 _getChoiceIdentityKey(choice = {}) {
   return normalize([

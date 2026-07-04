@@ -343,7 +343,8 @@
 .window-app.dda-gm-partner-progress-panel .window-content,
 .window-app.dda.dda-gm-partner-progress-panel .window-content,
 .dda-gm-partner-progress-panel .window-content {
-  min-width: 900px !important;
+  min-width: 0 !important;
+  width: 100% !important;
   padding: 0 !important;
   color: #e8f6ff !important;
   background:
@@ -413,5 +414,83 @@
 @media (max-width: 760px) {
   .dda-gm-progress-partner-row {
     grid-template-columns: 1fr !important;
+  }
+}
+
+/* ===================================================== */
+/* DDA — Partner Progress: trilha compacta de estágios   */
+/* ===================================================== */
+
+.dda-gm-progress-stage-list {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+  align-items: stretch !important;
+  padding: 3px 0 1px !important;
+}
+
+.dda-gm-stage-toggle {
+  position: relative !important;
+  z-index: 1 !important;
+
+  min-height: 56px !important;
+  padding: 18px 6px 7px !important;
+
+  border-radius: 9px !important;
+
+  font-size: 0.62rem !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0.035em !important;
+  text-align: center !important;
+  white-space: normal !important;
+
+  transition: transform 120ms ease, filter 120ms ease !important;
+}
+
+.dda-gm-stage-toggle::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 7px !important;
+  left: 50% !important;
+
+  width: 8px !important;
+  height: 8px !important;
+
+  transform: translateX(-50%) !important;
+
+  border: 2px solid rgba(215, 248, 255, 0.88) !important;
+  border-radius: 50% !important;
+  background: rgba(12, 50, 78, 0.95) !important;
+
+  box-shadow: 0 0 0 2px rgba(2, 14, 26, 0.36) !important;
+}
+
+
+
+.dda-gm-stage-toggle.is-unlocked::before {
+  background: #bff6ff !important;
+  border-color: #ffffff !important;
+  box-shadow:
+    0 0 0 2px rgba(6, 70, 110, 0.74),
+    0 0 10px rgba(125, 235, 255, 0.82) !important;
+}
+
+
+
+.dda-gm-stage-toggle:hover {
+  transform: translateY(-2px) !important;
+  filter: brightness(1.12) !important;
+}
+
+@media (max-width: 860px) {
+  .dda-gm-progress-stage-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .dda-gm-progress-stage-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }

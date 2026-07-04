@@ -609,6 +609,7 @@ export const DDA_PORTRAIT_PATH_BY_KEY = Object.freeze({
   "ravmon": "assets/digimon/portraits/ravmon.webm",
   "ravmon_burst_mode": "assets/digimon/portraits/ravmon-burst-mode.webm",
   "rebellimon": "assets/digimon/portraits/rebellimon.webm",
+  "red_v_dramon": "assets/digimon/portraits/Red_V_Dramon.webp",
   "red_vegimon": "assets/digimon/portraits/red-vegimon.webp",
   "regalecusmon": "assets/digimon/portraits/regalecusmon.webm",
   "regulusmon": "assets/digimon/portraits/regulusmon.webm",
@@ -882,6 +883,97 @@ export function getDdaPortraitPath({ key = "", name = "", species = "", aliases 
   for (const candidate of candidates) {
     const portraitPath = DDA_PORTRAIT_PATH_BY_NORMALIZED_KEY[normalizePortraitKey(candidate)];
     if (portraitPath) return `${DDA_ASSET_ROOT}/${portraitPath.replace(/^assets\/digimon\//, "")}`;
+  }
+
+  return "";
+}
+
+const DDA_TOKEN_ASSET_DIRECTORY = `${DDA_ASSET_ROOT}/tokens`;
+
+let ddaTokenIndexPromise = null;
+
+function getDdaTokenFilePickerClass() {
+  return globalThis.foundry?.applications?.apps?.FilePicker?.implementation
+    ?? globalThis.FilePicker
+    ?? null;
+}
+
+function normalizeDdaTokenLookupKey(value = "") {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/x[-_\s]*antibody/g, "x")
+    .replace(/(?:anime[-_\s]*)?version/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+async function getDdaTokenIndex() {
+  if (ddaTokenIndexPromise) return ddaTokenIndexPromise;
+
+  ddaTokenIndexPromise = (async () => {
+    const FilePickerClass = getDdaTokenFilePickerClass();
+
+    if (!FilePickerClass) return new Map();
+
+    const result = await FilePickerClass.browse(
+      "data",
+      DDA_TOKEN_ASSET_DIRECTORY
+    );
+
+    const index = new Map();
+
+    for (const path of result?.files ?? []) {
+      if (!/\.(webp|png|jpe?g)$/i.test(path)) continue;
+
+      const fileName = String(path)
+        .split("/")
+        .pop()
+        ?.replace(/\.[^.]+$/, "") ?? "";
+
+      const lookupKey = normalizeDdaTokenLookupKey(fileName);
+
+      if (lookupKey && !index.has(lookupKey)) {
+        index.set(lookupKey, path);
+      }
+    }
+
+    return index;
+  })().catch((error) => {
+    console.warn(
+      "DDA | Não foi possível indexar os tokens dos Digimon.",
+      error
+    );
+
+    ddaTokenIndexPromise = null;
+    return new Map();
+  });
+
+  return ddaTokenIndexPromise;
+}
+
+export async function getDdaTokenPath({
+  key = "",
+  name = "",
+  species = "",
+  aliases = []
+} = {}) {
+  const tokenIndex = await getDdaTokenIndex();
+
+  const candidates = [
+    key,
+    name,
+    species,
+    ...(Array.isArray(aliases) ? aliases : [])
+  ];
+
+  for (const candidate of candidates) {
+    const lookupKey = normalizeDdaTokenLookupKey(candidate);
+    if (!lookupKey) continue;
+
+    const tokenPath = tokenIndex.get(lookupKey);
+    if (tokenPath) return tokenPath;
   }
 
   return "";
