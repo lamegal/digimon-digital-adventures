@@ -44,7 +44,7 @@ Antes de instalar ou atualizar o sistema:
 - não dependa de automações em desenvolvimento durante uma sessão importante;
 - reporte comportamentos inesperados com o máximo de detalhes possível.
 
-Ao reportar um bug, inclua:
+Ao reportar um bug, inclua: 
 
 - versão do Foundry VTT;
 - versão do sistema;
