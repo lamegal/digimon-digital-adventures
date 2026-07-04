@@ -925,6 +925,56 @@
       </section>
     {{/if}}
 
+  {{#if (eq step "attacks")}}
+  <section class="dda-wizard-step dda-future-form-attacks-step">
+    <h2>{{localize "DDA.DigimonWizard.Attacks.Title"}}</h2>
+
+    <div class="dda-line-attack-list">
+      {{#each data.formAttacks as |attack|}}
+        <div class="dda-line-attack-row">
+          <label>
+            {{localize "DDA.DigimonWizard.Attacks.Name"}}
+            <input
+              type="text"
+              data-path="formAttacks.{{@index}}.name"
+              value="{{attack.name}}"
+              placeholder="{{localize 'DDA.DigimonWizard.Attacks.Placeholder'}}"
+            >
+          </label>
+
+          <label>
+            {{localize "DDA.DigimonWizard.Attacks.Range"}}
+            <select data-path="formAttacks.{{@index}}.rangeType">
+              <option value="melee" {{#if (eq attack.rangeType "melee")}}selected{{/if}}>
+                {{localize "DDA.Attack.Range.Melee"}}
+              </option>
+              <option value="range" {{#if (eq attack.rangeType "range")}}selected{{/if}}>
+                {{localize "DDA.Attack.Range.Ranged"}}
+              </option>
+            </select>
+          </label>
+
+          <label>
+            {{localize "DDA.DigimonWizard.Attacks.Function"}}
+            <select data-path="formAttacks.{{@index}}.functionType">
+              <option value="damage" {{#if (eq attack.functionType "damage")}}selected{{/if}}>
+                {{localize "DDA.Attack.Function.Damage"}}
+              </option>
+              <option value="support" {{#if (eq attack.functionType "support")}}selected{{/if}}>
+                {{localize "DDA.Attack.Function.Support"}}
+              </option>
+            </select>
+          </label>
+        </div>
+      {{/each}}
+    </div>
+
+    <p class="dda-wizard-hint">
+      Configure os ataques exclusivos desta forma. Eles não substituem os ataques do estágio atual.
+    </p>
+  </section>
+{{/if}}
+
 {{#if (eq step "qualities")}}
   <section class="dda-wizard-step">
     <h2>{{localize "DDA.DigimonWizard.Qualities.Title"}}</h2>

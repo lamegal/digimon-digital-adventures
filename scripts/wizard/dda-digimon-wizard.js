@@ -3,7 +3,12 @@ import {
   DDA_DIGIMON_BUILD_TEMPLATES,
   DDA_DIGIMON_BUILD_TEMPLATE_INDEX
 } from "../data/digimon-build-templates.js";
-import { getCurrentPartnerFormWizardContext, savePartnerFormWizardSnapshot } from "../combat/evolution.js";
+import {
+  getCurrentPartnerFormWizardContext,
+  getFuturePartnerFormWizardContext,
+  savePartnerFormWizardSnapshot,
+  savePartnerFutureFormSnapshot
+} from "../combat/evolution.js";
 import { ensureActorOwner, syncTamerAndPartnerOwnership } from "../utils/ownership.js";
 import {
   DDA_INITIAL_DIGIMON_INDEX,
@@ -16,7 +21,10 @@ import {
   getDigimonStageLabel as getConfiguredDigimonStageLabel
 } from "../helpers/digimon-stage-labels.js";
 import { DDADigimonDatabase } from "../data/digimon-database.js";
-import { getDdaPortraitPath } from "../data/dda-portrait-and-manual-digimon-data.js";
+import {
+  getDdaPortraitPath,
+  getDdaTokenPath
+} from "../data/dda-portrait-and-manual-digimon-data.js";
 
 function isEnglishLanguage() {
   const language = String(game?.i18n?.lang ?? game?.i18n?.language ?? "");
@@ -317,93 +325,6 @@ function resolveLineFormActorPortrait(form = null, fallback = "icons/svg/mystery
     ].filter(Boolean),
     fallback
   });
-}
-
-const DDA_TOKEN_ASSET_DIRECTORY =
-  `${DDA_DIGIMON_IMAGE_BASE_PATH}/tokens`;
-
-let ddaTokenIndexPromise = null;
-
-function normalizeDdaTokenLookupKey(value = "") {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/x[-_\s]*antibody/g, "x")
-    .replace(/(?:anime[-_\s]*)?version/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .trim();
-}
-
-async function getDdaTokenIndex() {
-  if (ddaTokenIndexPromise) return ddaTokenIndexPromise;
-
-ddaTokenIndexPromise = (async () => {
-  const FilePickerClass = getDdaFilePickerClass();
-
-  if (!FilePickerClass) return new Map();
-
-  const result = await FilePickerClass.browse(
-    "data",
-    DDA_TOKEN_ASSET_DIRECTORY
-  );
-
-    const index = new Map();
-
-    for (const path of result?.files ?? []) {
-      if (!/\.(webp|png|jpe?g)$/i.test(path)) continue;
-
-      const fileName = String(path)
-        .split("/")
-        .pop()
-        ?.replace(/\.[^.]+$/, "") ?? "";
-
-      const key = normalizeDdaTokenLookupKey(fileName);
-
-      // Em caso de duplicata, mantém o primeiro arquivo encontrado.
-      if (key && !index.has(key)) {
-        index.set(key, path);
-      }
-    }
-
-    return index;
-  })().catch((error) => {
-    console.warn(
-      "DDA | Não foi possível indexar os tokens dos Digimon.",
-      error
-    );
-
-    ddaTokenIndexPromise = null;
-    return new Map();
-  });
-
-  return ddaTokenIndexPromise;
-}
-
-async function getDdaTokenPath({
-  key = "",
-  name = "",
-  species = "",
-  aliases = []
-} = {}) {
-  const tokenIndex = await getDdaTokenIndex();
-
-  const candidates = [
-    key,
-    name,
-    species,
-    ...(Array.isArray(aliases) ? aliases : [])
-  ];
-
-  for (const candidate of candidates) {
-    const normalized = normalizeDdaTokenLookupKey(candidate);
-    if (!normalized) continue;
-
-    const tokenPath = tokenIndex.get(normalized);
-    if (tokenPath) return tokenPath;
-  }
-
-  return "";
 }
 
 const DDA_PIXEL_ART_BASE_PATH = "systems/digimon-digital-adventures/assets/PixelArt";
@@ -1385,6 +1306,8 @@ this._wizardStaticPortraitIndexPromise = null;
   }
 },
 
+      formAttacks: [],
+
       initialLineBuildStage: "baby1",
 
       initialLineBuilds: {
@@ -1642,7 +1565,10 @@ _getWizardStaticPortraitPathFromIndex(
   return "";
 }
 
-_getStaticPortraitPathFromDatabaseActor(actor = {}) {
+_getStaticPortraitPathFromDatabaseActor(
+  actor = {},
+  portraitIndex = new Map()
+) {
   const system = actor.system ?? {};
   const names = system.names ?? {};
 
@@ -1668,12 +1594,20 @@ _getStaticPortraitPathFromDatabaseActor(actor = {}) {
     return `${DDA_DIGIMON_IMAGE_BASE_PATH}/portraits/${overrideFileName}`;
   }
 
-  // Mantém o comportamento anterior para os casos cujo nome já bate.
+  const indexedPortrait = this._getWizardStaticPortraitPathFromIndex(
+    actor,
+    portraitIndex
+  );
+
+  if (indexedPortrait) return indexedPortrait;
+
   const images = system.images ?? {};
 
   const candidates = [
+    images.portraitImagePath,
     images.portrait,
     images.localImagePath,
+    images.tokenImagePath,
     actor.img
   ];
 
@@ -1682,11 +1616,10 @@ _getStaticPortraitPathFromDatabaseActor(actor = {}) {
 
     if (!rawPath || /\.webm(?:$|[?#])/i.test(rawPath)) continue;
 
-    const fileName = rawPath.split("/").pop();
+    if (!/\.(webp|png|jpe?g)(?:$|[?#])/i.test(rawPath)) continue;
 
-    if (!fileName || !/\.(webp|png|jpe?g)$/i.test(fileName)) continue;
-
-    return `${DDA_DIGIMON_IMAGE_BASE_PATH}/portraits/${fileName}`;
+    // Mantém o caminho real. Pode ser portraits/, adult/, perfect/ etc.
+    return rawPath;
   }
 
   return "icons/svg/mystery-man.svg";
@@ -1893,174 +1826,7 @@ async _preloadWizardDatabase() {
   return this._wizardDatabaseLoadPromise;
 }
 
-_buildWizardDatabaseEntry(actor = {}) {
-  const system = actor.system ?? {};
-  const names = system.names ?? {};
 
-  const stageKey = this._normalizeWizardStageKey(system.stage, "");
-  const sourceId = String(
-    system.sourceId ??
-    names.canonical ??
-    system.species ??
-    actor.name ??
-    ""
-  ).trim();
-
-  const databaseId = String(
-    system.databaseId ??
-    actor.databaseId ??
-    `${stageKey}:${sourceId}`
-  ).trim();
-
-  const displayName = String(
-    names.dub ??
-    system.species ??
-    actor.name ??
-    sourceId
-  ).trim();
-
-  const originalName = String(
-    names.original ??
-    displayName
-  ).trim();
-
-  const aliases = Array.from(new Set([
-    displayName,
-    originalName,
-    sourceId,
-    ...(Array.isArray(names.aliases) ? names.aliases : [])
-  ].filter(Boolean)));
-
-  const img = this._getStaticPortraitPathFromDatabaseActor(actor);
-
-  return {
-    id: databaseId,
-    databaseId,
-    sourceId,
-    source: "generalDatabase",
-
-    stageKey,
-    displayName,
-    original: originalName,
-    dub: displayName,
-    aliases,
-
-    attribute: String(system.attribute ?? "none"),
-    type: String(system.type ?? ""),
-    family: String(system.family ?? ""),
-    groups: Array.isArray(system.groups)
-      ? system.groups
-      : [],
-
-    fieldIds: [
-      system.fieldId,
-      system.field
-    ].filter(Boolean),
-
-    img,
-    imageFallbacks: String(actor.img ?? ""),
-
-    evolutionCategory: String(system.evolutionCategory ?? "normal"),
-    isSpecialForm: Boolean(system.isSpecialForm),
-    evolutionIndex: foundry.utils.deepClone(
-      system.evolutionIndex ?? {}
-    )
-  };
-}
-
-_getWizardDatabaseEntryById(databaseId = "") {
-  const cleanId = String(databaseId ?? "").trim();
-
-  if (!cleanId) return null;
-
-  return this._wizardDatabaseEntriesById.get(cleanId) ?? null;
-}
-
-_findWizardDatabaseEntry(stageKey = "", value = "") {
-  const cleanStage = this._normalizeWizardStageKey(stageKey, "");
-  const cleanValue = normalizeDigimonLookupName(value);
-
-  if (!cleanStage || !cleanValue) return null;
-
-  return this._wizardDatabaseEntriesByStageKey.get(
-    `${cleanStage}:${cleanValue}`
-  ) ?? null;
-}
-
-async _preloadWizardDatabase() {
-  if (this._wizardDatabaseLoaded) {
-    return this._wizardDatabaseActors;
-  }
-
-  if (this._wizardDatabaseLoadPromise) {
-    return this._wizardDatabaseLoadPromise;
-  }
-
-  this._wizardDatabaseLoadPromise = (async () => {
-    const actors = await DDADigimonDatabase.getAll();
-
-    const entries = actors
-      .map((actor) => this._buildWizardDatabaseEntry(actor))
-      .filter((entry) => {
-        return entry.stageKey &&
-          DDA_NORMAL_PARTNER_LINE_STAGES.includes(entry.stageKey) &&
-          entry.evolutionCategory === "normal" &&
-          !entry.isSpecialForm;
-      });
-
-    this._wizardDatabaseActors = entries;
-    this._wizardDatabaseEntriesById = new Map();
-    this._wizardDatabaseEntriesByStageKey = new Map();
-
-    for (const entry of entries) {
-      this._wizardDatabaseEntriesById.set(entry.id, entry);
-
-      const keys = [
-        entry.id,
-        entry.databaseId,
-        entry.sourceId,
-        entry.displayName,
-        entry.original,
-        entry.dub,
-        ...(entry.aliases ?? [])
-      ];
-
-      for (const key of keys) {
-        const normalized = normalizeDigimonLookupName(key);
-
-        if (!normalized) continue;
-
-        this._wizardDatabaseEntriesByStageKey.set(
-          `${entry.stageKey}:${normalized}`,
-          entry
-        );
-      }
-    }
-
-    this._wizardDatabaseLoaded = true;
-
-    if (this.rendered) {
-      this._renderPreservingScroll();
-    }
-
-    return entries;
-  })().catch((error) => {
-    console.error(
-      "DDA | Não foi possível carregar a database geral no wizard.",
-      error
-    );
-
-    this._wizardDatabaseLoaded = false;
-    this._wizardDatabaseActors = [];
-    this._wizardDatabaseEntriesById = new Map();
-    this._wizardDatabaseEntriesByStageKey = new Map();
-    this._wizardDatabaseLoadPromise = null;
-
-    return [];
-  });
-
-  return this._wizardDatabaseLoadPromise;
-} 
 
   static async openCurrentFormWizard(tamerActor) {
     const formContext = await getCurrentPartnerFormWizardContext(tamerActor);
@@ -2073,6 +1839,30 @@ async _preloadWizardDatabase() {
 
     wizard.render(true);
     return wizard;
+  }
+
+    static async openFutureFormWizard(tamerActor, formTemplateActor) {
+    const formContext = await getFuturePartnerFormWizardContext(
+      tamerActor,
+      formTemplateActor
+    );
+
+    if (!formContext) return null;
+
+    formContext.isFutureForm = true;
+
+    const wizard = new this({
+      mode: "formSnapshot",
+      formContext
+    });
+
+    wizard.render(true);
+    return wizard;
+  }
+
+  _isFutureFormWizard() {
+    return this.mode === "formSnapshot"
+      && Boolean(this.formContext?.isFutureForm);
   }
 
   static get defaultOptions() {
@@ -3764,14 +3554,87 @@ _getLivePartnerItemsForFormWizard() {
 }
 
 _getFormWizardSourceItems() {
+  const snapshot = this.formContext?.snapshot ?? {};
+
+  // Uma forma futura só lê o próprio rascunho.
+  // Nunca pode copiar os itens vivos do parceiro atual.
+  if (this._isFutureFormWizard()) {
+    return Array.isArray(snapshot.items)
+      ? foundry.utils.deepClone(snapshot.items)
+      : [];
+  }
+
   const liveItems = this._getLivePartnerItemsForFormWizard();
 
   if (liveItems.length) return liveItems;
 
-  const snapshot = this.formContext?.snapshot ?? {};
   return Array.isArray(snapshot.items)
     ? foundry.utils.deepClone(snapshot.items)
     : [];
+}
+
+_getFutureFormAttackSlotCount(stageKey = this.data.stage) {
+  const cleanStage = this._normalizeWizardStageKey(stageKey, "child");
+
+  const stageData = this._getStageOptions().find((entry) => {
+    return entry.key === cleanStage;
+  });
+
+  return Math.max(1, Number(stageData?.attacks ?? 1));
+}
+
+_normalizeFutureFormAttackSlot(attack = {}) {
+  const system = attack?.system ?? {};
+
+  const rangeType = String(
+    system.baseTags?.rangeType ??
+    system.rangeType ??
+    "melee"
+  ).toLowerCase();
+
+  const functionType = String(
+    system.baseTags?.functionType ??
+    system.functionType ??
+    (system.support?.enabled ? "support" : "damage")
+  ).toLowerCase();
+
+  return {
+    name: String(attack?.name ?? "").trim(),
+    rangeType: rangeType === "range" ? "range" : "melee",
+    functionType: functionType === "support" ? "support" : "damage"
+  };
+}
+
+_initializeFutureFormAttackSlots(items = []) {
+  const slotCount = this._getFutureFormAttackSlotCount();
+  const existingSlots = Array.isArray(this.data.formAttacks)
+    ? this.data.formAttacks
+    : [];
+
+  const sourceSlots = existingSlots.length
+    ? existingSlots
+    : (Array.isArray(items) ? items : [])
+      .filter((item) => item?.type === "attack")
+      .map((item) => this._normalizeFutureFormAttackSlot(item));
+
+  this.data.formAttacks = Array.from(
+    { length: slotCount },
+    (_entry, index) => this._normalizeFutureFormAttackSlot(sourceSlots[index])
+  );
+
+  return this.data.formAttacks;
+}
+
+_getFutureFormAttackItems(stageKey = this.data.stage) {
+  return this._initializeFutureFormAttackSlots()
+    .map((attack, index) => {
+      return this._buildAttackItemDataFromLineAttack(
+        stageKey,
+        attack,
+        index
+      );
+    })
+    .filter(Boolean);
 }
 
 _initializeFormSnapshotData() {
@@ -3794,7 +3657,15 @@ _initializeFormSnapshotData() {
   this.data.identity.group = snapshot.group || partnerActor?.system?.group || templateActor?.system?.group || "";
   this.data.identity.field = snapshot.field || partnerActor?.system?.field || templateActor?.system?.field || "none";
   this.data.identity.description = snapshot.profile?.personality || partnerActor?.system?.profile?.personality || "";
-  this.data.identity.img = snapshot.img || partnerActor?.img || templateActor?.img || this.data.identity.img;
+  this.data.identity.img = snapshot.img || templateActor?.img || partnerActor?.img || this.data.identity.img;
+  this.data.identity.portraitImg = snapshot.portraitImg || "";
+  this.data.identity.tokenImg =
+    snapshot.tokenImg ||
+    templateActor?.prototypeToken?.texture?.src ||
+    templateActor?.img ||
+    partnerActor?.prototypeToken?.texture?.src ||
+    partnerActor?.img ||
+    "";
   this.data.identity.source = templateActor?.uuid ?? snapshot.sourceFormUuid ?? "";
   this.data.stage = stageKey;
 
@@ -3811,6 +3682,9 @@ _initializeFormSnapshotData() {
   this.data.qualities.negative = [];
 
 const items = this._getFormWizardSourceItems();
+  if (this._isFutureFormWizard()) {
+    this._initializeFutureFormAttackSlots(items);
+  }
 
 for (const item of items.filter((entry) => entry.type === "quality")) {
   const quality = this._selectionFromQualityItem(item);
@@ -3882,19 +3756,11 @@ async _onSaveFormSnapshot(event) {
   const stageKey = this.data.stage || formTemplateActor?.system?.stage || partnerActor?.system?.stage || "child";
   const stageData = this._getStageOptions().find((entry) => entry.key === stageKey) ?? this._getStageOptions()[0];
 
-const livePartnerItems = partnerActor?.items
-  ? partnerActor.items.map((item) => {
-      const data = item.toObject();
-      delete data._id;
-      return data;
-    })
-  : [];
+const preservedAttacks = this._isFutureFormWizard()
+  ? this._getFutureFormAttackItems(stageKey)
+  : this._getFormWizardSourceItems()
+    .filter((item) => item.type === "attack");
 
-const preservedAttacks = livePartnerItems.length
-  ? livePartnerItems.filter((item) => item.type === "attack")
-  : Array.isArray(existingSnapshot.items)
-    ? existingSnapshot.items.filter((item) => item.type === "attack")
-    : [];
 
   const qualityItems = selectedQualities.map((quality) => this._buildQualityItemDataFromSelection(quality));
 
@@ -3904,6 +3770,18 @@ const preservedAttacks = livePartnerItems.length
     sourceFormName: formTemplateActor?.name || existingSnapshot.sourceFormName || this.data.identity.name,
     name: this.data.identity.name || formTemplateActor?.name || partnerActor.name,
     img: this.data.identity.img || formTemplateActor?.img || partnerActor.img,
+    portraitImg:
+  this.data.identity.portraitImg
+  || existingSnapshot.portraitImg
+  || "",
+
+tokenImg:
+  this.data.identity.tokenImg
+  || existingSnapshot.tokenImg
+  || formTemplateActor?.system?.evolution?.tokenImg
+  || formTemplateActor?.prototypeToken?.texture?.src
+  || formTemplateActor?.img
+  || partnerActor.img,
     species: this.data.identity.species || formTemplateActor?.system?.species || partnerActor.system?.species || this.data.identity.name,
     stage: stageKey,
     stageValue: this._getStageValue(stageKey),
@@ -3969,9 +3847,26 @@ coreDiscount: {
     items: [...preservedAttacks, ...qualityItems]
   };
 
-  await savePartnerFormWizardSnapshot({ tamerActor: context.tamerActor, partnerActor, formTemplateActor, snapshot });
+  if (this._isFutureFormWizard()) {
+  await savePartnerFutureFormSnapshot({
+    partnerActor,
+    formTemplateActor,
+    snapshot
+  });
+} else {
+  await savePartnerFormWizardSnapshot({
+    tamerActor: context.tamerActor,
+    partnerActor,
+    formTemplateActor,
+    snapshot
+  });
+}
 
-  if (partnerActor && Number.isFinite(persistentBonusDp)) {
+  if (
+  !this._isFutureFormWizard()
+  && partnerActor
+  && Number.isFinite(persistentBonusDp)
+) {
     const spentStats = Number(partnerActor.system?.advancement?.bonusDp?.spentStats ?? 0);
     const spentQualities = Number(partnerActor.system?.advancement?.bonusDp?.spentQualities ?? 0);
     await partnerActor.update({
@@ -4607,7 +4502,9 @@ _syncGlobalStateToActiveFormBuild() {
 
 _rebuildSteps() {
   if (this.mode === "formSnapshot") {
-    this.steps = ["stats", "qualities", "summary"];
+  this.steps = this._isFutureFormWizard()
+    ? ["stats", "attacks", "qualities", "summary"]
+    : ["stats", "qualities", "summary"];
     if (this.stepIndex >= this.steps.length) this.stepIndex = this.steps.length - 1;
     return;
   }
@@ -9095,6 +8992,43 @@ const optionHtml = availableOptions
 }
 
 _getWizardAttackItemsForChoices() {
+  if (this._isFutureFormWizard()) {
+    const stageKey = this._normalizeWizardStageKey(
+      this.data.stage || "child",
+      "child"
+    );
+
+    return this._initializeFutureFormAttackSlots()
+      .map((attack, index) => {
+        const name = String(attack.name ?? "").trim();
+        if (!name) return null;
+
+        const wizardAttackKey = this._getWizardAttackKey(stageKey, index);
+
+        return {
+          id: wizardAttackKey,
+          name,
+          type: "attack",
+          wizardAttackKey,
+          slotNumber: index + 1,
+          system: {
+            baseTags: {
+              rangeType: attack.rangeType,
+              functionType: attack.functionType
+            },
+            qualityTags: [],
+            tags: [],
+            wizard: {
+              attackKey: wizardAttackKey,
+              stage: stageKey,
+              slot: index + 1
+            }
+          }
+        };
+      })
+      .filter(Boolean);
+  }
+
   const partnerActor = this.formContext?.partnerActor ?? null;
 
   if (this.mode === "formSnapshot" && partnerActor?.items) {

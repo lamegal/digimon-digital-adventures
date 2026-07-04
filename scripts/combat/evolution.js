@@ -3,6 +3,7 @@ import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
 import { syncPartnerOwnershipFromTamer } from "../utils/ownership.js";
 import { runDigimonTokenEvolutionTransition } from "../tokens/digimon-token-scale.js";
 import { clearClashStateForActor } from "./clash.js";
+import { getDdaTokenPath } from "../data/dda-portrait-and-manual-digimon-data.js";
 
 export const DDA_SYSTEM_ID = "digimon-digital-adventures";
 
@@ -276,24 +277,128 @@ function isVideoPath(path = "") {
   return /\.(webm|mp4|m4v|ogg|ogv)$/i.test(cleanPath);
 }
 
-function getEvolutionTokenTextureSource(formTemplateActor, fallbackActor = null) {
-  const src = String(
-    formTemplateActor?.system?.evolution?.tokenImg ||
-    formTemplateActor?.prototypeToken?.texture?.src ||
-    formTemplateActor?.img ||
-    formTemplateActor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait ||
+function getEvolutionTokenLookupData(
+  formTemplateActor = null,
+  snapshot = {}
+) {
+  const system = formTemplateActor?.system ?? {};
+  const names = system.names ?? {};
+
+  const name = String(
+    snapshot?.sourceFormName ||
+    snapshot?.name ||
+    formTemplateActor?.name ||
     ""
   ).trim();
 
-  if (src && src !== "icons/svg/mystery-man.svg") return src;
+  const species = String(
+    snapshot?.species ||
+    system.species ||
+    formTemplateActor?.name ||
+    name
+  ).trim();
+
+  return {
+    key: String(
+      snapshot?.sourceId ||
+      system.sourceId ||
+      names.canonical ||
+      ""
+    ).trim(),
+    name,
+    species,
+    aliases: Array.from(new Set([
+      snapshot?.sourceFormName,
+      snapshot?.name,
+      snapshot?.species,
+      names.canonical,
+      names.original,
+      names.dub,
+      ...(Array.isArray(names.aliases) ? names.aliases : [])
+    ].filter(Boolean)))
+  };
+}
+
+function isMissingTokenImage(path = "") {
+  const cleanPath = String(path ?? "").trim();
+  return !cleanPath || cleanPath === "icons/svg/mystery-man.svg";
+}
+
+function isDefaultTokenImage(
+  tokenImg = "",
+  snapshot = {},
+  formTemplateActor = null,
+  fallbackActor = null
+) {
+  const cleanToken = String(tokenImg ?? "").trim();
+
+  if (isMissingTokenImage(cleanToken)) return true;
+
+  const portraitCandidates = [
+    snapshot?.portraitImg,
+    snapshot?.img,
+    formTemplateActor?.system?.evolution?.portraitImg,
+    formTemplateActor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait,
+    formTemplateActor?.img,
+    fallbackActor?.system?.evolution?.portraitImg,
+    fallbackActor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait,
+    fallbackActor?.img
+  ]
+    .map((path) => String(path ?? "").trim())
+    .filter(Boolean);
+
+  return portraitCandidates.includes(cleanToken);
+}
+
+async function resolveEvolutionTokenImage({
+  snapshot = {},
+  formTemplateActor = null,
+  fallbackActor = null
+} = {}) {
+  const savedToken = String(
+    snapshot?.tokenImg ||
+    formTemplateActor?.system?.evolution?.tokenImg ||
+    formTemplateActor?.prototypeToken?.texture?.src ||
+    ""
+  ).trim();
+
+  /*
+   * Um token diferente do portrait é uma escolha personalizada
+   * ou um token oficial já resolvido. Nunca sobrescrever.
+   */
+  if (!isDefaultTokenImage(
+    savedToken,
+    snapshot,
+    formTemplateActor,
+    fallbackActor
+  )) {
+    return savedToken;
+  }
+
+  const officialToken = await getDdaTokenPath(
+    getEvolutionTokenLookupData(formTemplateActor, snapshot)
+  );
+
+  if (officialToken) return officialToken;
 
   return String(
+    savedToken ||
     fallbackActor?.system?.evolution?.tokenImg ||
     fallbackActor?.prototypeToken?.texture?.src ||
     fallbackActor?.img ||
-    fallbackActor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait ||
+    formTemplateActor?.img ||
     "icons/svg/mystery-man.svg"
-  );
+  ).trim();
+}
+
+async function getEvolutionTokenTextureSource(
+  formTemplateActor,
+  fallbackActor = null
+) {
+  return resolveEvolutionTokenImage({
+    formTemplateActor,
+    fallbackActor
+  });
 }
 
 async function applyEvolutionFormTemplateToPartner({
@@ -353,11 +458,107 @@ export async function getCurrentPartnerFormWizardContext(tamerActor) {
   };
 }
 
+export async function getFuturePartnerFormWizardContext(
+  tamerActor,
+  formTemplateActor
+) {
+  if (!tamerActor || tamerActor.type !== "character") {
+    ui.notifications.warn(localize("DDA.Warning.DigivolutionOnlyForTamers"));
+    return null;
+  }
+
+  if (!formTemplateActor || formTemplateActor.type !== "digimon") {
+    ui.notifications.warn(localize("DDA.Warning.ChosenEvolutionFormNotDigimon"));
+    return null;
+  }
+
+  const partnerUuid = tamerActor.system.partner?.uuid;
+
+  if (!partnerUuid) {
+    ui.notifications.warn(localize("DDA.Warning.NoPartnerLinked"));
+    return null;
+  }
+
+  const partnerActor = await resolveActor(partnerUuid);
+
+  if (!partnerActor || partnerActor.type !== "digimon") {
+    ui.notifications.warn(localize("DDA.Warning.PartnerNotFound"));
+    return null;
+  }
+
+  const existingSnapshot = getPartnerFormSnapshot(
+    partnerActor,
+    formTemplateActor.uuid
+  );
+
+  const snapshot = existingSnapshot ?? {
+    sourceFormUuid: formTemplateActor.uuid,
+    sourceFormName: formTemplateActor.name,
+
+    // O apelido pertence ao parceiro e acompanha toda a linha.
+    name: partnerActor.name,
+
+    img: formTemplateActor.img || partnerActor.img,
+    portraitImg: "",
+    tokenImg: await getEvolutionTokenTextureSource(
+      formTemplateActor,
+      partnerActor
+    ),
+
+    species: formTemplateActor.system?.species || formTemplateActor.name,
+    stage: formTemplateActor.system?.stage || "child",
+    type: formTemplateActor.system?.type || "",
+    attribute: formTemplateActor.system?.attribute || "data",
+    field: formTemplateActor.system?.field || "none",
+    family: formTemplateActor.system?.family || "none",
+    group: formTemplateActor.system?.group || "",
+
+    profile: foundry.utils.deepClone(
+      formTemplateActor.system?.profile ?? {}
+    ),
+
+    mainStats: {},
+    miscStats: {},
+    creation: {},
+    qualityLimits: {},
+
+    wizard: {
+      preparedFutureForm: true,
+      openedAt: new Date().toISOString()
+    },
+
+    // Nunca puxar ataques ou Qualidades da forma atualmente ativa.
+    items: []
+  };
+
+  return {
+    tamerActor,
+    partnerActor,
+    formTemplateActor,
+    snapshot,
+    bonusDp: Number(
+      partnerActor.system?.advancement?.bonusDp?.total
+      ?? partnerActor.system?.creation?.dp?.bonus
+      ?? 0
+    )
+  };
+}
+
 export async function savePartnerFormWizardSnapshot({ tamerActor, partnerActor, formTemplateActor, snapshot }) {
   if (!partnerActor || !snapshot) return null;
 
-  const storedSnapshot = normalizeFormSnapshot(snapshot, formTemplateActor ?? partnerActor);
-  await upsertPartnerFormSnapshot(partnerActor, storedSnapshot);
+  const storedSnapshot = normalizeFormSnapshot(
+  snapshot,
+  formTemplateActor ?? partnerActor
+);
+
+storedSnapshot.tokenImg = await resolveEvolutionTokenImage({
+  snapshot: storedSnapshot,
+  formTemplateActor,
+  fallbackActor: partnerActor
+});
+
+await upsertPartnerFormSnapshot(partnerActor, storedSnapshot);
 
   await applyPartnerFormSnapshot({
     partnerActor,
@@ -367,6 +568,34 @@ export async function savePartnerFormWizardSnapshot({ tamerActor, partnerActor, 
     previousFormActor: formTemplateActor ?? partnerActor,
     transitionType: "formWizard"
   });
+
+  return storedSnapshot;
+}
+
+export async function savePartnerFutureFormSnapshot({
+  partnerActor,
+  formTemplateActor = null,
+  snapshot
+} = {}) {
+  if (!partnerActor || !snapshot) return null;
+
+  const storedSnapshot = normalizeFormSnapshot({
+    ...snapshot,
+    wizard: {
+      ...(snapshot.wizard ?? {}),
+      preparedFutureForm: true,
+      preparedAt: new Date().toISOString()
+    }
+  }, formTemplateActor ?? partnerActor);
+
+
+  storedSnapshot.tokenImg = await resolveEvolutionTokenImage({
+  snapshot: storedSnapshot,
+  formTemplateActor,
+  fallbackActor: partnerActor
+});
+
+  await upsertPartnerFormSnapshot(partnerActor, storedSnapshot);
 
   return storedSnapshot;
 }
@@ -387,15 +616,34 @@ async function saveCurrentPartnerFormSnapshot(partnerActor) {
 }
 
 async function getOrCreatePartnerFormSnapshot(partnerActor, formTemplateActor) {
-  const existing = getPartnerFormSnapshot(partnerActor, formTemplateActor?.uuid);
-  if (existing) return normalizeFormSnapshot(existing, formTemplateActor);
+  const existing = getPartnerFormSnapshot(
+    partnerActor,
+    formTemplateActor?.uuid
+  );
 
-  const snapshot = buildFormSnapshotFromActor(formTemplateActor ?? partnerActor, {
-    sourceFormUuid: formTemplateActor?.uuid ?? partnerActor.uuid,
-    sourceFormName: formTemplateActor?.name ?? partnerActor.name
+  const snapshot = existing
+    ? normalizeFormSnapshot(existing, formTemplateActor)
+    : buildFormSnapshotFromActor(
+        formTemplateActor ?? partnerActor,
+        {
+          sourceFormUuid: formTemplateActor?.uuid ?? partnerActor.uuid,
+          sourceFormName: formTemplateActor?.name ?? partnerActor.name
+        }
+      );
+
+  const tokenImg = await resolveEvolutionTokenImage({
+    snapshot,
+    formTemplateActor,
+    fallbackActor: partnerActor
   });
 
-  await upsertPartnerFormSnapshot(partnerActor, snapshot);
+  if (tokenImg && tokenImg !== snapshot.tokenImg) {
+    snapshot.tokenImg = tokenImg;
+    await upsertPartnerFormSnapshot(partnerActor, snapshot);
+  } else if (!existing) {
+    await upsertPartnerFormSnapshot(partnerActor, snapshot);
+  }
+
   return snapshot;
 }
 
@@ -744,15 +992,33 @@ async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateAc
 
   const normalized = normalizeFormSnapshot(snapshot, formTemplateActor ?? partnerActor);
   const partnerSystem = partnerActor.system ?? {};
+  const previousFormUuid = String(
+    partnerSystem.evolution?.currentFormUuid ||
+    partnerSystem.evolution?.sourceFormUuid ||
+    previousFormActor?.uuid ||
+    partnerActor.uuid ||
+    ""
+  ).trim();
+
+  const previousFormName = String(
+    partnerSystem.evolution?.currentFormName ||
+    partnerSystem.evolution?.sourceFormName ||
+    previousFormActor?.name ||
+    partnerActor.name ||
+    ""
+  ).trim();
+
   const preservedEvolutionGraph = freezePersistentEvolutionGraphDisplayData({
     graph: foundry.utils.deepClone(partnerSystem.evolutionGraph ?? {}),
     partnerActor,
     previousFormActor,
-    formTemplateActor
+    formTemplateActor,
+    previousFormUuid
   });
-  const previousTemplateUuid = previousFormActor?.uuid ?? partnerSystem.evolution?.currentFormUuid ?? "";
-  const previousTemplateName = previousFormActor?.name ?? partnerSystem.evolution?.currentFormName ?? "";
 
+  const previousTemplateUuid = previousFormUuid;
+  const previousTemplateName = previousFormName;
+  
   await removeFormGrantedItems(partnerActor);
 
   const formGrantedItems = buildFormGrantedItemsFromSnapshot(normalized);
@@ -837,44 +1103,88 @@ const shouldUsePortraitFlag = Boolean(
   return partnerActor;
 }
 
-function freezePersistentEvolutionGraphDisplayData({ graph = {}, partnerActor = null, previousFormActor = null, formTemplateActor = null } = {}) {
+function freezePersistentEvolutionGraphDisplayData({
+  graph = {},
+  partnerActor = null,
+  previousFormActor = null,
+  formTemplateActor = null,
+  previousFormUuid = ""
+} = {}) {
   const nextGraph = foundry.utils.deepClone(graph ?? {});
-  nextGraph.nodes = Array.isArray(nextGraph.nodes) ? nextGraph.nodes : [];
-  nextGraph.edges = Array.isArray(nextGraph.edges) ? nextGraph.edges : [];
+  nextGraph.nodes = Array.isArray(nextGraph.nodes)
+    ? nextGraph.nodes
+    : [];
+  nextGraph.edges = Array.isArray(nextGraph.edges)
+    ? nextGraph.edges
+    : [];
 
-  const upsertNodeDisplayData = (actor, fallbackUuid = "") => {
+  const upsertNodeDisplayData = (
+    actor,
+    fallbackUuid = ""
+  ) => {
     if (!actor && !fallbackUuid) return;
 
-    const actorUuid = String(actor?.uuid || fallbackUuid || "").trim();
+    /*
+     * A forma persistida precisa vencer o UUID do Actor parceiro.
+     * O parceiro físico é sempre o mesmo Actor; cada forma tem seu
+     * próprio UUID de template/snapshot no grafo.
+     */
+    const actorUuid = String(
+      fallbackUuid || actor?.uuid || ""
+    ).trim();
+
     if (!actorUuid) return;
 
-const portraitImg = String(
-  actor?.system?.evolution?.portraitImg ||
-  actor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait ||
-  actor?.img ||
-  "icons/svg/mystery-man.svg"
-);
+    const portraitImg = String(
+      actor?.system?.evolution?.portraitImg ||
+      actor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait ||
+      actor?.img ||
+      "icons/svg/mystery-man.svg"
+    );
 
-const tokenImg = String(
-  actor?.system?.evolution?.tokenImg ||
-  actor?.prototypeToken?.texture?.src ||
-  actor?.img ||
-  portraitImg ||
-  "icons/svg/mystery-man.svg"
-);
+    const tokenImg = String(
+      actor?.system?.evolution?.tokenImg ||
+      actor?.prototypeToken?.texture?.src ||
+      actor?.img ||
+      portraitImg ||
+      "icons/svg/mystery-man.svg"
+    );
 
-const nodeData = {
-  actorUuid,
-  name: String(actor?.name ?? ""),
-  displayName: String(actor?.system?.species || actor?.name || ""),
-  species: String(actor?.system?.species || actor?.name || ""),
-  stage: String(actor?.system?.stage || "child"),
-  img: String(actor?.img || "icons/svg/mystery-man.svg"),
-  portraitImg,
-  tokenImg
-};
+    const nodeData = {
+      actorUuid,
+      name: String(actor?.name ?? ""),
+      displayName: String(
+        actor?.system?.species ||
+        actor?.name ||
+        ""
+      ),
+      species: String(
+        actor?.system?.species ||
+        actor?.name ||
+        ""
+      ),
+      stage: String(
+        actor?.system?.stage ||
+        "child"
+      ),
+      img: String(
+        actor?.img ||
+        "icons/svg/mystery-man.svg"
+      ),
+      portraitImg,
+      tokenImg
+    };
 
-    let node = nextGraph.nodes.find((entry) => String(entry?.actorUuid ?? entry?.uuid ?? "") === actorUuid);
+    let node = nextGraph.nodes.find((entry) => {
+      const nodeUuid = String(
+        entry?.actorUuid ??
+        entry?.uuid ??
+        entry?.sourceFormUuid ??
+        ""
+      ).trim();
+
+      return nodeUuid === actorUuid;
+    });
 
     if (!node) {
       node = {
@@ -882,6 +1192,7 @@ const nodeData = {
         unlocked: true,
         hidden: false
       };
+
       nextGraph.nodes.push(node);
     }
 
@@ -893,11 +1204,18 @@ const nodeData = {
     });
   };
 
-  // O parceiro persistente muda de nome/imagem quando evolui, mas o node antigo
-  // precisa continuar representando a forma anterior. Congelamos os dados antes
-  // do update para impedir Pafumon → Minomon virar Minomon → Minomon no grafo.
-  upsertNodeDisplayData(previousFormActor ?? partnerActor, previousFormActor?.uuid ?? partnerActor?.uuid ?? "");
-  upsertNodeDisplayData(formTemplateActor, formTemplateActor?.uuid ?? "");
+  upsertNodeDisplayData(
+    previousFormActor ?? partnerActor,
+    previousFormUuid ||
+      previousFormActor?.uuid ||
+      partnerActor?.uuid ||
+      ""
+  );
+
+  upsertNodeDisplayData(
+    formTemplateActor,
+    formTemplateActor?.uuid || ""
+  );
 
   return nextGraph;
 }

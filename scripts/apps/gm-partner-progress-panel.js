@@ -100,8 +100,8 @@ export class DDAGMPartnerProgressPanel extends Application {
       classes: ["dda", "dda-gm-partner-progress-panel"],
       template: "systems/digimon-digital-adventures/templates/apps/gm-partner-progress-panel.html",
       title: localize("DDA.GMPartnerProgress.Title"),
-      width: 760,
-      height: 720,
+      width: 1040,
+      height: 760,
       resizable: true
     });
   }
