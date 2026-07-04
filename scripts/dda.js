@@ -31,7 +31,8 @@ const ActorCollection = foundry.documents.collections.Actors;
 const ItemCollection = foundry.documents.collections.Items;
 
 const ActorSheetV1 = foundry.appv1.sheets.ActorSheet;
-const ItemSheetV1 = foundry.appv1.sheets.ItemSheet;
+const ItemSheetV1 = foundry.appv1?.sheets?.ItemSheet;
+const ItemSheetV2 = foundry.applications.sheets.ItemSheetV2;
 
 async function loadDDAFlatTranslations() {
   const lang = game.i18n.lang ?? "en";
@@ -115,7 +116,8 @@ ActorCollection.registerSheet(
   }
 );
 
-ItemCollection.unregisterSheet("core", ItemSheetV1);
+if (ItemSheetV1) ItemCollection.unregisterSheet("core", ItemSheetV1);
+if (ItemSheetV2) ItemCollection.unregisterSheet("core", ItemSheetV2);
 
 ItemCollection.registerSheet(
   "digimon-digital-adventures",
