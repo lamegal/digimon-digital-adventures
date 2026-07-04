@@ -1,0 +1,96 @@
+<section class="dda-item-sheet-content">
+  <header class="sheet-header">
+    <img class="profile-img" src="{{item.img}}" data-action="editImage" title="{{item.name}}" />
+
+    <div class="header-fields">
+      <h1>
+        <input
+          name="name"
+          type="text"
+          value="{{item.name}}"
+          placeholder="{{localize 'DDA.TormentSheet.Placeholder.TormentName'}}"
+        />
+      </h1>
+
+      <p>{{localize "DDA.Item.Torment"}}</p>
+    </div>
+  </header>
+
+  <section class="sheet-body">
+    <h2>{{localize "DDA.TormentSheet.Boxes"}}</h2>
+
+    <div class="resource-grid">
+      <div class="resource-box">
+        <label>{{localize "DDA.TormentSheet.Marked"}}</label>
+        <input
+          type="number"
+          name="system.boxes.value"
+          value="{{system.boxes.value}}"
+          min="0"
+          max="10"
+        />
+      </div>
+
+      <div class="resource-box">
+        <label>{{localize "DDA.Label.Maximum"}}</label>
+        <input
+          type="number"
+          name="system.boxes.max"
+          value="{{system.boxes.max}}"
+          readonly
+        />
+      </div>
+
+      <div class="resource-box torment-severity-box">
+        <label>{{localize "DDA.TormentSheet.Severity"}}</label>
+        <input type="text" value="{{system.severityLabel}}" readonly />
+      </div>
+    </div>
+
+    <label>
+      <input
+        type="checkbox"
+        name="system.checkedUntilRest"
+        {{checked system.checkedUntilRest}}
+      />
+      {{localize "DDA.TormentSheet.CheckedUntilRest"}}
+    </label>
+
+    <h2>{{localize "DDA.TormentSheet.Penalty"}}</h2>
+
+    <div class="resource-grid">
+      <label class="resource-box checkbox-box">
+        <input
+          type="checkbox"
+          name="system.penalty.enabled"
+          {{checked system.penalty.enabled}}
+        />
+        {{localize "DDA.TormentSheet.PenaltyActive"}}
+      </label>
+
+      <div class="resource-box">
+        <label>{{localize "DDA.Label.Value"}}</label>
+        <input
+          type="number"
+          name="system.penalty.value"
+          value="{{system.penalty.value}}"
+        />
+      </div>
+
+      <label class="resource-box checkbox-box">
+        <input
+          type="checkbox"
+          name="system.penalty.combatActionLock"
+          {{checked system.penalty.combatActionLock}}
+        />
+        {{localize "DDA.TormentSheet.BlocksCombatActions"}}
+      </label>
+    </div>
+
+    <h2>{{localize "DDA.Label.Description"}}</h2>
+    <textarea name="system.description">{{system.description}}</textarea>
+
+    <h2>{{localize "DDA.TamerSheet.Notes"}}</h2>
+    <textarea name="system.notes">{{system.notes}}</textarea>
+  </section>
+</section>

@@ -1,0 +1,496 @@
+.dda-open-gm-partner-progress-panel {
+  width: 100%;
+  margin: 4px 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+}
+
+.dda-gm-partner-progress-panel .window-content {
+  padding: 0;
+  background: #071c2c;
+  color: #e8f6ff;
+}
+
+.dda-gm-progress-root {
+  min-height: 100%;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(12, 46, 76, 0.97), rgba(4, 18, 34, 0.98)),
+    repeating-linear-gradient(
+      0deg,
+      rgba(130, 220, 255, 0.045) 0,
+      rgba(130, 220, 255, 0.045) 1px,
+      transparent 1px,
+      transparent 10px
+    );
+}
+
+.dda-gm-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 14px;
+  margin-bottom: 14px;
+  background: linear-gradient(180deg, rgba(8, 38, 66, 0.96), rgba(4, 22, 42, 0.96));
+  border: 1px solid rgba(105, 205, 255, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(210, 245, 255, 0.06), 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.dda-gm-progress-header h2 {
+  margin: 0 0 4px;
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dda-gm-progress-header p {
+  margin: 0;
+  color: rgba(220, 245, 255, 0.74);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.dda-gm-progress-tools {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.dda-gm-progress-tools label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: rgba(220, 245, 255, 0.78);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dda-gm-progress-tools select,
+.dda-gm-progress-tools button,
+.dda-gm-progress-card button,
+.dda-gm-progress-bonus-box input {
+  color: #f3fbff;
+  background: linear-gradient(180deg, rgba(10, 70, 112, 0.96), rgba(5, 35, 65, 0.96));
+  border: 1px solid rgba(125, 215, 255, 0.38);
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(230, 250, 255, 0.06), 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.dda-gm-progress-tools select {
+  min-width: 180px;
+  height: 30px;
+}
+
+.dda-gm-progress-tools button {
+  height: 30px;
+  padding: 0 10px;
+  font-weight: 900;
+}
+
+.dda-gm-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dda-gm-progress-card {
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(8, 36, 63, 0.94), rgba(5, 24, 45, 0.96));
+  border: 1px solid rgba(105, 205, 255, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(210, 245, 255, 0.05), 0 4px 12px rgba(0, 0, 0, 0.20);
+}
+
+.dda-gm-progress-card-header {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(120, 210, 255, 0.22);
+}
+
+.dda-gm-progress-card-header img,
+.dda-gm-progress-partner-box img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  background: rgba(2, 12, 24, 0.42);
+  border: 1px solid rgba(125, 215, 255, 0.22);
+  border-radius: 6px;
+}
+
+.dda-gm-progress-card-header h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.dda-gm-progress-card-header span,
+.dda-gm-progress-partner-box label,
+.dda-gm-progress-bonus-box label {
+  color: rgba(225, 245, 255, 0.72);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dda-gm-progress-card button {
+  min-height: 28px;
+  padding: 0 9px;
+  font-weight: 900;
+}
+
+.dda-gm-progress-partner-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 150px;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.dda-gm-progress-partner-box,
+.dda-gm-progress-bonus-box,
+.dda-gm-progress-stage-panel {
+  padding: 10px;
+  background: rgba(0, 10, 20, 0.22);
+  border: 1px solid rgba(125, 215, 255, 0.18);
+  border-radius: 9px;
+}
+
+.dda-gm-progress-partner-box > div {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 8px;
+  align-items: center;
+  margin: 7px 0;
+}
+
+.dda-gm-progress-partner-box strong {
+  color: #ffffff;
+  font-size: 0.95rem;
+}
+
+.dda-gm-progress-partner-box span {
+  display: block;
+  color: #8edcff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.dda-gm-progress-bonus-box > div {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.dda-gm-progress-bonus-box input {
+  width: 100%;
+  height: 32px;
+  text-align: center;
+  font-weight: 900;
+}
+
+.dda-gm-progress-stage-panel {
+  margin-top: 10px;
+}
+
+.dda-gm-progress-stage-panel h4 {
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 0.84rem;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.dda-gm-progress-stage-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.dda-gm-stage-toggle {
+  border-radius: 999px !important;
+  padding: 5px 10px !important;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dda-gm-stage-toggle.is-unlocked {
+  background: linear-gradient(180deg, rgba(24, 130, 185, 0.98), rgba(8, 72, 120, 0.98)) !important;
+  border-color: rgba(185, 245, 255, 0.72) !important;
+  color: #ffffff !important;
+  text-shadow: 0 0 6px rgba(150, 235, 255, 0.75);
+}
+
+.dda-gm-stage-toggle.is-locked {
+  opacity: 0.58;
+  background: linear-gradient(180deg, rgba(54, 66, 78, 0.92), rgba(24, 32, 42, 0.96)) !important;
+}
+
+.dda-gm-progress-empty {
+  padding: 16px;
+  margin: 0;
+  color: rgba(230, 248, 255, 0.8);
+  background: rgba(0, 10, 20, 0.25);
+  border: 1px solid rgba(125, 215, 255, 0.18);
+  border-radius: 10px;
+}
+
+@media (max-width: 760px) {
+  .dda-gm-progress-header,
+  .dda-gm-progress-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dda-gm-progress-partner-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.dda-gm-partner-progress-panel .dda-gm-progress-target-control.is-muted {
+  opacity: 0.45;
+  filter: saturate(0.65);
+}
+
+.dda-gm-partner-progress-panel .dda-gm-progress-target-control.is-muted select {
+  cursor: pointer;
+}
+
+.dda-gm-progress-crest-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(104, 211, 255, 0.32);
+  border-radius: 12px;
+  background: rgba(2, 24, 42, 0.42);
+}
+
+.dda-gm-progress-crest-box label {
+  color: rgba(210, 236, 255, 0.78);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dda-gm-progress-crest-box.is-muted {
+  opacity: 0.45;
+}
+
+.dda-gm-crest-toggle {
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(100, 203, 255, 0.42);
+  background: linear-gradient(180deg, rgba(10, 74, 112, 0.92), rgba(5, 39, 64, 0.92));
+  color: #eaf8ff;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dda-gm-crest-toggle.is-on {
+  border-color: rgba(136, 255, 196, 0.72);
+  background: linear-gradient(180deg, rgba(65, 223, 139, 0.95), rgba(12, 122, 98, 0.95));
+  box-shadow: 0 0 18px rgba(80, 255, 185, 0.28);
+}
+
+.dda-gm-partner-progress-panel .window-content {
+  min-width: 900px;
+}
+
+
+/* ===================================================== */
+/* DDA — HOTFIX v20: Casca do Progresso de Parceiros     */
+/* ===================================================== */
+
+.window-app.dda-gm-partner-progress-panel,
+.window-app.dda.dda-gm-partner-progress-panel {
+  background: transparent !important;
+  border: 1px solid rgba(120, 215, 255, 0.42) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.54),
+    0 0 22px rgba(60, 185, 255, 0.16) !important;
+}
+
+.window-app.dda-gm-partner-progress-panel .window-header,
+.window-app.dda.dda-gm-partner-progress-panel .window-header {
+  min-height: 34px !important;
+  color: #eaf8ff !important;
+  background:
+    linear-gradient(90deg, rgba(4, 18, 32, 1), rgba(18, 72, 108, 0.98)) !important;
+  border-bottom: 1px solid rgba(130, 205, 255, 0.28) !important;
+}
+
+.window-app.dda-gm-partner-progress-panel .window-content,
+.window-app.dda.dda-gm-partner-progress-panel .window-content,
+.dda-gm-partner-progress-panel .window-content {
+  min-width: 0 !important;
+  width: 100% !important;
+  padding: 0 !important;
+  color: #e8f6ff !important;
+  background:
+    radial-gradient(circle at top right, rgba(70, 190, 255, 0.12), transparent 45%),
+    linear-gradient(180deg, rgba(10, 32, 50, 0.98), rgba(5, 18, 30, 0.98)) !important;
+  overflow: hidden !important;
+}
+
+.dda-gm-progress-root {
+  min-height: 100% !important;
+  max-height: 100% !important;
+  padding: 14px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+.dda-gm-progress-header {
+  border-radius: 10px !important;
+  overflow: hidden !important;
+}
+
+.dda-gm-progress-card {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+.dda-gm-progress-partner-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 150px 170px !important;
+  gap: 10px !important;
+  align-items: stretch !important;
+}
+
+.dda-gm-progress-partner-box,
+.dda-gm-progress-bonus-box,
+.dda-gm-progress-crest-box {
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.dda-gm-progress-crest-box {
+  min-height: 100% !important;
+}
+
+.dda-gm-crest-toggle {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 8px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 980px) {
+  .window-app.dda-gm-partner-progress-panel .window-content,
+  .window-app.dda.dda-gm-partner-progress-panel .window-content,
+  .dda-gm-partner-progress-panel .window-content {
+    min-width: 0 !important;
+  }
+
+  .dda-gm-progress-partner-row {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .dda-gm-progress-partner-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ===================================================== */
+/* DDA — Partner Progress: trilha compacta de estágios   */
+/* ===================================================== */
+
+.dda-gm-progress-stage-list {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+  align-items: stretch !important;
+  padding: 3px 0 1px !important;
+}
+
+.dda-gm-stage-toggle {
+  position: relative !important;
+  z-index: 1 !important;
+
+  min-height: 56px !important;
+  padding: 18px 6px 7px !important;
+
+  border-radius: 9px !important;
+
+  font-size: 0.62rem !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0.035em !important;
+  text-align: center !important;
+  white-space: normal !important;
+
+  transition: transform 120ms ease, filter 120ms ease !important;
+}
+
+.dda-gm-stage-toggle::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 7px !important;
+  left: 50% !important;
+
+  width: 8px !important;
+  height: 8px !important;
+
+  transform: translateX(-50%) !important;
+
+  border: 2px solid rgba(215, 248, 255, 0.88) !important;
+  border-radius: 50% !important;
+  background: rgba(12, 50, 78, 0.95) !important;
+
+  box-shadow: 0 0 0 2px rgba(2, 14, 26, 0.36) !important;
+}
+
+
+
+.dda-gm-stage-toggle.is-unlocked::before {
+  background: #bff6ff !important;
+  border-color: #ffffff !important;
+  box-shadow:
+    0 0 0 2px rgba(6, 70, 110, 0.74),
+    0 0 10px rgba(125, 235, 255, 0.82) !important;
+}
+
+
+
+.dda-gm-stage-toggle:hover {
+  transform: translateY(-2px) !important;
+  filter: brightness(1.12) !important;
+}
+
+@media (max-width: 860px) {
+  .dda-gm-progress-stage-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .dda-gm-progress-stage-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}

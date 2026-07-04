@@ -1,0 +1,33 @@
+﻿# Python / ambientes locais
+.venv/
+venv/
+**/.venv/
+**/venv/
+**/__pycache__/
+*.py[cod]
+
+# Cache local de coleta
+.wikimon-cache/
+
+# Saídas e relatórios gerados por ferramentas
+tools/**/output/
+tools/**/.pytest_cache/
+tools/**/.mypy_cache/
+tools/**/.ruff_cache/
+
+# Backups locais de integração
+_dda_portrait_integration_backups/
+
+# Logs e arquivos temporários
+*.log
+.DS_Store
+Thumbs.db
+
+# ZIPs são artefatos de distribuição, não fonte
+*.zip
+
+# Imagens brutas baixadas pelo importador: mantidas só localmente
+tools/dda_wikimon_importer_starter/assets/digimon/imported/
+
+# Imagens brutas baixadas pelo importador: mantidas só localmente
+tools/dda_wikimon_importer_starter/assets/digimon/imported/

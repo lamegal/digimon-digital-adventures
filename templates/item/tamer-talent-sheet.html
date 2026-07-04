@@ -1,0 +1,186 @@
+<section class="dda-item-sheet-content">
+  <header class="sheet-header">
+    <img class="profile-img" src="{{item.img}}" data-action="editImage" title="{{item.name}}" />
+
+    <div class="header-fields">
+      <h1>
+        <input
+          name="name"
+          type="text"
+          value="{{item.name}}"
+          placeholder="{{localize 'DDA.TamerTalentSheet.Placeholder.TalentName'}}"
+        />
+      </h1>
+
+      <p>{{localize "DDA.Item.TamerTalent"}}</p>
+    </div>
+  </header>
+
+  <section class="sheet-body">
+    <h2>{{localize "DDA.Label.Requirement"}}</h2>
+
+    <div class="grid-2">
+      <div class="form-group talent-select">
+        <label>{{localize "DDA.Label.Type"}}</label>
+
+        <select name="system.requirement.type">
+          <option value="attribute" {{#if (eq system.requirement.type "attribute")}}selected{{/if}}>
+            {{localize "DDA.TamerTalent.Requirement.Attribute"}}
+          </option>
+
+          <option value="skill" {{#if (eq system.requirement.type "skill")}}selected{{/if}}>
+            {{localize "DDA.TamerTalent.Requirement.Skill"}}
+          </option>
+        </select>
+      </div>
+
+      <div class="form-group talent-select">
+        <label>{{localize "DDA.Label.Requirement"}}</label>
+
+        {{#if (eq system.requirement.type "attribute")}}
+        <select name="system.requirement.key">
+          <option value="">{{localize "DDA.Label.None"}}</option>
+          <option value="agility" {{#if (eq system.requirement.key "agility")}}selected{{/if}}>{{localize "DDA.TamerAttribute.Agility"}}</option>
+          <option value="body" {{#if (eq system.requirement.key "body")}}selected{{/if}}>{{localize "DDA.TamerAttribute.Body"}}</option>
+          <option value="charisma" {{#if (eq system.requirement.key "charisma")}}selected{{/if}}>{{localize "DDA.TamerAttribute.Charisma"}}</option>
+          <option value="intelligence" {{#if (eq system.requirement.key "intelligence")}}selected{{/if}}>{{localize "DDA.TamerAttribute.Intelligence"}}</option>
+          <option value="willpower" {{#if (eq system.requirement.key "willpower")}}selected{{/if}}>{{localize "DDA.TamerAttribute.Willpower"}}</option>
+        </select>
+        {{else}}
+        <select name="system.requirement.key">
+          <option value="">{{localize "DDA.Label.None"}}</option>
+
+          <option value="evade" {{#if (eq system.requirement.key "evade")}}selected{{/if}}>{{localize "DDA.TamerSkill.Evade"}}</option>
+          <option value="precision" {{#if (eq system.requirement.key "precision")}}selected{{/if}}>{{localize "DDA.TamerSkill.Precision"}}</option>
+          <option value="stealth" {{#if (eq system.requirement.key "stealth")}}selected{{/if}}>{{localize "DDA.TamerSkill.Stealth"}}</option>
+
+          <option value="athletics" {{#if (eq system.requirement.key "athletics")}}selected{{/if}}>{{localize "DDA.TamerSkill.Athletics"}}</option>
+          <option value="endurance" {{#if (eq system.requirement.key "endurance")}}selected{{/if}}>{{localize "DDA.TamerSkill.Endurance"}}</option>
+          <option value="featsOfStrength" {{#if (eq system.requirement.key "featsOfStrength")}}selected{{/if}}>{{localize "DDA.TamerSkill.FeatsOfStrength"}}</option>
+
+          <option value="manipulate" {{#if (eq system.requirement.key "manipulate")}}selected{{/if}}>{{localize "DDA.TamerSkill.Manipulate"}}</option>
+          <option value="performance" {{#if (eq system.requirement.key "performance")}}selected{{/if}}>{{localize "DDA.TamerSkill.Performance"}}</option>
+          <option value="persuasion" {{#if (eq system.requirement.key "persuasion")}}selected{{/if}}>{{localize "DDA.TamerSkill.Persuasion"}}</option>
+
+          <option value="decipherIntent" {{#if (eq system.requirement.key "decipherIntent")}}selected{{/if}}>{{localize "DDA.TamerSkill.DecipherIntent"}}</option>
+          <option value="survival" {{#if (eq system.requirement.key "survival")}}selected{{/if}}>{{localize "DDA.TamerSkill.Survival"}}</option>
+          <option value="knowledge" {{#if (eq system.requirement.key "knowledge")}}selected{{/if}}>{{localize "DDA.TamerSkill.Knowledge"}}</option>
+
+          <option value="awareness" {{#if (eq system.requirement.key "awareness")}}selected{{/if}}>{{localize "DDA.TamerSkill.Awareness"}}</option>
+          <option value="fortitude" {{#if (eq system.requirement.key "fortitude")}}selected{{/if}}>{{localize "DDA.TamerSkill.Fortitude"}}</option>
+          <option value="bravery" {{#if (eq system.requirement.key "bravery")}}selected{{/if}}>{{localize "DDA.TamerSkill.Bravery"}}</option>
+        </select>
+        {{/if}}
+      </div>
+
+      <div class="form-group">
+        <label>{{localize "DDA.Label.Value"}}</label>
+        <input type="number" name="system.requirement.value" value="{{system.requirement.value}}" />
+      </div>
+    </div>
+
+    <h2>{{localize "DDA.TamerTalentSheet.Use"}}</h2>
+
+    <div class="checkbox-grid">
+      <label>
+        <input type="checkbox" name="system.isAdvanced" {{checked system.isAdvanced}} />
+        {{localize "DDA.TamerTalent.Advanced"}}
+      </label>
+
+      <label>
+        <input type="checkbox" name="system.isSpecialOrder" {{checked system.isSpecialOrder}} />
+        {{localize "DDA.TamerTalent.SpecialOrder"}}
+      </label>
+
+      <label>
+        <input type="checkbox" name="system.uses.enabled" {{checked system.uses.enabled}} />
+        {{localize "DDA.TamerTalentSheet.HasUses"}}
+      </label>
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group">
+        <label>{{localize "DDA.TamerTalentSheet.SpecialOrderName"}}</label>
+        <input
+          type="text"
+          name="system.specialOrder.name"
+          value="{{system.specialOrder.name}}"
+          placeholder="{{localize 'DDA.TamerTalentSheet.Placeholder.SpecialOrderName'}}"
+        />
+      </div>
+
+      <div class="form-group talent-select">
+        <label>{{localize "DDA.TamerTalentSheet.UseType"}}</label>
+
+        <select name="system.useType">
+          <option value="passive" {{#if (eq system.useType "passive")}}selected{{/if}}>{{localize "DDA.TamerTalent.UseType.Passive"}}</option>
+          <option value="active" {{#if (eq system.useType "active")}}selected{{/if}}>{{localize "DDA.TamerTalent.UseType.Active"}}</option>
+          <option value="interrupt" {{#if (eq system.useType "interrupt")}}selected{{/if}}>{{localize "DDA.TamerTalent.UseType.Interrupt"}}</option>
+          <option value="free" {{#if (eq system.useType "free")}}selected{{/if}}>{{localize "DDA.TamerTalent.UseType.Free"}}</option>
+          <option value="special" {{#if (eq system.useType "special")}}selected{{/if}}>{{localize "DDA.TamerTalent.UseType.Special"}}</option>
+        </select>
+      </div>
+
+      <div class="form-group talent-select">
+        <label>{{localize "DDA.Attack.ActionCost"}}</label>
+
+        <select name="system.actionCost">
+          <option value="">{{localize "DDA.Label.None"}}</option>
+          <option value="passive" {{#if (eq system.actionCost "passive")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.Passive"}}</option>
+          <option value="free" {{#if (eq system.actionCost "free")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.Free"}}</option>
+          <option value="interrupt" {{#if (eq system.actionCost "interrupt")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.Interrupt"}}</option>
+          <option value="1" {{#if (eq system.actionCost "1")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.One"}}</option>
+          <option value="2" {{#if (eq system.actionCost "2")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.Two"}}</option>
+          <option value="special" {{#if (eq system.actionCost "special")}}selected{{/if}}>{{localize "DDA.TamerTalent.ActionCost.Special"}}</option>
+        </select>
+      </div>
+
+      <div class="form-group talent-select">
+        <label>{{localize "DDA.Label.Frequency"}}</label>
+
+        <select name="system.frequency">
+          <option value="">{{localize "DDA.Label.None"}}</option>
+          <option value="always" {{#if (eq system.frequency "always")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.Always"}}</option>
+          <option value="oncePerTurn" {{#if (eq system.frequency "oncePerTurn")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.OncePerTurn"}}</option>
+          <option value="oncePerCombat" {{#if (eq system.frequency "oncePerCombat")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.OncePerCombat"}}</option>
+          <option value="oncePerRest" {{#if (eq system.frequency "oncePerRest")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.OncePerRest"}}</option>
+          <option value="oncePerSession" {{#if (eq system.frequency "oncePerSession")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.OncePerSession"}}</option>
+          <option value="limited" {{#if (eq system.frequency "limited")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.Limited"}}</option>
+          <option value="special" {{#if (eq system.frequency "special")}}selected{{/if}}>{{localize "DDA.TamerTalent.Frequency.Special"}}</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>{{localize "DDA.Label.Uses"}}</label>
+        <input type="number" name="system.uses.value" value="{{system.uses.value}}" />
+      </div>
+
+      <div class="form-group">
+        <label>{{localize "DDA.Label.Maximum"}}</label>
+        <input type="number" name="system.uses.max" value="{{system.uses.max}}" />
+      </div>
+
+      <div class="form-group talent-select">
+        <label>{{localize "DDA.QualitySheet.Recharge"}}</label>
+
+        <select name="system.uses.recharge">
+          <option value="">{{localize "DDA.Label.None"}}</option>
+          <option value="turn" {{#if (eq system.uses.recharge "turn")}}selected{{/if}}>{{localize "DDA.Time.Turn"}}</option>
+          <option value="combat" {{#if (eq system.uses.recharge "combat")}}selected{{/if}}>{{localize "DDA.Time.Combat"}}</option>
+          <option value="scene" {{#if (eq system.uses.recharge "scene")}}selected{{/if}}>{{localize "DDA.Time.Scene"}}</option>
+          <option value="session" {{#if (eq system.uses.recharge "session")}}selected{{/if}}>{{localize "DDA.Time.Session"}}</option>
+          <option value="rest" {{#if (eq system.uses.recharge "rest")}}selected{{/if}}>{{localize "DDA.Time.Rest"}}</option>
+          <option value="day" {{#if (eq system.uses.recharge "day")}}selected{{/if}}>{{localize "DDA.Time.Day"}}</option>
+          <option value="always" {{#if (eq system.uses.recharge "always")}}selected{{/if}}>{{localize "DDA.Time.AlwaysAvailable"}}</option>
+          <option value="special" {{#if (eq system.uses.recharge "special")}}selected{{/if}}>{{localize "DDA.Time.SpecialManual"}}</option>
+        </select>
+      </div>
+    </div>
+
+    <h2>{{localize "DDA.Label.Effect"}}</h2>
+    <textarea name="system.effect">{{system.effect}}</textarea>
+
+    <h2>{{localize "DDA.Label.Description"}}</h2>
+    <textarea name="system.description">{{system.description}}</textarea>
+  </section>
+</section>

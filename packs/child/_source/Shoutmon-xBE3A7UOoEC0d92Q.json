@@ -1,0 +1,565 @@
+{
+  "name": "Shoutmon",
+  "type": "digimon",
+  "img": "systems/digimon-digital-adventures/assets/digimon/child/Shoutmon.webp",
+  "folder": null,
+  "system": {
+    "description": "Digimon Life Anime & Manga Video Games",
+    "notes": "Gerado automaticamente a partir de dados da Wikimon/Reference Book. Revise antes de publicar em compêndio final.",
+    "combat": {
+      "actions": {
+        "value": 2,
+        "max": 2
+      },
+      "initiative": {
+        "value": 0,
+        "side": "players"
+      },
+      "hasAttackedThisRound": false,
+      "surprised": false,
+      "defeated": false,
+      "attacksMadeThisTurn": 0,
+      "multiattackPenalty": 0,
+      "dodgePenalty": 0,
+      "currentStance": "neutral",
+      "signatureMoveUsedThisTurn": false,
+      "energizeUsedThisTurn": false,
+      "digitama": false,
+      "clash": {
+        "active": false,
+        "opponentUuid": "",
+        "controllerUuid": "",
+        "initiatorUuid": "",
+        "pinned": false,
+        "pinUses": 0,
+        "comebackBonus": 0,
+        "extendedReach": 0
+      }
+    },
+    "effects": {
+      "active": []
+    },
+    "mainStats": {
+      "accuracy": {
+        "label": "DDA.MainStat.Accuracy",
+        "base": 3,
+        "bonus": 0,
+        "total": 3
+      },
+      "damage": {
+        "label": "DDA.MainStat.Damage",
+        "base": 4,
+        "bonus": 0,
+        "total": 4
+      },
+      "dodge": {
+        "label": "DDA.MainStat.Dodge",
+        "base": 3,
+        "bonus": 0,
+        "total": 3
+      },
+      "armor": {
+        "label": "DDA.MainStat.Armor",
+        "base": 3,
+        "bonus": 0,
+        "total": 3
+      },
+      "health": {
+        "label": "DDA.MainStat.Health",
+        "base": 3,
+        "bonus": 0,
+        "total": 3
+      }
+    },
+    "derivedStats": {
+      "bit": {
+        "label": "DDA.DerivedStat.BIT",
+        "value": 0
+      },
+      "dos": {
+        "label": "DDA.DerivedStat.DOS",
+        "value": 0
+      },
+      "ram": {
+        "label": "DDA.DerivedStat.RAM",
+        "value": 0
+      },
+      "cpu": {
+        "label": "DDA.DerivedStat.CPU",
+        "value": 0
+      }
+    },
+    "miscStats": {
+      "movement": {
+        "label": "DDA.Resource.Movement",
+        "base": 3,
+        "bonus": 0,
+        "qualityBonus": 0,
+        "effectBonus": 0,
+        "value": 3,
+        "total": 3
+      },
+      "wounds": {
+        "label": "DDA.Resource.WoundBoxes",
+        "value": 3,
+        "max": 3,
+        "temp": {
+          "value": 0,
+          "source": "",
+          "duration": ""
+        }
+      },
+      "range": {
+        "label": "DDA.Resource.Range",
+        "value": 1
+      },
+      "effectiveLimit": {
+        "label": "DDA.Resource.EffectiveLimit",
+        "value": 0
+      },
+      "initiative": {
+        "label": "DDA.Resource.Initiative",
+        "value": 3
+      },
+      "resistance": {
+        "label": "DDA.Resource.Resistance",
+        "value": 0
+      },
+      "clash": {
+        "label": "DDA.Resource.Clash",
+        "value": 0
+      }
+    },
+    "species": "Shoutmon",
+    "nickname": "",
+    "stage": "child",
+    "stageValue": 2,
+    "size": "medium",
+    "role": "none",
+    "field": "natureSpirits",
+    "family": "dragon",
+    "attribute": "data",
+    "type": "Small Dragon",
+    "group": "Small Dragon",
+    "profile": {
+      "appearance": "Digimon Life Anime & Manga Video Games",
+      "personality": "",
+      "favoriteFood": "",
+      "goals": "",
+      "tactics": "",
+      "age": "",
+      "selfImage": "",
+      "separatedReaction": ""
+    },
+    "tamer": {
+      "id": "",
+      "uuid": "",
+      "name": ""
+    },
+    "creation": {
+      "dp": {
+        "base": 10,
+        "bonus": 0,
+        "negative": 0,
+        "total": 10,
+        "spentBaseStats": 6,
+        "spentBaseQualities": 4,
+        "spentBonusStats": 0,
+        "spentBonusQualities": 0,
+        "spentTotal": 10,
+        "remaining": 0
+      },
+      "coreDiscount": {
+        "base": 2,
+        "spent": 0,
+        "remaining": 2
+      },
+      "buildStyle": "database-basic-image-first"
+    },
+    "qualityLimits": {
+      "freeQualities": {
+        "max": 1,
+        "used": 0
+      },
+      "negativeDp": {
+        "max": 2,
+        "used": 0
+      }
+    },
+    "resources": {
+      "battery": {
+        "value": 0,
+        "max": 3
+      },
+      "resolve": {
+        "enabled": false,
+        "value": 0,
+        "max": 4
+      },
+      "creationLimit": {
+        "enabled": false,
+        "value": 0,
+        "max": 0
+      },
+      "mood": {
+        "enabled": false,
+        "value": 3,
+        "die": "1d6"
+      }
+    },
+    "currentMovementType": "land",
+    "movementTypes": {
+      "land": {
+        "label": "DDA.Movement.Land",
+        "value": 3,
+        "enabled": true,
+        "total": 3
+      },
+      "jump": {
+        "label": "DDA.Movement.Jump",
+        "value": 1,
+        "enabled": true,
+        "total": 1
+      },
+      "swim": {
+        "label": "DDA.Movement.Swim",
+        "value": 1,
+        "enabled": true,
+        "total": 1
+      },
+      "fly": {
+        "label": "DDA.Movement.Fly",
+        "value": 0,
+        "enabled": false,
+        "total": 0
+      },
+      "dig": {
+        "label": "DDA.Movement.Dig",
+        "value": 0,
+        "enabled": false,
+        "total": 0
+      },
+      "climb": {
+        "label": "DDA.Movement.Climb",
+        "value": 0,
+        "enabled": false,
+        "total": 0
+      },
+      "teleport": {
+        "label": "DDA.Movement.Teleport",
+        "value": 0,
+        "enabled": false,
+        "total": 0
+      }
+    },
+    "signatureMove": {
+      "attackId": ""
+    },
+    "status": {
+      "sight": "unobscured",
+      "hidden": false,
+      "submerged": false,
+      "drowning": false,
+      "cover": "none"
+    },
+    "stances": {
+      "current": "neutral",
+      "available": [
+        "neutral",
+        "offensive",
+        "defensive"
+      ]
+    },
+    "evolutionLine": {
+      "lineId": "",
+      "baseFormUuid": "",
+      "previousForms": [],
+      "nextForms": [],
+      "defaultStage": false,
+      "isCurrentForm": false,
+      "forms": {}
+    },
+    "evolution": {
+      "defaultStage": "child",
+      "currentStage": "child",
+      "unlockedStages": [
+        "baby1",
+        "baby2",
+        "child"
+      ],
+      "forms": [],
+      "currentFormUuid": "",
+      "currentFormName": "",
+      "sourceFormUuid": "",
+      "sourceFormName": "",
+      "previousFormUuid": "",
+      "previousFormName": "",
+      "lastTransitionType": "",
+      "lastEvolvedAt": "",
+      "formSnapshots": {}
+    },
+    "advancement": {
+      "bonusDp": {
+        "total": 0,
+        "spentStats": 0,
+        "spentQualities": 0,
+        "remaining": 0
+      },
+      "sharedStatBonus": {
+        "accuracy": 0,
+        "damage": 0,
+        "dodge": 0,
+        "armor": 0,
+        "health": 0
+      },
+      "sharedQualityDp": {
+        "allocated": 0,
+        "spent": 0
+      }
+    },
+    "evolutionGraph": {
+      "layout": {
+        "mode": "solar"
+      },
+      "nodes": [],
+      "edges": [],
+      "legacyImported": false,
+      "generatedMode": "hard-reset-v6.3",
+      "maxPreviousForms": 8,
+      "maxNextForms": 8,
+      "maxNextBaby2PerBaby1": 2,
+      "maxNextChildPerBaby2": 4,
+      "maxPreviousPerActor": 8,
+      "maxTotalNodes": 18,
+      "ignores": [
+        "X-Antibody",
+        "Armor",
+        "Hybrid"
+      ],
+      "maxBranchesPerNode": 12,
+      "maxNodesPerGraph": 180,
+      "removedActorUuids": [],
+      "removedEdgeIds": []
+    },
+    "compatibility": {
+      "enabled": false,
+      "wantsQuestionnaire": false,
+      "answered": false,
+      "skipped": false,
+      "hidden": true,
+      "answers": {},
+      "answerList": [],
+      "crestScores": {},
+      "traitScores": {},
+      "hiddenCrest": {
+        "key": "",
+        "label": "",
+        "img": "",
+        "score": 0
+      },
+      "digitama": {
+        "key": "",
+        "name": "",
+        "fileName": "",
+        "img": "",
+        "traits": [],
+        "score": 0
+      },
+      "recommendations": [],
+      "assignedAt": ""
+    },
+    "specialEvolutions": {
+      "jogress": {
+        "active": false,
+        "componentBonusDp": 0,
+        "state": {
+          "active": false,
+          "recipeId": "",
+          "resultUuid": "",
+          "resultName": "",
+          "primaryTamerUuid": "",
+          "primaryDigimonUuid": "",
+          "secondaryTamerUuid": "",
+          "secondaryDigimonUuid": "",
+          "startedAt": "",
+          "historyKey": "",
+          "primaryTamerName": "",
+          "primaryDigimonName": "",
+          "secondaryTamerName": "",
+          "secondaryDigimonName": "",
+          "masteredBeforeUse": false,
+          "firstSuccessfulUse": false,
+          "sharedInitiative": 0,
+          "componentBonusDp": 0,
+          "primaryDigimonBonusDp": 0,
+          "secondaryDigimonBonusDp": 0
+        }
+      },
+      "hybrid": {
+        "active": false,
+        "method": "",
+        "equivalentStage": "",
+        "state": {
+          "active": false,
+          "method": "",
+          "recipeId": "",
+          "resultUuid": "",
+          "resultName": "",
+          "resultStage": "",
+          "equivalentStage": "",
+          "tamerUuid": "",
+          "tamerName": "",
+          "sourceDigimonUuid": "",
+          "sourceDigimonName": "",
+          "previousFormUuid": "",
+          "previousFormName": "",
+          "hadPartner": false,
+          "startedAt": "",
+          "actionsMax": 3,
+          "directAllyPenaltyReduction": 1,
+          "partnerUuid": "",
+          "partnerName": "",
+          "partnerRequirement": "none",
+          "partnerAvailability": "unchanged",
+          "partnerIsMerged": false,
+          "resultIsPartnerCurrentForm": false
+        }
+      }
+    },
+    "specialForm": {
+      "kind": "",
+      "method": "",
+      "equivalentStage": "",
+      "sourceTamerUuid": "",
+      "sourceDigimonUuid": ""
+    }
+  },
+  "prototypeToken": {
+    "name": "Shoutmon",
+    "texture": {
+      "src": "systems/digimon-digital-adventures/assets/digimon/child/Shoutmon.webp",
+      "anchorX": 0.5,
+      "anchorY": 0.5,
+      "offsetX": 0,
+      "offsetY": 0,
+      "fit": "contain",
+      "scaleX": 1,
+      "scaleY": 1,
+      "rotation": 0,
+      "tint": "#ffffff",
+      "alphaThreshold": 0.75
+    },
+    "displayName": 0,
+    "actorLink": false,
+    "width": 1,
+    "height": 1,
+    "lockRotation": false,
+    "rotation": 0,
+    "alpha": 1,
+    "disposition": -1,
+    "displayBars": 0,
+    "bar1": {
+      "attribute": "combat.wounds"
+    },
+    "bar2": {
+      "attribute": "combat.actions"
+    },
+    "light": {
+      "negative": false,
+      "priority": 0,
+      "alpha": 0.5,
+      "angle": 360,
+      "bright": 0,
+      "color": null,
+      "coloration": 1,
+      "dim": 0,
+      "attenuation": 0.5,
+      "luminosity": 0.5,
+      "saturation": 0,
+      "contrast": 0,
+      "shadows": 0,
+      "animation": {
+        "type": null,
+        "speed": 5,
+        "intensity": 5,
+        "reverse": false
+      },
+      "darkness": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    "sight": {
+      "enabled": false,
+      "range": 0,
+      "angle": 360,
+      "visionMode": "basic",
+      "color": null,
+      "attenuation": 0.1,
+      "brightness": 0,
+      "saturation": 0,
+      "contrast": 0
+    },
+    "detectionModes": [],
+    "occludable": {
+      "radius": 0
+    },
+    "ring": {
+      "enabled": false,
+      "colors": {
+        "ring": null,
+        "background": null
+      },
+      "effects": 1,
+      "subject": {
+        "scale": 1,
+        "texture": null
+      }
+    },
+    "turnMarker": {
+      "mode": 1,
+      "animation": null,
+      "src": null,
+      "disposition": false
+    },
+    "movementAction": null,
+    "flags": {},
+    "randomImg": false,
+    "appendNumber": false,
+    "prependAdjective": false
+  },
+  "flags": {
+    "digimon-digital-adventures": {
+      "imageActorKey": "child:shoutmon",
+      "databaseKey": "shoutmon",
+      "source": "dda-digimon-database-v6.3-image-first",
+      "importedBy": "import-image-first-v6.3",
+      "imageBaseName": "Shoutmon",
+      "imageFileName": "Shoutmon.webp",
+      "imageStage": "child",
+      "dbMatchType": "stage-name",
+      "dbName": "Shoutmon",
+      "wikimonUrl": "https://wikimon.net/Shoutmon",
+      "officialDirectoryName": "shoutmon"
+    }
+  },
+  "_id": "xBE3A7UOoEC0d92Q",
+  "items": [],
+  "effects": [],
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null,
+    "coreVersion": "13.351",
+    "systemId": "digimon-digital-adventures",
+    "systemVersion": "2.0.0-alpha.1",
+    "createdTime": 1780844297757,
+    "modifiedTime": 1780844297757,
+    "lastModifiedBy": "wEPKDJr69AMzLcrk"
+  },
+  "ownership": {
+    "default": 0,
+    "wEPKDJr69AMzLcrk": 3
+  },
+  "sort": 0
+}

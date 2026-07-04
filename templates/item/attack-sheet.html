@@ -1,0 +1,378 @@
+<section class="dda-item-sheet-content">
+  <header class="sheet-header">
+    <img class="profile-img" src="{{item.img}}" data-action="editImage" title="{{item.name}}" />
+
+    <div class="header-fields">
+      <h1>
+        <input
+  name="name"
+  type="text"
+  value="{{item.name}}"
+  placeholder="{{localize 'DDA.AttackSheet.Placeholder.AttackName'}}"
+/>
+      </h1>
+
+<label class="signature-toggle">
+  <input type="checkbox" name="system.isSignature" {{checked system.isSignature}} />
+{{localize "DDA.Attack.SignatureMove"}} — {{localize "DDA.AttackSheet.UsesBattery"}}
+</label>
+
+</div>
+  </header>
+
+  <nav class="sheet-tabs tabs" data-group="primary">
+<a class="item {{tabs.primary.details.cssClass}}" data-group="primary" data-tab="details">{{localize "DDA.Label.Details"}}</a>
+<a class="item {{tabs.primary.tags.cssClass}}" data-group="primary" data-tab="tags">{{localize "DDA.AttackSheet.Tags"}}</a>
+<a class="item {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">{{localize "DDA.Label.Description"}}</a>
+  </nav>
+
+  <section class="sheet-body">
+    <section class="tab dda-attack-details-tab {{tabs.primary.details.cssClass}}" data-group="primary" data-tab="details">
+<h2>{{localize "DDA.AttackSheet.AttackData"}}</h2>
+
+      <div class="grid-2">
+        <div class="form-group">
+<label>{{localize "DDA.AttackSheet.RangeType"}}</label>
+          <select name="system.baseTags.rangeType">
+            <option value="melee" {{#if (eq system.baseTags.rangeType "melee")}}selected{{/if}}>{{localize "DDA.Attack.Range.Melee"}}</option>
+            <option value="range" {{#if (eq system.baseTags.rangeType "range")}}selected{{/if}}>{{localize "DDA.Attack.Range.Ranged"}}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.AttackSheet.Function"}}</label>
+          <select name="system.baseTags.functionType">
+            <option value="damage" {{#if (eq system.baseTags.functionType "damage")}}selected{{/if}}>{{localize "DDA.Attack.Function.Damage"}}</option>
+            <option value="support" {{#if (eq system.baseTags.functionType "support")}}selected{{/if}}>{{localize "DDA.Attack.Function.Support"}}</option>
+          </select>
+        </div>
+      </div>
+
+      <h3>{{localize "DDA.Attack.RangeValue"}}</h3>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>{{localize "DDA.Attack.RangeBase"}}</label>
+          <input type="number" name="system.range.value" value="{{system.range.value}}" />
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Attack.RangeBonus"}}</label>
+          <input type="number" name="system.range.bonus" value="{{system.range.bonus}}" />
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Attack.RangeQualityBonus"}}</label>
+          <input type="number" name="system.range.qualityBonus" value="{{system.range.qualityBonus}}" readonly />
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Attack.RangeTotal"}}</label>
+          <input type="number" value="{{system.range.total}}" readonly />
+        </div>
+      </div>
+
+      <h3>{{localize "DDA.Attack.EffectiveLimit"}}</h3>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>{{localize "DDA.Attack.EffectiveLimitBase"}}</label>
+          <input type="number" name="system.effectiveLimit.value" value="{{system.effectiveLimit.value}}" />
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Attack.EffectiveLimitBonus"}}</label>
+          <input type="number" name="system.effectiveLimit.bonus" value="{{system.effectiveLimit.bonus}}" />
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Attack.EffectiveLimitQualityBonus"}}</label>
+          <input type="number" name="system.effectiveLimit.qualityBonus" value="{{system.effectiveLimit.qualityBonus}}" readonly />
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Attack.EffectiveLimitTotal"}}</label>
+          <input type="number" value="{{system.effectiveLimit.total}}" readonly />
+        </div>
+      </div>
+      
+      <h3>{{localize "DDA.MainStat.Accuracy"}}</h3>
+
+      <div class="grid-2">
+        <div class="formula-builder" data-formula-builder data-formula-target="system.accuracy.baseFormula">
+          <div class="formula-builder-header">
+            <label>{{localize "DDA.Attack.Modifier.BaseFormula"}}</label>
+
+            <label class="formula-mode-toggle">
+              <input
+                type="checkbox"
+                name="system.accuracy.formulaAdvanced"
+                {{checked system.accuracy.formulaAdvanced}}
+              />
+              <span>{{localize "DDA.AttackSheet.Advanced"}}</span>
+            </label>
+          </div>
+
+          <div class="formula-basic-panel">
+            <select data-formula-preset>
+              <option value="@actor.mainStats.accuracy.total" {{#if (eq system.accuracy.baseFormula "@actor.mainStats.accuracy.total")}}selected{{/if}}>
+                {{localize "DDA.AttackSheet.Formula.Accuracy"}}
+              </option>
+
+              <option value="@actor.mainStats.damage.total" {{#if (eq system.accuracy.baseFormula "@actor.mainStats.damage.total")}}selected{{/if}}>
+                {{localize "DDA.AttackSheet.Formula.Damage"}}
+              </option>
+
+              <option value="@actor.mainStats.dodge.total" {{#if (eq system.accuracy.baseFormula "@actor.mainStats.dodge.total")}}selected{{/if}}>
+                {{localize "DDA.AttackSheet.Formula.Dodge"}}
+              </option>
+
+              <option value="@actor.mainStats.armor.total" {{#if (eq system.accuracy.baseFormula "@actor.mainStats.armor.total")}}selected{{/if}}>
+                {{localize "DDA.AttackSheet.Formula.Armor"}}
+              </option>
+
+              <option value="@actor.mainStats.health.total" {{#if (eq system.accuracy.baseFormula "@actor.mainStats.health.total")}}selected{{/if}}>
+                {{localize "DDA.AttackSheet.Formula.Health"}}
+              </option>
+
+              <option value="0" {{#if (eq system.accuracy.baseFormula "0")}}selected{{/if}}>
+                {{localize "DDA.AttackSheet.Formula.NoneZero"}}
+              </option>
+            </select>
+
+            <p class="formula-hint">
+              {{localize "DDA.AttackSheet.Hint.AccuracyFormula"}}
+            </p>
+          </div>
+
+          <div class="formula-advanced-panel">
+            <input
+              type="text"
+              name="system.accuracy.baseFormula"
+              value="{{system.accuracy.baseFormula}}"
+              placeholder="@actor.mainStats.accuracy.total"
+            />
+
+            <p class="formula-hint">
+              {{localize "DDA.AttackSheet.Hint.AdvancedFormula"}}
+            </p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Label.Bonus"}}</label>
+          <input type="number" name="system.accuracy.bonus" value="{{system.accuracy.bonus}}" />
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Pool.AutomaticSuccesses"}}</label>
+          <input type="number" name="system.accuracy.automaticSuccesses" value="{{system.accuracy.automaticSuccesses}}" />
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.AttackSheet.Display"}}</label>
+          <input type="text" name="system.accuracy.display" value="{{system.accuracy.display}}" placeholder="{{localize 'DDA.AttackSheet.DisplayPlaceholder'}}" />
+        </div>
+      </div>
+
+      <h3>{{localize "DDA.MainStat.Damage"}}</h3>
+
+      <div class="grid-2">
+        <label>
+          <input type="checkbox" name="system.damage.enabled" {{checked system.damage.enabled}} />
+          {{localize "DDA.AttackSheet.DealsDamage"}}
+        </label>
+
+            <div class="formula-builder" data-formula-builder data-formula-target="system.damage.baseFormula">
+              <div class="formula-builder-header">
+                <label>{{localize "DDA.Attack.Modifier.BaseFormula"}}</label>
+
+                <label class="formula-mode-toggle">
+                  <input
+                    type="checkbox"
+                    name="system.damage.formulaAdvanced"
+                    {{checked system.damage.formulaAdvanced}}
+                  />
+                  <span>{{localize "DDA.AttackSheet.Advanced"}}</span>
+                </label>
+              </div>
+
+              <div class="formula-basic-panel">
+                <select data-formula-preset>
+                  <option value="@actor.mainStats.damage.total" {{#if (eq system.damage.baseFormula "@actor.mainStats.damage.total")}}selected{{/if}}>
+                    {{localize "DDA.AttackSheet.Formula.Damage"}}
+                  </option>
+
+                  <option value="@actor.mainStats.accuracy.total" {{#if (eq system.damage.baseFormula "@actor.mainStats.accuracy.total")}}selected{{/if}}>
+                    {{localize "DDA.AttackSheet.Formula.Accuracy"}}
+                  </option>
+
+                  <option value="@actor.mainStats.dodge.total" {{#if (eq system.damage.baseFormula "@actor.mainStats.dodge.total")}}selected{{/if}}>
+                    {{localize "DDA.AttackSheet.Formula.Dodge"}}
+                  </option>
+
+                  <option value="@actor.mainStats.armor.total" {{#if (eq system.damage.baseFormula "@actor.mainStats.armor.total")}}selected{{/if}}>
+                    {{localize "DDA.AttackSheet.Formula.Armor"}}
+                  </option>
+
+                  <option value="@actor.mainStats.health.total" {{#if (eq system.damage.baseFormula "@actor.mainStats.health.total")}}selected{{/if}}>
+                    {{localize "DDA.AttackSheet.Formula.Health"}}
+                  </option>
+
+                  <option value="0" {{#if (eq system.damage.baseFormula "0")}}selected{{/if}}>
+                    {{localize "DDA.AttackSheet.Formula.NoneZero"}}
+                  </option>
+                </select>
+
+                <p class="formula-hint">
+                  {{localize "DDA.AttackSheet.Hint.DamageFormula"}}
+                </p>
+              </div>
+
+              <div class="formula-advanced-panel">
+                <input
+                  type="text"
+                  name="system.damage.baseFormula"
+                  value="{{system.damage.baseFormula}}"
+                  placeholder="@actor.mainStats.damage.total"
+                />
+
+                <p class="formula-hint">
+                  {{localize "DDA.AttackSheet.Hint.AdvancedFormula"}}
+                </p>
+              </div>
+            </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Label.Bonus"}}</label>
+          <input type="number" name="system.damage.bonus" value="{{system.damage.bonus}}" />
+        </div>
+
+        <div class="form-group">
+          <label>{{localize "DDA.Attack.AttackUnalterableDamage"}}</label>
+          <input type="number" name="system.damage.unalterable" value="{{system.damage.unalterable}}" />
+        </div>
+      </div>
+
+<h3>{{localize "DDA.Attack.ActionCost"}}</h3>
+
+<div class="grid-2">
+  <div class="form-group">
+    <label>{{localize "DDA.Resource.Actions"}}</label>
+    <input type="number" name="system.actionCost.value" value="{{system.actionCost.value}}" />
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DDA.AttackSheet.ExtraActions"}}</label>
+    <input type="number" name="system.actionCost.extra" value="{{system.actionCost.extra}}" />
+  </div>
+
+  <h3>{{localize "DDA.Attack.AppliedQualities"}}</h3>
+
+<div class="applied-qualities-panel">
+  {{#if appliedQualities.length}}
+    <div class="applied-quality-list">
+      {{#each appliedQualities as |quality|}}
+      <div class="applied-quality-row">
+        <strong>{{quality.name}}</strong>
+
+        <div class="applied-quality-tags">
+          {{#if quality.appliesToLabel}}
+          <span>{{quality.appliesToLabel}}</span>
+          {{/if}}
+
+          {{#if quality.accuracyBonus}}
+          <span>{{localize "DDA.MainStat.Accuracy"}} +{{quality.accuracyBonus}}</span>
+          {{/if}}
+
+          {{#if quality.damageBonus}}
+          <span>{{localize "DDA.MainStat.Damage"}} +{{quality.damageBonus}}</span>
+          {{/if}}
+
+          {{#if quality.unalterableDamage}}
+          <span>{{localize "DDA.AttackSheet.UnalterableDamageShort"}} +{{quality.unalterableDamage}}</span>
+          {{/if}}
+
+{{#if quality.effectTagLabel}}
+<span>{{quality.effectTagLabel}}</span>
+{{/if}}
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  {{else}}
+    <p class="muted">{{localize "DDA.AttackSheet.NoAppliedQualities"}}</p>
+  {{/if}}
+</div>
+
+      </div>
+    </section>
+
+    <section class="tab dda-attack-tags-tab {{tabs.primary.tags.cssClass}}" data-group="primary" data-tab="tags">
+      <h2>{{localize "DDA.AttackSheet.Tags"}}</h2>
+
+      <div class="form-group">
+        <label>{{localize "DDA.AttackSheet.EffectTag"}}</label>
+        <select name="system.effectTag.tag">
+          <option value="">{{localize "DDA.Label.None"}}</option>
+          {{#each config.effectTags as |label key|}}
+          <option value="{{key}}" {{#if (eq ../system.effectTag.tag key)}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </div>
+
+      <label>
+        <input type="checkbox" name="system.effectTag.enabled" {{checked system.effectTag.enabled}} />
+        {{localize "DDA.AttackSheet.HasEffectTag"}}
+      </label>
+
+<div class="grid-2">
+  <div class="form-group">
+    <label>{{localize "DDA.AttackSheet.EffectTypeLabel"}}</label>
+    <select name="system.effectTag.type">
+      <option value="">{{localize "DDA.Label.None"}}</option>
+<option value="negative" {{#if (eq system.effectTag.type "negative")}}selected{{/if}}>{{localize "DDA.AttackSheet.EffectType.Negative"}}</option>
+<option value="positive" {{#if (eq system.effectTag.type "positive")}}selected{{/if}}>{{localize "DDA.AttackSheet.EffectType.Positive"}}</option>
+<option value="damage" {{#if (eq system.effectTag.type "damage")}}selected{{/if}}>{{localize "DDA.Attack.Function.Damage"}}</option>
+<option value="unique" {{#if (eq system.effectTag.type "unique")}}selected{{/if}}>{{localize "DDA.AttackSheet.EffectType.Unique"}}</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+<label>{{localize "DDA.AttackSheet.PotencyStat"}}</label>
+    <select name="system.effectTag.potencyStat">
+      <option value="">{{localize "DDA.Label.None"}}</option>
+      <option value="bit" {{#if (eq system.effectTag.potencyStat "bit")}}selected{{/if}}>BIT</option>
+      <option value="dos" {{#if (eq system.effectTag.potencyStat "dos")}}selected{{/if}}>DOS</option>
+      <option value="ram" {{#if (eq system.effectTag.potencyStat "ram")}}selected{{/if}}>RAM</option>
+      <option value="cpu" {{#if (eq system.effectTag.potencyStat "cpu")}}selected{{/if}}>CPU</option>
+    </select>
+  </div>
+</div>
+
+      <h3>{{localize "DDA.AttackSheet.QualityTagLimit"}}</h3>
+
+      <div class="resource-grid">
+        <div class="resource-box">
+          <label>{{localize "DDA.Label.Current"}}</label>
+          <input type="number" name="system.qualityTagLimit.count" value="{{system.qualityTagLimit.count}}" readonly />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.Label.Maximum"}}</label>
+          <input type="number" name="system.qualityTagLimit.max" value="{{system.qualityTagLimit.max}}" />
+        </div>
+      </div>
+
+      <p class="muted">{{localize "DDA.AttackSheet.QualityTagLimitHint"}}</p>
+    </section>
+
+    <section class="tab dda-attack-notes-tab {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">
+      <h2>{{localize "DDA.Label.Description"}}</h2>
+      <textarea name="system.description">{{system.description}}</textarea>
+
+      <h2>{{localize "DDA.TamerSheet.Notes"}}</h2>
+      <textarea name="system.notes">{{system.notes}}</textarea>
+    </section>
+  </section>
+</section>

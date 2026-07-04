@@ -1,0 +1,4951 @@
+/* ===================================================== */
+/* DDA — Chat Cards                                      */
+/* Arquivo isolado para cards e casca de mensagens no chat. */
+/* Mantém fora de dda.css para evitar conflito com fichas, */
+/* diálogos, compêndios e outros layouts do sistema.      */
+/* ===================================================== */
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 297-331       */
+/* ===================================================== */
+.dda-chat-card {
+  border: 1px solid #888;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.dda-chat-card h2 {
+  margin-top: 0;
+}
+
+.dda-dice-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.dda-die {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.dda-die.success {
+  background: rgba(0, 128, 0, 0.2);
+}
+
+.dda-die.failure {
+  background: rgba(128, 0, 0, 0.12);
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 510-529       */
+/* ===================================================== */
+.dda-chat-card .dda-encounter-enemy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dda-chat-card .dda-encounter-enemy-row {
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.dda-chat-card .dda-encounter-enemy-row h4 {
+  margin: 0 0 0.35rem 0;
+}
+
+.dda-chat-card .dda-encounter-enemy-row p {
+  margin: 0.15rem 0;
+}
+/* ----------------------------------------- */
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 4100-4285       */
+/* ===================================================== */
+/* DDA — Chat Card: Rolagem de Atributo                  */
+/* ===================================================== */
+
+.chat-message .dda-chat-card.dda-pool-card {
+  position: relative;
+  overflow: hidden;
+
+  padding: 0.75rem;
+  margin: 0.15rem 0;
+
+  color: #eaf8ff;
+
+  background:
+    radial-gradient(circle at top left, rgba(95, 195, 255, 0.22), transparent 36%),
+    linear-gradient(180deg, rgba(8, 42, 75, 0.98), rgba(3, 20, 42, 0.98));
+
+  border: 1px solid rgba(120, 210, 255, 0.48);
+  border-radius: 10px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -12px 20px rgba(0, 120, 210, 0.10),
+    0 3px 10px rgba(0, 0, 0, 0.24);
+}
+
+.chat-message .dda-chat-card.dda-pool-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  pointer-events: none;
+
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(130, 220, 255, 0.045) 0,
+      rgba(130, 220, 255, 0.045) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+}
+
+/* Título */
+.chat-message .dda-pool-card h2 {
+  position: relative;
+
+  margin: 0 0 0.65rem;
+  padding: 0.5rem 0.65rem;
+
+  color: #f4fbff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  background:
+    linear-gradient(90deg, rgba(5, 28, 55, 0.98), rgba(10, 70, 120, 0.82));
+
+  border: 1px solid rgba(105, 190, 245, 0.44);
+  border-radius: 7px;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(180, 235, 255, 0.08),
+    0 2px 7px rgba(0, 0, 0, 0.16);
+}
+
+/* Textos */
+.chat-message .dda-pool-card p {
+  position: relative;
+
+  margin: 0.4rem 0;
+  padding: 0.35rem 0.5rem;
+
+  color: #dcefff;
+  font-size: 0.86rem;
+  line-height: 1.35;
+
+  background: rgba(0, 10, 20, 0.18);
+  border: 1px solid rgba(150, 225, 255, 0.12);
+  border-radius: 6px;
+}
+
+.chat-message .dda-pool-card strong {
+  color: #ffffff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+/* Área dos dados */
+.chat-message .dda-pool-card .dda-dice-results {
+  position: relative;
+
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+
+  margin: 0.75rem 0;
+  padding: 0.65rem;
+
+  background: rgba(0, 10, 20, 0.24);
+  border: 1px solid rgba(150, 225, 255, 0.18);
+  border-radius: 8px;
+}
+
+/* Dado individual */
+.chat-message .dda-pool-card .dda-die {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0.2rem 0.35rem;
+
+  color: #f3fbff;
+  font-family: "Reactor7", monospace;
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1;
+
+  background:
+    linear-gradient(180deg, rgba(235, 247, 255, 0.18), rgba(90, 160, 210, 0.16));
+
+  border: 1px solid rgba(150, 225, 255, 0.38);
+  border-radius: 7px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -6px 10px rgba(0, 0, 0, 0.18);
+}
+
+/* Sucesso: 5 ou 6 */
+.chat-message .dda-pool-card .dda-die.success {
+  color: #ffffff;
+
+  background:
+    linear-gradient(180deg, rgba(32, 145, 220, 0.96), rgba(8, 70, 125, 0.96));
+
+  border-color: rgba(180, 240, 255, 0.70);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -6px 10px rgba(0, 80, 150, 0.18),
+    0 0 8px rgba(80, 190, 255, 0.28);
+}
+
+/* Falha: 1 a 4 */
+.chat-message .dda-pool-card .dda-die.failure {
+  color: rgba(230, 242, 250, 0.82);
+
+  background:
+    linear-gradient(180deg, rgba(35, 52, 72, 0.96), rgba(10, 18, 32, 0.96));
+
+  border-color: rgba(110, 150, 180, 0.36);
+}
+
+/* Total de sucessos */
+.chat-message .dda-pool-card h3 {
+  position: relative;
+
+  margin: 0.7rem 0 0;
+  padding: 0.55rem 0.65rem;
+
+  color: #ffffff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+  text-align: center;
+
+  background:
+    linear-gradient(180deg, rgba(18, 92, 145, 0.98), rgba(6, 43, 78, 0.98));
+
+  border: 1px solid rgba(170, 235, 255, 0.66);
+  border-radius: 7px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -8px 14px rgba(0, 150, 230, 0.16),
+    0 0 10px rgba(80, 190, 255, 0.22);
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 4548-4690       */
+/* ===================================================== */
+/* ===================================================== */
+/* DDA — Chat Card: Ataque                               */
+/* ===================================================== */
+
+.chat-message .dda-chat-card.dda-attack-card {
+  position: relative;
+  overflow: hidden;
+
+  padding: 0.75rem;
+  margin: 0.15rem 0;
+
+  color: #eaf8ff;
+
+  background:
+    radial-gradient(circle at top left, rgba(95, 195, 255, 0.20), transparent 36%),
+    linear-gradient(180deg, rgba(8, 42, 75, 0.98), rgba(3, 20, 42, 0.98));
+
+  border: 1px solid rgba(120, 210, 255, 0.48);
+  border-radius: 10px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -12px 20px rgba(0,120,210,0.10),
+    0 3px 10px rgba(0,0,0,0.24);
+}
+
+.chat-message .dda-attack-card.hit {
+  border-color: rgba(120, 235, 255, 0.68);
+}
+
+.chat-message .dda-attack-card.miss {
+  border-color: rgba(150, 170, 190, 0.45);
+  filter: saturate(0.85);
+}
+
+.chat-message .dda-attack-card h2 {
+  margin: 0 0 0.65rem;
+  padding: 0.5rem 0.65rem;
+
+  color: #f4fbff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  background:
+    linear-gradient(90deg, rgba(5, 28, 55, 0.98), rgba(10, 70, 120, 0.82));
+
+  border: 1px solid rgba(105, 190, 245, 0.44);
+  border-radius: 7px;
+}
+
+.chat-message .dda-attack-card p {
+  margin: 0.35rem 0;
+  padding: 0.35rem 0.5rem;
+
+  color: #dcefff;
+  font-size: 0.86rem;
+  line-height: 1.35;
+
+  background: rgba(0, 10, 20, 0.18);
+  border: 1px solid rgba(150, 225, 255, 0.12);
+  border-radius: 6px;
+}
+
+.chat-message .dda-attack-card strong {
+  color: #ffffff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.chat-message .dda-attack-card h3 {
+  margin: 0.7rem 0 0.45rem;
+  padding: 0.55rem 0.65rem;
+
+  color: #ffffff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+  text-align: center;
+
+  background:
+    linear-gradient(180deg, rgba(18, 92, 145, 0.98), rgba(6, 43, 78, 0.98));
+
+  border: 1px solid rgba(170, 235, 255, 0.66);
+  border-radius: 7px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -8px 14px rgba(0,150,230,0.16),
+    0 0 10px rgba(80,190,255,0.22);
+}
+
+.chat-message .dda-attack-card.miss h3 {
+  background:
+    linear-gradient(180deg, rgba(65, 78, 92, 0.98), rgba(24, 32, 44, 0.98));
+
+  border-color: rgba(160, 180, 200, 0.42);
+}
+
+.chat-message .dda-attack-card hr {
+  height: 1px;
+  margin: 0.65rem 0;
+
+  background: linear-gradient(90deg, transparent, rgba(150, 225, 255, 0.48), transparent);
+  border: none;
+}
+
+.chat-message .dda-attack-card .dda-apply-damage {
+  width: 100%;
+  min-height: 36px;
+  margin-top: 0.65rem;
+
+  color: #ffffff !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 0.9rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+
+  background:
+    linear-gradient(180deg, rgba(140, 44, 52, 0.98), rgba(70, 14, 24, 0.98)) !important;
+
+  border: 1px solid rgba(255, 170, 180, 0.58) !important;
+  border-radius: 7px !important;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -8px 14px rgba(255,80,100,0.12),
+    0 0 10px rgba(255,90,110,0.22) !important;
+}
+
+.chat-message .dda-attack-card .dda-apply-damage:hover {
+  background:
+    linear-gradient(180deg, rgba(176, 55, 66, 0.98), rgba(92, 18, 31, 0.98)) !important;
+
+  border-color: rgba(255, 205, 210, 0.75) !important;
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 4717-4865       */
+/* ===================================================== */
+/* ===================================================== */
+/* DDA — Chat Card: Tormento                             */
+/* ===================================================== */
+
+.chat-message .dda-chat-card.dda-torment-card {
+  position: relative;
+  overflow: hidden;
+
+  padding: 0.75rem;
+  margin: 0.15rem 0;
+
+  color: #eaf8ff;
+
+  background:
+    radial-gradient(circle at top left, rgba(145, 95, 255, 0.18), transparent 36%),
+    linear-gradient(180deg, rgba(8, 42, 75, 0.98), rgba(3, 20, 42, 0.98));
+
+  border: 1px solid rgba(150, 135, 255, 0.46);
+  border-radius: 10px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -12px 20px rgba(80,60,180,0.12),
+    0 3px 10px rgba(0,0,0,0.24);
+}
+
+.chat-message .dda-torment-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(170, 150, 255, 0.045) 0,
+      rgba(170, 150, 255, 0.045) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+}
+
+.chat-message .dda-torment-card h2 {
+  position: relative;
+
+  margin: 0 0 0.65rem;
+  padding: 0.5rem 0.65rem;
+
+  color: #f8f5ff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  background:
+    linear-gradient(90deg, rgba(22, 18, 58, 0.98), rgba(55, 44, 115, 0.86));
+
+  border: 1px solid rgba(180, 165, 255, 0.46);
+  border-radius: 7px;
+}
+
+.chat-message .dda-torment-card p {
+  position: relative;
+
+  margin: 0.35rem 0;
+  padding: 0.35rem 0.5rem;
+
+  color: #e9e6ff;
+  font-size: 0.86rem;
+  line-height: 1.35;
+
+  background: rgba(0, 10, 20, 0.18);
+  border: 1px solid rgba(180, 165, 255, 0.14);
+  border-radius: 6px;
+}
+
+.chat-message .dda-torment-card strong {
+  color: #ffffff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.chat-message .dda-torment-card h3 {
+  position: relative;
+
+  margin: 0.7rem 0 0.45rem;
+  padding: 0.55rem 0.65rem;
+
+  color: #ffffff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+  text-align: center;
+
+  background:
+    linear-gradient(180deg, rgba(72, 48, 155, 0.98), rgba(32, 20, 78, 0.98));
+
+  border: 1px solid rgba(190, 175, 255, 0.66);
+  border-radius: 7px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -8px 14px rgba(95,80,210,0.16),
+    0 0 10px rgba(145,120,255,0.22);
+}
+
+.chat-message .dda-torment-card hr {
+  position: relative;
+
+  height: 1px;
+  margin: 0.65rem 0;
+
+  background: linear-gradient(90deg, transparent, rgba(190, 175, 255, 0.48), transparent);
+  border: none;
+}
+
+/* Resultado positivo */
+.chat-message .dda-torment-card.success h3,
+.chat-message .dda-torment-card.criticalSuccess h3 {
+  background:
+    linear-gradient(180deg, rgba(25, 125, 150, 0.98), rgba(8, 62, 88, 0.98));
+
+  border-color: rgba(160, 240, 255, 0.68);
+}
+
+/* Resultado negativo */
+.chat-message .dda-torment-card.failure h3,
+.chat-message .dda-torment-card.criticalFailure h3,
+.chat-message .dda-torment-card.severeCriticalFailure h3 {
+  background:
+    linear-gradient(180deg, rgba(125, 38, 70, 0.98), rgba(52, 14, 36, 0.98));
+
+  border-color: rgba(255, 155, 190, 0.62);
+}
+
+/* Falha crítica severa: mais agressiva */
+.chat-message .dda-torment-card.severeCriticalFailure {
+  border-color: rgba(255, 130, 180, 0.62);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -12px 20px rgba(160,40,90,0.16),
+    0 0 12px rgba(255,80,140,0.18);
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 4866-4968       */
+/* ===================================================== */
+/* ===================================================== */
+/* DDA — Chat Card: Recuperação Pós-Combate              */
+/* ===================================================== */
+
+.chat-message .dda-chat-card.dda-recovery-card {
+  position: relative;
+  overflow: hidden;
+
+  padding: 0.75rem;
+  margin: 0.15rem 0;
+
+  color: #eaf8ff;
+
+  background:
+    radial-gradient(circle at top left, rgba(95, 255, 195, 0.18), transparent 36%),
+    linear-gradient(180deg, rgba(7, 50, 58, 0.98), rgba(3, 26, 36, 0.98));
+
+  border: 1px solid rgba(120, 255, 220, 0.44);
+  border-radius: 10px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -12px 20px rgba(0,180,140,0.10),
+    0 3px 10px rgba(0,0,0,0.24);
+}
+
+.chat-message .dda-recovery-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(140, 255, 220, 0.045) 0,
+      rgba(140, 255, 220, 0.045) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+}
+
+.chat-message .dda-recovery-card h2 {
+  position: relative;
+
+  margin: 0 0 0.65rem;
+  padding: 0.5rem 0.65rem;
+
+  color: #f3fffb;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  background:
+    linear-gradient(90deg, rgba(5, 52, 62, 0.98), rgba(12, 95, 105, 0.86));
+
+  border: 1px solid rgba(130, 255, 225, 0.44);
+  border-radius: 7px;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(200, 255, 245, 0.08),
+    0 2px 7px rgba(0,0,0,0.16);
+}
+
+.chat-message .dda-recovery-card p {
+  position: relative;
+
+  margin: 0.35rem 0;
+  padding: 0.35rem 0.5rem;
+
+  color: #e0fff7;
+  font-size: 0.86rem;
+  line-height: 1.35;
+
+  background: rgba(0, 16, 20, 0.22);
+  border: 1px solid rgba(140, 255, 220, 0.14);
+  border-radius: 6px;
+}
+
+.chat-message .dda-recovery-card strong {
+  color: #ffffff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+/* Última linha do card, normalmente Saúde atualizada */
+.chat-message .dda-recovery-card p:last-child {
+  color: #ffffff;
+
+  background:
+    linear-gradient(180deg, rgba(20, 135, 115, 0.98), rgba(8, 72, 68, 0.98));
+
+  border-color: rgba(165, 255, 230, 0.58);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 -8px 14px rgba(0,180,140,0.12),
+    0 0 9px rgba(80,255,205,0.16);
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 4969-4993       */
+/* ===================================================== */
+/* ===================================================== */
+/* DDA — Chat Card: Esquiva                              */
+/* ===================================================== */
+
+.chat-message .dda-chat-card.dda-pool-card.dda-pool-dodge {
+  background:
+    radial-gradient(circle at top left, rgba(95, 210, 255, 0.22), transparent 36%),
+    linear-gradient(180deg, rgba(7, 48, 82, 0.98), rgba(3, 20, 42, 0.98));
+
+  border-color: rgba(135, 220, 255, 0.58);
+}
+
+.chat-message .dda-pool-card.dda-pool-dodge h2 {
+  background:
+    linear-gradient(90deg, rgba(5, 32, 62, 0.98), rgba(12, 88, 135, 0.86));
+
+  border-color: rgba(140, 220, 255, 0.52);
+}
+
+.chat-message .dda-pool-card.dda-pool-dodge h3 {
+  background:
+    linear-gradient(180deg, rgba(22, 112, 165, 0.98), rgba(6, 50, 88, 0.98));
+
+  border-color: rgba(170, 235, 255, 0.70);
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 4994-5096       */
+/* ===================================================== */
+/* ===================================================== */
+/* DDA — Chat Card: Energizar                            */
+/* ===================================================== */
+
+.chat-message .dda-chat-card.dda-energize-card {
+  position: relative;
+  overflow: hidden;
+
+  padding: 0.75rem;
+  margin: 0.15rem 0;
+
+  color: #fff8df;
+
+  background:
+    radial-gradient(circle at top left, rgba(255, 220, 95, 0.26), transparent 36%),
+    linear-gradient(180deg, rgba(82, 54, 7, 0.98), rgba(34, 22, 3, 0.98));
+
+  border: 1px solid rgba(255, 215, 120, 0.55);
+  border-radius: 10px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -12px 20px rgba(255,170,0,0.12),
+    0 3px 10px rgba(0,0,0,0.24);
+}
+
+.chat-message .dda-energize-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 230, 140, 0.055) 0,
+      rgba(255, 230, 140, 0.055) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+}
+
+.chat-message .dda-energize-card h2 {
+  position: relative;
+
+  margin: 0 0 0.65rem;
+  padding: 0.5rem 0.65rem;
+
+  color: #fff9e8;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  background:
+    linear-gradient(90deg, rgba(95, 58, 5, 0.98), rgba(155, 105, 16, 0.88));
+
+  border: 1px solid rgba(255, 220, 125, 0.52);
+  border-radius: 7px;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 245, 200, 0.10),
+    0 2px 7px rgba(0,0,0,0.16);
+}
+
+.chat-message .dda-energize-card p {
+  position: relative;
+
+  margin: 0.35rem 0;
+  padding: 0.4rem 0.55rem;
+
+  color: #fff2c7;
+  font-size: 0.86rem;
+  line-height: 1.35;
+
+  background: rgba(20, 12, 0, 0.28);
+  border: 1px solid rgba(255, 220, 125, 0.18);
+  border-radius: 6px;
+}
+
+.chat-message .dda-energize-card strong {
+  color: #ffffff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+/* Linha principal: +1 Bateria */
+.chat-message .dda-energize-card p:last-child {
+  color: #ffffff;
+
+  background:
+    linear-gradient(180deg, rgba(190, 125, 15, 0.98), rgba(98, 56, 5, 0.98));
+
+  border-color: rgba(255, 230, 145, 0.62);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -8px 14px rgba(255,170,0,0.14),
+    0 0 10px rgba(255,190,60,0.22);
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 5097-5216       */
+/* ===================================================== */
+/* ===================================================== */
+/* DDA — Card de Chat: Fim do Turno                      */
+/* ===================================================== */
+
+.chat-message .dda-chat-card.dda-end-turn-card {
+  position: relative;
+  overflow: hidden;
+
+  padding: 0.75rem;
+  margin: 0.15rem 0;
+
+  color: #eaf8ff;
+
+  background:
+    radial-gradient(circle at top left, rgba(120, 180, 255, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(8, 42, 75, 0.98), rgba(3, 20, 42, 0.98));
+
+  border: 1px solid rgba(120, 190, 255, 0.42);
+  border-radius: 10px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -12px 20px rgba(0,100,210,0.10),
+    0 3px 10px rgba(0,0,0,0.24);
+}
+
+.chat-message .dda-chat-card.dda-end-turn-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(130, 200, 255, 0.04) 0,
+      rgba(130, 200, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+}
+
+.chat-message .dda-chat-card.dda-end-turn-card h2 {
+  margin: 0 0 0.65rem;
+  padding: 0.5rem 0.65rem;
+
+  color: #f4fbff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  background:
+    linear-gradient(90deg, rgba(5, 28, 55, 0.98), rgba(10, 70, 120, 0.84));
+
+  border: 1px solid rgba(105, 190, 245, 0.42);
+  border-radius: 7px;
+}
+
+.chat-message .dda-chat-card.dda-end-turn-card p {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.6rem;
+
+  color: #dcefff;
+  font-size: 0.86rem;
+  line-height: 1.35;
+
+  background: rgba(0, 10, 20, 0.22);
+  border: 1px solid rgba(150, 225, 255, 0.14);
+  border-radius: 6px;
+}
+
+.chat-message .dda-chat-card.dda-end-turn-card strong {
+  color: #ffffff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.chat-message .dda-chat-card.dda-end-turn-card .dda-end-turn-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.chat-message .dda-chat-card.dda-end-turn-card .dda-end-turn-list li {
+  padding: 0.45rem 0.6rem;
+
+  color: #e4f4ff;
+  font-size: 0.84rem;
+  line-height: 1.35;
+
+  background:
+    linear-gradient(180deg, rgba(9, 26, 46, 0.92), rgba(5, 16, 30, 0.92));
+
+  border: 1px solid rgba(132, 205, 255, 0.18);
+  border-radius: 6px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+/* Destaque opcional na última linha (bateria) */
+.chat-message .dda-chat-card.dda-end-turn-card .dda-end-turn-list li:last-child {
+  background:
+    linear-gradient(180deg, rgba(18, 92, 145, 0.98), rgba(6, 43, 78, 0.98));
+
+  border-color: rgba(170, 235, 255, 0.48);
+  color: #ffffff;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -8px 14px rgba(0,150,230,0.14),
+    0 0 9px rgba(80,190,255,0.12);
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 6809-7851       */
+/* ===================================================== */
+/* DDA — Chat Cards de Efeito: base universal */
+
+.dda-chat-card.dda-effect-card {
+  padding: 0.65rem !important;
+  color: #e9fbff !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(150, 220, 245, 0.34) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 2px 8px rgba(0, 0, 0, 0.25) !important;
+}
+
+.dda-chat-card.dda-effect-card h2 {
+  margin: 0 0 0.55rem !important;
+  padding: 0.45rem 0.55rem !important;
+
+  color: #ffffff !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 1rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0.05em !important;
+
+  border-radius: 7px !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
+
+.dda-chat-card.dda-effect-card p,
+.dda-chat-card.dda-effect-card .dda-effect-list > li {
+  margin: 0 0 0.35rem !important;
+  padding: 0.45rem 0.55rem !important;
+
+  color: #d9f2fb !important;
+  font-size: 0.76rem !important;
+  line-height: 1.35 !important;
+
+  background: rgba(0, 14, 28, 0.36) !important;
+  border: 1px solid rgba(150, 230, 230, 0.18) !important;
+  border-radius: 7px !important;
+}
+
+.dda-chat-card.dda-effect-card strong {
+  color: #ffffff !important;
+}
+
+.dda-chat-card.dda-effect-card .dda-effect-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.35rem !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  list-style: none !important;
+}
+/* Positivo / Suporte */
+.dda-chat-card.dda-effect-card.effect-positive {
+  background:
+    radial-gradient(circle at top right, rgba(100, 230, 210, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(5, 50, 58, 0.98), rgba(3, 22, 38, 0.98)) !important;
+
+  border-color: rgba(120, 230, 215, 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-positive h2 {
+  background: linear-gradient(180deg, rgba(10, 88, 92, 0.95), rgba(5, 50, 66, 0.95)) !important;
+  border-color: rgba(145, 240, 225, 0.32) !important;
+}
+
+/* Dano / Negativo */
+.dda-chat-card.dda-effect-card.effect-negative {
+  background:
+    radial-gradient(circle at top right, rgba(255, 100, 135, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(72, 22, 38, 0.98), rgba(32, 8, 22, 0.98)) !important;
+
+  border-color: rgba(255, 130, 160, 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-negative h2 {
+  background: linear-gradient(180deg, rgba(118, 30, 52, 0.95), rgba(68, 14, 34, 0.95)) !important;
+  border-color: rgba(255, 150, 175, 0.32) !important;
+}
+
+/* Controle de Ações */
+.dda-chat-card.dda-effect-card.effect-control {
+  background:
+    radial-gradient(circle at top right, rgba(255, 205, 90, 0.15), transparent 42%),
+    linear-gradient(180deg, rgba(78, 58, 10, 0.98), rgba(34, 24, 4, 0.98)) !important;
+
+  border-color: rgba(255, 220, 130, 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-control h2 {
+  background: linear-gradient(180deg, rgba(130, 88, 18, 0.95), rgba(78, 46, 6, 0.95)) !important;
+  border-color: rgba(255, 220, 130, 0.32) !important;
+}
+
+/* Penalidades */
+.dda-chat-card.dda-effect-card.effect-penalty {
+  background:
+    radial-gradient(circle at top right, rgba(150, 120, 255, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(42, 32, 76, 0.98), rgba(18, 14, 42, 0.98)) !important;
+
+  border-color: rgba(175, 150, 255, 0.40) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-penalty h2 {
+  background: linear-gradient(180deg, rgba(70, 52, 130, 0.95), rgba(38, 28, 82, 0.95)) !important;
+  border-color: rgba(185, 165, 255, 0.32) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Cards de Efeito: base universal            */
+/* ===================================================== */
+
+.chat-message .dda-chat-card.dda-effect-card,
+.dice-roll .dda-chat-card.dda-effect-card,
+.dda-chat-card.dda-effect-card {
+  padding: 0.65rem !important;
+  color: #e9fbff !important;
+
+  border-radius: 10px !important;
+  border: 1px solid rgba(150, 220, 245, 0.34) !important;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 2px 8px rgba(0, 0, 0, 0.25) !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card h2,
+.dice-roll .dda-chat-card.dda-effect-card h2,
+.dda-chat-card.dda-effect-card h2 {
+  margin: 0 0 0.55rem !important;
+  padding: 0.45rem 0.55rem !important;
+
+  color: #ffffff !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 1rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0.05em !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 7px !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card p,
+.chat-message .dda-chat-card.dda-effect-card .dda-effect-list > li,
+.dice-roll .dda-chat-card.dda-effect-card p,
+.dice-roll .dda-chat-card.dda-effect-card .dda-effect-list > li,
+.dda-chat-card.dda-effect-card p,
+.dda-chat-card.dda-effect-card .dda-effect-list > li {
+  margin: 0 0 0.35rem !important;
+  padding: 0.45rem 0.55rem !important;
+
+  color: #d9f2fb !important;
+  font-size: 0.76rem !important;
+  line-height: 1.35 !important;
+
+  background: rgba(0, 14, 28, 0.36) !important;
+  border: 1px solid rgba(150, 230, 230, 0.18) !important;
+  border-radius: 7px !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card strong,
+.dice-roll .dda-chat-card.dda-effect-card strong,
+.dda-chat-card.dda-effect-card strong {
+  color: #ffffff !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card .dda-effect-list,
+.dice-roll .dda-chat-card.dda-effect-card .dda-effect-list,
+.dda-chat-card.dda-effect-card .dda-effect-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.35rem !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  list-style: none !important;
+}
+
+/* Positivo / Suporte — verde petróleo */
+.chat-message .dda-chat-card.dda-effect-card.effect-positive,
+.dice-roll .dda-chat-card.dda-effect-card.effect-positive,
+.dda-chat-card.dda-effect-card.effect-positive {
+  background:
+    radial-gradient(circle at top right, rgba(100, 230, 210, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(5, 50, 58, 0.98), rgba(3, 22, 38, 0.98)) !important;
+
+  border-color: rgba(120, 230, 215, 0.42) !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card.effect-positive h2,
+.dice-roll .dda-chat-card.dda-effect-card.effect-positive h2,
+.dda-chat-card.dda-effect-card.effect-positive h2 {
+  background:
+    linear-gradient(180deg, rgba(10, 88, 92, 0.95), rgba(5, 50, 66, 0.95)) !important;
+
+  border-color: rgba(145, 240, 225, 0.32) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Cards de Efeito: base universal            */
+/* ===================================================== */
+
+.chat-message .dda-chat-card.dda-effect-card,
+.dice-roll .dda-chat-card.dda-effect-card,
+.dda-chat-card.dda-effect-card {
+  padding: 0.65rem !important;
+  color: #e9fbff !important;
+
+  border-radius: 10px !important;
+  border: 1px solid rgba(150, 220, 245, 0.34) !important;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 2px 8px rgba(0, 0, 0, 0.25) !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card h2,
+.dice-roll .dda-chat-card.dda-effect-card h2,
+.dda-chat-card.dda-effect-card h2 {
+  margin: 0 0 0.55rem !important;
+  padding: 0.45rem 0.55rem !important;
+
+  color: #ffffff !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 1rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0.05em !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 7px !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card p,
+.chat-message .dda-chat-card.dda-effect-card .dda-effect-list > li,
+.dice-roll .dda-chat-card.dda-effect-card p,
+.dice-roll .dda-chat-card.dda-effect-card .dda-effect-list > li,
+.dda-chat-card.dda-effect-card p,
+.dda-chat-card.dda-effect-card .dda-effect-list > li {
+  margin: 0 0 0.35rem !important;
+  padding: 0.45rem 0.55rem !important;
+
+  color: #d9f2fb !important;
+  font-size: 0.76rem !important;
+  line-height: 1.35 !important;
+
+  background: rgba(0, 14, 28, 0.36) !important;
+  border: 1px solid rgba(150, 230, 230, 0.18) !important;
+  border-radius: 7px !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card strong,
+.dice-roll .dda-chat-card.dda-effect-card strong,
+.dda-chat-card.dda-effect-card strong {
+  color: #ffffff !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card .dda-effect-list,
+.dice-roll .dda-chat-card.dda-effect-card .dda-effect-list,
+.dda-chat-card.dda-effect-card .dda-effect-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.35rem !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  list-style: none !important;
+}
+
+/* Positivo / Suporte — verde petróleo */
+.chat-message .dda-chat-card.dda-effect-card.effect-positive,
+.dice-roll .dda-chat-card.dda-effect-card.effect-positive,
+.dda-chat-card.dda-effect-card.effect-positive {
+  background:
+    radial-gradient(circle at top right, rgba(100, 230, 210, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(5, 50, 58, 0.98), rgba(3, 22, 38, 0.98)) !important;
+
+  border-color: rgba(120, 230, 215, 0.42) !important;
+}
+
+.chat-message .dda-chat-card.dda-effect-card.effect-positive h2,
+.dice-roll .dda-chat-card.dda-effect-card.effect-positive h2,
+.dda-chat-card.dda-effect-card.effect-positive h2 {
+  background:
+    linear-gradient(180deg, rgba(10, 88, 92, 0.95), rgba(5, 50, 66, 0.95)) !important;
+
+  border-color: rgba(145, 240, 225, 0.32) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Cards de Efeito: categorias                */
+/* ===================================================== */
+
+/* Positivo / Suporte — [PURIFICAR], [ESCUDO], [REGENERAÇÃO], [IMUNIZAR] */
+.dda-chat-card.dda-effect-card.effect-positive {
+  background:
+    radial-gradient(circle at top right, rgba(100, 230, 210, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(5, 50, 58, 0.98), rgba(3, 22, 38, 0.98)) !important;
+
+  border-color: rgba(120, 230, 215, 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-positive h2 {
+  background:
+    linear-gradient(180deg, rgba(10, 88, 92, 0.95), rgba(5, 50, 66, 0.95)) !important;
+
+  border-color: rgba(145, 240, 225, 0.32) !important;
+}
+
+/* Dano / Negativo — [QUEIMAR], [ENVENENAR], [RUÍNA], [CONDENAÇÃO] */
+.dda-chat-card.dda-effect-card.effect-negative {
+  background:
+    radial-gradient(circle at top right, rgba(255, 100, 135, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(72, 22, 38, 0.98), rgba(32, 8, 22, 0.98)) !important;
+
+  border-color: rgba(255, 130, 160, 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-negative h2 {
+  background:
+    linear-gradient(180deg, rgba(118, 30, 52, 0.95), rgba(68, 14, 34, 0.95)) !important;
+
+  border-color: rgba(255, 150, 175, 0.32) !important;
+}
+
+/* Controle de Ações — [ATORDOAR], [PARALISAR], [CONGELAR] */
+.dda-chat-card.dda-effect-card.effect-control {
+  background:
+    radial-gradient(circle at top right, rgba(255, 205, 90, 0.15), transparent 42%),
+    linear-gradient(180deg, rgba(78, 58, 10, 0.98), rgba(34, 24, 4, 0.98)) !important;
+
+  border-color: rgba(255, 220, 130, 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-control h2 {
+  background:
+    linear-gradient(180deg, rgba(130, 88, 18, 0.95), rgba(78, 46, 6, 0.95)) !important;
+
+  border-color: rgba(255, 220, 130, 0.32) !important;
+}
+
+/* Penalidades de Combate — [IMPRECISÃO], [ENFRAQUECER], [FRAGILIZAR], [CEGAR] */
+.dda-chat-card.dda-effect-card.effect-penalty {
+  background:
+    radial-gradient(circle at top right, rgba(150, 120, 255, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(42, 32, 76, 0.98), rgba(18, 14, 42, 0.98)) !important;
+
+  border-color: rgba(175, 150, 255, 0.40) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-penalty h2 {
+  background:
+    linear-gradient(180deg, rgba(70, 52, 130, 0.95), rgba(38, 28, 82, 0.95)) !important;
+
+  border-color: rgba(185, 165, 255, 0.32) !important;
+}
+
+/* Movimento / Posicionamento — [PRENDER], [EMPURRAR], [PUXAR], [IMPULSO], [PESAR] */
+.dda-chat-card.dda-effect-card.effect-movement {
+  background:
+    radial-gradient(circle at top right, rgba(80, 180, 255, 0.15), transparent 42%),
+    linear-gradient(180deg, rgba(12, 44, 78, 0.98), rgba(4, 20, 42, 0.98)) !important;
+
+  border-color: rgba(110, 200, 255, 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-movement h2 {
+  background:
+    linear-gradient(180deg, rgba(18, 78, 130, 0.95), rgba(8, 42, 82, 0.95)) !important;
+
+  border-color: rgba(135, 210, 255, 0.32) !important;
+}
+
+/* Mental / Social — [MEDO], [CONFUNDIR], [DISTRAIR], [ABALAR], [ESTREMECER] */
+.dda-chat-card.dda-effect-card.effect-mental {
+  background:
+    radial-gradient(circle at top right, rgba(205, 110, 255, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(56, 26, 78, 0.98), rgba(24, 10, 42, 0.98)) !important;
+
+  border-color: rgba(220, 145, 255, 0.40) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-mental h2 {
+  background:
+    linear-gradient(180deg, rgba(92, 42, 130, 0.95), rgba(52, 18, 82, 0.95)) !important;
+
+  border-color: rgba(225, 160, 255, 0.32) !important;
+}
+
+/* Especial / Digital — [PIXELAR], [ZERO], [NEGAR], [EXPLORAR] */
+.dda-chat-card.dda-effect-card.effect-special {
+  background:
+    radial-gradient(circle at top right, rgba(170, 215, 255, 0.10), transparent 42%),
+    linear-gradient(180deg, rgba(34, 48, 62, 0.98), rgba(14, 22, 34, 0.98)) !important;
+
+  border-color: rgba(170, 215, 255, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.effect-special h2 {
+  background:
+    linear-gradient(180deg, rgba(62, 80, 98, 0.95), rgba(34, 44, 58, 0.95)) !important;
+
+  border-color: rgba(190, 225, 255, 0.26) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Dano Aplicado                        */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-damage-card .damage-temp-absorbed {
+  color: #ddfff9 !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(115, 245, 220, 0.12), transparent 42%),
+    rgba(0, 42, 44, 0.52) !important;
+
+  border-color: rgba(125, 240, 220, 0.30) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-damage-card .damage-health-loss {
+  color: #ffe3ea !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 110, 145, 0.14), transparent 42%),
+    rgba(82, 24, 40, 0.58) !important;
+
+  border-color: rgba(255, 130, 160, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-damage-card .damage-shield-broken {
+  color: #ffe3ea !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 110, 145, 0.16), transparent 42%),
+    rgba(78, 22, 38, 0.70) !important;
+
+  border-color: rgba(255, 130, 160, 0.38) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-damage-card .damage-defeated {
+  color: #ffe6ed !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 60, 100, 0.22), transparent 42%),
+    rgba(92, 12, 34, 0.82) !important;
+
+  border-color: rgba(255, 95, 135, 0.48) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Fim do Turno no padrão universal     */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-end-turn-card .end-turn-health-change.health-gain,
+.dda-chat-card.dda-effect-card.dda-end-turn-card .end-turn-effects-resolved.health-gain {
+  color: #ddfff9 !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(115, 245, 220, 0.12), transparent 42%),
+    rgba(0, 42, 44, 0.52) !important;
+
+  border-color: rgba(125, 240, 220, 0.30) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-end-turn-card .end-turn-health-change.health-loss,
+.dda-chat-card.dda-effect-card.dda-end-turn-card .end-turn-effects-resolved.health-loss {
+  color: #ffe3ea !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 110, 145, 0.14), transparent 42%),
+    rgba(82, 24, 40, 0.58) !important;
+
+  border-color: rgba(255, 130, 160, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-end-turn-card .end-turn-linked-tamer {
+  color: #eefcff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(120, 245, 235, 0.14), transparent 38%),
+    rgba(4, 48, 56, 0.62) !important;
+
+  border-color: rgba(140, 245, 235, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-end-turn-card .end-turn-restrictions {
+  color: #fff2d4 !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 205, 90, 0.14), transparent 42%),
+    rgba(72, 48, 8, 0.58) !important;
+
+  border-color: rgba(255, 220, 130, 0.32) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-end-turn-card .effect-healing {
+  display: inline-block !important;
+  margin: 0.12rem 0.15rem 0 0 !important;
+  padding: 0.18rem 0.35rem !important;
+
+  color: #ddfff9 !important;
+  background: rgba(10, 72, 68, 0.62) !important;
+  border: 1px solid rgba(125, 240, 220, 0.30) !important;
+  border-radius: 999px !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-end-turn-card .effect-damage {
+  display: inline-block !important;
+  margin: 0.12rem 0.15rem 0 0 !important;
+  padding: 0.18rem 0.35rem !important;
+
+  color: #ffe3ea !important;
+  background: rgba(82, 24, 40, 0.62) !important;
+  border: 1px solid rgba(255, 130, 160, 0.32) !important;
+  border-radius: 999px !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Ataque no padrão universal           */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-attack-card.hit {
+  border-color: rgba(120, 230, 215, 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card.hit h2 {
+  background:
+    linear-gradient(180deg, rgba(10, 88, 92, 0.95), rgba(5, 50, 66, 0.95)) !important;
+
+  border-color: rgba(145, 240, 225, 0.32) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card.miss {
+  border-color: rgba(255, 180, 105, 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card.miss h2 {
+  background:
+    linear-gradient(180deg, rgba(120, 72, 18, 0.95), rgba(68, 38, 6, 0.95)) !important;
+
+  border-color: rgba(255, 205, 130, 0.32) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card hr {
+  border: none !important;
+  border-top: 1px solid rgba(150, 230, 230, 0.18) !important;
+  margin: 0.55rem 0 !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Ataque / Resultado                   */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-result-title {
+  margin: 0.55rem 0 0.35rem !important;
+  padding: 0.45rem 0.55rem !important;
+
+  color: #ffffff !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 0.95rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0.05em !important;
+
+  border-radius: 7px !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card.hit .attack-result-title {
+  background:
+    linear-gradient(180deg, rgba(10, 88, 92, 0.95), rgba(5, 50, 66, 0.95)) !important;
+
+  border: 1px solid rgba(145, 240, 225, 0.32) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card.miss .attack-result-title {
+  background:
+    linear-gradient(180deg, rgba(120, 72, 18, 0.95), rgba(68, 38, 6, 0.95)) !important;
+
+  border: 1px solid rgba(255, 205, 130, 0.32) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-result-list {
+  margin-bottom: 0.55rem !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Ataque / Dano                        */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-damage-list {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.55rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-damage-list .attack-final-damage {
+  color: #ffffff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 110, 145, 0.14), transparent 42%),
+    rgba(82, 24, 40, 0.58) !important;
+
+  border-color: rgba(255, 130, 160, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-damage-list .attack-final-damage strong {
+  font-size: 0.95rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-damage-list .attack-penalty {
+  color: #fff0d0 !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 205, 90, 0.13), transparent 42%),
+    rgba(72, 48, 8, 0.50) !important;
+
+  border-color: rgba(255, 220, 130, 0.28) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Ataque / Tags de Efeito              */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-tags-list {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.55rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tags {
+  display: block !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.25rem !important;
+
+  margin-top: 0.35rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag {
+  display: inline-flex !important;
+  align-items: center !important;
+
+  padding: 0.18rem 0.42rem !important;
+
+  color: #ffffff !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0.03em !important;
+
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+
+  background: rgba(20, 32, 44, 0.78) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag.effect-positive {
+  background: rgba(10, 72, 68, 0.72) !important;
+  border-color: rgba(125, 240, 220, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag.effect-negative {
+  background: rgba(82, 24, 40, 0.72) !important;
+  border-color: rgba(255, 130, 160, 0.36) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag.effect-control {
+  background: rgba(82, 56, 12, 0.76) !important;
+  border-color: rgba(255, 220, 130, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag.effect-penalty {
+  background: rgba(54, 38, 98, 0.76) !important;
+  border-color: rgba(185, 165, 255, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag.effect-movement {
+  background: rgba(12, 58, 98, 0.76) !important;
+  border-color: rgba(135, 210, 255, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag.effect-mental {
+  background: rgba(72, 30, 104, 0.76) !important;
+  border-color: rgba(225, 160, 255, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag.effect-special {
+  background: rgba(50, 64, 78, 0.78) !important;
+  border-color: rgba(190, 225, 255, 0.28) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Ataque / Efeitos Aplicados           */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-section-title {
+  margin: 0.55rem 0 0.35rem !important;
+  padding: 0.45rem 0.55rem !important;
+
+  color: #ffffff !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 0.9rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0.05em !important;
+
+  background:
+    linear-gradient(180deg, rgba(62, 80, 98, 0.95), rgba(34, 44, 58, 0.95)) !important;
+
+  border: 1px solid rgba(190, 225, 255, 0.26) !important;
+  border-radius: 7px !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-applied-effects-list {
+  margin-top: 0.35rem !important;
+  margin-bottom: 0.55rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effects-applied {
+  color: #ddfff9 !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(115, 245, 220, 0.12), transparent 42%),
+    rgba(0, 42, 44, 0.52) !important;
+
+  border-color: rgba(125, 240, 220, 0.30) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effects-none {
+  color: #fff0d0 !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 205, 90, 0.13), transparent 42%),
+    rgba(72, 48, 8, 0.50) !important;
+
+  border-color: rgba(255, 220, 130, 0.28) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-effects-none span {
+  display: block !important;
+  margin-top: 0.25rem !important;
+
+  color: #ffe7b8 !important;
+  font-size: 0.7rem !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Ataque / Qualidades Aplicadas        */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-quality-list {
+  margin-top: 0.35rem !important;
+  margin-bottom: 0.55rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-quality-entry {
+  color: #eefcff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(170, 215, 255, 0.10), transparent 42%),
+    rgba(18, 34, 50, 0.62) !important;
+
+  border-color: rgba(170, 215, 255, 0.28) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-quality-entry > strong {
+  display: block !important;
+  margin-bottom: 0.35rem !important;
+
+  color: #ffffff !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.02em !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-quality-parts {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.25rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .attack-quality-parts span {
+  display: inline-flex !important;
+  align-items: center !important;
+
+  padding: 0.16rem 0.38rem !important;
+
+  color: #dff6ff !important;
+  font-size: 0.68rem !important;
+  line-height: 1.1 !important;
+
+  background: rgba(34, 54, 72, 0.72) !important;
+  border: 1px solid rgba(170, 215, 255, 0.22) !important;
+  border-radius: 999px !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: seções colapsáveis                   */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card .dda-card-details {
+  margin: 0.5rem 0 0.55rem !important;
+  padding: 0 !important;
+
+  border-radius: 8px !important;
+  border: 1px solid rgba(170, 215, 255, 0.24) !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(170, 215, 255, 0.08), transparent 42%),
+    rgba(12, 24, 38, 0.54) !important;
+
+  overflow: hidden !important;
+}
+
+.dda-chat-card.dda-effect-card .dda-card-details > summary {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.5rem !important;
+
+  padding: 0.45rem 0.55rem !important;
+
+  color: #ffffff !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 0.85rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0.05em !important;
+
+  cursor: pointer !important;
+  user-select: none !important;
+
+  background:
+    linear-gradient(180deg, rgba(62, 80, 98, 0.95), rgba(34, 44, 58, 0.95)) !important;
+
+  border-bottom: 1px solid rgba(190, 225, 255, 0.18) !important;
+}
+
+.dda-chat-card.dda-effect-card .dda-card-details > summary::-webkit-details-marker {
+  display: none !important;
+}
+
+.dda-chat-card.dda-effect-card .dda-card-details > summary::before {
+  content: "▸" !important;
+
+  display: inline-block !important;
+  margin-right: 0.35rem !important;
+
+  color: #bfefff !important;
+  font-size: 0.75rem !important;
+
+  transform: translateY(-1px) !important;
+}
+
+.dda-chat-card.dda-effect-card .dda-card-details[open] > summary::before {
+  content: "▾" !important;
+}
+
+.dda-chat-card.dda-effect-card .dda-card-details > summary span {
+  margin-left: auto !important;
+  padding: 0.12rem 0.38rem !important;
+
+  color: #dff6ff !important;
+  font-family: Arial, sans-serif !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+
+  background: rgba(34, 54, 72, 0.72) !important;
+  border: 1px solid rgba(170, 215, 255, 0.22) !important;
+  border-radius: 999px !important;
+}
+
+.dda-chat-card.dda-effect-card .dda-card-details > .dda-effect-list {
+  margin: 0.45rem !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Ataque / Dano colapsável             */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-damage-summary-list {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.35rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-damage-details {
+  margin-top: 0.35rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-damage-details > summary span {
+  color: #ffe3ea !important;
+  background: rgba(82, 24, 40, 0.72) !important;
+  border-color: rgba(255, 130, 160, 0.34) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Ataque / Efeitos colapsáveis         */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-effects-summary-list {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.35rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-effects-details {
+  margin-top: 0.35rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-effects-details > summary span {
+  color: #dff6ff !important;
+  background: rgba(50, 64, 78, 0.78) !important;
+  border-color: rgba(190, 225, 255, 0.28) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Ataque / Detalhes técnicos           */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-main-list {
+  margin-top: 0.35rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-technical-details {
+  margin-top: 0.35rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-technical-details > summary span {
+  color: #dff6ff !important;
+  background: rgba(50, 64, 78, 0.78) !important;
+  border-color: rgba(190, 225, 255, 0.28) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card .dda-attack-technical-list {
+  margin-top: 0.35rem !important;
+  margin-bottom: 0.45rem !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Rolagem de Pool                      */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-pool-card .dda-pool-summary-list {
+  margin-top: 0.35rem !important;
+  margin-bottom: 0 !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-modifier-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.25rem !important;
+
+  margin-top: 0.35rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-modifier-chips span {
+  display: inline-flex !important;
+  align-items: center !important;
+
+  padding: 0.16rem 0.38rem !important;
+
+  color: #dff6ff !important;
+  font-size: 0.68rem !important;
+  line-height: 1.1 !important;
+
+  background: rgba(34, 54, 72, 0.72) !important;
+  border: 1px solid rgba(170, 215, 255, 0.22) !important;
+  border-radius: 999px !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-dice-row {
+  display: block !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .dda-dice-results {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.25rem !important;
+
+  margin-top: 0.35rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .dda-die {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  min-width: 1.45rem !important;
+  height: 1.45rem !important;
+
+  color: #ffffff !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+
+  border-radius: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+
+  background: rgba(28, 38, 52, 0.88) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .dda-die.success {
+  background:
+    radial-gradient(circle at top right, rgba(115, 245, 220, 0.16), transparent 42%),
+    rgba(0, 72, 68, 0.82) !important;
+
+  border-color: rgba(125, 240, 220, 0.38) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .dda-die.failure {
+  background:
+    radial-gradient(circle at top right, rgba(255, 110, 145, 0.10), transparent 42%),
+    rgba(38, 48, 62, 0.86) !important;
+
+  border-color: rgba(170, 190, 210, 0.22) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-total-successes {
+  color: #ffffff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(115, 245, 220, 0.14), transparent 42%),
+    rgba(0, 42, 44, 0.58) !important;
+
+  border-color: rgba(125, 240, 220, 0.34) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-total-successes strong {
+  font-size: 0.95rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-warning {
+  color: #fff0d0 !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 205, 90, 0.13), transparent 42%),
+    rgba(72, 48, 8, 0.50) !important;
+
+  border-color: rgba(255, 220, 130, 0.28) !important;
+}
+/* ===================================================== */
+/* DDA — Chat Card: Defesa do Digi-Escolhido             */
+/* ===================================================== */
+
+.dda-chat-card.dda-effect-card.dda-tamer-dodge-card .dda-tamer-dodge-list {
+  margin-top: 0.35rem !important;
+  margin-bottom: 0 !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-tamer-dodge-card .pool-total-successes {
+  color: #ffffff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(120, 210, 255, 0.14), transparent 42%),
+    rgba(12, 52, 82, 0.58) !important;
+
+  border-color: rgba(135, 210, 255, 0.34) !important;
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 17737-18262       */
+/* ===================================================== */
+/* DDA — Chat Shell / Cards FINAL VISUAL PASS            */
+/* sender/time tabs + colored cards + integrated dice    */
+/* ===================================================== */
+
+#chat-log .chat-message:has(.dda-chat-card),
+.chat-log .chat-message:has(.dda-chat-card),
+.chat-message:has(.dda-chat-card) {
+  --dda-chat-accent: #61d8ff;
+  --dda-chat-accent-rgb: 97, 216, 255;
+  --dda-chat-accent-2: #1f75b8;
+  --dda-chat-panel: rgba(5, 22, 40, 0.98);
+  --dda-chat-panel-2: rgba(9, 38, 64, 0.96);
+  --dda-chat-paper: rgba(225, 244, 255, 0.96);
+  --dda-chat-text: #dff6ff;
+  --dda-chat-muted: #adddf0;
+
+  position: relative !important;
+  overflow: visible !important;
+  padding: 0.35rem 0.35rem 0.45rem !important;
+  margin: 0.45rem 0.25rem 0.75rem !important;
+
+  color: var(--dda-chat-text) !important;
+  background:
+    radial-gradient(circle at top left, rgba(var(--dda-chat-accent-rgb), 0.18), transparent 38%),
+    linear-gradient(180deg, var(--dda-chat-panel-2), var(--dda-chat-panel)) !important;
+
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.46) !important;
+  border-radius: 10px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055),
+    inset 0 -18px 30px rgba(0, 0, 0, 0.18),
+    0 6px 16px rgba(0, 0, 0, 0.34),
+    0 0 14px rgba(var(--dda-chat-accent-rgb), 0.14) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card)::before,
+.chat-log .chat-message:has(.dda-chat-card)::before,
+.chat-message:has(.dda-chat-card)::before {
+  content: "";
+  position: absolute;
+  left: 0.45rem;
+  right: 0.45rem;
+  top: 1.95rem;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(var(--dda-chat-accent-rgb), 0.72), transparent);
+  opacity: 0.9;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-message:has(.dda-chat-card) .message-header {
+  position: relative !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: space-between !important;
+  gap: 0.5rem !important;
+  min-height: 1.75rem !important;
+  margin: -0.2rem 0.15rem 0.25rem !important;
+  padding: 0 !important;
+  color: var(--dda-chat-text) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender,
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  position: relative !important;
+  z-index: 2 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 1.45rem !important;
+  padding: 0.18rem 0.55rem !important;
+  margin: 0 !important;
+
+  color: #eefaff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.74rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 0 5px rgba(var(--dda-chat-accent-rgb), 0.28) !important;
+
+  background:
+    linear-gradient(180deg, rgba(var(--dda-chat-accent-rgb), 0.22), rgba(4, 20, 38, 0.92)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.42) !important;
+  border-bottom-color: rgba(var(--dda-chat-accent-rgb), 0.20) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 2px 8px rgba(0, 0, 0, 0.24) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender {
+  border-radius: 8px 8px 3px 3px !important;
+  max-width: 68% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  flex: 0 0 auto !important;
+  justify-content: flex-end !important;
+  border-radius: 8px 8px 3px 3px !important;
+  color: rgba(225, 245, 255, 0.84) !important;
+  font-size: 0.66rem !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata .message-timestamp,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata .message-timestamp,
+.chat-message:has(.dda-chat-card) .message-metadata .message-timestamp {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata a,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata a,
+.chat-message:has(.dda-chat-card) .message-metadata a {
+  color: rgba(225, 245, 255, 0.86) !important;
+  margin-left: 0.3rem !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-message:has(.dda-chat-card) .message-content {
+  padding: 0 !important;
+  color: var(--dda-chat-text) !important;
+  background: transparent !important;
+}
+
+/* Base do card interno */
+#chat-log .chat-message .dda-chat-card,
+.chat-log .chat-message .dda-chat-card,
+.chat-message .dda-chat-card,
+.dice-roll .dda-chat-card,
+.dda-chat-card {
+  --dda-card-accent: var(--dda-chat-accent, #61d8ff);
+  --dda-card-accent-rgb: var(--dda-chat-accent-rgb, 97, 216, 255);
+  --dda-card-accent-2: var(--dda-chat-accent-2, #1f75b8);
+
+  position: relative !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0.72rem 0.8rem 0.78rem 0.95rem !important;
+
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background:
+    linear-gradient(180deg, rgba(8, 42, 72, 0.92), rgba(4, 24, 44, 0.96)) !important;
+  border: 1px solid rgba(var(--dda-card-accent-rgb), 0.34) !important;
+  border-left: 0.35rem solid rgba(var(--dda-card-accent-rgb), 0.95) !important;
+  border-radius: 8px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.045),
+    inset 0 -14px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+#chat-log .chat-message .dda-chat-card::before,
+.chat-log .chat-message .dda-chat-card::before,
+.chat-message .dda-chat-card::before,
+.dice-roll .dda-chat-card::before,
+.dda-chat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.36;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(var(--dda-card-accent-rgb), 0.07) 0,
+      rgba(var(--dda-card-accent-rgb), 0.07) 1px,
+      transparent 1px,
+      transparent 13px
+    ),
+    radial-gradient(circle at top right, rgba(var(--dda-card-accent-rgb), 0.18), transparent 35%);
+}
+
+#chat-log .chat-message .dda-chat-card > *,
+.chat-log .chat-message .dda-chat-card > *,
+.chat-message .dda-chat-card > *,
+.dice-roll .dda-chat-card > *,
+.dda-chat-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+#chat-log .chat-message .dda-chat-card h2,
+.chat-log .chat-message .dda-chat-card h2,
+.chat-message .dda-chat-card h2,
+.dice-roll .dda-chat-card h2,
+.dda-chat-card h2 {
+  margin: 0 0 0.55rem !important;
+  padding: 0 0 0.38rem !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase !important;
+  text-shadow:
+    0 0 6px rgba(var(--dda-card-accent-rgb), 0.42),
+    0 1px 0 rgba(0, 0, 0, 0.35) !important;
+  border-bottom: 1px solid rgba(var(--dda-card-accent-rgb), 0.28) !important;
+}
+
+#chat-log .chat-message .dda-chat-card h3,
+.chat-log .chat-message .dda-chat-card h3,
+.chat-message .dda-chat-card h3,
+.dda-chat-card h3 {
+  width: fit-content !important;
+  margin: 0.55rem 0 0.4rem !important;
+  padding: 0.28rem 0.55rem !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.86rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+  background: rgba(var(--dda-card-accent-rgb), 0.18) !important;
+  border: 1px solid rgba(var(--dda-card-accent-rgb), 0.32) !important;
+  border-radius: 999px !important;
+}
+
+#chat-log .chat-message .dda-chat-card p,
+#chat-log .chat-message .dda-chat-card li,
+.chat-log .chat-message .dda-chat-card p,
+.chat-log .chat-message .dda-chat-card li,
+.chat-message .dda-chat-card p,
+.chat-message .dda-chat-card li,
+.dda-chat-card p,
+.dda-chat-card li {
+  color: var(--dda-chat-text, #dff6ff) !important;
+  font-size: 0.83rem !important;
+  line-height: 1.34 !important;
+}
+
+#chat-log .chat-message .dda-chat-card strong,
+.chat-log .chat-message .dda-chat-card strong,
+.chat-message .dda-chat-card strong,
+.dda-chat-card strong {
+  color: #ffffff !important;
+  font-weight: 900 !important;
+}
+
+#chat-log .chat-message .dda-effect-list,
+.chat-log .chat-message .dda-effect-list,
+.chat-message .dda-effect-list,
+.dda-effect-list {
+  display: grid !important;
+  gap: 0.4rem !important;
+  margin: 0.55rem 0 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+#chat-log .chat-message .dda-effect-list > li,
+.chat-log .chat-message .dda-effect-list > li,
+.chat-message .dda-effect-list > li,
+.dda-effect-list > li {
+  padding: 0.42rem 0.5rem !important;
+  background: rgba(0, 10, 20, 0.22) !important;
+  border: 1px solid rgba(var(--dda-card-accent-rgb), 0.16) !important;
+  border-radius: 6px !important;
+}
+
+/* Cores por tipo de card — casca externa */
+.chat-message:has(.dda-digivolution-card),
+.chat-message:has(.dda-evolution-card) {
+  --dda-chat-accent: #67dcff;
+  --dda-chat-accent-rgb: 103, 220, 255;
+  --dda-chat-accent-2: #1777bd;
+}
+
+.chat-message:has(.dda-jogress-card) {
+  --dda-chat-accent: #c8a6ff;
+  --dda-chat-accent-rgb: 200, 166, 255;
+  --dda-chat-accent-2: #6b42c8;
+}
+
+.chat-message:has(.dda-hybrid-card),
+.chat-message:has(.dda-biomerge-card) {
+  --dda-chat-accent: #ff86d5;
+  --dda-chat-accent-rgb: 255, 134, 213;
+  --dda-chat-accent-2: #b23689;
+}
+
+.chat-message:has(.dda-mode-change-card),
+.chat-message:has(.dda-burst-card),
+.chat-message:has(.dda-blast-card),
+.chat-message:has(.dda-forced-evolution-card) {
+  --dda-chat-accent: #ffe36a;
+  --dda-chat-accent-rgb: 255, 227, 106;
+  --dda-chat-accent-2: #d47916;
+}
+
+.chat-message:has(.dda-attack-card.hit) {
+  --dda-chat-accent: #8affc9;
+  --dda-chat-accent-rgb: 138, 255, 201;
+  --dda-chat-accent-2: #168c78;
+}
+
+.chat-message:has(.dda-attack-card.miss) {
+  --dda-chat-accent: #ff8d7a;
+  --dda-chat-accent-rgb: 255, 141, 122;
+  --dda-chat-accent-2: #b64232;
+}
+
+.chat-message:has(.dda-damage-card),
+.chat-message:has(.dda-torment-card.criticalFailure),
+.chat-message:has(.dda-torment-card.severeCriticalFailure) {
+  --dda-chat-accent: #ff6f86;
+  --dda-chat-accent-rgb: 255, 111, 134;
+  --dda-chat-accent-2: #a82842;
+}
+
+.chat-message:has(.dda-torment-card.success),
+.chat-message:has(.dda-torment-card.criticalSuccess),
+.chat-message:has(.dda-recovery-card),
+.chat-message:has(.dda-break-card),
+.chat-message:has(.dda-rest-card) {
+  --dda-chat-accent: #8affd8;
+  --dda-chat-accent-rgb: 138, 255, 216;
+  --dda-chat-accent-2: #168c78;
+}
+
+.chat-message:has(.dda-torment-card.failure) {
+  --dda-chat-accent: #ffd56a;
+  --dda-chat-accent-rgb: 255, 213, 106;
+  --dda-chat-accent-2: #b47716;
+}
+
+.chat-message:has(.dda-pool-card),
+.chat-message:has(.dda-check-card),
+.chat-message:has(.dda-tamer-check-card) {
+  --dda-chat-accent: #8ac7ff;
+  --dda-chat-accent-rgb: 138, 199, 255;
+  --dda-chat-accent-2: #246fb2;
+}
+
+.chat-message:has(.dda-clash-card) {
+  --dda-chat-accent: #ffad72;
+  --dda-chat-accent-rgb: 255, 173, 114;
+  --dda-chat-accent-2: #ad521c;
+}
+
+.chat-message:has(.dda-tamer-talent-use-card),
+.chat-message:has(.dda-tamer-talent-recharge-card) {
+  --dda-chat-accent: #b9a4ff;
+  --dda-chat-accent-rgb: 185, 164, 255;
+  --dda-chat-accent-2: #6040b8;
+}
+
+.chat-message:has(.dda-end-turn-card),
+.chat-message:has(.dda-energize-card) {
+  --dda-chat-accent: #7de8ff;
+  --dda-chat-accent-rgb: 125, 232, 255;
+  --dda-chat-accent-2: #1f75b8;
+}
+
+/* Cores por tipo de card — card interno */
+.dda-digivolution-card,
+.dda-evolution-card { --dda-card-accent-rgb: 103, 220, 255; --dda-card-accent: #67dcff; }
+.dda-jogress-card { --dda-card-accent-rgb: 200, 166, 255; --dda-card-accent: #c8a6ff; }
+.dda-hybrid-card,
+.dda-biomerge-card { --dda-card-accent-rgb: 255, 134, 213; --dda-card-accent: #ff86d5; }
+.dda-mode-change-card,
+.dda-burst-card,
+.dda-blast-card,
+.dda-forced-evolution-card { --dda-card-accent-rgb: 255, 227, 106; --dda-card-accent: #ffe36a; }
+.dda-attack-card.hit { --dda-card-accent-rgb: 138, 255, 201; --dda-card-accent: #8affc9; }
+.dda-attack-card.miss { --dda-card-accent-rgb: 255, 141, 122; --dda-card-accent: #ff8d7a; }
+.dda-damage-card { --dda-card-accent-rgb: 255, 111, 134; --dda-card-accent: #ff6f86; }
+.dda-torment-card.success,
+.dda-torment-card.criticalSuccess { --dda-card-accent-rgb: 138, 255, 216; --dda-card-accent: #8affd8; }
+.dda-torment-card.failure { --dda-card-accent-rgb: 255, 213, 106; --dda-card-accent: #ffd56a; }
+.dda-torment-card.criticalFailure,
+.dda-torment-card.severeCriticalFailure { --dda-card-accent-rgb: 255, 111, 134; --dda-card-accent: #ff6f86; }
+.dda-clash-card { --dda-card-accent-rgb: 255, 173, 114; --dda-card-accent: #ffad72; }
+
+/* Dados do Foundry integrados ao card */
+#chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-message:has(.dda-chat-card) .dice-roll {
+  margin: 0.5rem 0 0 !important;
+  padding: 0.5rem !important;
+  color: var(--dda-chat-text) !important;
+  background: rgba(0, 10, 20, 0.28) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.24) !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.20) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-message:has(.dda-chat-card) .dice-formula {
+  margin: 0 0 0.4rem !important;
+  padding: 0.32rem 0.5rem !important;
+  color: #dff7ff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  background: rgba(var(--dda-chat-accent-rgb), 0.13) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.24) !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-message:has(.dda-chat-card) .dice-total {
+  min-height: 2.2rem !important;
+  margin: 0.4rem 0 0 !important;
+  padding: 0.38rem 0.6rem !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 1.35rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-shadow: 0 0 8px rgba(var(--dda-chat-accent-rgb), 0.42) !important;
+  background:
+    linear-gradient(180deg, rgba(var(--dda-chat-accent-rgb), 0.22), rgba(0, 12, 24, 0.70)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.42) !important;
+  border-radius: 7px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 10px rgba(var(--dda-chat-accent-rgb), 0.10) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-message:has(.dda-chat-card) .dice-tooltip {
+  color: var(--dda-chat-text) !important;
+  background: rgba(4, 18, 32, 0.94) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.22) !important;
+  border-radius: 7px !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice {
+  color: var(--dda-chat-text) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .part-header,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .part-header,
+.chat-message:has(.dda-chat-card) .dice-tooltip .part-header {
+  color: #ffffff !important;
+  background: rgba(var(--dda-chat-accent-rgb), 0.10) !important;
+  border-bottom: 1px solid rgba(var(--dda-chat-accent-rgb), 0.16) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll {
+  filter: drop-shadow(0 0 3px rgba(var(--dda-chat-accent-rgb), 0.25));
+}
+
+/* Botões dentro de cards */
+#chat-log .chat-message .dda-chat-card button,
+.chat-log .chat-message .dda-chat-card button,
+.chat-message .dda-chat-card button,
+.dda-chat-card button,
+#chat-log .chat-message .dda-chat-card .dda-apply-damage,
+.chat-log .chat-message .dda-chat-card .dda-apply-damage,
+.chat-message .dda-chat-card .dda-apply-damage,
+.dda-chat-card .dda-apply-damage {
+  min-height: 32px !important;
+  margin-top: 0.5rem !important;
+  padding: 0.35rem 0.8rem !important;
+  color: #eaf8ff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.76rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  background:
+    linear-gradient(180deg, rgba(var(--dda-card-accent-rgb), 0.30), rgba(6, 36, 64, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-card-accent-rgb), 0.44) !important;
+  border-radius: 7px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 2px 7px rgba(0, 0, 0, 0.28) !important;
+}
+
+#chat-log .chat-message .dda-chat-card button:hover,
+.chat-log .chat-message .dda-chat-card button:hover,
+.chat-message .dda-chat-card button:hover,
+.dda-chat-card button:hover,
+#chat-log .chat-message .dda-chat-card .dda-apply-damage:hover,
+.chat-log .chat-message .dda-chat-card .dda-apply-damage:hover,
+.chat-message .dda-chat-card .dda-apply-damage:hover,
+.dda-chat-card .dda-apply-damage:hover {
+  color: #ffffff !important;
+  border-color: rgba(var(--dda-card-accent-rgb), 0.72) !important;
+  text-shadow: 0 0 6px rgba(var(--dda-card-accent-rgb), 0.44) !important;
+}
+
+/* Responsivo do chat */
+@media (max-width: 420px) {
+  #chat-log .chat-message:has(.dda-chat-card) .message-header,
+  .chat-message:has(.dda-chat-card) .message-header {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    gap: 0.25rem !important;
+  }
+
+  #chat-log .chat-message:has(.dda-chat-card) .message-sender,
+  #chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+  .chat-message:has(.dda-chat-card) .message-sender,
+  .chat-message:has(.dda-chat-card) .message-metadata {
+    max-width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 5310-5476             */
+/* ===================================================== */
+/* ===================================================== */
+/* DDA — Card Fim do Turno: Saúde por efeitos            */
+/* ===================================================== */
+
+.chat-message .dda-end-turn-card .end-turn-health-change,
+.chat-message .dda-end-turn-card .end-turn-effects-resolved {
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+/* Saúde aumentou */
+.chat-message .dda-end-turn-card .end-turn-health-change.health-gain,
+.chat-message .dda-end-turn-card .end-turn-effects-resolved.health-gain {
+  color: #effff6 !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(120, 255, 185, 0.18), transparent 38%),
+    linear-gradient(180deg, rgba(10, 82, 52, 0.96), rgba(3, 42, 35, 0.96)) !important;
+
+  border-color: rgba(130, 255, 205, 0.46) !important;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 14px rgba(80, 255, 170, 0.10),
+    0 0 9px rgba(80, 255, 170, 0.12) !important;
+}
+
+/* Saúde diminuiu */
+.chat-message .dda-end-turn-card .end-turn-health-change.health-loss,
+.chat-message .dda-end-turn-card .end-turn-effects-resolved.health-loss {
+  color: #fff1f4 !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 120, 140, 0.20), transparent 38%),
+    linear-gradient(180deg, rgba(92, 25, 38, 0.96), rgba(38, 10, 22, 0.96)) !important;
+
+  border-color: rgba(255, 145, 165, 0.52) !important;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 14px rgba(255, 70, 100, 0.12),
+    0 0 9px rgba(255, 70, 100, 0.14) !important;
+}
+
+/* Resolveu efeito, mas não mudou Saúde */
+.chat-message .dda-end-turn-card .end-turn-health-change.health-neutral,
+.chat-message .dda-end-turn-card .end-turn-effects-resolved.health-neutral {
+  color: #f4fbff !important;
+
+  background:
+    linear-gradient(180deg, rgba(18, 92, 145, 0.98), rgba(6, 43, 78, 0.98)) !important;
+
+  border-color: rgba(170, 235, 255, 0.42) !important;
+}
+
+.chat-message .dda-end-turn-card .effect-healing,
+.chat-message .dda-end-turn-card .effect-damage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 22px;
+  margin: 0.12rem 0.16rem;
+  padding: 0.18rem 0.52rem;
+
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  border-radius: 5px;
+}
+
+.chat-message .dda-end-turn-card .effect-healing {
+  color: #effff6;
+  background: rgba(30, 130, 82, 0.78);
+  border: 1px solid rgba(150, 255, 210, 0.38);
+}
+
+.chat-message .dda-end-turn-card .effect-damage {
+  color: #fff1f4;
+  background: rgba(130, 35, 52, 0.78);
+  border: 1px solid rgba(255, 150, 170, 0.38);
+}
+/* ===================================================== */
+/* DDA — Card Fim do Turno: restrições de ação           */
+/* ===================================================== */
+
+.chat-message .dda-end-turn-card .end-turn-restrictions {
+  color: #fff4df !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 200, 90, 0.18), transparent 38%),
+    linear-gradient(180deg, rgba(88, 58, 8, 0.96), rgba(40, 25, 3, 0.96)) !important;
+
+  border-color: rgba(255, 220, 130, 0.44) !important;
+}
+
+.chat-message .dda-end-turn-card .end-turn-restrictions span {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 22px;
+  margin: 0.12rem 0.16rem;
+  padding: 0.18rem 0.52rem;
+
+  color: #fff8dc;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  background: rgba(120, 78, 10, 0.72);
+  border: 1px solid rgba(255, 220, 125, 0.38);
+  border-radius: 5px;
+}
+/* ===================================================== */
+/* DDA — Card Fim do Turno: Digi-Escolhido vinculado     */
+/* ===================================================== */
+
+.chat-message .dda-end-turn-card .end-turn-linked-tamer {
+  color: #eefcff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(120, 245, 235, 0.14), transparent 38%),
+    linear-gradient(180deg, rgba(8, 72, 68, 0.96), rgba(3, 38, 42, 0.96)) !important;
+
+  border-color: rgba(140, 245, 235, 0.38) !important;
+}
+
+.chat-message .dda-end-turn-card .end-turn-linked-tamer.missing {
+  color: #fff4df !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(255, 200, 90, 0.16), transparent 38%),
+    linear-gradient(180deg, rgba(88, 58, 8, 0.96), rgba(40, 25, 3, 0.96)) !important;
+
+  border-color: rgba(255, 220, 130, 0.42) !important;
+}
+/* ===================================================== */
+/* DDA — Card Fim do Turno: Digi-Escolhido vinculado     */
+/* ===================================================== */
+
+.chat-message .dda-end-turn-card .end-turn-linked-tamer {
+  color: #eefcff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(120, 245, 235, 0.14), transparent 38%),
+    linear-gradient(180deg, rgba(8, 72, 68, 0.96), rgba(3, 38, 42, 0.96)) !important;
+
+  border-color: rgba(140, 245, 235, 0.38) !important;
+}
+/* ===================================================== */
+/* DDA — Card Fim do Turno: Digi-Escolhido vinculado     */
+/* ===================================================== */
+
+.chat-message .dda-end-turn-card .end-turn-linked-tamer {
+  color: #eefcff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(120, 245, 235, 0.14), transparent 38%),
+    linear-gradient(180deg, rgba(8, 72, 68, 0.96), rgba(3, 38, 42, 0.96)) !important;
+
+  border-color: rgba(140, 245, 235, 0.38) !important;
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 6030-6033             */
+/* ===================================================== */
+.dda-chat-card.dda-effect-card.dda-quality-activation-card .dda-quality-activation-list {
+  margin-top: 0.35rem !important;
+  margin-bottom: 0 !important;
+}
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 6611-6770             */
+/* ===================================================== */
+/* ===================================================== */
+/* DDA — Card de Digievolução                            */
+/* ===================================================== */
+
+.dda-chat-card.dda-digivolution-card {
+  overflow: hidden !important;
+}
+
+.dda-chat-card.dda-digivolution-card h2 {
+  text-align: center !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-digivolution-hero {
+  display: grid !important;
+  grid-template-columns: 1fr auto 1fr !important;
+  gap: 0.55rem !important;
+  align-items: stretch !important;
+
+  margin: 0.65rem 0 0.75rem !important;
+}
+
+.dda-digivolution-form {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 0.18rem !important;
+
+  min-height: 66px !important;
+  padding: 0.55rem 0.6rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(8, 38, 64, 0.96), rgba(4, 24, 44, 0.98)) !important;
+
+  border: 1px solid rgba(120, 205, 255, 0.28) !important;
+  border-radius: 8px !important;
+
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 0 12px rgba(55, 185, 255, 0.10) !important;
+}
+
+.dda-digivolution-form.next {
+  background:
+    radial-gradient(circle at top right, rgba(95, 235, 255, 0.20), transparent 48%),
+    linear-gradient(180deg, rgba(10, 70, 105, 0.98), rgba(4, 34, 62, 0.98)) !important;
+
+  border-color: rgba(130, 235, 255, 0.48) !important;
+
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 0 16px rgba(65, 210, 255, 0.22) !important;
+}
+
+.dda-digivolution-label {
+  color: #9fd7ef !important;
+  font-size: 0.66rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-digivolution-form strong {
+  color: #ffffff !important;
+  font-size: 0.95rem !important;
+  line-height: 1.15 !important;
+}
+
+.dda-digivolution-form small {
+  color: #c8ecff !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+}
+
+.dda-digivolution-arrow {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  min-width: 28px !important;
+
+  color: #dff8ff !important;
+  font-size: 1.35rem !important;
+  font-weight: 900 !important;
+
+  text-shadow:
+    0 0 8px rgba(90, 220, 255, 0.75),
+    0 0 16px rgba(90, 220, 255, 0.35) !important;
+}
+
+.dda-digivolution-list {
+  margin-top: 0.55rem !important;
+}
+
+.dda-digivolution-list li strong {
+  color: #ffffff !important;
+}
+/* ===================================================== */
+/* DDA — Card de Descanso                                */
+/* ===================================================== */
+
+.dda-chat-card.dda-rest-card {
+  overflow: hidden !important;
+}
+
+.dda-chat-card.dda-rest-card h2 {
+  text-align: center !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-rest-hero {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.2rem !important;
+
+  margin: 0.65rem 0 0.75rem !important;
+  padding: 0.65rem 0.75rem !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(120, 255, 205, 0.16), transparent 48%),
+    linear-gradient(180deg, rgba(10, 64, 58, 0.98), rgba(4, 28, 32, 0.98)) !important;
+
+  border: 1px solid rgba(140, 255, 220, 0.34) !important;
+  border-radius: 8px !important;
+
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 0 14px rgba(80, 255, 210, 0.13) !important;
+}
+
+.dda-rest-hero span {
+  color: #aefee5 !important;
+  font-size: 0.66rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-rest-hero strong {
+  color: #ffffff !important;
+  font-size: 1rem !important;
+  line-height: 1.15 !important;
+}
+
+.dda-rest-hero small {
+  color: #d4fff3 !important;
+  font-size: 0.74rem !important;
+  font-weight: 700 !important;
+}
+
+.dda-rest-list {
+  margin-top: 0.55rem !important;
+}
+
+.dda-rest-list li strong {
+  color: #ffffff !important;
+}
+
+
+/* ===================================================== */
+/* Migrado de styles/dda.css — linhas 15245-15262             */
+/* ===================================================== */
+.dda-chat-card.dda-jogress-card {
+  border-color: rgba(110, 225, 255, 0.48) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(230, 250, 255, 0.06),
+    0 0 12px rgba(80, 210, 255, 0.12) !important;
+}
+
+.dda-chat-card.dda-jogress-card h2 {
+  color: #f4fbff !important;
+  background:
+    linear-gradient(90deg, rgba(6, 44, 68, 0.98), rgba(18, 104, 128, 0.86)) !important;
+  border-color: rgba(125, 230, 255, 0.34) !important;
+}
+
+.dda-chat-card.dda-jogress-card .dda-digivolution-arrow {
+  color: #bdf6ff !important;
+  text-shadow: 0 0 7px rgba(120, 235, 255, 0.55) !important;
+}
+
+/* ===================================================== */
+/* DDA — Chat Cards: transparent shell + no left stripe   */
+/* ===================================================== */
+
+#chat-log .chat-message:has(.dda-chat-card),
+.chat-log .chat-message:has(.dda-chat-card),
+.chat-message:has(.dda-chat-card) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card)::before,
+.chat-log .chat-message:has(.dda-chat-card)::before,
+.chat-message:has(.dda-chat-card)::before {
+  content: none !important;
+  display: none !important;
+}
+
+#chat-log .chat-message .dda-chat-card,
+.chat-log .chat-message .dda-chat-card,
+.chat-message .dda-chat-card,
+.dice-roll .dda-chat-card,
+.dda-chat-card {
+  border-left-width: 1px !important;
+  border-left-color: rgba(var(--dda-card-accent-rgb), 0.34) !important;
+  padding-left: 0.8rem !important;
+}
+
+#chat-log .chat-message .dda-chat-card::after,
+.chat-log .chat-message .dda-chat-card::after,
+.chat-message .dda-chat-card::after,
+.dice-roll .dda-chat-card::after,
+.dda-chat-card::after {
+  content: none !important;
+  display: none !important;
+}
+
+.dda-clash-chat-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.dda-clash-chat-actions button {
+  min-height: 34px;
+  color: #fff7ee !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  background:
+    linear-gradient(180deg, rgba(155, 83, 38, 0.98), rgba(78, 38, 18, 0.98)) !important;
+  border: 1px solid rgba(255, 184, 118, 0.54) !important;
+  border-radius: 7px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -8px 14px rgba(255, 110, 40, 0.12),
+    0 0 9px rgba(255, 130, 64, 0.16) !important;
+}
+
+.dda-clash-chat-actions button:hover {
+  background:
+    linear-gradient(180deg, rgba(198, 105, 48, 1), rgba(106, 50, 22, 1)) !important;
+  border-color: rgba(255, 219, 170, 0.78) !important;
+}
+
+/* ===================================================== */
+/* DDA — Chat Cards: unified shell + dice polish v2       */
+/* Mantém as abas anexadas ao corpo e aplica também       */
+/* aos cards de Teste do Digi-Escolhido.                  */
+/* ===================================================== */
+
+#chat-log .chat-message:has(.dda-chat-card),
+.chat-log .chat-message:has(.dda-chat-card),
+.chat-message:has(.dda-chat-card) {
+  padding: 0.25rem 0.25rem 0.35rem !important;
+  margin: 0.35rem 0.15rem 0.65rem !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-message:has(.dda-chat-card) .message-header {
+  position: relative !important;
+  z-index: 4 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: space-between !important;
+  gap: 0.35rem !important;
+  min-height: 1.45rem !important;
+  margin: 0 0.35rem -1px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender,
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 1.38rem !important;
+  margin: 0 !important;
+  padding: 0.22rem 0.6rem 0.18rem !important;
+
+  color: #eefaff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(180deg, rgba(230, 246, 255, 0.28), rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.18) 45%, rgba(3, 16, 30, 0.96)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.42) !important;
+  border-bottom: 0 !important;
+  border-radius: 7px 7px 0 0 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.16) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender {
+  max-width: 68% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  flex: 0 0 auto !important;
+  justify-content: flex-end !important;
+  color: rgba(225, 245, 255, 0.84) !important;
+  font-size: 0.64rem !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-message:has(.dda-chat-card) .message-content {
+  position: relative !important;
+  z-index: 2 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+#chat-log .chat-message .dda-chat-card,
+.chat-log .chat-message .dda-chat-card,
+.chat-message .dda-chat-card,
+.dice-roll .dda-chat-card,
+.dda-chat-card {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0.68rem 0.78rem !important;
+  border-left-width: 1px !important;
+  border-radius: 8px !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card):has(.dice-roll) .dda-chat-card,
+.chat-log .chat-message:has(.dda-chat-card):has(.dice-roll) .dda-chat-card,
+.chat-message:has(.dda-chat-card):has(.dice-roll) .dda-chat-card {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-bottom-color: rgba(var(--dda-card-accent-rgb, 97, 216, 255), 0.18) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-message:has(.dda-chat-card) .dice-roll {
+  position: relative !important;
+  z-index: 2 !important;
+  display: grid !important;
+  gap: 0 !important;
+  margin: -1px 0 0 !important;
+  padding: 0 !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+
+  background:
+    linear-gradient(180deg, rgba(7, 34, 56, 0.96), rgba(3, 18, 32, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.34) !important;
+  border-top-color: rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.22) !important;
+  border-radius: 0 0 8px 8px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -12px 20px rgba(0, 0, 0, 0.16) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-result,
+.chat-log .chat-message:has(.dda-chat-card) .dice-result,
+.chat-message:has(.dda-chat-card) .dice-result {
+  display: grid !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-message:has(.dda-chat-card) .dice-formula,
+#chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-message:has(.dda-chat-card) .dice-total {
+  width: 100% !important;
+  margin: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-message:has(.dda-chat-card) .dice-formula {
+  min-height: 2.15rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.35rem 0.65rem !important;
+
+  color: rgba(225, 246, 255, 0.78) !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+
+  background:
+    radial-gradient(circle at center, rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.16), transparent 58%),
+    rgba(0, 16, 30, 0.36) !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.22) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-message:has(.dda-chat-card) .dice-total {
+  min-height: 2.2rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.35rem 0.65rem !important;
+
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 1.2rem !important;
+  line-height: 1 !important;
+  text-shadow: 0 0 8px rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.38) !important;
+
+  background:
+    linear-gradient(180deg, rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.22), rgba(3, 22, 38, 0.92)) !important;
+  border-top: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.20) !important;
+  border-bottom: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-message:has(.dda-chat-card) .dice-tooltip {
+  margin: 0 !important;
+  padding: 0.55rem !important;
+  background: rgba(2, 12, 24, 0.82) !important;
+  border-top: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.18) !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-radius: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .tooltip-part,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .tooltip-part,
+.chat-message:has(.dda-chat-card) .dice-tooltip .tooltip-part {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .part-header,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .part-header,
+.chat-message:has(.dda-chat-card) .dice-tooltip .part-header {
+  margin: 0 0 0.45rem !important;
+  padding: 0.32rem 0.5rem !important;
+  background: rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.10) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.18) !important;
+  border-radius: 6px !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  gap: 0.4rem !important;
+  margin: 0 !important;
+  padding: 0.2rem 0 0.05rem !important;
+  list-style: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls li,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls li,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls li {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 2rem !important;
+  height: 2rem !important;
+  min-width: 2rem !important;
+  min-height: 2rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #f3fbff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.86rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.24), transparent 32%),
+    linear-gradient(145deg, rgba(40, 92, 126, 0.96), rgba(8, 30, 50, 0.98)) !important;
+  background-image: none !important;
+
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.42) !important;
+  border-radius: 7px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -7px 12px rgba(0, 0, 0, 0.24),
+    0 0 7px rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.14) !important;
+  filter: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.max,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.max,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.max {
+  color: #ffffff !important;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.28), transparent 32%),
+    linear-gradient(145deg, rgba(24, 136, 128, 0.98), rgba(5, 58, 66, 0.98)) !important;
+  border-color: rgba(145, 255, 225, 0.58) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.min,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.min,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.min {
+  color: #ffe8ee !important;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.20), transparent 32%),
+    linear-gradient(145deg, rgba(118, 35, 62, 0.98), rgba(46, 10, 28, 0.98)) !important;
+  border-color: rgba(255, 140, 170, 0.55) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .dda-dice-results,
+.chat-message .dda-pool-card .dda-dice-results,
+.dda-dice-results {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  gap: 0.4rem !important;
+  margin: 0.45rem 0 !important;
+  padding: 0.45rem !important;
+  background: rgba(0, 12, 24, 0.30) !important;
+  border: 1px solid rgba(var(--dda-card-accent-rgb, 97, 216, 255), 0.18) !important;
+  border-radius: 7px !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .dda-die,
+.chat-message .dda-pool-card .dda-die,
+.dda-die {
+  width: 2rem !important;
+  height: 2rem !important;
+  min-width: 2rem !important;
+  min-height: 2rem !important;
+  padding: 0 !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.86rem !important;
+  font-weight: 900 !important;
+  border-radius: 7px !important;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.24), transparent 32%),
+    linear-gradient(145deg, rgba(40, 92, 126, 0.96), rgba(8, 30, 50, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-card-accent-rgb, 97, 216, 255), 0.42) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .dda-die.success,
+.chat-message .dda-pool-card .dda-die.success,
+.dda-die.success {
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.28), transparent 32%),
+    linear-gradient(145deg, rgba(24, 136, 128, 0.98), rgba(5, 58, 66, 0.98)) !important;
+  border-color: rgba(145, 255, 225, 0.58) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .dda-die.failure,
+.chat-message .dda-pool-card .dda-die.failure,
+.dda-die.failure {
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.16), transparent 32%),
+    linear-gradient(145deg, rgba(58, 72, 90, 0.96), rgba(12, 24, 38, 0.98)) !important;
+  border-color: rgba(145, 180, 210, 0.30) !important;
+}
+
+@media (max-width: 420px) {
+  #chat-log .chat-message:has(.dda-chat-card) .message-header,
+  .chat-message:has(.dda-chat-card) .message-header {
+    margin: 0 0.25rem -1px !important;
+  }
+
+  #chat-log .chat-message:has(.dda-chat-card) .message-sender,
+  #chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+  .chat-message:has(.dda-chat-card) .message-sender,
+  .chat-message:has(.dda-chat-card) .message-metadata {
+    max-width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* ===================================================== */
+/* DDA — Chat Cards: unified message body v4              */
+/* Integra cards DDA e rolagens nativas do Foundry.       */
+/* ===================================================== */
+
+#chat-log .chat-message:has(.dda-chat-card),
+.chat-log .chat-message:has(.dda-chat-card),
+.chat-message:has(.dda-chat-card) {
+  padding: 0 !important;
+  margin: 0.5rem 0.25rem 0.75rem !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-message:has(.dda-chat-card) .message-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: end !important;
+  gap: 0.35rem !important;
+  margin: 0 0 -1px 0 !important;
+  padding: 0 0.5rem !important;
+  min-height: 1.55rem !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender,
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  min-height: 1.38rem !important;
+  height: 1.38rem !important;
+  padding: 0.18rem 0.6rem !important;
+  margin: 0 !important;
+  color: #f1fbff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  background:
+    linear-gradient(180deg, rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.30), rgba(6, 28, 48, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.46) !important;
+  border-bottom: 0 !important;
+  border-radius: 7px 7px 0 0 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 -1px 6px rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.08) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender {
+  justify-self: start !important;
+  max-width: 100% !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  justify-self: end !important;
+  opacity: 0.9 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-message:has(.dda-chat-card) .message-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background:
+    radial-gradient(circle at top right, rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.10), transparent 42%),
+    linear-gradient(180deg, rgba(5, 24, 42, 0.98), rgba(2, 15, 28, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.42) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.28),
+    0 0 12px rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.08) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-content > .dda-chat-card,
+.chat-log .chat-message:has(.dda-chat-card) .message-content > .dda-chat-card,
+.chat-message:has(.dda-chat-card) .message-content > .dda-chat-card,
+#chat-log .chat-message:has(.dda-chat-card) .message-content > .dice-roll,
+.chat-log .chat-message:has(.dda-chat-card) .message-content > .dice-roll,
+.chat-message:has(.dda-chat-card) .message-content > .dice-roll {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-content > .dda-chat-card,
+.chat-log .chat-message:has(.dda-chat-card) .message-content > .dda-chat-card,
+.chat-message:has(.dda-chat-card) .message-content > .dda-chat-card {
+  display: block !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background:
+    linear-gradient(180deg, rgba(8, 42, 72, 0.76), rgba(4, 24, 44, 0.84)) !important;
+  box-shadow: inset 0 -1px 0 rgba(var(--dda-card-accent-rgb, 97, 216, 255), 0.18) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-content > .dda-chat-card + .dice-roll,
+.chat-log .chat-message:has(.dda-chat-card) .message-content > .dda-chat-card + .dice-roll,
+.chat-message:has(.dda-chat-card) .message-content > .dda-chat-card + .dice-roll {
+  border-top: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.34) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-message:has(.dda-chat-card) .dice-roll {
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background: rgba(0, 12, 24, 0.26) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-result,
+.chat-log .chat-message:has(.dda-chat-card) .dice-result,
+.chat-message:has(.dda-chat-card) .dice-result {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(3rem, auto) !important;
+  align-items: stretch !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-message:has(.dda-chat-card) .dice-formula,
+#chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-message:has(.dda-chat-card) .dice-total {
+  min-height: 2.15rem !important;
+  height: 2.15rem !important;
+  display: flex !important;
+  align-items: center !important;
+  margin: 0 !important;
+  padding: 0.35rem 0.65rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  line-height: 1 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-message:has(.dda-chat-card) .dice-formula {
+  justify-content: flex-start !important;
+  color: #cfefff !important;
+  font-size: 0.76rem !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+  background:
+    linear-gradient(180deg, rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.10), rgba(0, 14, 28, 0.32)) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-message:has(.dda-chat-card) .dice-total {
+  justify-content: center !important;
+  min-width: 3rem !important;
+  color: #ffffff !important;
+  font-size: 1.15rem !important;
+  font-weight: 900 !important;
+  text-shadow: 0 0 7px rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.42) !important;
+  background:
+    linear-gradient(180deg, rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.22), rgba(0, 12, 24, 0.54)) !important;
+  border-left: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.30) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-message:has(.dda-chat-card) .dice-tooltip {
+  grid-column: 1 / -1 !important;
+  margin: 0 !important;
+  padding: 0.5rem 0.65rem 0.65rem !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background:
+    linear-gradient(180deg, rgba(0, 10, 20, 0.18), rgba(0, 10, 20, 0.34)) !important;
+  border: 0 !important;
+  border-top: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.20) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .wrapper,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .wrapper,
+.chat-message:has(.dda-chat-card) .dice-tooltip .wrapper {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .part-header,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .part-header,
+.chat-message:has(.dda-chat-card) .dice-tooltip .part-header {
+  display: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  gap: 0.38rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+#chat-log .chat-message:has(.dda-chat-card) .dda-die,
+.chat-log .chat-message:has(.dda-chat-card) .dda-die,
+.chat-message:has(.dda-chat-card) .dda-die {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 1.72rem !important;
+  width: 1.72rem !important;
+  min-height: 1.72rem !important;
+  height: 1.72rem !important;
+  padding: 0 !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  text-indent: 0 !important;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.16), transparent 34%),
+    linear-gradient(145deg, rgba(34, 72, 96, 0.98), rgba(8, 24, 40, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.42) !important;
+  border-radius: 6px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -7px 10px rgba(0, 0, 0, 0.24),
+    0 0 7px rgba(var(--dda-chat-accent-rgb, 97, 216, 255), 0.14) !important;
+  filter: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.min,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.min,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.min,
+#chat-log .chat-message:has(.dda-chat-card) .dda-die.failure,
+.chat-log .chat-message:has(.dda-chat-card) .dda-die.failure,
+.chat-message:has(.dda-chat-card) .dda-die.failure {
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.12), transparent 34%),
+    linear-gradient(145deg, rgba(118, 36, 62, 0.98), rgba(42, 12, 28, 0.98)) !important;
+  border-color: rgba(255, 126, 164, 0.48) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.max,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.max,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.max,
+#chat-log .chat-message:has(.dda-chat-card) .dda-die.success,
+.chat-log .chat-message:has(.dda-chat-card) .dda-die.success,
+.chat-message:has(.dda-chat-card) .dda-die.success {
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.18), transparent 34%),
+    linear-gradient(145deg, rgba(24, 138, 124, 0.98), rgba(4, 56, 58, 0.98)) !important;
+  border-color: rgba(125, 255, 225, 0.52) !important;
+}
+
+
+
+/* ===================================================== */
+/* DDA — Chat Cards: Tamer Skill Roll Integration Fix     */
+/* Corrige especificamente mensagens criadas por Roll.toMessage()
+   com flavor de Teste de Perícia do Digi-Escolhido.      */
+/* ===================================================== */
+
+#chat-log .chat-message:has(.dda-tamer-check-card),
+.chat-log .chat-message:has(.dda-tamer-check-card),
+.chat-message:has(.dda-tamer-check-card) {
+  display: block !important;
+  padding: 0.35rem 0.35rem 0.45rem !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .message-header,
+.chat-log .chat-message:has(.dda-tamer-check-card) .message-header,
+.chat-message:has(.dda-tamer-check-card) .message-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: end !important;
+  gap: 0.35rem !important;
+  width: 100% !important;
+  margin: 0 0 -1px 0 !important;
+  padding: 0 !important;
+  min-height: 1.45rem !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .message-sender,
+.chat-log .chat-message:has(.dda-tamer-check-card) .message-sender,
+.chat-message:has(.dda-tamer-check-card) .message-sender,
+#chat-log .chat-message:has(.dda-tamer-check-card) .message-metadata,
+.chat-log .chat-message:has(.dda-tamer-check-card) .message-metadata,
+.chat-message:has(.dda-tamer-check-card) .message-metadata {
+  min-height: 1.45rem !important;
+  padding: 0.16rem 0.55rem !important;
+  margin: 0 !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.42) !important;
+  border-bottom: 0 !important;
+  border-radius: 8px 8px 0 0 !important;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.24),
+      rgba(4, 20, 38, 0.96)
+    ) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 -1px 7px rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.12) !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .message-content,
+.chat-log .chat-message:has(.dda-tamer-check-card) .message-content,
+.chat-message:has(.dda-tamer-check-card) .message-content {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .flavor-text,
+.chat-log .chat-message:has(.dda-tamer-check-card) .flavor-text,
+.chat-message:has(.dda-tamer-check-card) .flavor-text {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .flavor-text > .dda-chat-card,
+.chat-log .chat-message:has(.dda-tamer-check-card) .flavor-text > .dda-chat-card,
+.chat-message:has(.dda-tamer-check-card) .flavor-text > .dda-chat-card,
+#chat-log .chat-message:has(.dda-tamer-check-card) .message-content > .dda-chat-card,
+.chat-log .chat-message:has(.dda-tamer-check-card) .message-content > .dda-chat-card,
+.chat-message:has(.dda-tamer-check-card) .message-content > .dda-chat-card {
+  display: block !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-roll,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-roll,
+.chat-message:has(.dda-tamer-check-card) .dice-roll {
+  display: block !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: -1px 0 0 0 !important;
+  padding: 0 !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background:
+    linear-gradient(180deg, rgba(5, 28, 48, 0.98), rgba(3, 18, 34, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.34) !important;
+  border-top: 0 !important;
+  border-radius: 0 0 8px 8px !important;
+  box-shadow:
+    inset 0 -14px 24px rgba(0, 0, 0, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.24) !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-result,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-result,
+.chat-message:has(.dda-tamer-check-card) .dice-result {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(2.6rem, auto) !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-formula,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-formula,
+.chat-message:has(.dda-tamer-check-card) .dice-formula {
+  grid-column: 1 / 2 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  min-height: 2.05rem !important;
+  margin: 0 !important;
+  padding: 0.32rem 0.65rem !important;
+  color: #dff7ff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.13),
+      rgba(0, 12, 24, 0.42)
+    ) !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.24) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-total,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-total,
+.chat-message:has(.dda-tamer-check-card) .dice-total {
+  grid-column: 2 / 3 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 3rem !important;
+  min-height: 2.05rem !important;
+  margin: 0 !important;
+  padding: 0.32rem 0.65rem !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 1.2rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-shadow: 0 0 8px rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.42) !important;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.22),
+      rgba(0, 12, 24, 0.68)
+    ) !important;
+  border: 0 !important;
+  border-left: 1px solid rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.24) !important;
+  border-bottom: 1px solid rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.24) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip,
+.chat-message:has(.dda-tamer-check-card) .dice-tooltip {
+  grid-column: 1 / -1 !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0.55rem 0.65rem 0.7rem !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background: rgba(3, 16, 30, 0.78) !important;
+  border: 0 !important;
+  border-radius: 0 0 8px 8px !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice,
+.chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice {
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls,
+.chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls {
+  display: flex !important;
+  justify-content: center !important;
+  flex-wrap: wrap !important;
+  gap: 0.35rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls .roll,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls .roll,
+.chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls .roll {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 1.95rem !important;
+  height: 1.95rem !important;
+  min-width: 1.95rem !important;
+  min-height: 1.95rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.95rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-indent: 0 !important;
+  background-image: none !important;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.20), transparent 34%),
+    linear-gradient(180deg, rgba(32, 92, 126, 0.96), rgba(9, 42, 66, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.44) !important;
+  border-radius: 8px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -7px 12px rgba(0, 0, 0, 0.20),
+    0 0 8px rgba(var(--dda-chat-accent-rgb, 138, 199, 255), 0.16) !important;
+  filter: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls .roll.min,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls .roll.min,
+.chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls .roll.min {
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(135, 44, 78, 0.96), rgba(66, 12, 36, 0.98)) !important;
+  border-color: rgba(255, 130, 170, 0.54) !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls .roll.max,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls .roll.max,
+.chat-message:has(.dda-tamer-check-card) .dice-tooltip .dice-rolls .roll.max {
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.24), transparent 34%),
+    linear-gradient(180deg, rgba(22, 124, 102, 0.98), rgba(6, 66, 62, 0.98)) !important;
+  border-color: rgba(125, 240, 220, 0.54) !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .part-header,
+.chat-log .chat-message:has(.dda-tamer-check-card) .dice-tooltip .part-header,
+.chat-message:has(.dda-tamer-check-card) .dice-tooltip .part-header {
+  display: none !important;
+}
+
+/* ===================================================== */
+/* DDA — CHAT CARDS WIDTH LOCK / FINAL INTEGRATION       */
+/* Mantém TODOS os cards de chat com a largura do bloco   */
+/* principal, preservando abas coloridas e rolagem colada.*/
+/* ===================================================== */
+
+#chat-log .chat-message:has(.dda-chat-card),
+.chat-log .chat-message:has(.dda-chat-card),
+.chat-message:has(.dda-chat-card) {
+  --dda-chat-accent: #61d8ff;
+  --dda-chat-accent-rgb: 97, 216, 255;
+  --dda-chat-accent-2: #1f75b8;
+  box-sizing: border-box !important;
+  display: block !important;
+  width: calc(100% - 0.5rem) !important;
+  max-width: calc(100% - 0.5rem) !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0.48rem 0.25rem 0.82rem !important;
+  overflow: visible !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Cores por tipo na casca inteira, incluindo abas */
+#chat-log .chat-message:has(.dda-digivolution-card),
+.chat-log .chat-message:has(.dda-digivolution-card),
+.chat-message:has(.dda-digivolution-card),
+#chat-log .chat-message:has(.dda-evolution-card),
+.chat-log .chat-message:has(.dda-evolution-card),
+.chat-message:has(.dda-evolution-card) {
+  --dda-chat-accent: #67dcff;
+  --dda-chat-accent-rgb: 103, 220, 255;
+  --dda-chat-accent-2: #1777bd;
+}
+
+#chat-log .chat-message:has(.dda-jogress-card),
+.chat-log .chat-message:has(.dda-jogress-card),
+.chat-message:has(.dda-jogress-card) {
+  --dda-chat-accent: #c8a6ff;
+  --dda-chat-accent-rgb: 200, 166, 255;
+  --dda-chat-accent-2: #6b42c8;
+}
+
+#chat-log .chat-message:has(.dda-hybrid-card),
+.chat-log .chat-message:has(.dda-hybrid-card),
+.chat-message:has(.dda-hybrid-card),
+#chat-log .chat-message:has(.dda-biomerge-card),
+.chat-log .chat-message:has(.dda-biomerge-card),
+.chat-message:has(.dda-biomerge-card) {
+  --dda-chat-accent: #ff86d5;
+  --dda-chat-accent-rgb: 255, 134, 213;
+  --dda-chat-accent-2: #b23689;
+}
+
+#chat-log .chat-message:has(.dda-mode-change-card),
+.chat-log .chat-message:has(.dda-mode-change-card),
+.chat-message:has(.dda-mode-change-card),
+#chat-log .chat-message:has(.dda-burst-card),
+.chat-log .chat-message:has(.dda-burst-card),
+.chat-message:has(.dda-burst-card),
+#chat-log .chat-message:has(.dda-blast-card),
+.chat-log .chat-message:has(.dda-blast-card),
+.chat-message:has(.dda-blast-card),
+#chat-log .chat-message:has(.dda-forced-evolution-card),
+.chat-log .chat-message:has(.dda-forced-evolution-card),
+.chat-message:has(.dda-forced-evolution-card) {
+  --dda-chat-accent: #ffe36a;
+  --dda-chat-accent-rgb: 255, 227, 106;
+  --dda-chat-accent-2: #d47916;
+}
+
+#chat-log .chat-message:has(.dda-attack-card.hit),
+.chat-log .chat-message:has(.dda-attack-card.hit),
+.chat-message:has(.dda-attack-card.hit) {
+  --dda-chat-accent: #8affc9;
+  --dda-chat-accent-rgb: 138, 255, 201;
+  --dda-chat-accent-2: #168c78;
+}
+
+#chat-log .chat-message:has(.dda-attack-card.miss),
+.chat-log .chat-message:has(.dda-attack-card.miss),
+.chat-message:has(.dda-attack-card.miss),
+#chat-log .chat-message:has(.dda-damage-card),
+.chat-log .chat-message:has(.dda-damage-card),
+.chat-message:has(.dda-damage-card) {
+  --dda-chat-accent: #ff6f86;
+  --dda-chat-accent-rgb: 255, 111, 134;
+  --dda-chat-accent-2: #a82842;
+}
+
+#chat-log .chat-message:has(.dda-torment-card.success),
+.chat-log .chat-message:has(.dda-torment-card.success),
+.chat-message:has(.dda-torment-card.success),
+#chat-log .chat-message:has(.dda-torment-card.criticalSuccess),
+.chat-log .chat-message:has(.dda-torment-card.criticalSuccess),
+.chat-message:has(.dda-torment-card.criticalSuccess),
+#chat-log .chat-message:has(.dda-recovery-card),
+.chat-log .chat-message:has(.dda-recovery-card),
+.chat-message:has(.dda-recovery-card),
+#chat-log .chat-message:has(.dda-break-card),
+.chat-log .chat-message:has(.dda-break-card),
+.chat-message:has(.dda-break-card),
+#chat-log .chat-message:has(.dda-rest-card),
+.chat-log .chat-message:has(.dda-rest-card),
+.chat-message:has(.dda-rest-card) {
+  --dda-chat-accent: #8affd8;
+  --dda-chat-accent-rgb: 138, 255, 216;
+  --dda-chat-accent-2: #168c78;
+}
+
+#chat-log .chat-message:has(.dda-torment-card.failure),
+.chat-log .chat-message:has(.dda-torment-card.failure),
+.chat-message:has(.dda-torment-card.failure) {
+  --dda-chat-accent: #ffd56a;
+  --dda-chat-accent-rgb: 255, 213, 106;
+  --dda-chat-accent-2: #b47716;
+}
+
+#chat-log .chat-message:has(.dda-pool-card),
+.chat-log .chat-message:has(.dda-pool-card),
+.chat-message:has(.dda-pool-card),
+#chat-log .chat-message:has(.dda-check-card),
+.chat-log .chat-message:has(.dda-check-card),
+.chat-message:has(.dda-check-card),
+#chat-log .chat-message:has(.dda-tamer-check-card),
+.chat-log .chat-message:has(.dda-tamer-check-card),
+.chat-message:has(.dda-tamer-check-card) {
+  --dda-chat-accent: #8ac7ff;
+  --dda-chat-accent-rgb: 138, 199, 255;
+  --dda-chat-accent-2: #246fb2;
+}
+
+#chat-log .chat-message:has(.dda-clash-card),
+.chat-log .chat-message:has(.dda-clash-card),
+.chat-message:has(.dda-clash-card) {
+  --dda-chat-accent: #ffad72;
+  --dda-chat-accent-rgb: 255, 173, 114;
+  --dda-chat-accent-2: #ad521c;
+}
+
+/* Abas de remetente/tempo: pequenas, coloridas e encaixadas */
+#chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-message:has(.dda-chat-card) .message-header {
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: minmax(4.4rem, auto) max-content !important;
+  align-items: end !important;
+  gap: 0.45rem !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 1.36rem !important;
+  margin: 0 !important;
+  padding: 0 0.38rem !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender,
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  box-sizing: border-box !important;
+  position: relative !important;
+  z-index: 3 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 3.9rem !important;
+  max-width: 100% !important;
+  min-height: 1.28rem !important;
+  height: 1.28rem !important;
+  padding: 0.08rem 0.5rem 0 !important;
+  margin: 0 0 -1px 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  color: #eefaff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 0 5px rgba(var(--dda-chat-accent-rgb), 0.36) !important;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--dda-chat-accent-rgb), 0.42),
+      rgba(5, 24, 42, 0.98)
+    ) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.50) !important;
+  border-bottom: 0 !important;
+  border-radius: 6px 6px 0 0 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 8px rgba(var(--dda-chat-accent-rgb), 0.12) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender {
+  justify-self: start !important;
+  max-width: 62% !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  justify-self: end !important;
+  min-width: 4.8rem !important;
+  max-width: 38% !important;
+  font-size: 0.60rem !important;
+  color: rgba(235, 250, 255, 0.90) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata .message-timestamp,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata .message-timestamp,
+.chat-message:has(.dda-chat-card) .message-metadata .message-timestamp {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-delete,
+.chat-log .chat-message:has(.dda-chat-card) .message-delete,
+.chat-message:has(.dda-chat-card) .message-delete {
+  margin-left: 0.25rem !important;
+  color: rgba(235, 250, 255, 0.88) !important;
+}
+
+/* Conteúdo sempre esticado na mesma largura do chat card principal */
+#chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-message:has(.dda-chat-card) .message-content {
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .flavor-text,
+.chat-log .chat-message:has(.dda-chat-card) .flavor-text,
+.chat-message:has(.dda-chat-card) .flavor-text,
+#chat-log .chat-message:has(.dda-chat-card) .message-content > *:not(.dice-roll),
+.chat-log .chat-message:has(.dda-chat-card) .message-content > *:not(.dice-roll),
+.chat-message:has(.dda-chat-card) .message-content > *:not(.dice-roll) {
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dda-chat-card,
+.chat-log .chat-message:has(.dda-chat-card) .dda-chat-card,
+.chat-message:has(.dda-chat-card) .dda-chat-card {
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  margin: 0 !important;
+  padding: 0.72rem 0.78rem !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(var(--dda-chat-accent-rgb), 0.035) 0,
+      rgba(var(--dda-chat-accent-rgb), 0.035) 1px,
+      transparent 1px,
+      transparent 12px
+    ),
+    linear-gradient(180deg, rgba(8, 42, 72, 0.96), rgba(4, 24, 44, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.42) !important;
+  border-left-width: 1px !important;
+  border-radius: 7px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.045),
+    inset 0 -14px 24px rgba(0, 0, 0, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.22) !important;
+}
+
+/* Se houver rolagem, o card vira a metade de cima da peça */
+#chat-log .chat-message:has(.dda-chat-card):has(.dice-roll) .dda-chat-card,
+.chat-log .chat-message:has(.dda-chat-card):has(.dice-roll) .dda-chat-card,
+.chat-message:has(.dda-chat-card):has(.dice-roll) .dda-chat-card {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dda-chat-card h2,
+.chat-log .chat-message:has(.dda-chat-card) .dda-chat-card h2,
+.chat-message:has(.dda-chat-card) .dda-chat-card h2 {
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 0 0.55rem !important;
+  padding: 0.40rem 0.48rem !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.95rem !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 0 6px rgba(var(--dda-chat-accent-rgb), 0.38) !important;
+  background: rgba(var(--dda-chat-accent-rgb), 0.14) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.22) !important;
+  border-radius: 6px !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dda-chat-card p,
+#chat-log .chat-message:has(.dda-chat-card) .dda-chat-card li,
+.chat-log .chat-message:has(.dda-chat-card) .dda-chat-card p,
+.chat-log .chat-message:has(.dda-chat-card) .dda-chat-card li,
+.chat-message:has(.dda-chat-card) .dda-chat-card p,
+.chat-message:has(.dda-chat-card) .dda-chat-card li {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 0 0.42rem !important;
+  padding: 0.44rem 0.50rem !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  font-size: 0.82rem !important;
+  line-height: 1.35 !important;
+  background: rgba(0, 10, 20, 0.24) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.15) !important;
+  border-radius: 6px !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dda-chat-card p:last-child,
+.chat-log .chat-message:has(.dda-chat-card) .dda-chat-card p:last-child,
+.chat-message:has(.dda-chat-card) .dda-chat-card p:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Rolagem Foundry grudada, mesma largura e mesmo frame */
+#chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-message:has(.dda-chat-card) .dice-roll {
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  margin: -1px 0 0 0 !important;
+  padding: 0 !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background:
+    linear-gradient(180deg, rgba(5, 28, 48, 0.98), rgba(3, 18, 34, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.42) !important;
+  border-top: 0 !important;
+  border-radius: 0 0 7px 7px !important;
+  box-shadow:
+    inset 0 -14px 24px rgba(0, 0, 0, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.24) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-result,
+.chat-log .chat-message:has(.dda-chat-card) .dice-result,
+.chat-message:has(.dda-chat-card) .dice-result {
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(3rem, auto) !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-message:has(.dda-chat-card) .dice-formula {
+  box-sizing: border-box !important;
+  grid-column: 1 / 2 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  min-height: 2.05rem !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0.32rem 0.65rem !important;
+  color: #dff7ff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--dda-chat-accent-rgb), 0.13),
+      rgba(0, 12, 24, 0.42)
+    ) !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(var(--dda-chat-accent-rgb), 0.22) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-message:has(.dda-chat-card) .dice-total {
+  box-sizing: border-box !important;
+  grid-column: 2 / 3 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 3rem !important;
+  min-height: 2.05rem !important;
+  margin: 0 !important;
+  padding: 0.32rem 0.65rem !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 1.2rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-shadow: 0 0 8px rgba(var(--dda-chat-accent-rgb), 0.42) !important;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--dda-chat-accent-rgb), 0.23),
+      rgba(0, 12, 24, 0.68)
+    ) !important;
+  border: 0 !important;
+  border-left: 1px solid rgba(var(--dda-chat-accent-rgb), 0.24) !important;
+  border-bottom: 1px solid rgba(var(--dda-chat-accent-rgb), 0.22) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-message:has(.dda-chat-card) .dice-tooltip {
+  box-sizing: border-box !important;
+  grid-column: 1 / -1 !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0.55rem 0.65rem 0.7rem !important;
+  color: var(--dda-chat-text, #dff6ff) !important;
+  background: rgba(3, 16, 30, 0.72) !important;
+  border: 0 !important;
+  border-radius: 0 0 7px 7px !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .part-header,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .part-header,
+.chat-message:has(.dda-chat-card) .dice-tooltip .part-header {
+  display: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice,
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls {
+  box-sizing: border-box !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 0.35rem !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll,
+#chat-log .chat-message:has(.dda-chat-card) .dda-die,
+.chat-log .chat-message:has(.dda-chat-card) .dda-die,
+.chat-message:has(.dda-chat-card) .dda-die {
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 1.95rem !important;
+  height: 1.95rem !important;
+  min-width: 1.95rem !important;
+  min-height: 1.95rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #ffffff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.95rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-indent: 0 !important;
+  background-image: none !important;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.20), transparent 34%),
+    linear-gradient(180deg, rgba(32, 92, 126, 0.96), rgba(9, 42, 66, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.44) !important;
+  border-radius: 7px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -7px 12px rgba(0, 0, 0, 0.20),
+    0 0 8px rgba(var(--dda-chat-accent-rgb), 0.16) !important;
+  filter: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.min,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.min,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.min,
+#chat-log .chat-message:has(.dda-chat-card) .dda-die.failure,
+.chat-log .chat-message:has(.dda-chat-card) .dda-die.failure,
+.chat-message:has(.dda-chat-card) .dda-die.failure {
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(48, 82, 110, 0.96), rgba(14, 36, 58, 0.98)) !important;
+  border-color: rgba(var(--dda-chat-accent-rgb), 0.30) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.max,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.max,
+.chat-message:has(.dda-chat-card) .dice-tooltip .dice-rolls .roll.max,
+#chat-log .chat-message:has(.dda-chat-card) .dda-die.success,
+.chat-log .chat-message:has(.dda-chat-card) .dda-die.success,
+.chat-message:has(.dda-chat-card) .dda-die.success {
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.24), transparent 34%),
+    linear-gradient(180deg, rgba(22, 124, 102, 0.98), rgba(6, 66, 62, 0.98)) !important;
+  border-color: rgba(125, 240, 220, 0.54) !important;
+}
+
+/* ===================================================== */
+/* DDA — Chat Cards: hard reset v6                       */
+/* Restaura cor das mensagens e trava largura única.     */
+/* Este bloco deve ficar no FINAL do arquivo.            */
+/* ===================================================== */
+
+#chat-log .chat-message:has(.dda-chat-card),
+.chat-log .chat-message:has(.dda-chat-card),
+.chat-message:has(.dda-chat-card) {
+  --dda-chat-accent: #61d8ff;
+  --dda-chat-accent-rgb: 97, 216, 255;
+  --dda-chat-accent-2: #1f75b8;
+  --dda-chat-panel: rgba(5, 22, 40, 0.98);
+  --dda-chat-panel-2: rgba(9, 38, 64, 0.96);
+  --dda-chat-text: #dff6ff;
+
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  padding: 0.28rem 0.32rem 0.38rem !important;
+  margin: 0.42rem 0 0.72rem !important;
+  overflow: visible !important;
+
+  color: var(--dda-chat-text) !important;
+  background:
+    radial-gradient(circle at top left, rgba(var(--dda-chat-accent-rgb), 0.18), transparent 38%),
+    linear-gradient(180deg, var(--dda-chat-panel-2), var(--dda-chat-panel)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.46) !important;
+  border-radius: 9px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055),
+    inset 0 -18px 30px rgba(0, 0, 0, 0.18),
+    0 6px 16px rgba(0, 0, 0, 0.34),
+    0 0 14px rgba(var(--dda-chat-accent-rgb), 0.14) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-log .chat-message:has(.dda-chat-card) .message-header,
+.chat-message:has(.dda-chat-card) .message-header {
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: end !important;
+  gap: 0.32rem !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 1.28rem !important;
+  margin: 0 !important;
+  padding: 0 0.08rem !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender,
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  box-sizing: border-box !important;
+  z-index: 3 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  min-width: 0 !important;
+  min-height: 1.28rem !important;
+  max-height: 1.28rem !important;
+  margin: 0 0 -1px 0 !important;
+  padding: 0.14rem 0.48rem !important;
+
+  color: #eefaff !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 0 5px rgba(var(--dda-chat-accent-rgb), 0.28) !important;
+
+  background:
+    linear-gradient(180deg, rgba(var(--dda-chat-accent-rgb), 0.42), rgba(4, 20, 38, 0.96)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.58) !important;
+  border-bottom-color: rgba(var(--dda-chat-accent-rgb), 0.20) !important;
+  border-radius: 6px 6px 0 0 !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 0 8px rgba(var(--dda-chat-accent-rgb), 0.13) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-log .chat-message:has(.dda-chat-card) .message-sender,
+.chat-message:has(.dda-chat-card) .message-sender {
+  justify-self: start !important;
+  max-width: 70% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-log .chat-message:has(.dda-chat-card) .message-metadata,
+.chat-message:has(.dda-chat-card) .message-metadata {
+  justify-self: end !important;
+  max-width: 38% !important;
+  color: rgba(232, 248, 255, 0.88) !important;
+  font-size: 0.62rem !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-log .chat-message:has(.dda-chat-card) .message-content,
+.chat-message:has(.dda-chat-card) .message-content {
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--dda-chat-text) !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dda-chat-card,
+.chat-log .chat-message:has(.dda-chat-card) .dda-chat-card,
+.chat-message:has(.dda-chat-card) .dda-chat-card {
+  box-sizing: border-box !important;
+  display: block !important;
+  align-self: stretch !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  margin: 0 !important;
+  padding: 0.72rem 0.80rem 0.78rem !important;
+  overflow: hidden !important;
+
+  color: var(--dda-chat-text) !important;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(var(--dda-chat-accent-rgb), 0.055) 0,
+      rgba(var(--dda-chat-accent-rgb), 0.055) 1px,
+      transparent 1px,
+      transparent 13px
+    ),
+    radial-gradient(circle at top right, rgba(var(--dda-chat-accent-rgb), 0.14), transparent 36%),
+    linear-gradient(180deg, rgba(8, 42, 72, 0.96), rgba(4, 24, 44, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.46) !important;
+  border-radius: 7px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.045),
+    inset 0 -14px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card):has(.dice-roll) .dda-chat-card,
+.chat-log .chat-message:has(.dda-chat-card):has(.dice-roll) .dda-chat-card,
+.chat-message:has(.dda-chat-card):has(.dice-roll) .dda-chat-card {
+  border-radius: 7px 7px 0 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dda-chat-card h2,
+.chat-log .chat-message:has(.dda-chat-card) .dda-chat-card h2,
+.chat-message:has(.dda-chat-card) .dda-chat-card h2 {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  margin: 0 0 0.50rem !important;
+  padding: 0.34rem 0.48rem !important;
+  color: #ffffff !important;
+  background:
+    linear-gradient(180deg, rgba(var(--dda-chat-accent-rgb), 0.24), rgba(8, 30, 52, 0.72)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.34) !important;
+  border-radius: 6px !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.94rem !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dda-chat-card p,
+#chat-log .chat-message:has(.dda-chat-card) .dda-chat-card li,
+.chat-log .chat-message:has(.dda-chat-card) .dda-chat-card p,
+.chat-log .chat-message:has(.dda-chat-card) .dda-chat-card li,
+.chat-message:has(.dda-chat-card) .dda-chat-card p,
+.chat-message:has(.dda-chat-card) .dda-chat-card li {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 0 0.42rem !important;
+  padding: 0.44rem 0.50rem !important;
+  color: var(--dda-chat-text) !important;
+  background: rgba(0, 10, 20, 0.28) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.16) !important;
+  border-radius: 6px !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-log .chat-message:has(.dda-chat-card) .dice-roll,
+.chat-message:has(.dda-chat-card) .dice-roll {
+  box-sizing: border-box !important;
+  display: block !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  margin: -1px 0 0 0 !important;
+  padding: 0 !important;
+  color: var(--dda-chat-text) !important;
+  background:
+    linear-gradient(180deg, rgba(5, 28, 48, 0.98), rgba(3, 18, 34, 0.98)) !important;
+  border: 1px solid rgba(var(--dda-chat-accent-rgb), 0.46) !important;
+  border-top: 0 !important;
+  border-radius: 0 0 7px 7px !important;
+  box-shadow: inset 0 -14px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-result,
+.chat-log .chat-message:has(.dda-chat-card) .dice-result,
+.chat-message:has(.dda-chat-card) .dice-result {
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(3.2rem, auto) !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-log .chat-message:has(.dda-chat-card) .dice-formula,
+.chat-message:has(.dda-chat-card) .dice-formula {
+  grid-column: 1 / 2 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  min-height: 2rem !important;
+  margin: 0 !important;
+  padding: 0.32rem 0.65rem !important;
+  color: #dff7ff !important;
+  background: rgba(var(--dda-chat-accent-rgb), 0.12) !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(var(--dda-chat-accent-rgb), 0.22) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-log .chat-message:has(.dda-chat-card) .dice-total,
+.chat-message:has(.dda-chat-card) .dice-total {
+  grid-column: 2 / 3 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 2rem !important;
+  margin: 0 !important;
+  padding: 0.32rem 0.65rem !important;
+  color: #ffffff !important;
+  background: rgba(var(--dda-chat-accent-rgb), 0.22) !important;
+  border: 0 !important;
+  border-left: 1px solid rgba(var(--dda-chat-accent-rgb), 0.24) !important;
+  border-bottom: 1px solid rgba(var(--dda-chat-accent-rgb), 0.22) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-log .chat-message:has(.dda-chat-card) .dice-tooltip,
+.chat-message:has(.dda-chat-card) .dice-tooltip {
+  box-sizing: border-box !important;
+  grid-column: 1 / -1 !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0.50rem 0.65rem 0.64rem !important;
+  background: rgba(3, 16, 30, 0.72) !important;
+  border: 0 !important;
+  border-radius: 0 0 7px 7px !important;
+}
+
+/* Cores por tipo de card — mantidas no fim para vencer overrides transparentes */
+.chat-message:has(.dda-digivolution-card),
+.chat-message:has(.dda-evolution-card) { --dda-chat-accent: #67dcff; --dda-chat-accent-rgb: 103, 220, 255; --dda-chat-accent-2: #1777bd; }
+.chat-message:has(.dda-jogress-card) { --dda-chat-accent: #c8a6ff; --dda-chat-accent-rgb: 200, 166, 255; --dda-chat-accent-2: #6b42c8; }
+.chat-message:has(.dda-hybrid-card),
+.chat-message:has(.dda-biomerge-card) { --dda-chat-accent: #ff86d5; --dda-chat-accent-rgb: 255, 134, 213; --dda-chat-accent-2: #b23689; }
+.chat-message:has(.dda-mode-change-card),
+.chat-message:has(.dda-burst-card),
+.chat-message:has(.dda-blast-card),
+.chat-message:has(.dda-forced-evolution-card) { --dda-chat-accent: #ffe36a; --dda-chat-accent-rgb: 255, 227, 106; --dda-chat-accent-2: #d47916; }
+.chat-message:has(.dda-attack-card.hit) { --dda-chat-accent: #8affc9; --dda-chat-accent-rgb: 138, 255, 201; --dda-chat-accent-2: #168c78; }
+.chat-message:has(.dda-attack-card.miss) { --dda-chat-accent: #ff8d7a; --dda-chat-accent-rgb: 255, 141, 122; --dda-chat-accent-2: #b64232; }
+.chat-message:has(.dda-damage-card),
+.chat-message:has(.dda-torment-card.criticalFailure),
+.chat-message:has(.dda-torment-card.severeCriticalFailure) { --dda-chat-accent: #ff6f86; --dda-chat-accent-rgb: 255, 111, 134; --dda-chat-accent-2: #a82842; }
+.chat-message:has(.dda-torment-card.success),
+.chat-message:has(.dda-torment-card.criticalSuccess),
+.chat-message:has(.dda-recovery-card),
+.chat-message:has(.dda-break-card),
+.chat-message:has(.dda-rest-card) { --dda-chat-accent: #8affd8; --dda-chat-accent-rgb: 138, 255, 216; --dda-chat-accent-2: #168c78; }
+.chat-message:has(.dda-torment-card.failure) { --dda-chat-accent: #ffd56a; --dda-chat-accent-rgb: 255, 213, 106; --dda-chat-accent-2: #b47716; }
+.chat-message:has(.dda-pool-card),
+.chat-message:has(.dda-check-card),
+.chat-message:has(.dda-tamer-check-card) { --dda-chat-accent: #8ac7ff; --dda-chat-accent-rgb: 138, 199, 255; --dda-chat-accent-2: #246fb2; }
+.chat-message:has(.dda-clash-card) { --dda-chat-accent: #ffad72; --dda-chat-accent-rgb: 255, 173, 114; --dda-chat-accent-2: #ad521c; }
+.chat-message:has(.dda-tamer-talent-use-card),
+.chat-message:has(.dda-tamer-talent-recharge-card) { --dda-chat-accent: #b9a4ff; --dda-chat-accent-rgb: 185, 164, 255; --dda-chat-accent-2: #6040b8; }
+.chat-message:has(.dda-end-turn-card),
+.chat-message:has(.dda-energize-card) { --dda-chat-accent: #7de8ff; --dda-chat-accent-rgb: 125, 232, 255; --dda-chat-accent-2: #1f75b8; }
+
+.dda-digivolution-card,
+.dda-evolution-card { --dda-card-accent-rgb: 103, 220, 255; --dda-card-accent: #67dcff; }
+.dda-jogress-card { --dda-card-accent-rgb: 200, 166, 255; --dda-card-accent: #c8a6ff; }
+.dda-hybrid-card,
+.dda-biomerge-card { --dda-card-accent-rgb: 255, 134, 213; --dda-card-accent: #ff86d5; }
+.dda-mode-change-card,
+.dda-burst-card,
+.dda-blast-card,
+.dda-forced-evolution-card { --dda-card-accent-rgb: 255, 227, 106; --dda-card-accent: #ffe36a; }
+.dda-attack-card.hit { --dda-card-accent-rgb: 138, 255, 201; --dda-card-accent: #8affc9; }
+.dda-attack-card.miss { --dda-card-accent-rgb: 255, 141, 122; --dda-card-accent: #ff8d7a; }
+.dda-damage-card { --dda-card-accent-rgb: 255, 111, 134; --dda-card-accent: #ff6f86; }
+.dda-torment-card.success,
+.dda-torment-card.criticalSuccess { --dda-card-accent-rgb: 138, 255, 216; --dda-card-accent: #8affd8; }
+.dda-torment-card.failure { --dda-card-accent-rgb: 255, 213, 106; --dda-card-accent: #ffd56a; }
+.dda-torment-card.criticalFailure,
+.dda-torment-card.severeCriticalFailure { --dda-card-accent-rgb: 255, 111, 134; --dda-card-accent: #ff6f86; }
+.dda-clash-card { --dda-card-accent-rgb: 255, 173, 114; --dda-card-accent: #ffad72; }
+
+/* ===================================================== */
+/* DDA — Tamer Skill Check: content-based roll fix v9     */
+/* O Roll.toMessage com flavor colocava o card no header. */
+/* Agora o check-roll envia card + dice-roll no conteúdo. */
+/* ===================================================== */
+
+#chat-log .chat-message:has(.dda-tamer-check-message),
+.chat-log .chat-message:has(.dda-tamer-check-message),
+.chat-message:has(.dda-tamer-check-message) {
+  --dda-chat-accent: #8ac7ff;
+  --dda-chat-accent-rgb: 138, 199, 255;
+  --dda-chat-accent-2: #246fb2;
+  width: calc(100% - 0.5rem) !important;
+  max-width: calc(100% - 0.5rem) !important;
+  margin: 0.48rem 0.25rem 0.82rem !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-message) .message-header,
+.chat-log .chat-message:has(.dda-tamer-check-message) .message-header,
+.chat-message:has(.dda-tamer-check-message) .message-header {
+  display: grid !important;
+  grid-template-columns: minmax(4.6rem, 1fr) max-content !important;
+  align-items: end !important;
+  gap: 0.45rem !important;
+  width: 100% !important;
+  min-height: 1.42rem !important;
+  margin: 0 !important;
+  padding: 0 0.55rem !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-message) .message-sender,
+.chat-log .chat-message:has(.dda-tamer-check-message) .message-sender,
+.chat-message:has(.dda-tamer-check-message) .message-sender {
+  justify-self: start !important;
+  min-width: 4.2rem !important;
+  max-width: 62% !important;
+  transform: translateX(0.18rem) !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-message) .message-metadata,
+.chat-log .chat-message:has(.dda-tamer-check-message) .message-metadata,
+.chat-message:has(.dda-tamer-check-message) .message-metadata {
+  justify-self: end !important;
+  min-width: 5.8rem !important;
+  max-width: 5.8rem !important;
+  transform: translateX(-0.32rem) !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-message) .message-content,
+.chat-log .chat-message:has(.dda-tamer-check-message) .message-content,
+.chat-message:has(.dda-tamer-check-message) .message-content,
+#chat-log .chat-message:has(.dda-tamer-check-message) .dda-chat-roll-message,
+.chat-log .chat-message:has(.dda-tamer-check-message) .dda-chat-roll-message,
+.chat-message:has(.dda-tamer-check-message) .dda-chat-roll-message,
+#chat-log .chat-message:has(.dda-tamer-check-message) .dda-tamer-check-message,
+.chat-log .chat-message:has(.dda-tamer-check-message) .dda-tamer-check-message,
+.chat-message:has(.dda-tamer-check-message) .dda-tamer-check-message,
+#chat-log .chat-message:has(.dda-tamer-check-message) .dda-tamer-check-shell,
+.chat-log .chat-message:has(.dda-tamer-check-message) .dda-tamer-check-shell,
+.chat-message:has(.dda-tamer-check-message) .dda-tamer-check-shell {
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-message) .dda-tamer-check-card,
+.chat-log .chat-message:has(.dda-tamer-check-message) .dda-tamer-check-card,
+.chat-message:has(.dda-tamer-check-message) .dda-tamer-check-card {
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  align-self: stretch !important;
+  margin: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-message) .dice-roll,
+.chat-log .chat-message:has(.dda-tamer-check-message) .dice-roll,
+.chat-message:has(.dda-tamer-check-message) .dice-roll {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  align-self: stretch !important;
+  margin: -1px 0 0 !important;
+  border-top: 0 !important;
+  border-radius: 0 0 7px 7px !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-message) .dice-result,
+.chat-log .chat-message:has(.dda-tamer-check-message) .dice-result,
+.chat-message:has(.dda-tamer-check-message) .dice-result {
+  grid-template-columns: minmax(0, 1fr) minmax(3.8rem, auto) !important;
+}
+
+#chat-log .chat-message:has(.dda-tamer-check-message) .dice-total,
+.chat-log .chat-message:has(.dda-tamer-check-message) .dice-total,
+.chat-message:has(.dda-tamer-check-message) .dice-total {
+  min-width: 3.8rem !important;
+  justify-content: center !important;
+}
+/* DDA - Pool chat card quality notes */
+.dda-pool-card .pool-quality-automatic-successes {
+  margin: 6px 0;
+  padding: 7px 9px;
+  border-radius: 9px;
+  border: 1px solid rgba(75, 145, 180, 0.55);
+  background: rgba(211, 236, 250, 0.82);
+  color: #143b55;
+  font-weight: 700;
+}
+
+.dda-pool-card .pool-quality-automatic-successes strong {
+  color: #052a44;
+}
+
+.dda-pool-card .pool-quality-automatic-successes span {
+  display: inline-block;
+  margin-left: 6px;
+  color: #24526b;
+  font-weight: 700;
+}
+/* DDA - Pool chat card quality notes */
+.dda-pool-card .pool-quality-automatic-successes {
+  margin: 6px 0;
+  padding: 7px 9px;
+  border-radius: 9px;
+  border: 1px solid rgba(78, 169, 210, 0.55);
+  background:
+    linear-gradient(135deg, rgba(19, 73, 104, 0.42), rgba(7, 35, 58, 0.28)),
+    rgba(7, 30, 50, 0.72);
+  color: #d8f2ff;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.dda-pool-card .pool-quality-automatic-successes > strong {
+  color: #ffffff;
+  font-size: 1.06em;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.dda-pool-card .pool-quality-automatic-successes span {
+  display: inline;
+  margin-left: 6px;
+  color: #9fdcff;
+  font-weight: 700;
+}
+
+.dda-pool-card .pool-quality-automatic-successes span strong {
+  color: #ffffff;
+}

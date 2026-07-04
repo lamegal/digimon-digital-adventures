@@ -1,0 +1,1051 @@
+<form class="{{cssClass}} dda-digimon-sheet dda-digimon-window-sheet" autocomplete="off">
+  <div class="dda-window-shell dda-digimon-window-shell">
+
+    <div class="dda-window-side-device" aria-hidden="false">
+      {{#if portraitIsVideo}}
+      <video
+        class="dda-device-portrait"
+        src="{{digivicePortrait}}"
+        data-action="edit-digimon-portrait"
+        title="{{actor.name}}"
+        autoplay
+        loop
+        muted
+        playsinline
+      ></video>
+      {{else}}
+      <img
+        class="dda-device-portrait"
+        src="{{digivicePortrait}}"
+        data-action="edit-digimon-portrait"
+        title="{{actor.name}}"
+      />
+      {{/if}}
+
+      <button
+        type="button"
+        class="dda-device-button dda-device-button-sheet"
+        data-action="digivice-sheet"
+        data-tooltip="{{localize 'DDA.Digivice.ConfigureSheet'}}"
+        title="{{localize 'DDA.Digivice.ConfigureSheet'}}"
+        aria-label="{{localize 'DDA.Digivice.ConfigureSheet'}}"
+      </button>
+
+      <button
+        type="button"
+        class="dda-device-button dda-device-button-token"
+        data-action="digivice-token"
+        data-tooltip="{{localize 'DDA.Digivice.PrototypeToken'}}"
+        title="{{localize 'DDA.Digivice.PrototypeToken'}}"
+        aria-label="{{localize 'DDA.Digivice.PrototypeToken'}}">
+      </button>
+
+      <button
+        type="button"
+        class="dda-device-button dda-device-button-close"
+        data-action="digivice-close"
+        data-tooltip="{{localize 'DDA.Button.Close'}}"
+        title="{{localize 'DDA.Button.Close'}}"
+        aria-label="{{localize 'DDA.Button.Close'}}">
+      </button>
+    </div>
+
+<div class="dda-stage-orb">
+  <div class="dda-stage-orb-label" aria-hidden="true">
+    <span class="dda-stage-letter dda-stage-letter-s">S</span>
+    <span class="dda-stage-letter dda-stage-letter-v">V</span>
+  </div>
+
+  <input
+    class="dda-stage-orb-value"
+    type="number"
+    name="system.stageValue"
+    value="{{system.stageValue}}"
+    readonly
+  />
+</div>
+
+    <div class="dda-window-frame">
+      <div class="dda-window-frame-glow" aria-hidden="true"></div>
+
+      <div class="dda-window-paper">
+
+  <header class="sheet-header dda-profile-header dda-digimon-header">
+<div class="dda-header-top-row">
+<h1 class="dda-header-name">
+  <div class="dda-header-name-control">
+    <input
+      class="dda-header-name-display"
+      type="text"
+      value="{{digimonDisplay.sheetName}}"
+      placeholder="{{localize 'DDA.DigimonSheet.Placeholder.DigimonName'}}"
+      title="{{actor.name}}"
+      readonly
+    />
+
+    <button
+      type="button"
+      class="dda-header-name-edit"
+      data-action="edit-digimon-name"
+      title="{{localize 'DDA.DigimonNameEdit.ButtonTitle'}}"
+      aria-label="{{localize 'DDA.DigimonNameEdit.ButtonTitle'}}"
+    >
+      ✎
+    </button>
+  </div>
+
+  <input
+    type="hidden"
+    name="name"
+    value="{{actor.name}}"
+  />
+</h1>
+
+  <div class="form-group dda-header-species {{#if hybridForm.isSpecialForm}}has-special-form-badge{{/if}}">
+    <label>{{localize "DDA.DigimonSheet.Species"}}</label>
+
+<input
+  type="text"
+  value="{{digimonDisplay.species}}"
+  title="{{system.species}}"
+  disabled
+/>
+
+<input
+  type="hidden"
+  name="system.species"
+  value="{{system.species}}"
+/>
+
+    {{#if hybridForm.isSpecialForm}}
+    <div class="dda-hybrid-form-badge dda-hybrid-method-{{hybridForm.method}}">
+      <span>{{hybridForm.methodLabel}}</span>
+      <strong>{{localize "DDA.Hybrid.EquivalentStage"}}: {{hybridForm.equivalentStageLabel}}</strong>
+    </div>
+    {{/if}}
+  </div>
+</div>
+
+<div class="dda-header-bottom-row">
+<div class="form-group dda-header-size">
+  <label>{{localize "DDA.Label.Size"}}</label>
+  <select
+    name="system.size"
+    title="{{localize 'DDA.Size.MaxForCurrentStage'}}: {{maxSizeForStageLabel}}"
+  >
+    {{#each allowedSizeOptions as |option key|}}
+      <option
+        value="{{key}}"
+        {{#if (eq ../system.size key)}}selected{{/if}}
+        {{#if option.invalid}}data-invalid-size="true"{{/if}}
+      >
+        {{localize option.label}}{{#if option.invalid}} ⚠{{/if}}
+      </option>
+    {{/each}}
+  </select>
+
+  {{#if currentSizeExceedsStageMaximum}}
+    <p class="dda-size-stage-warning">
+      {{localize "DDA.Warning.SizeExceedsStageMaximum"}}
+      {{localize "DDA.Size.MaxForCurrentStage"}}: {{maxSizeForStageLabel}}.
+    </p>
+  {{/if}}
+</div>
+
+  <div class="form-group dda-header-stage">
+    <label>{{localize "DDA.Label.Stage"}}</label>
+    <select name="system.stage">
+      {{#each config.stages as |stage key|}}
+      <option value="{{key}}" {{#if (eq ../system.stage key)}}selected{{/if}}>{{localize stage.label}}</option>
+      {{/each}}
+    </select>
+  </div>
+</div>
+
+  </header>
+
+{{#if hybridForm.active}}
+<section class="dda-hybrid-active-panel dda-hybrid-panel-digimon">
+  <div class="dda-hybrid-panel-main">
+    <span class="dda-hybrid-kicker">{{hybridForm.methodLabel}}</span>
+    <h2>{{actor.name}}</h2>
+    <p>
+      {{localize "DDA.Hybrid.EquivalentStage"}}: <strong>{{hybridForm.equivalentStageLabel}}</strong>
+      {{#if hybridForm.tamerName}} • {{localize "DDA.Actor.Tamer"}}: <strong>{{hybridForm.tamerName}}</strong>{{/if}}
+      {{#if hybridForm.partnerAvailabilityLabel}} • {{localize "DDA.Hybrid.PartnerAvailability.Label"}}: <strong>{{hybridForm.partnerAvailabilityLabel}}</strong>{{/if}}
+    </p>
+  </div>
+
+  <div class="dda-hybrid-panel-rules">
+    <span>{{localize "DDA.Hybrid.ResultActions"}}: <strong>3</strong></span>
+    <span>{{localize "DDA.Hybrid.SkillRuleShort"}}</span>
+  </div>
+</section>
+{{/if}}
+
+
+<nav class="sheet-tabs tabs" data-group="primary">
+  <a class="item" data-tab="summary">{{localize "DDA.Tab.Summary"}}</a>
+  <a class="item" data-tab="stats">{{localize "DDA.Tab.Stats"}}</a>
+  <a class="item" data-tab="combat">{{localize "DDA.Tab.Combat"}}</a>
+  <a class="item" data-tab="qualities">{{localize "DDA.Tab.Qualities"}}</a>
+  <a class="item" data-tab="evolution">{{localize "DDA.Tab.Evolution"}}</a>
+  <a class="item" data-tab="notes">{{localize "DDA.Tab.Notes"}}</a>
+</nav>
+
+  <section class="sheet-body">
+<section class="tab dda-summary-tab" data-group="primary" data-tab="summary">
+
+  <div class="dda-digimon-classification-row">
+
+  <div class="dda-classification-line dda-classification-line-main">
+    <div class="form-group dda-classification-attribute">
+      <label>{{localize "DDA.DigimonProfile.AttributeLabel"}}</label>
+      <select name="system.attribute">
+        {{#each digimonProfileOptions.attributes as |label key|}}
+          <option value="{{key}}" {{#if (eq ../system.attribute key)}}selected{{/if}}>
+            {{label}}
+          </option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="form-group dda-classification-dda-family">
+      <label>{{localize "DDA.DigimonProfile.FieldLabel"}}</label>
+      <select name="system.field">
+        {{#each digimonProfileOptions.fields as |label key|}}
+          <option value="{{key}}" {{#if (eq ../system.field key)}}selected{{/if}}>
+            {{label}}
+          </option>
+        {{/each}}
+      </select>
+    </div>
+  </div>
+
+  <div class="dda-classification-line dda-classification-line-secondary">
+<div class="form-group dda-classification-digimon-type">
+  <label>{{localize "DDA.DigimonProfile.TypeLabel"}}</label>
+
+  <input
+    type="text"
+    value="{{digimonDisplay.type}}"
+    list="dda-digimon-type-suggestions"
+    title="{{system.type}}"
+    placeholder="{{localize 'DDA.DigimonProfile.TypePlaceholder'}}"
+    readonly
+  />
+
+  <input
+    type="hidden"
+    name="system.type"
+    value="{{system.type}}"
+  />
+
+  <datalist id="dda-digimon-type-suggestions">
+    {{#each digimonProfileOptions.types as |label key|}}
+      <option value="{{label}}"></option>
+    {{/each}}
+  </datalist>
+</div>
+
+<div class="form-group dda-classification-group">
+  <label>{{localize "DDA.DigimonProfile.GroupLabel"}}</label>
+
+  <input
+    type="text"
+    value="{{digimonDisplay.group}}"
+    title="{{system.group}}"
+    placeholder="{{localize 'DDA.DigimonProfile.GroupPlaceholder'}}"
+    readonly
+  />
+
+  <input
+    type="hidden"
+    name="system.group"
+    value="{{system.group}}"
+  />
+</div>
+</div>
+</div>
+
+<div class="dda-human-scaling-note dda-human-scaling-{{humanScaling.value}}">
+  <strong>{{localize "DDA.HumanScaling.Title"}}:</strong>
+  <span>{{humanScaling.label}}</span>
+  <p>{{humanScaling.description}}</p>
+</div>
+
+            <h3>{{localize "DDA.DigimonSheet.TamerBond"}}</h3>
+
+            {{#unless system.tamer.uuid}}
+      <div class="tamer-drop-zone">
+        <strong>{{localize "DDA.DigimonSheet.DropTamerHere"}}</strong>
+        <span>{{localize "DDA.DigimonSheet.DropTamerHint"}}</span>
+      </div>
+      {{/unless}}
+
+
+<div class="combat-actions">
+  <button type="button" class="open-tamer-sheet">{{localize "DDA.Button.OpenTamer"}}</button>
+  <button type="button" class="unlink-tamer">{{localize "DDA.Button.UnlinkPair"}}</button>
+</div>
+
+<div class="dda-tamer-link-centered">
+  <div class="form-group">
+    <label>{{localize "DDA.Actor.Tamer"}}</label>
+    <input type="text" value="{{system.tamer.name}}" readonly />
+  </div>
+</div>
+
+<details class="dda-creation-data-panel">
+  <summary>
+    <span class="dda-creation-data-arrow">▸</span>
+    <span>{{localize "DDA.DigimonSheet.CreationData"}}</span>
+  </summary>
+
+  <div class="resource-grid dda-creation-data-grid">
+    <div class="resource-box">
+      <label>{{localize "DDA.Creation.BaseDP"}}</label>
+      <input type="number" name="system.creation.dp.base" value="{{system.creation.dp.base}}" readonly />
+    </div>
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Creation.BonusDP"}}</label>
+      <input type="number" name="system.creation.dp.bonus" value="{{system.creation.dp.bonus}}" />
+    </div>
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Creation.ManualNegativeDP"}}</label>
+      <input type="number" name="system.creation.dp.negative" value="{{system.creation.dp.negative}}" />
+    </div>
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Creation.TotalDP"}}</label>
+      <input type="number" name="system.creation.dp.total" value="{{system.creation.dp.total}}" readonly />
+    </div>
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Creation.SpentDP"}}</label>
+      <input type="number" name="system.creation.dp.spentTotal" value="{{system.creation.dp.spentTotal}}" readonly />
+    </div>
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Creation.RemainingDP"}}</label>
+      <input type="number" name="system.creation.dp.remaining" value="{{system.creation.dp.remaining}}" readonly />
+    </div>
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Creation.NegativeDPLimit"}}</label>
+      <input type="number" name="system.qualityLimits.negativeDp.max" value="{{system.qualityLimits.negativeDp.max}}" readonly />
+    </div>
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Creation.NegativeDPUsed"}}</label>
+      <input type="number" name="system.qualityLimits.negativeDp.used" value="{{system.qualityLimits.negativeDp.used}}" readonly />
+    </div>
+  </div>
+
+  <div class="dda-creation-data-lines">
+<div class="build-summary-line">
+  <span class="build-summary-title">{{localize "DDA.Creation.CoreDiscount"}}</span>
+  <span class="build-summary-value">
+    <strong>{{system.creation.coreDiscount.used}}</strong>/<strong>{{system.creation.coreDiscount.base}}</strong>
+  </span>
+  <span class="build-summary-note">
+    <strong>{{system.creation.coreDiscount.remaining}}</strong> {{localize "DDA.Label.Remaining"}}
+  </span>
+</div>
+
+<div class="build-summary-line">
+  <span class="build-summary-title">{{localize "DDA.Creation.NegativeDP"}}</span>
+  <span class="build-summary-value">
+    <strong>{{system.qualityLimits.negativeDp.used}}</strong>/<strong>{{system.qualityLimits.negativeDp.max}}</strong>
+  </span>
+  <span class="build-summary-note">
+    <strong>{{system.qualityLimits.negativeDp.remaining}}</strong> {{localize "DDA.Label.Remaining"}}
+  </span>
+</div>
+
+<div class="build-summary-line">
+  <span class="build-summary-title">{{localize "DDA.Creation.FreeQualities"}}</span>
+  <span class="build-summary-value">
+    <strong>{{system.qualityLimits.freeQualities.used}}</strong>/<strong>{{system.qualityLimits.freeQualities.max}}</strong>
+  </span>
+</div>
+
+    {{#if system.qualityLimits.freeQualities.exceeded}}
+      <p class="resource-warning">
+        {{localize "DDA.Warning.FreeQualityLimitExceeded"}}
+      </p>
+    {{/if}}
+  </div>
+</details>
+</section>
+
+    <section class="tab dda-stats-tab" data-group="primary" data-tab="stats">
+      <h2>{{localize "DDA.DigimonSheet.MainStats"}}</h2>
+
+<div class="stat-table">
+  <div class="stat-row stat-heading main-stat-row">
+    <span>{{localize "DDA.Label.Attribute"}}</span>
+    <span>{{localize "DDA.Label.Base"}}</span>
+    <span>{{localize "DDA.Label.ManualBonus"}}</span>
+    <span>{{localize "DDA.Label.QualityBonus"}}</span>
+    <span>{{localize "DDA.Label.Total"}}</span>
+    <span>{{localize "DDA.Button.Roll"}}</span>
+  </div>
+
+  {{#each system.mainStats as |stat key|}}
+  <div class="stat-row main-stat-row">
+    <label>{{stat.displayLabel}}</label>
+
+    <input
+      type="number"
+      name="system.mainStats.{{key}}.base"
+      value="{{stat.base}}"
+    />
+
+    <input
+      type="number"
+      name="system.mainStats.{{key}}.bonus"
+      value="{{stat.bonus}}"
+    />
+
+<input
+  type="number"
+  value="{{stat.sharedBonus}}"
+  title="{{stat.sharedBonusTooltip}}"
+  readonly
+/>
+
+    <input
+      type="number"
+      value="{{stat.total}}"
+      readonly
+    />
+
+    <button type="button" class="roll-pool" data-stat="{{key}}">{{localize "DDA.Button.Roll"}}</button>
+  </div>
+  {{/each}}
+</div>
+
+      <h2>{{localize "DDA.DigimonSheet.DerivedStats"}}</h2>
+
+      <div class="resource-grid dda-derived-stats-grid">
+        {{#each visibleDerivedStats as |stat key|}}
+<div
+  class="resource-box roll-derived-stat dda-has-rich-tooltip"
+  data-action="roll-derived-stat"
+  data-derived-stat="{{key}}"
+>
+  <label>{{#if stat.displayLabel}}{{stat.displayLabel}}{{else}}{{localize stat.label}}{{/if}}</label>
+  <input type="number" name="system.derivedStats.{{key}}.value" value="{{stat.value}}" readonly />
+
+  <div class="dda-rich-tooltip">
+    <h4>{{stat.breakdown.title}}</h4>
+    <p>{{stat.breakdown.description}}</p>
+
+    <div class="dda-tooltip-row">
+      <span>{{stat.breakdown.baseLabel}}</span>
+      <strong>{{stat.breakdown.baseValue}}</strong>
+    </div>
+
+    <div class="dda-tooltip-row">
+      <span>{{localize "DDA.Label.Size"}}: {{stat.breakdown.sizeLabel}}</span>
+      <strong>{{stat.breakdown.sizeBonus}}</strong>
+    </div>
+
+    <div class="dda-tooltip-total">
+      <span>{{stat.breakdown.totalLabel}}</span>
+      <strong>{{stat.breakdown.total}}</strong>
+    </div>
+  </div>
+</div>
+        {{/each}}
+      </div>
+
+      <h2>{{localize "DDA.DigimonSheet.MiscStats"}}</h2>
+
+      <div class="resource-grid dda-misc-stats-grid">
+<div class="resource-box movement-selector-box dda-has-rich-tooltip">
+  <label>{{localize "DDA.Stat.Movement"}}</label>
+
+  <select
+    class="movement-type-select"
+    name="system.currentMovementType"
+    data-action="select-movement-type"
+  >
+    {{#each system.movementTypes as |movement key|}}
+      <option
+        value="{{key}}"
+        data-total="{{movement.total}}"
+        data-enabled="{{movement.enabled}}"
+        {{#if (eq ../selectedMovementType key)}}selected{{/if}}
+      >
+        {{movement.displayLabel}}
+      </option>
+    {{/each}}
+  </select>
+
+  <input
+    type="text"
+    value="{{selectedMovementTotal}}"
+    data-movement-display
+    readonly
+  />
+  <div class="dda-rich-tooltip">
+  <h4>{{system.miscStats.movement.breakdown.title}}</h4>
+  <p>{{system.miscStats.movement.breakdown.description}}</p>
+
+  <div class="dda-tooltip-row">
+    <span>{{system.miscStats.movement.breakdown.baseLabel}} — {{system.miscStats.movement.breakdown.baseDescription}}</span>
+    <strong>{{system.miscStats.movement.breakdown.baseValue}}</strong>
+  </div>
+
+  {{#if system.miscStats.movement.breakdown.manualBonus}}
+  <div class="dda-tooltip-row">
+    <span>{{system.miscStats.movement.breakdown.manualBonusLabel}}</span>
+    <strong>{{system.miscStats.movement.breakdown.manualBonus}}</strong>
+  </div>
+  {{/if}}
+
+  {{#if system.miscStats.movement.breakdown.qualityBonus}}
+  <div class="dda-tooltip-row">
+    <span>{{system.miscStats.movement.breakdown.qualityBonusLabel}}</span>
+    <strong>{{system.miscStats.movement.breakdown.qualityBonus}}</strong>
+  </div>
+  {{/if}}
+
+  {{#if system.miscStats.movement.breakdown.sizeBonus}}
+  <div class="dda-tooltip-row">
+    <span>{{system.miscStats.movement.breakdown.sizeBonusLabel}}: {{system.miscStats.movement.breakdown.sizeLabel}}</span>
+    <strong>{{system.miscStats.movement.breakdown.sizeBonus}}</strong>
+  </div>
+  {{/if}}
+
+  {{#if system.miscStats.movement.breakdown.effectBonus}}
+  <div class="dda-tooltip-row">
+    <span>{{system.miscStats.movement.breakdown.effectBonusLabel}}</span>
+    <strong>{{system.miscStats.movement.breakdown.effectBonus}}</strong>
+  </div>
+  {{/if}}
+
+  <div class="dda-tooltip-total">
+    <span>{{system.miscStats.movement.breakdown.totalLabel}}</span>
+    <strong>{{system.miscStats.movement.breakdown.total}}</strong>
+  </div>
+</div>
+</div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.Stat.Health"}}</label>
+  <div class="inline-inputs">
+    <input type="number" value="{{system.miscStats.wounds.value}}" readonly />
+    <span>/</span>
+    <input type="number" value="{{system.miscStats.wounds.max}}" readonly />
+  </div>
+</div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.Label.TemporaryShort"}}</label>
+          <input type="number" name="system.miscStats.wounds.temp.value" value="{{system.miscStats.wounds.temp.value}}" />
+        </div>
+
+        <div
+          class="resource-box dda-clash-stat-card"
+          role="button"
+          tabindex="0"
+          title="{{localize 'DDA.Clash.CardTooltip'}}"
+        >
+          <label>{{localize "DDA.Stat.Clash"}}</label>
+          <input type="number" name="system.miscStats.clash.value" value="{{system.miscStats.clash.value}}" readonly />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.Stat.EffectiveLimit"}}</label>
+          <input type="number" name="system.miscStats.effectiveLimit.value" value="{{system.miscStats.effectiveLimit.value}}" readonly />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.Stat.Initiative"}}</label>
+          <input type="number" name="system.miscStats.initiative.value" value="{{system.miscStats.initiative.value}}" readonly />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.Stat.Resistance"}}</label>
+          <input type="number" name="system.miscStats.resistance.value" value="{{system.miscStats.resistance.value}}" readonly />
+        </div>
+
+        <div class="resource-box">
+          <label>{{localize "DDA.Stat.Range"}}</label>
+          <input type="number" name="system.miscStats.range.value" value="{{system.miscStats.range.value}}" readonly />
+        </div>
+      </div>
+    </section>
+
+    <section class="tab dda-combat-tab" data-group="primary" data-tab="combat">
+      <h2>{{localize "DDA.Tab.Combat"}}</h2>
+
+<div class="combat-actions">
+  <button type="button" class="end-turn">{{localize "DDA.EndTurn.Title"}}</button>
+
+  {{#if settings.energizeAction}}
+  <button type="button" class="energize-action">{{localize "DDA.Energize.Title"}}</button>
+  {{/if}}
+
+  <button type="button" class="roll-recovery">{{localize "DDA.Recovery.PostCombatTitle"}}</button>
+</div>
+
+<div class="resource-grid dda-combat-main-resources">
+  <div class="resource-box">
+    <label>{{localize "DDA.Resource.Actions"}}</label>
+    <div class="inline-inputs">
+      <input type="number" name="system.combat.actions.value" value="{{system.combat.actions.value}}" />
+      <span>/</span>
+      <input type="number" name="system.combat.actions.max" value="{{system.combat.actions.max}}" />
+    </div>
+  </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.Resource.Battery"}}</label>
+          <div class="inline-inputs">
+            <input type="number" name="system.resources.battery.value" value="{{system.resources.battery.value}}" />
+            <span>/</span>
+            <input type="number" name="system.resources.battery.max" value="{{system.resources.battery.max}}" />
+          </div>
+        </div>
+
+<div class="resource-box wounds-box health-box {{system.miscStats.wounds.healthClass}}">
+  <label>{{localize "DDA.Stat.Health"}}</label>
+  <div class="inline-inputs">
+    <input type="number" name="system.miscStats.wounds.value" value="{{system.miscStats.wounds.value}}" />
+    <span>/</span>
+    <input type="number" value="{{system.miscStats.wounds.max}}" readonly />
+  </div>
+</div>
+        <div class="resource-box">
+          <label>{{localize "DDA.DigimonSheet.DodgePenalty"}}</label>
+          <input type="number" name="system.combat.dodgePenalty" value="{{system.combat.dodgePenalty}}" />
+        </div>
+
+  <div class="resource-box">
+    <label>{{localize "DDA.DigimonSheet.Stance"}}</label>
+    <select name="system.combat.currentStance">
+      {{#each config.stances as |label key|}}
+      <option value="{{key}}" {{#if (eq ../system.combat.currentStance key)}}selected{{/if}}>{{label}}</option>
+      {{/each}}
+    </select>
+  </div>
+</div>
+
+{{#if hasQualityResources}}
+<h3>{{localize "DDA.DigimonSheet.QualityResources"}}</h3>
+
+<div class="resource-grid quality-resources-grid">
+  {{#if hasResolveResource}}
+  <div class="resource-box">
+    <label>Resolve</label>
+    <div class="inline-inputs">
+      <input
+        type="number"
+        name="system.resources.resolve.value"
+        value="{{system.resources.resolve.value}}"
+      />
+      <span>/</span>
+      <input
+        type="number"
+        name="system.resources.resolve.max"
+        value="{{system.resources.resolve.max}}"
+        readonly
+      />
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if hasCreationLimitResource}}
+  <div class="resource-box">
+    <label>{{localize "DDA.Resource.CreationLimit"}}</label>
+    <div class="inline-inputs">
+      <input
+        type="number"
+        name="system.resources.creationLimit.value"
+        value="{{system.resources.creationLimit.value}}"
+      />
+      <span>/</span>
+      <input
+        type="number"
+        name="system.resources.creationLimit.max"
+        value="{{system.resources.creationLimit.max}}"
+        readonly
+      />
+    </div>
+  </div>
+  {{/if}}
+</div>
+{{/if}}
+
+      <h3>{{localize "DDA.DigimonSheet.State"}}</h3>
+
+      <div class="grid-2">
+        <label>
+          <input type="checkbox" name="system.combat.hasAttackedThisRound" {{checked system.combat.hasAttackedThisRound}} />
+          {{localize "DDA.Status.HasAttackedThisRound"}}
+        </label>
+
+        <label>
+          <input type="checkbox" name="system.combat.defeated" {{checked system.combat.defeated}} />
+          {{localize "DDA.Status.Defeated"}}
+        </label>
+
+        <label>
+          <input type="checkbox" name="system.combat.digitama" {{checked system.combat.digitama}} />
+          {{localize "DDA.Status.DigiEgg"}}
+        </label>
+
+        <label>
+          <input type="checkbox" name="system.status.hidden" {{checked system.status.hidden}} />
+          {{localize "DDA.Status.Hidden"}}
+        </label>
+
+        <label>
+          <input type="checkbox" name="system.status.submerged" {{checked system.status.submerged}} />
+          {{localize "DDA.Status.Submerged"}}
+        </label>
+
+        <label>
+          <input type="checkbox" name="system.status.drowning" {{checked system.status.drowning}} />
+          {{localize "DDA.Status.Drowning"}}
+        </label>
+      </div>
+
+<h3>{{localize "DDA.ActiveEffects.Title"}}</h3>
+
+<div class="active-effects-panel">
+  {{#if system.effects.active.length}}
+    <div class="active-effect-list">
+      {{#each system.effects.active as |effect|}}
+      <div class="active-effect-row" data-effect-id="{{effect.id}}">
+        <div class="active-effect-main">
+          <strong>{{effect.label}}</strong>
+          <span>{{effect.sourceAttackName}}</span>
+        </div>
+
+        <div class="active-effect-meta">
+          <span>{{localize "DDA.Label.Source"}}: {{effect.sourceActorName}}</span>
+          <span>{{localize "DDA.Label.Duration"}}: {{effect.remaining}}</span>
+        </div>
+
+        <button type="button" class="remove-active-effect" data-effect-id="{{effect.id}}">{{localize "DDA.Button.Remove"}}</button>
+      </div>
+      {{/each}}
+    </div>
+  {{else}}
+    <p class="muted">{{localize "DDA.ActiveEffects.None"}}</p>
+  {{/if}}
+</div>      
+
+<section class="dda-combat-attacks">
+    <div class="section-header">
+    <h2>{{localize "DDA.Item.Attacks"}}</h2>
+    <button type="button" class="item-create" data-type="attack" data-name="{{localize 'DDA.Item.NewAttack'}}">+ {{localize "DDA.Item.Attack"}}</button>
+  </div>
+
+  <div class="item-list">
+    {{#each itemsByType.attack as |item|}}
+    <div class="item-row" data-item-id="{{item.id}}">
+      <img src="{{item.img}}" title="{{item.name}}" />
+      <div class="item-name">
+        <strong>{{item.name}}</strong>
+        <span>
+          {{#if item.system.isSignature}}{{localize "DDA.Attack.Signature"}}{{else}}{{localize "DDA.Item.Attack"}}{{/if}}
+        </span>
+      </div>
+<div class="item-tags">
+  <span>{{ddaAttackRangeLabel item.system.baseTags.rangeType}}</span>
+  <span>{{ddaAttackFunctionLabel item.system.baseTags.functionType}}</span>
+</div>
+<div class="item-controls">
+  <button type="button" class="roll-attack">{{localize "DDA.Button.Attack"}}</button>
+  <button type="button" class="item-edit">{{localize "DDA.Button.Edit"}}</button>
+  <button type="button" class="item-delete">{{localize "DDA.Button.Delete"}}</button>
+</div>    </div>
+    {{/each}}
+  </div>
+</section>
+
+
+    </section>
+
+<section class="tab dda-qualities-tab" data-group="primary" data-tab="qualities">
+<div class="section-header">
+  <h2>{{localize "DDA.Item.Qualities"}}</h2>
+
+  <div class="section-actions">
+    <button type="button" class="restore-quality-uses">{{localize "DDA.QualitySheet.RestoreUses"}}</button>
+    <button type="button" class="item-create" data-type="quality" data-name="{{localize 'DDA.Item.NewQuality'}}">+ {{localize "DDA.Item.Quality"}}</button>
+    <button type="button" class="open-quality-browser" data-action="open-quality-browser">{{localize "DDA.QualityBrowser.Title"}}</button>
+  </div>
+</div>
+
+  {{#if qualityGroups.length}}
+    <div class="quality-group-list">
+      {{#each qualityGroups as |group|}}
+      <section class="quality-group quality-group-{{group.key}}">
+        <div class="quality-group-header">
+          <div>
+            <h3>{{group.label}}</h3>
+            <p>{{group.description}}</p>
+          </div>
+
+          <span class="quality-group-count">{{group.items.length}}</span>
+        </div>
+
+        <div class="item-list quality-item-list">
+          {{#each group.items as |item|}}
+          <div class="item-row quality-row" data-item-id="{{item.id}}">
+            <img src="{{item.img}}" title="{{item.name}}" />
+
+            <div class="item-name">
+              <strong>{{item.name}}</strong>
+
+              <div class="quality-tags">
+                {{#if item.system.cost.grantsDp}}
+                  <span class="quality-tag negative">+{{item.system.cost.dp}} PD</span>
+                {{else}}
+                  <span class="quality-tag cost">{{item.system.cost.dp}} PD</span>
+                {{/if}}
+
+                {{#if item.system.cost.coreDiscountAvailable}}
+                  <span class="quality-tag core">Core</span>
+                {{/if}}
+
+                {{#if item.system.category.attack}}
+                  <span class="quality-tag category">{{localize "DDA.QualityCategory.Attack"}}</span>
+                {{/if}}
+
+                {{#if item.system.category.trigger}}
+                  <span class="quality-tag category">{{localize "DDA.QualityCategory.Trigger"}}</span>
+                {{/if}}
+
+                {{#if item.system.category.static}}
+                  <span class="quality-tag category">{{localize "DDA.QualityCategory.Static"}}</span>
+                {{/if}}
+
+                {{#if item.system.category.free}}
+                  <span class="quality-tag free">{{localize "DDA.QualityCategory.Free"}}</span>
+                {{/if}}
+
+                {{#if item.system.category.negative}}
+                  <span class="quality-tag negative">{{localize "DDA.QualityCategory.Negative"}}</span>
+                {{/if}}
+
+                  {{#if item.system.rank.max}}
+                    <span class="quality-tag rank">
+                      {{localize "DDA.QualitySheet.Rank"}} {{item.system.rank.value}}/{{item.system.rank.max}}
+                    </span>
+                  {{/if}}
+
+                  {{#if item.system.rank.effectiveMax}}
+                    <span class="quality-tag rank-limit">
+                      {{localize "DDA.Label.Limit"}} {{item.system.rank.effectiveMax}}
+                    </span>
+                  {{/if}}
+
+                  {{#unless item.system.requirements.valid}}
+                    <span class="quality-tag warning">{{localize "DDA.QualitySheet.RequirementWarningTag"}}</span>
+                  {{/unless}}
+
+                  {{#if item.system.activation.enabled}}
+                    <span class="quality-tag activation">{{localize "DDA.QualitySheet.Activatable"}}</span>
+                  {{/if}}
+
+
+{{#if item.system.activation.active}}
+  {{#unless (eq item.system.activation.mode "instant")}}
+    <span class="quality-tag active">{{localize "DDA.QualitySheet.Active"}}</span>
+  {{/unless}}
+{{/if}}
+
+{{#if item.system.uses.enabled}}
+  <span class="quality-tag uses">{{localize "DDA.QualitySheet.Uses"}} {{item.system.uses.value}}/{{item.system.uses.max}}</span>
+{{/if}}
+
+              </div>
+
+              {{#if item.system.choices.selectedRanks.length}}
+                <div class="quality-choice-summary">
+                  <strong>{{localize "DDA.QualitySheet.Choices"}}:</strong>
+
+                  <div class="quality-choice-list">
+                    {{#each item.system.choices.selectedRanks as |choice|}}
+                      <span class="quality-choice-pill">
+                        {{#if choice.rank}}{{localize "DDA.QualitySheet.Rank"}} {{choice.rank}}: {{/if}}{{choice.label}}
+                      </span>
+                    {{/each}}
+                  </div>
+                </div>
+              {{/if}}
+
+
+                            {{#unless item.system.requirements.valid}}
+                <div class="quality-requirement-warning">
+                  <strong>{{localize "DDA.QualitySheet.UnmetRequirement"}}</strong>
+
+                  {{#if item.system.requirements.unmet.length}}
+                    <ul>
+                      {{#each item.system.requirements.unmet as |reason|}}
+                        <li>{{reason}}</li>
+                      {{/each}}
+                    </ul>
+                  {{/if}}
+
+                  {{#if item.system.incompatible.unmet.length}}
+                    <ul>
+                      {{#each item.system.incompatible.unmet as |reason|}}
+                        <li>{{reason}}</li>
+                      {{/each}}
+                    </ul>
+                  {{/if}}
+                </div>
+              {{/unless}}
+            </div>
+
+
+      <div class="item-controls">
+{{#if item.system.activation.enabled}}
+  <button type="button" class="quality-toggle-active">
+    {{#if (eq item.system.activation.mode "instant")}}
+      {{localize "DDA.Button.Use"}}
+    {{else}}
+      {{#if item.system.activation.active}}{{localize "DDA.Button.Deactivate"}}{{else}}{{localize "DDA.Button.Activate"}}{{/if}}
+    {{/if}}
+  </button>
+{{/if}}
+
+        <button type="button" class="item-edit">{{localize "DDA.Button.Edit"}}</button>
+        <button type="button" class="item-delete">{{localize "DDA.Button.Delete"}}</button>
+      </div>
+
+
+          </div>
+          {{/each}}
+        </div>
+      </section>
+      {{/each}}
+    </div>
+  {{else}}
+    <p class="muted">{{localize "DDA.DigimonSheet.NoQualitiesAdded"}}</p>
+  {{/if}}
+</section>
+
+<section class="tab dda-evolution-tab" data-group="primary" data-tab="evolution">
+  <div class="dda-evolution-graph-header">
+    <div>
+      <h2>{{localize "DDA.Evolution.GraphTitle"}}</h2>
+      <p class="muted">{{localize "DDA.Evolution.GraphHint"}}</p>
+    </div>
+
+    <div class="dda-evolution-header-actions">
+      <button type="button" class="choose-evolution-form">{{localize "DDA.EvolutionChoice.Button"}}</button>
+      <button type="button" class="clear-evolution-graph">{{localize "DDA.Evolution.ClearGraph"}}</button>
+    </div>
+  </div>
+
+  {{#if hybridForm.canEvolveFromSpecialForm}}
+  <div class="dda-special-form-evolution-panel dda-special-form-evolution-{{hybridForm.method}}">
+    <div>
+      <strong>{{localize "DDA.Hybrid.Method.BioMerge"}}</strong>
+      <span>{{localize "DDA.Hybrid.BioMergeCanContinueEvolution"}}</span>
+    </div>
+
+    <button type="button" class="evolve-active-special-form">
+      {{localize "DDA.Button.Digivolve"}}
+    </button>
+  </div>
+  {{/if}}
+
+  <div class="evolution-solar-drop-zone" data-evolution-drop-target>
+    <strong>{{localize "DDA.Evolution.GraphDropTitle"}}</strong>
+    <span>{{localize "DDA.Evolution.GraphDropHint"}}</span>
+  </div>
+
+  <div class="dda-evolution-link-panel">
+    <div class="form-group">
+      <label>{{localize "DDA.Evolution.FromForm"}}</label>
+      <select name="evolutionEdgeFrom">
+        {{#each evolutionGraph.nodes as |node|}}
+          <option value="{{node.id}}">{{node.name}} — {{node.stageLabel}}</option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>{{localize "DDA.Evolution.ToForm"}}</label>
+      <select name="evolutionEdgeTo">
+        {{#each evolutionGraph.nodes as |node|}}
+          <option value="{{node.id}}">{{node.name}} — {{node.stageLabel}}</option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>{{localize "DDA.Evolution.MethodLabel"}}</label>
+      <select name="evolutionEdgeMethod">
+        {{#each evolutionGraph.methodOptions as |method|}}
+          <option value="{{method.key}}">{{method.label}}</option>
+        {{/each}}
+      </select>
+    </div>
+
+    <button type="button" class="create-evolution-edge">{{localize "DDA.Evolution.CreateLink"}}</button>
+  </div>
+
+  {{#if evolutionGraph.edges.length}}
+  <div class="dda-evolution-edge-list">
+    {{#each evolutionGraph.edges as |edge|}}
+      <div class="dda-evolution-edge-row edge-{{edge.method}}">
+        <span class="dda-evolution-edge-path">{{edge.fromName}} → {{edge.toName}}</span>
+        <span class="dda-evolution-edge-method">{{edge.methodLabel}}</span>
+        <button type="button" class="remove-evolution-edge" data-edge-id="{{edge.id}}">{{localize "DDA.Button.Remove"}}</button>
+      </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <div class="dda-evolution-popout-panel">
+    <div>
+      <strong>{{localize "DDA.Evolution.GraphPopoutTitle"}}</strong>
+      <p>{{localize "DDA.Evolution.GraphPopoutHint"}}</p>
+    </div>
+
+    <button type="button" class="open-evolution-graph-popout">
+      {{localize "DDA.Evolution.OpenGraphPopout"}}
+    </button>
+  </div>
+</section>
+
+    <section class="tab dda-notes-tab" data-group="primary" data-tab="notes">
+      <h2>{{localize "DDA.Tab.Notes"}}</h2>
+
+<div class="grid-2 dda-digimon-notes-profile-grid">
+  <div class="form-group stacked">
+    <label>{{localize "DDA.Profile.Appearance"}}</label>
+    <textarea name="system.profile.appearance">{{system.profile.appearance}}</textarea>
+  </div>
+
+  <div class="form-group stacked">
+    <label>{{localize "DDA.Profile.Personality"}}</label>
+    <textarea name="system.profile.personality">{{system.profile.personality}}</textarea>
+  </div>
+</div>
+
+      <div class="form-group stacked">
+        <label>{{localize "DDA.Tab.Notes"}}</label>
+        <textarea name="system.notes">{{system.notes}}</textarea>
+      </div>
+    </section>
+  </section>
+
+      </div>
+    </div>
+  </div>
+</form>

@@ -1,0 +1,331 @@
+/* ----------------------------------------- */
+/* DDA | Combat Tracker                      */
+/* ----------------------------------------- */
+
+#combat .combatant.dda-pair-anchor,
+.combat-tracker .combatant.dda-pair-anchor {
+  display: block !important;
+  min-height: 0 !important;
+  margin: 0 0 6px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+#combat .combatant.dda-pair-secondary,
+.combat-tracker .combatant.dda-pair-secondary {
+  display: none !important;
+}
+
+.dda-combat-pair-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 68px;
+  overflow: hidden;
+  border: 1px solid rgba(155, 185, 214, 0.38);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(12, 24, 39, 0.96),
+      rgba(18, 43, 65, 0.95)
+    );
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.dda-pair-initiative {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  padding: 6px 3px;
+  color: #f5fbff;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(54, 102, 143, 0.95),
+      rgba(26, 57, 86, 0.95)
+    );
+  border-right: 1px solid rgba(177, 217, 248, 0.28);
+  font-size: 1.32rem;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+}
+
+.dda-pair-member {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 7px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    filter 140ms ease,
+    opacity 140ms ease;
+}
+
+.dda-pair-member--digimon {
+  border-right: 1px solid rgba(177, 217, 248, 0.16);
+}
+
+.dda-pair-member:hover {
+  background: rgba(106, 177, 224, 0.12);
+  filter: brightness(1.08);
+}
+
+.dda-pair-member:focus-visible {
+  outline: 2px solid rgba(133, 218, 255, 0.9);
+  outline-offset: -3px;
+}
+
+.dda-pair-member.is-active {
+  background: transparent;
+  box-shadow: none;
+}
+
+.dda-pair-member.is-pending {
+  background: rgba(255, 218, 112, 0.035);
+}
+
+.dda-pair-member.is-ended {
+  background: rgba(8, 14, 22, 0.22);
+  opacity: 0.62;
+}
+
+.dda-pair-member-image {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border: 1px solid rgba(190, 224, 245, 0.34);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.dda-pair-member-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.dda-pair-member-role {
+  overflow: hidden;
+  color: rgba(201, 224, 238, 0.68);
+  font-size: 0.61rem;
+  font-weight: 700;
+  letter-spacing: 0.065em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dda-pair-member-name {
+  overflow: hidden;
+  color: #f5faff;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.14;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-pair-member-status {
+  overflow: hidden;
+  color: rgba(223, 235, 244, 0.86);
+  font-size: 0.68rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-pair-member-state-icon {
+  display: inline-block;
+  width: 0.9rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.dda-pair-member.is-active .dda-pair-member-state-icon {
+  color: #8dffbe;
+}
+
+.dda-pair-member.is-pending .dda-pair-member-state-icon {
+  color: #f0cd73;
+}
+
+.dda-pair-member.is-ended .dda-pair-member-state-icon {
+  color: #aab7c1;
+}
+
+#combat .combatant.dda-solo-combatant .initiative,
+.combat-tracker .combatant.dda-solo-combatant .initiative {
+  min-width: 2.2rem;
+  color: #ecf8ff;
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.dda-solo-initiative {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.8rem;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: #edf8ff;
+  background: rgba(42, 88, 125, 0.82);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.dda-roll-initiative-button {
+  margin-top: 4px;
+  border-color: rgba(118, 196, 241, 0.5) !important;
+  color: #eaf8ff !important;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(43, 109, 153, 0.96),
+      rgba(23, 63, 98, 0.96)
+    ) !important;
+  font-weight: 800;
+}
+
+.dda-roll-initiative-button:hover {
+  filter: brightness(1.14);
+}
+
+/* ----------------------------------------- */
+/* DDA | Digimon inimigo sem parceiro        */
+/* ----------------------------------------- */
+
+#combat li.combatant.dda-solo-digimon-enemy,
+.combat-tracker li.combatant.dda-solo-digimon-enemy {
+  display: grid !important;
+  grid-template-columns: 42px 42px minmax(0, 1fr);
+  grid-template-rows: minmax(56px, auto);
+  align-items: center;
+  min-height: 56px;
+  padding: 0 !important;
+}
+
+#combat li.combatant.dda-solo-digimon-enemy > .token-initiative,
+.combat-tracker li.combatant.dda-solo-digimon-enemy > .token-initiative {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  margin: 0 !important;
+  padding: 6px 3px;
+  border-right: 1px solid rgba(177, 217, 248, 0.28);
+  color: #f5fbff;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(54, 102, 143, 0.95),
+      rgba(26, 57, 86, 0.95)
+    );
+  font-size: 1.2rem;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+}
+
+#combat li.combatant.dda-solo-digimon-enemy > .token-initiative > span,
+.combat-tracker li.combatant.dda-solo-digimon-enemy > .token-initiative > span {
+  color: inherit;
+  font: inherit;
+}
+
+#combat li.combatant.dda-solo-digimon-enemy > .token-image,
+.combat-tracker li.combatant.dda-solo-digimon-enemy > .token-image {
+  grid-column: 2;
+  grid-row: 1;
+  width: 36px !important;
+  height: 36px !important;
+  margin: 0 3px;
+  object-fit: cover;
+  border: 1px solid rgba(190, 224, 245, 0.34);
+  border-radius: 6px;
+}
+
+#combat li.combatant.dda-solo-digimon-enemy > .token-name,
+.combat-tracker li.combatant.dda-solo-digimon-enemy > .token-name {
+  display: block;
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  padding: 6px 8px 6px 4px;
+}
+
+#combat li.combatant.dda-solo-digimon-enemy > .token-name .name,
+.combat-tracker li.combatant.dda-solo-digimon-enemy > .token-name .name {
+  display: block;
+  overflow: hidden;
+  color: #f5faff;
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#combat li.combatant.dda-solo-digimon-enemy > .token-resource,
+.combat-tracker li.combatant.dda-solo-digimon-enemy > .token-resource {
+  display: none;
+}
+
+/* ----------------------------------------- */
+/* DDA | Espaçamento e bordas unificados     */
+/* ----------------------------------------- */
+
+#combat li.combatant.dda-solo-combatant,
+.combat-tracker li.combatant.dda-solo-combatant {
+  box-sizing: border-box;
+  margin: 0 0 6px !important;
+  border: 1px solid rgba(155, 185, 214, 0.38) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(12, 24, 39, 0.96),
+      rgba(18, 43, 65, 0.95)
+    ) !important;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+#combat li.combatant.dda-solo-combatant.active,
+.combat-tracker li.combatant.dda-solo-combatant.active {
+  border-color: rgba(226, 96, 66, 0.95) !important;
+}
+
+#combat li.combatant.dda-pair-anchor,
+.combat-tracker li.combatant.dda-pair-anchor {
+  margin: 0 0 6px !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+#combat li.combatant.dda-solo-combatant:last-child,
+.combat-tracker li.combatant.dda-solo-combatant:last-child,
+#combat li.combatant.dda-pair-anchor:last-child,
+.combat-tracker li.combatant.dda-pair-anchor:last-child {
+  margin-bottom: 0 !important;
+}
