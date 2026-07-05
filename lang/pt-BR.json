@@ -2496,5 +2496,70 @@
   "DDA.Warning.AttackAwaitingDodge": "{actor} está aguardando a rolagem de Esquiva do alvo.",
   "DDA.Warning.NoEligibleDodgeRoller": "Nenhum dono ou Mestre pode rolar Esquiva para {actor}.",
   "DDA.Warning.DodgeRequestNoLongerPending": "Esta solicitação de Esquiva não está mais pendente.",
-  "DDA.Warning.NoPermissionToRollDodge": "Apenas o dono do alvo ou o Mestre pode rolar esta Esquiva."
-}
+  "DDA.Warning.NoPermissionToRollDodge": "Apenas o dono do alvo ou o Mestre pode rolar esta Esquiva.",
+
+  "DDA.Settings.Internal.CampaignMilestoneLedger.Name": "Registro de Marcos da Campanha",
+  "DDA.Settings.Internal.CampaignMilestoneLedger.Hint": "Dados internos do mundo usados para registrar Marcos coletivos e individuais.",
+
+  "DDA.Progression.Warning.OnlyGM": "Somente o Mestre pode administrar os Marcos da campanha.",
+  "DDA.Progression.Warning.NoMilestoneTargets": "Um Marco precisa de pelo menos um Digi-Escolhido como alvo.",
+  "DDA.Progression.Warning.MilestoneReasonRequired": "Um Marco precisa de um motivo registrado.",
+  "DDA.Progression.Warning.TamerOnly": "Somente um Digi-Escolhido pode gastar Pontos de Crescimento.",
+  "DDA.Progression.Warning.NoGrowthPackage": "Não há um pacote de Pontos de Crescimento disponível.",
+  "DDA.Progression.Warning.AttributePackageExact": "Aumentar um Atributo exige todos os {points} Pontos de Crescimento deste Marco.",
+  "DDA.Progression.Warning.AttributeAtCap": "Este Atributo já está no cap atual ({cap}).",
+  "DDA.Progression.Warning.SkillPackageExact": "Distribua exatamente {points} Pontos de Crescimento entre Perícias.",
+  "DDA.Progression.Warning.SkillAboveAssociatedAttribute": "Uma Perícia não pode ultrapassar o maior Atributo associado.",
+  "DDA.Progression.Warning.ChooseGrowthMode": "Escolha se este Marco aumenta um Atributo ou Perícias.",
+
+  "DDA.Damage.Type.Unalterable": "Dano Inalterável",
+  "DDA.Warning.TalentOnlyForTamer": "Somente um Digi-Escolhido pode usar Talentos.",
+  "DDA.Warning.TamerTalentAlreadyUsedThisCombat": "{talent} já foi usado neste combate.",
+  "DDA.Warning.TamerTalentAlreadyUsedThisTurn": "{talent} já foi usado neste turno.",
+
+  "DDA.Progression.Panel.Subtitle": "Marcos da campanha • acompanhamento de avanço individual",
+  "DDA.Progression.Panel.CampaignTitle": "Progresso da Campanha",
+  "DDA.Progression.Panel.CampaignHint": "Conceda um Marco da Equipe ou Individual agora. Os benefícios ficam pendentes até o grupo descansar ou a sessão terminar.",
+  "DDA.Progression.Panel.HistoryTitle": "Histórico de Marcos",
+  "DDA.Progression.Panel.NoMilestones": "Nenhum Marco foi registrado ainda.",
+
+  "DDA.Progression.Scope.Party": "Equipe",
+  "DDA.Progression.Scope.Individual": "Individual",
+
+  "DDA.Progression.Status.PendingRest": "Aguardando descanso",
+  "DDA.Progression.Status.Released": "Benefícios liberados",
+  "DDA.Progression.Status.PartiallyReleased": "Parcialmente liberado",
+
+  "DDA.Progression.Method.Narrative": "Narrativo",
+  "DDA.Progression.Method.XP": "XP",
+  "DDA.Progression.Method.GM": "Concessão do Mestre",
+
+  "DDA.Progression.Label.Method": "Método",
+  "DDA.Progression.Label.Source": "Origem",
+  "DDA.Progression.Label.PendingMilestones": "Marcos pendentes",
+  "DDA.Progression.Label.TeamMilestones": "Marcos da Equipe",
+  "DDA.Progression.Label.IndividualMilestones": "Marcos Individuais",
+  "DDA.Progression.Label.Milestone": "Marco",
+  "DDA.Progression.Label.MilestoneReason": "Motivo",
+  "DDA.Progression.Label.IndividualTarget": "Alvo individual",
+  "DDA.Progression.Label.TeamTargets": "Alvos da equipe",
+  "DDA.Progression.Label.TamerAdvancement": "Avanço do Digi-Escolhido",
+  "DDA.Progression.Label.PendingPackages": "Pacotes pendentes",
+  "DDA.Progression.Label.TotalReceived": "Total recebido",
+  "DDA.Progression.Label.FromMilestones": "Vindo de Marcos",
+  "DDA.Progression.Label.MilestoneBonusPending": "PD de Marco pendente",
+
+  "DDA.Progression.Placeholder.MilestoneReason": "Por exemplo: Resolveram o arco da Ilha Arquivo.",
+
+  "DDA.Progression.Button.GrantTeamMilestone": "Conceder Marco à Equipe",
+  "DDA.Progression.Button.GrantIndividualMilestone": "Conceder Marco Individual",
+  "DDA.Progression.Button.ReleasePendingBenefits": "Liberar Benefícios Pendentes",
+
+  "DDA.Progression.Info.MilestonePending": "Marco pendente para {count} Digi-Escolhido(s).",
+  "DDA.Progression.Info.IndividualMilestonePending": "Marco individual pendente.",
+  "DDA.Progression.Info.MilestonesReleased": "{milestones} Marco(s) liberado(s) para {targets} Digi-Escolhido(s).",
+
+  "DDA.Progression.Warning.NoPendingMilestones": "Não há Marcos pendentes para liberar.",
+  "DDA.Progression.Warning.CouldNotCreateMilestone": "Não foi possível criar o Marco.",
+  "DDA.Progression.Warning.CouldNotReleaseMilestones": "Não foi possível liberar os Marcos pendentes."
+  }

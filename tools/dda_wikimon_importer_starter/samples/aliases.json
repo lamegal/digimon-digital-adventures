@@ -1,0 +1,34 @@
+{
+  "tailmon": {
+    "original": "Tailmon",
+    "dub": "Gatomon",
+    "aliases": [
+      "Tailmon",
+      "Gatomon"
+    ]
+  },
+  "plotmon": {
+    "original": "Plotmon",
+    "dub": "Salamon",
+    "aliases": [
+      "Plotmon",
+      "Salamon"
+    ]
+  },
+  "omegamon": {
+    "original": "Omegamon",
+    "dub": "Omnimon",
+    "aliases": [
+      "Omegamon",
+      "Omnimon"
+    ]
+  },
+  "vamdemon": {
+    "original": "Vamdemon",
+    "dub": "Myotismon",
+    "aliases": [
+      "Vamdemon",
+      "Myotismon"
+    ]
+  }
+}

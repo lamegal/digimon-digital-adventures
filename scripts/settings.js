@@ -397,13 +397,30 @@ game.settings.register(MODULE_ID, "humanScaling", {
     default: false
   });
 
-  game.settings.register(MODULE_ID, "enableEquipableItems", {
+    game.settings.register(MODULE_ID, "enableEquipableItems", {
     name: "DDA.Settings.EnableEquipableItems.Name",
     hint: "DDA.Settings.EnableEquipableItems.Hint",
     scope: "world",
     config: true,
     type: Boolean,
     default: false
+  });
+
+  game.settings.register(MODULE_ID, "campaignMilestoneLedger", {
+    name: "DDA.Settings.Internal.CampaignMilestoneLedger.Name",
+    hint: "DDA.Settings.Internal.CampaignMilestoneLedger.Hint",
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {
+      version: 1,
+      method: "narrative",
+      experience: {
+        value: 0,
+        max: 7
+      },
+      records: []
+    }
   });
 
 }

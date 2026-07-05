@@ -59,8 +59,15 @@ const multiattackMode = "strict";
 const attacksMadeThisTurn = Number(attacker.system.combat?.attacksMadeThisTurn ?? 0);
 const hasAttackedThisRound = Boolean(attacker.system.combat?.hasAttackedThisRound);
 const alreadyAttacked = hasAttackedThisRound || attacksMadeThisTurn > 0;
+const speedSurgeAttackWindow = getSpeedSurgeAttackWindow(attacker);
 
-if (alreadyAttacked && !isAmmoAttack) {
+const usesSpeedSurgeAttackWindow = Boolean(
+  alreadyAttacked &&
+  !isAmmoAttack &&
+  speedSurgeAttackWindow
+);
+
+if (alreadyAttacked && !isAmmoAttack && !usesSpeedSurgeAttackWindow) {
   ui.notifications.warn(combatText(
     `${attacker.name} já realizou um Ataque nesta Rodada.`,
     `${attacker.name} has already made an Attack this Round.`
@@ -1082,10 +1089,14 @@ if (isAmmoAttack) {
   await markAmmoAttackUsedThisCombat(attacker, attackItem);
 } else {
   await markAttackUsed(attacker, isSignature, effectiveAttacksMade + 1);
-}
-  if (isSignature) {
-    await spendSignatureBattery(attacker);
+
+  if (usesSpeedSurgeAttackWindow) {
+    await consumeSpeedSurgeAttackWindow(
+      attacker,
+      speedSurgeAttackWindow.id
+    );
   }
+}
 
 return {
   attacker,
@@ -3369,6 +3380,34 @@ async function increaseDodgePenalty(actor) {
 
   await actor.update({
     "system.combat.dodgePenalty": current + 1
+  });
+}
+
+function getSpeedSurgeAttackWindow(actor) {
+  const effects = Array.isArray(actor?.system?.effects?.active)
+    ? actor.system.effects.active
+    : [];
+
+  return effects.find((effect) => {
+    return getEffectTagKey(effect.tag) === "speedsurgeattackwindow";
+  }) ?? null;
+}
+
+async function consumeSpeedSurgeAttackWindow(actor, effectId = "") {
+  if (!actor || !effectId) return;
+
+  const effects = foundry.utils.deepClone(
+    actor.system?.effects?.active ?? []
+  );
+
+  const remainingEffects = effects.filter(
+    (effect) => effect.id !== effectId
+  );
+
+  if (remainingEffects.length === effects.length) return;
+
+  await actor.update({
+    "system.effects.active": remainingEffects
   });
 }
 

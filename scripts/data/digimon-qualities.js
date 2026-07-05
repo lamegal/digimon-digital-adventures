@@ -1,74 +1,9 @@
+import {
+  localizeDigimonQualityPresentation
+} from "./dda-quality-display-localization.js";
 
-function sanitizeEnglishQualityText(value) {
-  if (typeof value !== "string") return value;
 
-  return value
-    .replaceAll(" em Spaces", " Spaces")
-    .replaceAll(" se aplicável", " if applicable")
-    .replaceAll(" aplicável", " applicable")
-    .replaceAll("Movimento Assinatura", "Signature Move")
-    .replaceAll("movimento assinatura", "Signature Move")
-    .replaceAll("Ataque", "Attack")
-    .replaceAll("Dano", "Damage")
-    .replaceAll("Armadura", "Armor")
-    .replaceAll("Postura", "Stance")
-    .replaceAll("Efeito", "Effect")
-    .replaceAll("não podem ser aplicadas", "cannot be applied")
-    .replaceAll("não pode ser aplicada", "cannot be applied")
-    .replaceAll("Não pode", "Cannot")
-    .replaceAll("a menos que ambas sejam aplicadas ao", "unless both are applied to the")
-    .replace(/\] e \[/g, "] and [");
-}
 
-function sanitizeEnglishQualityData(value, fieldKey = "") {
-  const protectedStringFields = new Set([
-    "id",
-    "key",
-    "type",
-    "stat",
-    "skill",
-    "pool",
-    "mode",
-    "action",
-    "recharge",
-    "minimum",
-    "maximum",
-    "tier",
-    "attackTag",
-    "appliesTo",
-    "formula",
-    "tnFormula",
-    "valueFrom",
-    "valueFromRank",
-    "damageBonusFrom",
-    "armorBonusFrom",
-    "movementPenaltyFrom",
-    "rangePenaltyFrom",
-    "triggerCondition",
-    "rankLimit",
-    "movementType"
-  ]);
-
-  if (typeof value === "string") {
-    if (protectedStringFields.has(fieldKey)) return value;
-    return sanitizeEnglishQualityText(value);
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((entry) => sanitizeEnglishQualityData(entry, fieldKey));
-  }
-
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [
-        key,
-        sanitizeEnglishQualityData(entry, key)
-      ])
-    );
-  }
-
-  return value;
-}
 
 function normalizeQualityAutomationData(quality) {
   const next = globalThis.foundry?.utils?.deepClone ? globalThis.foundry.utils.deepClone(quality) : JSON.parse(JSON.stringify(quality));
@@ -27767,12 +27702,19 @@ function getLocalizedDigimonQualities() {
   }
 
   cachedQualitiesLanguage = language;
+
   const sourceQualities = language === "en"
-    ? sanitizeEnglishQualityData(DDA_DIGIMON_QUALITIES_EN)
+    ? DDA_DIGIMON_QUALITIES_EN
     : DDA_DIGIMON_QUALITIES_PT;
 
   cachedLocalizedQualities = applyDefaultQualityAvailability(sourceQualities)
-    .map((quality) => normalizeQualityAutomationData(quality));
+    .map((quality) => normalizeQualityAutomationData(quality))
+    .map((quality) => {
+      return localizeDigimonQualityPresentation(
+        quality,
+        language
+      );
+    });
 
   return cachedLocalizedQualities;
 }

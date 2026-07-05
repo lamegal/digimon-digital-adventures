@@ -2494,5 +2494,72 @@
   "DDA.Warning.AttackAwaitingDodge": "{actor} is waiting for the target's Dodge roll.",
   "DDA.Warning.NoEligibleDodgeRoller": "No owner or GM can roll Dodge for {actor}.",
   "DDA.Warning.DodgeRequestNoLongerPending": "This Dodge request is no longer pending.",
-  "DDA.Warning.NoPermissionToRollDodge": "Only the target's owner or a GM can roll this Dodge."
+  "DDA.Warning.NoPermissionToRollDodge": "Only the target's owner or a GM can roll this Dodge.",
+
+  "DDA.Settings.Internal.CampaignMilestoneLedger.Name": "Campaign Milestone Ledger",
+  "DDA.Settings.Internal.CampaignMilestoneLedger.Hint": "Internal world data used to track campaign and individual Milestones.",
+
+  "DDA.Progression.Warning.OnlyGM": "Only the GM can manage campaign milestones.",
+  "DDA.Progression.Warning.NoMilestoneTargets": "A Milestone needs at least one Tamer target.",
+  "DDA.Progression.Warning.MilestoneReasonRequired": "A Milestone needs a reason.",
+  "DDA.Progression.Warning.TamerOnly": "Only a Tamer can spend Growth Points.",
+  "DDA.Progression.Warning.NoGrowthPackage": "There is no Growth Point package available.",
+  "DDA.Progression.Warning.AttributePackageExact": "Increasing an Attribute requires all {points} Growth Points from this Milestone.",
+  "DDA.Progression.Warning.AttributeAtCap": "This Attribute is already at the current cap ({cap}).",
+  "DDA.Progression.Warning.SkillPackageExact": "Allocate exactly {points} Growth Points among Skills.",
+  "DDA.Progression.Warning.SkillAboveAssociatedAttribute": "A Skill cannot exceed its highest associated Attribute.",
+  "DDA.Progression.Warning.ChooseGrowthMode": "Choose whether this Milestone increases an Attribute or Skills.",
+
+  "DDA.Damage.Type.Unalterable": "Unalterable Damage",
+  "DDA.Warning.TalentOnlyForTamer": "Only a Tamer can use Tamer Talents.",
+  "DDA.Warning.TamerTalentAlreadyUsedThisCombat": "{talent} has already been used in this combat.",
+  "DDA.Warning.TamerTalentAlreadyUsedThisTurn": "{talent} has already been used this turn.",
+
+  "DDA.Progression.Panel.Subtitle": "Campaign Milestones • individual advancement tracking",
+  "DDA.Progression.Panel.CampaignTitle": "Campaign Progress",
+  "DDA.Progression.Panel.CampaignHint": "Grant a Team or Individual Milestone now. Its benefits remain pending until the group rests or the session ends.",
+  "DDA.Progression.Panel.HistoryTitle": "Milestone History",
+  "DDA.Progression.Panel.NoMilestones": "No Milestones have been registered yet.",
+
+  "DDA.Progression.Scope.Party": "Team",
+  "DDA.Progression.Scope.Individual": "Individual",
+
+  "DDA.Progression.Status.PendingRest": "Pending rest",
+  "DDA.Progression.Status.Released": "Benefits released",
+  "DDA.Progression.Status.PartiallyReleased": "Partially released",
+
+  "DDA.Progression.Method.Narrative": "Narrative",
+  "DDA.Progression.Method.XP": "XP",
+  "DDA.Progression.Method.GM": "GM award",
+
+  "DDA.Progression.Label.Method": "Method",
+  "DDA.Progression.Label.Source": "Source",
+  "DDA.Progression.Label.PendingMilestones": "Pending Milestones",
+  "DDA.Progression.Label.TeamMilestones": "Team Milestones",
+  "DDA.Progression.Label.IndividualMilestones": "Individual Milestones",
+  "DDA.Progression.Label.Milestone": "Milestone",
+  "DDA.Progression.Label.MilestoneReason": "Reason",
+  "DDA.Progression.Label.IndividualTarget": "Individual target",
+  "DDA.Progression.Label.TeamTargets": "Team targets",
+  "DDA.Progression.Label.TamerAdvancement": "Tamer advancement",
+  "DDA.Progression.Label.PendingPackages": "Pending packages",
+  "DDA.Progression.Label.TotalReceived": "Total received",
+  "DDA.Progression.Label.FromMilestones": "From Milestones",
+  "DDA.Progression.Label.MilestoneBonusPending": "Milestone DP pending",
+
+  "DDA.Progression.Placeholder.MilestoneReason": "For example: Resolved the File Island arc.",
+
+  "DDA.Progression.Button.GrantTeamMilestone": "Grant Team Milestone",
+  "DDA.Progression.Button.GrantIndividualMilestone": "Grant Individual Milestone",
+  "DDA.Progression.Button.ReleasePendingBenefits": "Release Pending Benefits",
+
+  "DDA.Progression.Info.MilestonePending": "Milestone pending for {count} Tamer(s).",
+  "DDA.Progression.Info.IndividualMilestonePending": "Individual Milestone pending.",
+  "DDA.Progression.Info.MilestonesReleased": "{milestones} Milestone(s) released to {targets} Tamer(s).",
+
+  "DDA.Progression.Warning.NoPendingMilestones": "There are no pending Milestones to release.",
+  "DDA.Progression.Warning.CouldNotCreateMilestone": "Could not create the Milestone.",
+  "DDA.Progression.Warning.CouldNotReleaseMilestones": "Could not release pending Milestones."
+
 }
+

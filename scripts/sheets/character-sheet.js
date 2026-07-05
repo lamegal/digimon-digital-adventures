@@ -19,6 +19,7 @@ import {
   getScaledTalentRequirement
 } from "../rules/campaign-rules.js";
 import { syncTamerAndPartnerOwnership } from "../utils/ownership.js";
+import { validateTamerTalentUse, useTamerTalent } from "../rules/tamer-talent-automation.js";
 
 const ActorSheetV1 = foundry.appv1.sheets.ActorSheet;
 
@@ -844,41 +845,25 @@ async _onUseTamerTalent(event) {
 
   if (!talent.requirementMet) {
     ui.notifications.warn(formatI18n("DDA.Warning.TalentStillLocked", {
-  talent: talent.name
-}));
+      talent: talent.name
+    }));
     return;
   }
 
-  const system = talent.system ?? {};
-  const actionCost = String(system.actionCost ?? "");
-  const uses = system.uses ?? {};
+  const preflight = validateTamerTalentUse(this.actor, talent, {
+    source: talentSource,
+    item
+  });
 
-  const actionCostNumber = getTamerTalentActionCostNumber(actionCost);
-  const currentActions = Number(this.actor.system.combat?.actions?.value ?? 0);
-
-  if (actionCostNumber > 0 && currentActions < actionCostNumber) {
-    ui.notifications.warn(formatI18n("DDA.Warning.NotEnoughActionsForTalent", {
-  actor: this.actor.name,
-  talent: talent.name
-}));
+  if (!preflight.ok) {
+    ui.notifications.warn(preflight.message);
     return;
-  }
-
-  if (uses.enabled) {
-    const currentUses = Number(uses.value ?? 0);
-
-    if (currentUses <= 0) {
-      ui.notifications.warn(formatI18n("DDA.Warning.TalentNoUsesLeft", {
-  talent: talent.name
-}));
-      return;
-    }
   }
 
   const confirmed = await Dialog.confirm({
     title: formatI18n("DDA.TamerTalent.UseTitle", {
-  talent: talent.name
-}),
+      talent: talent.name
+    }),
     content: renderTamerTalentUseConfirmation(talent, this.actor),
     yes: () => true,
     no: () => false,
@@ -887,40 +872,28 @@ async _onUseTamerTalent(event) {
 
   if (!confirmed) return;
 
-  const actorUpdates = {};
+  const automationResult = await useTamerTalent(this.actor, talent, {
+    source: talentSource,
+    item
+  });
 
-  if (actionCostNumber > 0) {
-    actorUpdates["system.combat.actions.value"] = Math.max(0, currentActions - actionCostNumber);
+  if (!automationResult.success) {
+    ui.notifications.warn(
+      automationResult.message ??
+      "Não foi possível aplicar a automação deste Talento."
+    );
+    return;
   }
 
-  if (Object.keys(actorUpdates).length) {
-    await this.actor.update(actorUpdates);
+  if (talent.system?.uses?.enabled && automationResult.uses) {
+    talent.system.uses.value = automationResult.uses.value;
   }
-
-  if (uses.enabled && item) {
-    const currentUses = Number(item.system.uses?.value ?? 0);
-
-    await item.update({
-      "system.uses.value": Math.max(0, currentUses - 1)
-    });
-
-    talent.system.uses.value = Math.max(0, currentUses - 1);
-  }
-
-  if (uses.enabled && talentSource === "official") {
-    await spendOfficialTamerTalentUse(this.actor, talent.id);
-
-    const spentUses = getOfficialTamerTalentUses(this.actor, talent);
-    talent.system.uses.value = spentUses.value;
-  }
-
-    const automationResult = await applyTamerTalentAutomation(this.actor, talent);
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: this.actor }),
     content: renderTamerTalentUseCard(talent, this.actor, {
-      actionCostNumber,
-      actionCost,
+      actionCostNumber: automationResult.actionCostNumber,
+      actionCost: automationResult.actionCost,
       source: talentSource,
       automationResult
     })
@@ -2348,14 +2321,6 @@ function renderTamerTalentDetail(talent) {
   `;
 }
 
-function getTamerTalentActionCostNumber(actionCost) {
-  const value = String(actionCost ?? "").trim();
-
-  if (value === "1") return 1;
-  if (value === "2") return 2;
-
-  return 0;
-}
 
 function renderTamerTalentUseConfirmation(talent, actor) {
   const system = talent.system ?? {};
@@ -2525,576 +2490,6 @@ function getOfficialTamerTalentUses(actor, talent) {
   };
 }
 
-async function spendOfficialTamerTalentUse(actor, talentId) {
-  const talent = DDA_TAMER_TALENTS.find((entry) => entry.id === talentId);
-
-  if (!talent) return;
-
-  const baseUses = talent.uses ?? { enabled: false, value: 0, max: 0, recharge: "" };
-
-  if (!baseUses.enabled) return;
-
-  const max = Number(baseUses.max ?? 0);
-  const currentValue = Number(actor.system.tamerTalentUses?.[talentId]?.value ?? max);
-
-  await actor.update({
-    [`system.tamerTalentUses.${talentId}.value`]: Math.max(0, currentValue - 1),
-    [`system.tamerTalentUses.${talentId}.max`]: max,
-    [`system.tamerTalentUses.${talentId}.recharge`]: baseUses.recharge ?? ""
-  });
-}
-
-async function applyTamerTalentAutomation(tamer, talent) {
-  const automation = talent.system?.automation ?? talent.automation ?? {};
-
-  if (!automation.enabled) {
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.NotConfigured")
-    };
-  }
-
-  if (automation.type === "grantActions") {
-    return applyGrantActionsAutomation(tamer, talent, automation);
-  }
-
-  if (automation.type === "healWounds") {
-    return applyHealWoundsAutomation(tamer, talent, automation);
-  }
-
-  if (automation.type === "cleanseNegativeEffect") {
-    return applyCleanseNegativeEffectAutomation(tamer, talent, automation);
-  }
-
-  if (automation.type === "applyEffect") {
-    return applySingleEffectAutomation(tamer, talent, automation);
-  }
-
-  if (automation.type === "applyEffectToTargets") {
-    return applyEffectToTargetsAutomation(tamer, talent, automation);
-  }
-
-  if (automation.type === "nextCheckBonus") {
-    return applyNextCheckBonusAutomation(tamer, talent, automation);
-  }
-
-  if (automation.type === "unalterableDamageAndEffect") {
-    return applyUnalterableDamageAndEffectAutomation(tamer, talent, automation);
-  }
-
-  return {
-    applied: false,
-    message: formatI18n("DDA.TamerTalent.Automation.Unknown", {
-      type: automation.type
-    })
-  };
-}
-
-async function getTamerTalentPrimaryTarget(tamer, automation) {
-  const targets = Array.from(game.user.targets ?? []);
-
-  if (targets.length === 1) {
-    const actor = targets[0].actor;
-
-    if (actor) {
-      return {
-        actor,
-        token: targets[0],
-        source: "target"
-      };
-    }
-  }
-
-  if (automation.target === "target") {
-    ui.notifications.warn(localize("DDA.Warning.SelectExactlyOneTargetForTalent"));
-    return null;
-  }
-
-  const partnerUuid = tamer.system.partner?.uuid || tamer.system.partner?.currentFormUuid;
-
-  if (partnerUuid) {
-    try {
-      const partner = await fromUuid(partnerUuid);
-
-      if (partner?.documentName === "Actor") {
-        return {
-          actor: partner,
-          token: null,
-          source: "partner"
-        };
-      }
-    } catch (error) {
-      console.warn("DDA | Não foi possível resolver o parceiro para automação de Talento.", error);
-    }
-  }
-
-  ui.notifications.warn(localize("DDA.Warning.SelectTargetOrLinkPartner"));
-  return null;
-}
-
-function getTamerTalentTargets() {
-  return Array.from(game.user.targets ?? [])
-    .map((token) => ({ token, actor: token.actor }))
-    .filter((entry) => entry.actor);
-}
-
-function isDigimonLike(actor) {
-  return actor?.type === "digimon" || actor?.type === "npc";
-}
-async function applyGrantActionsAutomation(tamer, talent, automation) {
-  const target = await getTamerTalentPrimaryTarget(tamer, automation);
-
-  if (!target?.actor) {
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.NoValidTarget")
-    };
-  }
-
-  if (!isDigimonLike(target.actor)) {
-    ui.notifications.warn(localize("DDA.Warning.TalentRequiresDigimonOrNpcTarget"));
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.InvalidTarget")
-    };
-  }
-
-  const currentActions = Number(target.actor.system.combat?.actions?.value ?? 0);
-  const maxActions = Number(target.actor.system.combat?.actions?.max ?? 2);
-  const amount = Number(automation.amount ?? 0);
-  const newActions = currentActions + amount;
-
-  await target.actor.update({
-    "system.combat.actions.value": newActions
-  });
-
-return {
-  applied: true,
-  targetName: target.actor.name,
-  message: formatI18n("DDA.TamerTalent.Automation.GrantActions.Message", {
-    target: target.actor.name,
-    amount
-  }),
-  details: formatI18n("DDA.TamerTalent.Automation.GrantActions.Details", {
-    current: currentActions,
-    next: newActions,
-    max: maxActions,
-    note: automation.note ?? ""
-  })
-};
-}
-async function applyHealWoundsAutomation(tamer, talent, automation) {
-  const target = await getTamerTalentPrimaryTarget(tamer, automation);
-
-  if (!target?.actor) {
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.NoValidTarget")
-    };
-  }
-
-  if (!isDigimonLike(target.actor)) {
-    ui.notifications.warn(localize("DDA.Warning.TalentRequiresDigimonOrNpcTarget"));
-
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.InvalidTarget")
-    };
-  }
-
-  const woundPath = getWoundValuePath(target.actor);
-  const tempPath = getTempWoundValuePath(target.actor);
-
-  const currentWounds = Number(foundry.utils.getProperty(target.actor, woundPath) ?? 0);
-  const maxWounds = Number(getWoundMax(target.actor));
-  const tempWounds = Number(foundry.utils.getProperty(target.actor, tempPath) ?? 0);
-
-  const amount = tempWounds > 0
-    ? Number(automation.amountIfHasTempWounds ?? automation.amount ?? 1)
-    : Number(automation.amount ?? 1);
-
-  const newWounds = Math.min(maxWounds, currentWounds + amount);
-
-  await target.actor.update({
-    [woundPath]: newWounds
-  });
-
-  return {
-    applied: true,
-    targetName: target.actor.name,
-    message: formatI18n("DDA.TamerTalent.Automation.HealWounds.Message", {
-      target: target.actor.name,
-      amount: newWounds - currentWounds
-    }),
-    details: formatI18n("DDA.TamerTalent.Automation.HealWounds.Details", {
-      current: currentWounds,
-      next: newWounds
-    })
-  };
-}
-
-function getWoundValuePath(actor) {
-  if (actor.type === "character") return "system.derived.wounds.value";
-  return "system.miscStats.wounds.value";
-}
-
-function getTempWoundValuePath(actor) {
-  if (actor.type === "character") return "system.derived.wounds.temp.value";
-  return "system.miscStats.wounds.temp.value";
-}
-
-function getWoundMax(actor) {
-  if (actor.type === "character") {
-    return Number(actor.system.derived?.wounds?.max ?? actor.system.derived?.wounds?.value ?? 0);
-  }
-
-  return Number(actor.system.miscStats?.wounds?.max ?? actor.system.miscStats?.wounds?.value ?? 0);
-}
-async function applyCleanseNegativeEffectAutomation(tamer, talent, automation) {
-  const target = await getTamerTalentPrimaryTarget(tamer, automation);
-
-  if (!target?.actor) {
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.NoValidTarget")
-    };
-  }
-
-  const effects = foundry.utils.deepClone(target.actor.system.effects?.active ?? []);
-  const negativeEffects = effects.filter((effect) => isNegativeTamerTalentEffect(effect));
-
-  if (!negativeEffects.length) {
-    ui.notifications.info(formatI18n("DDA.TamerTalent.Automation.Cleanse.NoNegativeEffectsInfo", {
-  target: target.actor.name
-}));
-    return {
-      applied: false,
-      targetName: target.actor.name,
-      message: localize("DDA.TamerTalent.Automation.Cleanse.NoNegativeEffects")
-    };
-  }
-
-  const effectId = await chooseEffectToCleanse(target.actor, negativeEffects);
-
-  if (!effectId) {
-    return {
-      applied: false,
-      targetName: target.actor.name,
-      message: localize("DDA.TamerTalent.Automation.Cleanse.NoEffectRemoved")
-    };
-  }
-
-  const removedEffect = negativeEffects.find((effect) => effect.id === effectId);
-  const updatedEffects = effects.filter((effect) => effect.id !== effectId);
-
-  await target.actor.update({
-    "system.effects.active": updatedEffects
-  });
-
-const removedLabel = removedEffect?.label ?? localize("DDA.Label.Effect");
-
-return {
-  applied: true,
-  targetName: target.actor.name,
-  message: formatI18n("DDA.TamerTalent.Automation.Cleanse.Message", {
-    effect: removedLabel,
-    target: target.actor.name
-  }),
-  details: formatI18n("DDA.TamerTalent.Automation.Cleanse.Details", {
-    effect: removedEffect?.label ?? removedEffect?.tag ?? effectId
-  })
-};
-}
-
-function isNegativeTamerTalentEffect(effect) {
-  const tag = String(effect.tag ?? "").toLowerCase();
-  const category = String(effect.category ?? "").toLowerCase();
-  const label = String(effect.label ?? "").toLowerCase();
-
-  const negativeTags = new Set([
-    "blind",
-    "debilitate",
-    "exploit",
-    "taunt",
-    "stun",
-    "paralyze",
-    "freeze",
-    "slow",
-    "weak",
-    "frail",
-    "heavy",
-    "vague",
-    "imprecision",
-    "cegar",
-    "atordoar",
-    "paralisar",
-    "congelar",
-    "lento",
-    "enfraquecer",
-    "fragil",
-    "frágil",
-    "pesado"
-  ]);
-
-  if (category === "negative" || category === "control" || category === "penalty") return true;
-  if (negativeTags.has(tag)) return true;
-
-  return Array.from(negativeTags).some((entry) => label.includes(entry));
-}
-
-async function chooseEffectToCleanse(actor, effects) {
-  return new Promise((resolve) => {
-    new Dialog(
-      {
-        title: localize("DDA.Dialog.CleanseEffect.Title"),
-        content: `
-          <form class="dda-roll-dialog dda-cleanse-effect-dialog">
-            <p>${formatI18n("DDA.Dialog.CleanseEffect.Content", {
-              actor: `<strong>${escapeHtml(actor.name)}</strong>`
-            })}</p>
-
-            <div class="form-group">
-              <label>${localize("DDA.Label.Effect")}</label>
-              <select name="effectId">
-                ${effects.map((effect) => {
-                  return `<option value="${escapeHtml(effect.id)}">${escapeHtml(effect.label ?? effect.tag ?? effect.id)}</option>`;
-                }).join("")}
-              </select>
-            </div>
-          </form>
-        `,
-        buttons: {
-          confirm: {
-            label: localize("DDA.Button.Remove"),
-            callback: (html) => {
-              const form = html[0].querySelector("form");
-              resolve(form.effectId.value);
-            }
-          },
-          cancel: {
-            label: localize("DDA.Button.Cancel"),
-            callback: () => resolve(null)
-          }
-        },
-        default: "confirm",
-        close: () => resolve(null)
-      },
-      {
-        width: 420
-      }
-    ).render(true);
-  });
-}
-
-async function applySingleEffectAutomation(tamer, talent, automation) {
-  const target = await getTamerTalentPrimaryTarget(tamer, automation);
-
-  if (!target?.actor) {
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.NoValidTarget")
-    };
-  }
-
-  const effect = buildTamerTalentEffect(tamer, talent, automation, target.actor);
-
-  await addActiveEffectToActor(target.actor, effect);
-
-return {
-  applied: true,
-  targetName: target.actor.name,
-  message: formatI18n("DDA.TamerTalent.Automation.ApplyEffect.Message", {
-    effect: effect.label,
-    target: target.actor.name
-  }),
-  details: automation.note ?? ""
-};
-}
-
-async function applyEffectToTargetsAutomation(tamer, talent, automation) {
-  const targets = getTamerTalentTargets();
-
-  if (!targets.length) {
-    ui.notifications.warn(localize("DDA.Warning.SelectOneOrMoreTargetsForTalent"));
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.NoTargetsSelected")
-    };
-  }
-
-  const applied = [];
-
-  for (const target of targets) {
-    const effect = buildTamerTalentEffect(tamer, talent, automation, target.actor);
-
-    await addActiveEffectToActor(target.actor, effect);
-
-    applied.push(target.actor.name);
-  }
-
-return {
-  applied: true,
-  targetName: applied.join(", "),
-  message: formatI18n("DDA.TamerTalent.Automation.ApplyEffectToTargets.Message", {
-    targets: applied.join(", ")
-  }),
-  details: automation.note ?? ""
-};
-}
-
-function buildTamerTalentEffect(tamer, talent, automation, targetActor) {
-  const value = getAutomationValue(tamer, targetActor, automation);
-
-  return {
-    id: foundry.utils.randomID(),
-    tag: automation.tag ?? "",
-    label: automation.label ?? talent.name,
-    value,
-    potency: value,
-    duration: Number(automation.duration ?? 1),
-    remaining: Number(automation.duration ?? 1),
-    category: automation.category ?? "special",
-    source: "tamerTalent",
-    sourceTalentId: talent.id,
-    sourceTalentName: talent.name,
-    sourceActorName: tamer.name,
-    sourceActorUuid: tamer.uuid
-  };
-}
-
-function getAutomationValue(tamer, targetActor, automation) {
-  if (automation.valueFrom === "targetSv") {
-    return Number(
-      targetActor.system.derivedStats?.sv?.value ??
-      targetActor.system.derived?.sv?.value ??
-      targetActor.system.miscStats?.sv?.value ??
-      1
-    );
-  }
-
-  if (automation.valueFrom === "tamerWillpower") {
-    return Number(tamer.system.attributes?.willpower?.value ?? 0);
-  }
-
-  return Number(automation.value ?? 1);
-}
-
-async function addActiveEffectToActor(actor, effect) {
-  const currentEffects = foundry.utils.deepClone(actor.system.effects?.active ?? []);
-
-  currentEffects.push(effect);
-
-  await actor.update({
-    "system.effects.active": currentEffects
-  });
-}
-async function applyNextCheckBonusAutomation(tamer, talent, automation) {
-  const target = await getTamerTalentPrimaryTarget(tamer, automation);
-
-  if (!target?.actor) {
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.NoValidTarget")
-    };
-  }
-
-  const effect = {
-    id: foundry.utils.randomID(),
-    tag: "nextCheckBonus",
-    label: automation.label ?? talent.name,
-    value: Number(automation.amount ?? 0),
-    potency: Number(automation.amount ?? 0),
-    duration: 1,
-    remaining: 1,
-    category: "positive",
-    source: "tamerTalent",
-    sourceTalentId: talent.id,
-    sourceTalentName: talent.name,
-    sourceActorName: tamer.name,
-    sourceActorUuid: tamer.uuid,
-    consumeOn: "check"
-  };
-
-  await addActiveEffectToActor(target.actor, effect);
-
-return {
-  applied: true,
-  targetName: target.actor.name,
-  message: formatI18n("DDA.TamerTalent.Automation.NextCheckBonus.Message", {
-    target: target.actor.name,
-    value: effect.value
-  }),
-  details: automation.note ?? ""
-};
-}
-async function applyUnalterableDamageAndEffectAutomation(tamer, talent, automation) {
-  const target = await getTamerTalentPrimaryTarget(tamer, automation);
-
-  if (!target?.actor) {
-    return {
-      applied: false,
-      message: localize("DDA.TamerTalent.Automation.NoValidTarget")
-    };
-  }
-
-  const damage = getAutomationDamage(tamer, target.actor, automation);
-  const woundPath = getWoundValuePath(target.actor);
-  const currentWounds = Number(foundry.utils.getProperty(target.actor, woundPath) ?? 0);
-  const newWounds = Math.max(0, currentWounds - damage);
-
-  await target.actor.update({
-    [woundPath]: newWounds
-  });
-
-  const effect = buildTamerTalentEffect(tamer, talent, automation, target.actor);
-  await addActiveEffectToActor(target.actor, effect);
-
-return {
-  applied: true,
-  targetName: target.actor.name,
-  message: formatI18n("DDA.TamerTalent.Automation.UnalterableDamageAndEffect.Message", {
-    target: target.actor.name,
-    damage,
-    effect: effect.label
-  }),
-  details: formatI18n("DDA.TamerTalent.Automation.UnalterableDamageAndEffect.Details", {
-    current: currentWounds,
-    next: newWounds
-  })
-};
-}
-
-function getAutomationDamage(tamer, targetActor, automation) {
-  if (automation.damageFrom === "targetSv") {
-    return Number(
-      targetActor.system.derivedStats?.sv?.value ??
-      targetActor.system.derived?.sv?.value ??
-      targetActor.system.miscStats?.sv?.value ??
-      1
-    );
-  }
-
-  return Number(automation.damage ?? 1);
-}
-
-function getInventoryItemTypeLabelKey(type) {
-  const labels = {
-    attack: "DDA.Item.Attack",
-    quality: "DDA.Item.Quality",
-    torment: "DDA.Item.Torment",
-    tamerTalent: "DDA.Item.TamerTalent",
-    motif: "DDA.Item.Motif",
-    equipment: "DDA.Item.Equipment",
-    milestone: "DDA.Item.Milestone",
-    trait: "DDA.Item.Trait",
-    evolutionLink: "DDA.Item.EvolutionLink",
-    digimental: "DDA.Item.Digimental",
-    card: "DDA.Item.Card",
-    consumable: "DDA.Item.Consumable"
-  };
-
-  return labels[type] ?? type;
-}
 
 function renderInventoryItemUseCard(tamer, item, target) {
   const description = String(item.system?.use?.chatMessage || item.system?.description || "").trim();
