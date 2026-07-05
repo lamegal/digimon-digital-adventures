@@ -1276,15 +1276,17 @@ _prepareDigimonEffectBonuses(system) {
   const mainStats = system.mainStats ?? {};
   const miscStats = system.miscStats ?? {};
   const activeEffects = Array.isArray(system.effects?.active)
-  ? system.effects.active
-  : [];
+    ? system.effects.active
+    : [];
 
   for (const stat of Object.values(mainStats)) {
     stat.effectBonus = 0;
+    stat.effectBonusSources = [];
   }
 
   if (miscStats.movement) {
     miscStats.movement.effectBonus = 0;
+    miscStats.movement.effectBonusSources = [];
   }
 
   const effectModifiers = {
@@ -1302,38 +1304,74 @@ _prepareDigimonEffectBonuses(system) {
     tailwind: { movement: 1 }
   };
 
-for (const effect of activeEffects) {
-  const tag = String(effect.tag ?? "")
-    .replace("[", "")
-    .replace("]", "")
-    .trim()
-    .toLowerCase();
+  for (const effect of activeEffects) {
+    const tag = String(effect.tag ?? "")
+      .replace("[", "")
+      .replace("]", "")
+      .trim()
+      .toLowerCase();
 
-  if (
-    tag === "root" &&
-    system.qualityFeatures?.advancedMobility?.climb?.rootImmunity
-  ) {
-    continue;
-  }
+    if (
+      tag === "root" &&
+      system.qualityFeatures?.advancedMobility?.climb?.rootImmunity
+    ) {
+      continue;
+    }
 
-  const modifiers = effectModifiers[tag];
+    const potency = Math.max(0, Number(
+      effect.potency ??
+      effect.value ??
+      1
+    ));
 
-  if (!modifiers) continue;
+    const variableModifiers = {
+      bastion: {
+        accuracy: potency,
+        damage: potency,
+        dodge: potency,
+        armor: potency
+      },
+      debilitate: {
+        accuracy: -potency,
+        damage: -potency,
+        dodge: -potency,
+        armor: -potency
+      }
+    };
 
-  for (const [statKey, value] of Object.entries(modifiers)) {
+    const modifiers = variableModifiers[tag] ?? effectModifiers[tag];
+
+    if (!modifiers) continue;
+
+    for (const [statKey, value] of Object.entries(modifiers)) {
+      const numericValue = Number(value ?? 0);
+      if (numericValue === 0) continue;
+
       if (statKey === "movement") {
         if (!miscStats.movement) continue;
 
-        miscStats.movement.effectBonus += Number(value ?? 0);
+        miscStats.movement.effectBonus += numericValue;
+        miscStats.movement.effectBonusSources.push({
+          name: effect.label ?? effect.tag ?? tag,
+          value: numericValue,
+          tag
+        });
         continue;
       }
 
       if (!mainStats[statKey]) continue;
 
-      mainStats[statKey].effectBonus += Number(value ?? 0);
+      mainStats[statKey].effectBonus += numericValue;
+      mainStats[statKey].effectBonusSources.push({
+        name: effect.label ?? effect.tag ?? tag,
+        value: numericValue,
+        tag
+      });
     }
   }
 }
+
+
 _prepareDigimonStage(system) {
   const stage = system.stage ?? "child";
   const stageData = CONFIG.DDA?.stages?.[stage] ?? CONFIG.DDA?.stages?.child;

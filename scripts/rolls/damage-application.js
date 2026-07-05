@@ -419,8 +419,12 @@ function getDamageApplicationInfo(actor, damage, options = {}) {
   const rawDamage = Math.max(0, Number(damage ?? 0));
   const damageType = normalizeDamageType(options.damageType ?? "");
   const damageTypeLabel = getDamageTypeLabel(damageType, options.damageLabel);
+  const ignoresReduction = Boolean(options.ignoreReduction || options.unalterable);
 
-  const reductionData = getDamageReductionData(actor, damageType);
+  const reductionData = ignoresReduction
+    ? { value: 0, tooltip: "" }
+    : getDamageReductionData(actor, damageType);
+
   const reduction = Math.min(rawDamage, reductionData.value);
 
   return {
@@ -429,6 +433,7 @@ function getDamageApplicationInfo(actor, damage, options = {}) {
     damageTypeLabel,
     reduction,
     reductionSource: reductionData.tooltip,
+    ignoresReduction,
     effectiveDamage: Math.max(0, rawDamage - reduction)
   };
 }

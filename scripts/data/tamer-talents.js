@@ -618,12 +618,13 @@ const DDA_TAMER_TALENTS_PT = [
     specialOrder: { name: "FINISH IT NOW" },
     effect: "O Digimon ganha 2 Ações extras e é tratado como se estivesse em outra rodada para ignorar limites como um Ataque por Rodada.",
     automation: {
-  enabled: true,
-  type: "grantActions",
-  target: "partnerOrTarget",
-  amount: 2,
-  note: "O Digimon é tratado como se estivesse em uma rodada diferente para limites como um Ataque por Rodada."
-}
+      enabled: true,
+      type: "grantActions",
+      target: "partnerOrTarget",
+      amount: 2,
+      grantAttackRoundOverride: true,
+      note: "O Digimon recebe uma janela adicional para um Ataque nesta Rodada."
+    }
   },
 
   {
@@ -993,13 +994,13 @@ const DDA_TAMER_TALENTS_PT = [
     specialOrder: { name: "NOW FOCUS" },
     effect: "Quando o Digimon faz um Teste próprio como Ação ou parte de uma Qualidade, ganha +5 no Teste. Pode ser usado após o resultado ser conhecido.",
     automation: {
-  enabled: true,
-  type: "nextCheckBonus",
-  target: "partnerOrTarget",
-  amount: 5,
-  label: "NOW FOCUS",
-  note: "O próximo Teste próprio do Digimon recebe +5."
-}
+      enabled: false,
+      type: "postCheckBonus",
+      target: "partnerOrTarget",
+      amount: 5,
+      label: "NOW FOCUS",
+      note: "Este Talento é reativo: o +5 deve ser aplicado após o resultado do Teste ser conhecido."
+    }
   },
 
   {

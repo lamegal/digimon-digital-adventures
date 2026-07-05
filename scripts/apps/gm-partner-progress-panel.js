@@ -1,4 +1,14 @@
+import {
+  createPendingCampaignMilestone,
+  getCampaignMilestoneSummary,
+  getDigimonBonusDpSummary,
+  getTamerProgressSummary,
+  releasePendingCampaignMilestones
+} from "../rules/tamer-progression.js";
+
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+const DDAGMPartnerProgressPanelBase = HandlebarsApplicationMixin(ApplicationV2);
 
 const DDA_PARTNER_STAGE_ORDER = [
   "baby1",
@@ -10,13 +20,22 @@ const DDA_PARTNER_STAGE_ORDER = [
   "ultimatePlus"
 ];
 
-function localize(key) {
-  return game.i18n.localize(key);
+function localize(key, fallback = key) {
+  const value = game?.i18n?.localize?.(key);
+  return value && value !== key ? value : fallback;
+}
+
+function formatI18n(key, data = {}, fallback = "") {
+  const value = game?.i18n?.format?.(key, data);
+  return value && value !== key ? value : (fallback || key);
 }
 
 function stageLabel(stageKey = "") {
   const configLabel = CONFIG.DDA?.stages?.[stageKey]?.label;
-  if (configLabel) return localize(configLabel);
+
+  if (configLabel) {
+    return localize(configLabel, stageKey);
+  }
 
   const fallbackKey = {
     baby1: "DDA.Stage.Baby1",
@@ -28,24 +47,56 @@ function stageLabel(stageKey = "") {
     ultimatePlus: "DDA.Stage.UltimatePlus"
   }[stageKey];
 
-  return fallbackKey ? localize(fallbackKey) : stageKey;
+  return fallbackKey
+    ? localize(fallbackKey, stageKey)
+    : stageKey;
+}
+
+function formatDateTime(value = "") {
+  const date = value ? new Date(value) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  try {
+    return new Intl.DateTimeFormat(game.i18n?.lang ?? undefined, {
+      dateStyle: "short",
+      timeStyle: "short"
+    }).format(date);
+  } catch (_error) {
+    return date.toLocaleString();
+  }
 }
 
 async function resolveActor(uuid = "") {
   const cleanUuid = String(uuid ?? "").trim();
-  if (!cleanUuid) return null;
+
+  if (!cleanUuid) {
+    return null;
+  }
 
   try {
     const document = await fromUuid(cleanUuid);
-    return document?.documentName === "Actor" ? document : null;
+
+    return document?.documentName === "Actor"
+      ? document
+      : null;
   } catch (error) {
-    console.warn("DDA | Could not resolve Actor UUID in GM partner progress panel:", cleanUuid, error);
+    console.warn(
+      "DDA | Could not resolve Actor UUID in GM partner progress panel:",
+      cleanUuid,
+      error
+    );
+
     return null;
   }
 }
 
 function getUnlockedStages(tamer) {
-  const current = foundry.utils.deepClone(tamer?.system?.partner?.unlockedEvolutionStages ?? {});
+  const current = foundry.utils.deepClone(
+    tamer?.system?.partner?.unlockedEvolutionStages ?? {}
+  );
 
   for (const stageKey of DDA_PARTNER_STAGE_ORDER) {
     if (current[stageKey] === undefined) {
@@ -76,54 +127,135 @@ function getTamerCrestKey(tamer) {
 }
 
 function getGroupMembers(groupActor) {
-  if (!groupActor || groupActor.type !== "group") return [];
+  if (!groupActor || groupActor.type !== "group") {
+    return [];
+  }
 
   const members = Array.isArray(groupActor.system?.party?.members)
     ? groupActor.system.party.members
     : [];
 
   return members
-    .map((entry) => String(entry.uuid ?? "").trim())
+    .map((entry) => String(entry?.uuid ?? "").trim())
     .filter(Boolean);
 }
 
 async function getCurrentFormActor(tamer, partner) {
-  // O ator parceiro é persistente: ele troca espécie, imagem e atributos conforme a forma atual.
-  // currentFormUuid continua servindo como referência/template da forma, não como ficha principal.
-  return partner ?? await resolveActor(tamer?.system?.partner?.currentFormUuid || "") ?? null;
+  return partner ??
+    await resolveActor(tamer?.system?.partner?.currentFormUuid || "") ??
+    null;
 }
 
-export class DDAGMPartnerProgressPanel extends Application {
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: "dda-gm-partner-progress-panel",
-      classes: ["dda", "dda-gm-partner-progress-panel"],
-      template: "systems/digimon-digital-adventures/templates/apps/gm-partner-progress-panel.html",
-      title: localize("DDA.GMPartnerProgress.Title"),
-      width: 1040,
-      height: 760,
+function milestoneScopeLabel(scope = "party") {
+  return scope === "individual"
+    ? localize("DDA.Progression.Scope.Individual", "Individual")
+    : localize("DDA.Progression.Scope.Party", "Team");
+}
+
+function milestoneStatusLabel(status = "") {
+  const key = {
+    pendingRest: "DDA.Progression.Status.PendingRest",
+    released: "DDA.Progression.Status.Released",
+    partiallyReleased: "DDA.Progression.Status.PartiallyReleased"
+  }[status];
+
+  return key
+    ? localize(key, status)
+    : status;
+}
+
+function milestoneMethodLabel(method = "narrative") {
+  const key = {
+    narrative: "DDA.Progression.Method.Narrative",
+    xp: "DDA.Progression.Method.XP",
+    gm: "DDA.Progression.Method.GM"
+  }[method];
+
+  return key
+    ? localize(key, method)
+    : method;
+}
+
+function createMilestoneTarget(tamer, partner = null) {
+  return {
+    tamerUuid: tamer.uuid,
+    tamerName: tamer.name,
+    partnerUuid: partner?.uuid ?? tamer.system?.partner?.uuid ?? "",
+    partnerName: partner?.name ?? tamer.system?.partner?.name ?? ""
+  };
+}
+
+function getMilestoneTargetNames(record = {}) {
+  const names = Array.isArray(record.targets)
+    ? record.targets
+      .map((target) => target?.tamerName || target?.tamerUuid || "")
+      .filter(Boolean)
+    : [];
+
+  return names.join(", ");
+}
+
+export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
+  static DEFAULT_OPTIONS = {
+    id: "dda-gm-partner-progress-panel",
+    classes: ["dda", "dda-gm-partner-progress-panel"],
+    position: {
+      width: 1120,
+      height: 780
+    },
+    window: {
+      icon: "fas fa-flag-checkered",
       resizable: true
-    });
-  }
+    },
+    actions: {
+      refresh: DDAGMPartnerProgressPanel._onActionRefresh,
+      createPartyMilestone: DDAGMPartnerProgressPanel._onActionCreatePartyMilestone,
+      createIndividualMilestone: DDAGMPartnerProgressPanel._onActionCreateIndividualMilestone,
+      releasePendingMilestones: DDAGMPartnerProgressPanel._onActionReleasePendingMilestones,
+      openTamer: DDAGMPartnerProgressPanel._onActionOpenActor,
+      openPartner: DDAGMPartnerProgressPanel._onActionOpenActor,
+      toggleStage: DDAGMPartnerProgressPanel._onActionToggleStage,
+      toggleCrestDigivice: DDAGMPartnerProgressPanel._onActionToggleCrestDigivice
+    }
+  };
+
+  static PARTS = {
+    main: {
+      template: "systems/digimon-digital-adventures/templates/apps/gm-partner-progress-panel.html"
+    }
+  };
 
   constructor(options = {}) {
     super(options);
+
     this.targetMode = options.targetMode ?? "all";
     this.selectedGroupUuid = options.selectedGroupUuid ?? "all";
     this.selectedTamerUuid = options.selectedTamerUuid ?? "all";
   }
 
-  async getData(options = {}) {
-    const context = await super.getData(options);
+  get title() {
+    return localize(
+      "DDA.GMPartnerProgress.Title",
+      "Campaign Progress"
+    );
+  }
 
-    if (!game.user?.isGM) {
+  async _prepareContext(options = {}) {
+    const context = await super._prepareContext(options);
+    const isGM = Boolean(game.user?.isGM);
+
+    if (!isGM) {
       return {
         ...context,
         isGM: false,
         groups: [],
+        allTamers: [],
         tamers: [],
+        campaign: null,
         selectedGroupUuid: this.selectedGroupUuid,
-        stageKeys: DDA_PARTNER_STAGE_ORDER
+        selectedTamerUuid: this.selectedTamerUuid,
+        targetMode: this.targetMode,
+        hasTamers: false
       };
     }
 
@@ -135,63 +267,105 @@ export class DDAGMPartnerProgressPanel extends Application {
       }))
       .sort((a, b) => a.name.localeCompare(b.name, game.i18n.lang));
 
-    const allTamerActors = game.actors
-      .filter((actor) => actor.type === "character")
-      .filter((actor) => Boolean(actor.system?.partner?.uuid))
-      .sort((a, b) => a.name.localeCompare(b.name, game.i18n.lang));
+    const allTamerActors = this._getLinkedTamerActors();
 
-    const tamerOptions = allTamerActors.map((actor) => ({
+    const allTamers = allTamerActors.map((actor) => ({
       uuid: actor.uuid,
       name: actor.name
     }));
 
-    if (this.selectedTamerUuid === "all" && tamerOptions.length) {
-      this.selectedTamerUuid = tamerOptions[0].uuid;
+    if (
+      this.selectedTamerUuid === "all" &&
+      allTamers.length
+    ) {
+      this.selectedTamerUuid = allTamers[0].uuid;
     }
 
-    const selectedGroup = this.selectedGroupUuid === "all"
-      ? null
-      : await resolveActor(this.selectedGroupUuid);
+    const selectedTamerExists = allTamers.some(
+      (entry) => entry.uuid === this.selectedTamerUuid
+    );
 
-    const allowedMemberUuids = this.targetMode === "group" && selectedGroup
-      ? new Set(getGroupMembers(selectedGroup))
-      : null;
+    if (!selectedTamerExists && allTamers.length) {
+      this.selectedTamerUuid = allTamers[0].uuid;
+    }
 
-    const tamerActors = allTamerActors
-      .filter((actor) => {
-        if (this.targetMode === "individual") return actor.uuid === this.selectedTamerUuid;
-        if (this.targetMode === "group") return !allowedMemberUuids || allowedMemberUuids.has(actor.uuid);
-        return true;
-      });
+    const visibleTamerActors = await this._getFilteredTamerActors(
+      allTamerActors
+    );
 
     const tamers = [];
 
-    for (const tamer of tamerActors) {
-      const partner = await resolveActor(tamer.system.partner?.uuid ?? "");
+    for (const tamer of visibleTamerActors) {
+      const partner = await resolveActor(
+        tamer.system?.partner?.uuid ?? ""
+      );
+
       const currentForm = await getCurrentFormActor(tamer, partner);
       const unlockedStages = getUnlockedStages(tamer);
-      const bonusDp = Number(tamer.system.partner?.bonusDp ?? partner?.system.advancement?.bonusDp?.total ?? partner?.system.creation?.dp?.bonus ?? 0);
       const crestKey = getTamerCrestKey(tamer);
-      const questionnaireEnabled = Boolean(game.settings.get(DDA_SYSTEM_ID, "enableHiddenCompatibilityQuestionnaire"));
-      const digiviceRevealed = questionnaireEnabled && Boolean(tamer.system.partner?.digiviceSkin?.revealed);
+
+      const questionnaireEnabled = Boolean(
+        game.settings.get(
+          DDA_SYSTEM_ID,
+          "enableHiddenCompatibilityQuestionnaire"
+        )
+      );
+
+      const digiviceRevealed = questionnaireEnabled &&
+        Boolean(tamer.system?.partner?.digiviceSkin?.revealed);
+
+      const tamerProgress = getTamerProgressSummary(tamer);
+      const bonusDp = getDigimonBonusDpSummary(tamer, partner);
 
       tamers.push({
         uuid: tamer.uuid,
         name: tamer.name,
         img: tamer.img,
-        bonusDp,
+
+        partnerUuid: partner?.uuid ??
+          tamer.system?.partner?.uuid ??
+          "",
+
+        partnerName: partner?.name ??
+          tamer.system?.partner?.name ??
+          "",
+
+        partnerImg: partner?.img ??
+          "icons/svg/mystery-man.svg",
+
+        currentFormUuid: currentForm?.uuid ??
+          tamer.system?.partner?.currentFormUuid ??
+          "",
+
+        currentFormName: currentForm?.name ??
+          tamer.system?.partner?.currentFormName ??
+          partner?.name ??
+          "",
+
+        currentFormImg: currentForm?.img ??
+          partner?.img ??
+          "icons/svg/mystery-man.svg",
+
+        currentStageLabel: stageLabel(
+          currentForm?.system?.stage ??
+          partner?.system?.stage ??
+          ""
+        ),
+
         crestKey,
         hasCrest: Boolean(crestKey),
         questionnaireEnabled,
         digiviceRevealed,
-        partnerUuid: partner?.uuid ?? tamer.system.partner?.uuid ?? "",
-        partnerName: partner?.name ?? tamer.system.partner?.name ?? "",
-        partnerImg: partner?.img ?? "icons/svg/mystery-man.svg",
-        currentFormUuid: currentForm?.uuid ?? tamer.system.partner?.currentFormUuid ?? "",
-        currentFormName: currentForm?.name ?? tamer.system.partner?.currentFormName ?? partner?.name ?? "",
-        currentFormImg: currentForm?.img ?? partner?.img ?? "icons/svg/mystery-man.svg",
-        currentStage: currentForm?.system?.stage ?? partner?.system?.stage ?? "",
-        currentStageLabel: stageLabel(currentForm?.system?.stage ?? partner?.system?.stage ?? ""),
+
+        milestonesCompleted: tamerProgress.milestonesCompleted,
+        attributeCap: tamerProgress.attributeCap,
+        growthPointsAvailable: tamerProgress.growthPointsAvailable,
+        pendingGrowthPackageCount: tamerProgress.pendingGrowthPackages.length,
+
+        bonusDpTotal: bonusDp.total,
+        bonusDpMilestoneGranted: bonusDp.milestoneGranted,
+        bonusDpMilestoneRemaining: bonusDp.milestoneRemaining,
+
         stages: DDA_PARTNER_STAGE_ORDER.map((stageKey) => ({
           key: stageKey,
           label: stageLabel(stageKey),
@@ -200,134 +374,400 @@ export class DDAGMPartnerProgressPanel extends Application {
       });
     }
 
+    const campaign = this._getCampaignContext(
+      getCampaignMilestoneSummary()
+    );
+
     return {
       ...context,
       isGM: true,
       groups,
+      allTamers,
+      tamers,
+      campaign,
       targetMode: this.targetMode,
       selectedGroupUuid: this.selectedGroupUuid,
       selectedTamerUuid: this.selectedTamerUuid,
-      tamerOptions,
-      tamers,
-      hasTamers: tamers.length > 0
+      hasTamers: tamers.length > 0,
+      selectedTargetCount: visibleTamerActors.length,
+      selectedTargetLabel: this._getSelectedTargetLabel(
+        visibleTamerActors,
+        groups
+      )
     };
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
-
-    const root = html instanceof jQuery ? html : $(html);
-
-    root.find("[data-action='refresh']").on("click", (event) => {
-      event.preventDefault();
-      this.render(true);
-    });
-
-    root.find("[data-action='select-target-mode']").on("change", (event) => {
-      this.targetMode = event.currentTarget.value || "all";
-      this.render(true);
-    });
-
-    root.find("[data-action='select-group']").on("change", (event) => {
-      this.selectedGroupUuid = event.currentTarget.value || "all";
-      this.render(true);
-    });
-
-    root.find("[data-action='select-tamer']").on("change", (event) => {
-      this.selectedTamerUuid = event.currentTarget.value || "all";
-      this.targetMode = "individual";
-      this.render(true);
-    });
-
-    root.find("[data-action='set-bonus-dp']").on("change", this._onSetBonusDp.bind(this));
-    root.find("[data-action='bonus-step']").on("click", this._onBonusStep.bind(this));
-    root.find("[data-action='toggle-stage']").on("click", this._onToggleStage.bind(this));
-    root.find("[data-action='toggle-crest-digivice']").on("click", this._onToggleCrestDigivice.bind(this));
-    root.find("[data-action='open-tamer']").on("click", this._onOpenActor.bind(this));
-    root.find("[data-action='open-partner']").on("click", this._onOpenActor.bind(this));
+  _getLinkedTamerActors() {
+    return game.actors
+      .filter((actor) => actor.type === "character")
+      .filter((actor) => Boolean(actor.system?.partner?.uuid))
+      .sort((a, b) => {
+        return a.name.localeCompare(
+          b.name,
+          game.i18n?.lang ?? undefined,
+          { sensitivity: "base" }
+        );
+      });
   }
 
-  async _onOpenActor(event) {
+  async _getFilteredTamerActors(
+    allTamerActors = this._getLinkedTamerActors()
+  ) {
+    if (this.targetMode === "individual") {
+      return allTamerActors.filter(
+        (actor) => actor.uuid === this.selectedTamerUuid
+      );
+    }
+
+    if (this.targetMode !== "group") {
+      return allTamerActors;
+    }
+
+    if (this.selectedGroupUuid === "all") {
+      return allTamerActors;
+    }
+
+    const selectedGroup = await resolveActor(this.selectedGroupUuid);
+    const memberUuids = new Set(getGroupMembers(selectedGroup));
+
+    return allTamerActors.filter(
+      (actor) => memberUuids.has(actor.uuid)
+    );
+  }
+
+  _getCampaignContext(summary) {
+    const history = summary.history.map((record) => ({
+      ...record,
+      scopeLabel: milestoneScopeLabel(record.scope),
+      statusLabel: milestoneStatusLabel(record.status),
+      methodLabel: milestoneMethodLabel(record.method),
+      targetNames: getMilestoneTargetNames(record),
+      grantedAtLabel: formatDateTime(record.grantedAt),
+      releasedAtLabel: formatDateTime(record.releasedAt)
+    }));
+
+    return {
+      method: summary.method,
+      methodLabel: milestoneMethodLabel(summary.method),
+      experience: summary.experience,
+      pendingCount: summary.pendingRecords.length,
+      releasedPartyCount: summary.releasedPartyCount,
+      releasedIndividualCount: summary.releasedIndividualCount,
+      history
+    };
+  }
+
+  _getSelectedTargetLabel(actors, groups = []) {
+    if (this.targetMode === "individual") {
+      return actors[0]?.name ??
+        localize("DDA.GMPartnerProgress.NoTamers", "No Tamers");
+    }
+
+    if (
+      this.targetMode === "group" &&
+      this.selectedGroupUuid !== "all"
+    ) {
+      return groups.find(
+        (group) => group.uuid === this.selectedGroupUuid
+      )?.name ?? localize(
+        "DDA.GMPartnerProgress.TargetGroup",
+        "Group"
+      );
+    }
+
+    return localize(
+      "DDA.GMPartnerProgress.TargetAll",
+      "All linked Tamers"
+    );
+  }
+
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+
+    const root = this.element;
+    if (!root) return;
+
+    root.querySelector(
+      "[data-progress-control='target-mode']"
+    )?.addEventListener(
+      "change",
+      this._onTargetModeChange.bind(this)
+    );
+
+    root.querySelector(
+      "[data-progress-control='group']"
+    )?.addEventListener(
+      "change",
+      this._onGroupChange.bind(this)
+    );
+
+    root.querySelector(
+      "[data-progress-control='tamer']"
+    )?.addEventListener(
+      "change",
+      this._onTamerChange.bind(this)
+    );
+  }
+
+  async _onTargetModeChange(event) {
+    this.targetMode = event.currentTarget?.value ?? "all";
+    await this.render();
+  }
+
+  async _onGroupChange(event) {
+    this.selectedGroupUuid = event.currentTarget?.value ?? "all";
+    this.targetMode = "group";
+    await this.render();
+  }
+
+  async _onTamerChange(event) {
+    this.selectedTamerUuid = event.currentTarget?.value ?? "all";
+    this.targetMode = "individual";
+    await this.render();
+  }
+
+  static async _onActionRefresh(event, target) {
+    return this._onRefresh(event, target);
+  }
+
+  static async _onActionCreatePartyMilestone(event, target) {
+    return this._onCreatePartyMilestone(event, target);
+  }
+
+  static async _onActionCreateIndividualMilestone(event, target) {
+    return this._onCreateIndividualMilestone(event, target);
+  }
+
+  static async _onActionReleasePendingMilestones(event, target) {
+    return this._onReleasePendingMilestones(event, target);
+  }
+
+  static async _onActionOpenActor(event, target) {
+    return this._onOpenActor(event, target);
+  }
+
+  static async _onActionToggleStage(event, target) {
+    return this._onToggleStage(event, target);
+  }
+
+  static async _onActionToggleCrestDigivice(event, target) {
+    return this._onToggleCrestDigivice(event, target);
+  }
+
+  async _onRefresh(event) {
+    event.preventDefault();
+    await this.render();
+  }
+
+  _getMilestoneComposerData() {
+    const root = this.element;
+
+    return {
+      note: String(
+        root?.querySelector(
+          "[data-milestone-field='note']"
+        )?.value ?? ""
+      ).trim(),
+
+      method: String(
+        root?.querySelector(
+          "[data-milestone-field='method']"
+        )?.value ?? "narrative"
+      ).trim() || "narrative",
+
+      individualTamerUuid: String(
+        root?.querySelector(
+          "[data-milestone-field='individual-tamer']"
+        )?.value ?? ""
+      ).trim()
+    };
+  }
+
+  async _getMilestoneTargetForTamer(tamerUuid = "") {
+    const tamer = await resolveActor(tamerUuid);
+
+    if (!tamer || tamer.type !== "character") {
+      return null;
+    }
+
+    const partner = await resolveActor(
+      tamer.system?.partner?.uuid ?? ""
+    );
+
+    return createMilestoneTarget(tamer, partner);
+  }
+
+  async _onCreatePartyMilestone(event) {
     event.preventDefault();
 
-    const actor = await resolveActor(event.currentTarget?.dataset?.uuid ?? "");
+    const composer = this._getMilestoneComposerData();
+    const tamers = await this._getFilteredTamerActors();
+    const targets = [];
+
+    for (const tamer of tamers) {
+      const target = await this._getMilestoneTargetForTamer(tamer.uuid);
+
+      if (target) {
+        targets.push(target);
+      }
+    }
+
+    try {
+      await createPendingCampaignMilestone({
+        scope: "party",
+        targets,
+        note: composer.note,
+        method: composer.method
+      });
+
+      ui.notifications.info(
+        formatI18n(
+          "DDA.Progression.Info.MilestonePending",
+          { count: targets.length },
+          `Milestone pending for ${targets.length} Tamer(s).`
+        )
+      );
+
+      await this.render();
+    } catch (error) {
+      ui.notifications.error(
+        error?.message ??
+        localize(
+          "DDA.Progression.Warning.CouldNotCreateMilestone",
+          "Could not create the Milestone."
+        )
+      );
+    }
+  }
+
+  async _onCreateIndividualMilestone(event) {
+    event.preventDefault();
+
+    const composer = this._getMilestoneComposerData();
+    const target = await this._getMilestoneTargetForTamer(
+      composer.individualTamerUuid
+    );
+
+    try {
+      await createPendingCampaignMilestone({
+        scope: "individual",
+        targets: target ? [target] : [],
+        note: composer.note,
+        method: composer.method || "gm"
+      });
+
+      ui.notifications.info(
+        localize(
+          "DDA.Progression.Info.IndividualMilestonePending",
+          "Individual Milestone pending."
+        )
+      );
+
+      await this.render();
+    } catch (error) {
+      ui.notifications.error(
+        error?.message ??
+        localize(
+          "DDA.Progression.Warning.CouldNotCreateMilestone",
+          "Could not create the Milestone."
+        )
+      );
+    }
+  }
+
+  async _onReleasePendingMilestones(event) {
+    event.preventDefault();
+
+    try {
+      const result = await releasePendingCampaignMilestones();
+
+      if (!result.releasedRecords) {
+        ui.notifications.warn(
+          localize(
+            "DDA.Progression.Warning.NoPendingMilestones",
+            "There are no pending Milestones to release."
+          )
+        );
+
+        return;
+      }
+
+      ui.notifications.info(
+        formatI18n(
+          "DDA.Progression.Info.MilestonesReleased",
+          {
+            milestones: result.releasedRecords,
+            targets: result.releasedTargets
+          },
+          `${result.releasedRecords} Milestone(s) released to ${result.releasedTargets} Tamer(s).`
+        )
+      );
+
+      await this.render();
+    } catch (error) {
+      console.error("DDA | Could not release pending Milestones.", error);
+
+      ui.notifications.error(
+        error?.message ??
+        localize(
+          "DDA.Progression.Warning.CouldNotReleaseMilestones",
+          "Could not release pending Milestones."
+        )
+      );
+    }
+  }
+
+  async _onOpenActor(event, target) {
+    event.preventDefault();
+
+    const actor = await resolveActor(target?.dataset?.uuid ?? "");
     actor?.sheet?.render(true);
   }
 
-  async _onSetBonusDp(event) {
-    event.preventDefault();
-
-    const tamer = await resolveActor(event.currentTarget?.dataset?.tamerUuid ?? "");
-    const value = Number(event.currentTarget?.value ?? 0);
-
-    await this._setTamerBonusDp(tamer, value);
-  }
-
-  async _onBonusStep(event) {
-    event.preventDefault();
-
-    const tamer = await resolveActor(event.currentTarget?.dataset?.tamerUuid ?? "");
-    if (!tamer) return;
-
-    const step = Number(event.currentTarget?.dataset?.step ?? 0);
-    const current = Number(tamer.system.partner?.bonusDp ?? 0);
-    const next = Math.max(0, current + step);
-
-    await this._setTamerBonusDp(tamer, next);
-  }
-
-  async _setTamerBonusDp(tamer, value) {
-    if (!game.user?.isGM) {
-      ui.notifications.warn(localize("DDA.GMPartnerProgress.OnlyGM"));
-      return;
-    }
-
-    if (!tamer || tamer.type !== "character") return;
-
-    const safeValue = Math.max(0, Number.isFinite(value) ? Math.floor(value) : 0);
-    const partner = await resolveActor(tamer.system.partner?.uuid ?? "");
-
-    await tamer.update({
-      "system.partner.bonusDp": safeValue
-    });
-
-    if (partner?.type === "digimon") {
-      await partner.update({
-        "system.advancement.bonusDp.total": safeValue,
-        "system.creation.dp.bonus": safeValue
-      });
-
-      partner.sheet?.render(false);
-    }
-
-    tamer.sheet?.render(false);
-    ui.notifications.info(localize("DDA.GMPartnerProgress.Saved"));
-    this.render(true);
-  }
-
-  async _onToggleCrestDigivice(event) {
+  async _onToggleCrestDigivice(event, target) {
     event.preventDefault();
 
     if (!game.user?.isGM) {
-      ui.notifications.warn(localize("DDA.GMPartnerProgress.OnlyGM"));
+      ui.notifications.warn(
+        localize("DDA.GMPartnerProgress.OnlyGM")
+      );
+
       return;
     }
 
-    const tamer = await resolveActor(event.currentTarget?.dataset?.tamerUuid ?? "");
-    if (!tamer || tamer.type !== "character") return;
+    const tamer = await resolveActor(
+      target?.dataset?.tamerUuid ?? ""
+    );
 
-    if (!Boolean(game.settings.get(DDA_SYSTEM_ID, "enableHiddenCompatibilityQuestionnaire"))) {
-      ui.notifications.warn(localize("DDA.GMPartnerProgress.QuestionnaireDisabled"));
+    if (!tamer || tamer.type !== "character") {
+      return;
+    }
+
+    if (!Boolean(game.settings.get(
+      DDA_SYSTEM_ID,
+      "enableHiddenCompatibilityQuestionnaire"
+    ))) {
+      ui.notifications.warn(
+        localize("DDA.GMPartnerProgress.QuestionnaireDisabled")
+      );
+
       return;
     }
 
     const crestKey = getTamerCrestKey(tamer);
+
     if (!crestKey) {
-      ui.notifications.warn(localize("DDA.GMPartnerProgress.NoCrestAvailable"));
+      ui.notifications.warn(
+        localize("DDA.GMPartnerProgress.NoCrestAvailable")
+      );
+
       return;
     }
 
-    const revealed = !Boolean(tamer.system.partner?.digiviceSkin?.revealed);
+    const revealed = !Boolean(
+      tamer.system?.partner?.digiviceSkin?.revealed
+    );
+
     const unlockedStages = getUnlockedStages(tamer);
 
     if (revealed) {
@@ -343,23 +783,36 @@ export class DDAGMPartnerProgressPanel extends Application {
     });
 
     tamer.sheet?.render(false);
-    ui.notifications.info(localize("DDA.GMPartnerProgress.Saved"));
-    this.render(true);
+
+    ui.notifications.info(
+      localize("DDA.GMPartnerProgress.Saved")
+    );
+
+    await this.render();
   }
 
-  async _onToggleStage(event) {
+  async _onToggleStage(event, target) {
     event.preventDefault();
 
     if (!game.user?.isGM) {
-      ui.notifications.warn(localize("DDA.GMPartnerProgress.OnlyGM"));
+      ui.notifications.warn(
+        localize("DDA.GMPartnerProgress.OnlyGM")
+      );
+
       return;
     }
 
-    const button = event.currentTarget;
-    const tamer = await resolveActor(button?.dataset?.tamerUuid ?? "");
-    const stageKey = String(button?.dataset?.stageKey ?? "").trim();
+    const tamer = await resolveActor(
+      target?.dataset?.tamerUuid ?? ""
+    );
 
-    if (!tamer || tamer.type !== "character" || !stageKey) return;
+    const stageKey = String(
+      target?.dataset?.stageKey ?? ""
+    ).trim();
+
+    if (!tamer || tamer.type !== "character" || !stageKey) {
+      return;
+    }
 
     const unlockedStages = getUnlockedStages(tamer);
     unlockedStages[stageKey] = !Boolean(unlockedStages[stageKey]);
@@ -369,50 +822,85 @@ export class DDAGMPartnerProgressPanel extends Application {
     });
 
     tamer.sheet?.render(false);
-    ui.notifications.info(localize("DDA.GMPartnerProgress.Saved"));
-    this.render(true);
+
+    ui.notifications.info(
+      localize("DDA.GMPartnerProgress.Saved")
+    );
+
+    await this.render();
   }
 }
 
 function openGMPartnerProgressPanel() {
   if (!game.user?.isGM) {
-    ui.notifications.warn(localize("DDA.GMPartnerProgress.OnlyGM"));
+    ui.notifications.warn(
+      localize("DDA.GMPartnerProgress.OnlyGM")
+    );
+
     return;
   }
 
   game.dda = game.dda ?? {};
   game.dda.applications = game.dda.applications ?? {};
-  game.dda.applications.gmPartnerProgressPanel = game.dda.applications.gmPartnerProgressPanel ?? new DDAGMPartnerProgressPanel();
-  game.dda.applications.gmPartnerProgressPanel.render(true);
+
+  const panel = game.dda.applications.gmPartnerProgressPanel ??=
+    new DDAGMPartnerProgressPanel();
+
+  return panel.render(true);
 }
 
 Hooks.once("ready", () => {
   game.dda = game.dda ?? {};
   game.dda.applications = game.dda.applications ?? {};
-  game.dda.applications.DDAGMPartnerProgressPanel = DDAGMPartnerProgressPanel;
-  game.dda.openGMPartnerProgressPanel = openGMPartnerProgressPanel;
+  game.dda.applications.DDAGMPartnerProgressPanel =
+    DDAGMPartnerProgressPanel;
+
+  game.dda.openGMPartnerProgressPanel =
+    openGMPartnerProgressPanel;
 });
 
 Hooks.on("renderActorDirectory", (_app, html) => {
-  if (!game.user?.isGM) return;
+  if (!game.user?.isGM) {
+    return;
+  }
 
-  const root = html instanceof jQuery ? html[0] : html;
-  if (!root?.querySelector) return;
+  const root = html instanceof jQuery
+    ? html[0]
+    : html;
+
+  if (!root?.querySelector) {
+    return;
+  }
 
   const directoryFooter = root.querySelector(".directory-footer");
   const directoryHeader = root.querySelector(".directory-header");
   const target = directoryFooter ?? directoryHeader;
-  if (!target) return;
 
-  let button = root.querySelector(".dda-open-gm-partner-progress-panel");
+  if (!target) {
+    return;
+  }
+
+  let button = root.querySelector(
+    ".dda-open-gm-partner-progress-panel"
+  );
 
   if (!button) {
     button = document.createElement("button");
     button.type = "button";
-    button.classList.add("dda-open-gm-partner-progress-panel");
-    button.addEventListener("click", openGMPartnerProgressPanel);
+    button.classList.add(
+      "dda-open-gm-partner-progress-panel"
+    );
+
+    button.addEventListener(
+      "click",
+      openGMPartnerProgressPanel
+    );
+
     target.prepend(button);
   }
 
-  button.innerHTML = `<i class="fas fa-chess-king"></i> ${localize("DDA.GMPartnerProgress.Open")}`;
+  button.innerHTML =
+    `<i class="fas fa-flag-checkered"></i> ${
+      localize("DDA.GMPartnerProgress.Open")
+    }`;
 });
