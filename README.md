@@ -1,290 +1,3 @@
-# Digimon Digital Adventures V2 para Foundry VTT
-
-![Foundry VTT](https://img.shields.io/badge/Foundry%20VTT-v13-informational)
-![Status](https://img.shields.io/badge/status-alpha-orange)
-![Idiomas](https://img.shields.io/badge/idiomas-pt--BR%20%7C%20en-blue)
-
-> ## ⚠️ Pré-release Alpha
->
-> Esta é uma versão inicial de testes. Recursos podem estar incompletos, instáveis, desbalanceados, temporariamente indisponíveis ou sofrer alterações que quebrem compatibilidade.
->
-> Atualizações alpha podem modificar fichas, dados de Atores, mundos, automações, compêndios e comportamento da interface.
->
-> **Não use esta versão em uma campanha importante sem fazer backups.**
-
-Sistema não oficial, feito por fãs, para jogar **Digimon Digital Adventures 2ª Edição** no **Foundry Virtual Tabletop**.
-
-O projeto busca oferecer ferramentas práticas para Digi-Escolhidos, Tamers, Digimon parceiros, progressão, evolução, combate tático e gerenciamento de campanha dentro do Foundry VTT.
-
-Este projeto não é oficial e não possui afiliação, patrocínio, aprovação ou endosso de Bandai, Toei Animation, Akiyoshi Hongo, WiZ, Digimon, Foundry Virtual Tabletop, The Forge, With the Will ou quaisquer outros detentores de direitos relacionados.
-
----
-
-## Estado atual
-
-```txt
-Versão do sistema: 2.0.0-alpha.1
-Foundry VTT: v13
-Canal de lançamento: Alpha / Pré-release
-```
-
-O desenvolvimento está ativo. Esta versão existe para receber testes, encontrar regressões, melhorar a usabilidade e validar automações antes de uma versão estável.
-
-Espere recursos incompletos, inconsistências visuais, localização parcial, ajustes de balanceamento e bugs ocasionais.
-
----
-
-## Aviso importante para testes
-
-Antes de instalar ou atualizar o sistema:
-
-- faça backup do seu mundo no Foundry;
-- use, sempre que possível, um mundo separado para testes;
-- não presuma que uma atualização alpha manterá compatibilidade com dados antigos;
-- não dependa de automações em desenvolvimento durante uma sessão importante;
-- reporte comportamentos inesperados com o máximo de detalhes possível.
-
-Ao reportar um bug, inclua: 
-
-- versão do Foundry VTT;
-- versão do sistema;
-- navegador e sistema operacional;
-- passos necessários para reproduzir o problema;
-- capturas de tela ou erros do console, quando possível;
-- se o problema acontece em um mundo novo ou em um mundo já existente.
-
----
-
-## Recursos em teste
-
-A versão alpha inclui, em diferentes estágios de desenvolvimento:
-
-- fichas de Digi-Escolhido / Tamer;
-- fichas de Digimon parceiros;
-- fichas de NPCs e grupos;
-- Aspectos, PI, PE, Marcos e progressão;
-- PD, Qualidades, Qualidades Negativas e Ataques;
-- Tormentos;
-- Ações de Combate, Posturas, Testes e Reservas;
-- atributos derivados de Digimon: BIT, DOS, RAM e CPU;
-- estágios evolutivos;
-- grafo visual de evolução;
-- navegador de escolhas evolutivas;
-- ferramentas de Mestre para progresso de parceiros;
-- Wizard de criação de Digimon;
-- Builder de forma atual e de formas futuras;
-- formas persistentes, evolução, regressão e troca de forma;
-- resolução automática de tokens de Digimon;
-- localização em Português do Brasil e Inglês;
-- regras opcionais e automações experimentais.
-
-Nem todos os recursos estão finalizados, completamente automatizados, balanceados ou prontos para uma campanha longa.
-
----
-
-## Compatibilidade
-
-O sistema foi desenvolvido atualmente para:
-
-```txt
-Foundry Virtual Tabletop v13
-```
-
-Compatibilidade declarada:
-
-```json
-{
-  "minimum": "13",
-  "verified": "13"
-}
-```
-
-A compatibilidade com versões futuras do Foundry VTT não é garantida.
-
----
-
-## Instalação
-
-As futuras releases públicas alpha disponibilizarão um manifesto de instalação e um arquivo `.zip` para download.
-
-Enquanto não houver um manifesto público, a instalação deve ser feita manualmente:
-
-1. Baixe o arquivo da release.
-2. Extraia a pasta em:
-
-```txt
-FoundryVTT/Data/systems/digimon-digital-adventures
-```
-
-3. Reinicie o Foundry VTT.
-4. Crie ou abra um mundo usando o sistema **Digimon Digital Adventures V2**.
-
-Estrutura esperada:
-
-```txt
-digimon-digital-adventures/
-  system.json
-  template.json
-  scripts/
-  styles/
-  templates/
-  lang/
-  assets/
-  LICENSE
-  README.md
-```
-
----
-
-## Idiomas
-
-O sistema inclui atualmente:
-
-- Português (Brasil) — `pt-BR`
-- English — `en`
-
-O Português do Brasil é o idioma principal de desenvolvimento.
-
----
-
-## Feedback e testes
-
-Feedback é muito bem-vindo, especialmente sobre:
-
-- bugs e regressões;
-- fichas, janelas ou diálogos quebrados;
-- evolução e persistência de formas;
-- criação de Digimon e builders de forma;
-- fluxo de combate;
-- comportamento dos tokens;
-- problemas de localização;
-- problemas visuais ou de acessibilidade;
-- compatibilidade com Foundry VTT v13.
-
-Teste com cuidado e mantenha backups dos seus mundos antes de atualizar.
-
----
-
-## Créditos
-
-### Implementação para Foundry VTT
-
-Criado e mantido por:
-
-```txt
-Murilo Lamegal
-```
-
-Agradecimentos especiais a **ZeppyDingus**, criador da atual 2ª Edição de Digimon Digital Adventures, e a todas as pessoas que ajudaram a construir, testar, revisar e manter esse sistema vivo ao longo dos anos.
-
-### Desenvolvimento de Digimon Digital Adventures
-
-Os créditos abaixo são atribuídos às pessoas responsáveis pelo desenvolvimento de Digimon Digital Adventures, conforme apresentados na página final do *Player's Guide*.
-
-#### Desenvolvedores do Sistema
-
-```txt
-Digimon Emperor
-(Start - Version 8)
-
-TM93
-(Version 9 - Version 13)
-
-Alycoris
-(Version 14 + Illustrations)
-
-ZeppyDingus, Alycoris and Kranic
-(2nd Edition)
-```
-
-#### Contribuidores
-
-```txt
-223hero7
-heliotropeHero
-Koru
-Mallow
-SirTideTheHunter
-SmugCoffeeMan
-Vyrozeal
-```
-
-#### Playtesters da 2ª Edição
-
-```txt
-Zenxas
-Dr. Digitama
-ItsGaz
-TheMeev
-Boz
-ZeroHeart10
-DeltaMachina
-Kritik Kainan & Friends
-N1ro_the_GM
-heliotropeHero
-SmugCoffeeMan
-CaptainCrossbones
-Vyrozeal
-Figon
-```
-
-### Teste fechado inicial deste sistema
-
-Agradecimentos especiais às pessoas que participaram do primeiro teste fechado desta implementação para Foundry VTT:
-
-```txt
-DeltaMachina
-Quag
-Rordrik
-Ruby Summer
-Burningchill
-Temmye
-heliotropeHero
-Figon
-```
-
-Desculpas sinceras caso alguém importante tenha sido esquecido nesta lista.
-
-Também fica um enorme agradecimento a toda a comunidade do Discord de **Digimon Digital Adventures**, pelas conversas, ideias, testes, discussões de regras, incentivo e paixão contínua pelo jogo.
-
-### Artes dos Digivices
-
-Os Digivices utilizados neste projeto foram feitos por [Zeniltonjrart](https://www.deviantart.com/zeniltonjrart), com exceção dos Digivices de **Compaixão (Kindness)**, **Milagre (Miracles)** e **Destino (Fate)**, que foram feitos por [indigoblue36](https://www.deviantart.com/indigoblue36).
-
-Não foi possível estabelecer contato com indigoblue36 antes desta publicação. Caso o artista deseje que suas artes sejam removidas do projeto, o mantenedor se compromete a remover prontamente os conteúdos correspondentes.
-
-### Agradecimentos gerais
-
-Agradecimentos à comunidade de Digimon Digital Adventures, à comunidade do Foundry VTT, às pessoas testadoras, colaboradoras e a todos que mantêm campanhas de Digimon vivas nas mesas de RPG.
-
----
-
-## Aviso legal
-
-Digimon, Digital Monsters e todos os nomes, marcas, personagens, criaturas, conceitos, imagens e referências relacionados pertencem aos seus respectivos detentores de direitos.
-
-Este projeto é:
-
-- não oficial;
-- não comercial;
-- feito por fãs;
-- destinado ao uso em mesas de RPG;
-- não substitui livros, materiais ou publicações originais.
-
-Este repositório não fornece os livros originais de Digimon Digital Adventures, scans ou texto integral protegido por direitos autorais. Cada usuário é responsável por obter e utilizar qualquer material externo de forma legal.
-
-Caso você represente algum detentor de direitos e acredite que algum conteúdo deste repositório deve ser revisado, corrigido ou removido, entre em contato por meio do repositório.
-
----
-
-## Licença
-
-O código original desta implementação para Foundry VTT pode ser usado, modificado e compartilhado para fins não comerciais, desde que o aviso de licença incluído seja preservado.
-
-Não adicione material protegido por direitos autorais ao repositório sem autorização ou sem que ele possa ser redistribuído legalmente.
-
----
-
 # Digimon Digital Adventures V2 for Foundry VTT
 
 ![Foundry VTT](https://img.shields.io/badge/Foundry%20VTT-v13-informational)
@@ -461,7 +174,7 @@ Created and maintained by:
 ```txt
 Murilo Lamegal
 ```
-
+Special thanks to my players and friends **Mário F. Nulle** (https://github.com/mariofnulle), **Guilherme França**, **Murilo Anderson**, **Maicon Minatti**, **Cloves Ferreira**, **Renato Zacarias**, **Aline de Santis**, **Layle Garcia**, **Jean Nakamoto**, **Ariel Xavier**, **Victor Barrio**, and—of course—my dear brother **Gabriel Augusto** and my dear wife **Luiza Lamegal**, for always supporting me whenever I decide to do something crazy like this. Thanks for always having my back, everyone!
 Special thanks to **ZeppyDingus**, creator of the current 2nd Edition of Digimon Digital Adventures, and to everyone who helped build, test, review, and maintain the game through the years.
 
 ### Digimon Digital Adventures development
@@ -569,3 +282,292 @@ If you represent a rights holder and believe content in this repository should b
 The original code written for this Foundry VTT system may be used, modified, and shared for non-commercial purposes, provided that the included license notice is preserved.
 
 Do not add copyrighted material to the repository unless it can be legally redistributed.
+
+---
+
+# Digimon Digital Adventures V2 para Foundry VTT
+
+![Foundry VTT](https://img.shields.io/badge/Foundry%20VTT-v13-informational)
+![Status](https://img.shields.io/badge/status-alpha-orange)
+![Idiomas](https://img.shields.io/badge/idiomas-pt--BR%20%7C%20en-blue)
+
+> ## ⚠️ Pré-release Alpha
+>
+> Esta é uma versão inicial de testes. Recursos podem estar incompletos, instáveis, desbalanceados, temporariamente indisponíveis ou sofrer alterações que quebrem compatibilidade.
+>
+> Atualizações alpha podem modificar fichas, dados de Atores, mundos, automações, compêndios e comportamento da interface.
+>
+> **Não use esta versão em uma campanha importante sem fazer backups.**
+
+Sistema não oficial, feito por fãs, para jogar **Digimon Digital Adventures 2ª Edição** no **Foundry Virtual Tabletop**.
+
+O projeto busca oferecer ferramentas práticas para Digi-Escolhidos, Tamers, Digimon parceiros, progressão, evolução, combate tático e gerenciamento de campanha dentro do Foundry VTT.
+
+Este projeto não é oficial e não possui afiliação, patrocínio, aprovação ou endosso de Bandai, Toei Animation, Akiyoshi Hongo, WiZ, Digimon, Foundry Virtual Tabletop, The Forge, With the Will ou quaisquer outros detentores de direitos relacionados.
+
+---
+
+## Estado atual
+
+```txt
+Versão do sistema: 2.0.0-alpha.1
+Foundry VTT: v13
+Canal de lançamento: Alpha / Pré-release
+```
+
+O desenvolvimento está ativo. Esta versão existe para receber testes, encontrar regressões, melhorar a usabilidade e validar automações antes de uma versão estável.
+
+Espere recursos incompletos, inconsistências visuais, localização parcial, ajustes de balanceamento e bugs ocasionais.
+
+---
+
+## Aviso importante para testes
+
+Antes de instalar ou atualizar o sistema:
+
+- faça backup do seu mundo no Foundry;
+- use, sempre que possível, um mundo separado para testes;
+- não presuma que uma atualização alpha manterá compatibilidade com dados antigos;
+- não dependa de automações em desenvolvimento durante uma sessão importante;
+- reporte comportamentos inesperados com o máximo de detalhes possível.
+
+Ao reportar um bug, inclua: 
+
+- versão do Foundry VTT;
+- versão do sistema;
+- navegador e sistema operacional;
+- passos necessários para reproduzir o problema;
+- capturas de tela ou erros do console, quando possível;
+- se o problema acontece em um mundo novo ou em um mundo já existente.
+
+---
+
+## Recursos em teste
+
+A versão alpha inclui, em diferentes estágios de desenvolvimento:
+
+- fichas de Digi-Escolhido / Tamer;
+- fichas de Digimon parceiros;
+- fichas de NPCs e grupos;
+- Aspectos, PI, PE, Marcos e progressão;
+- PD, Qualidades, Qualidades Negativas e Ataques;
+- Tormentos;
+- Ações de Combate, Posturas, Testes e Reservas;
+- atributos derivados de Digimon: BIT, DOS, RAM e CPU;
+- estágios evolutivos;
+- grafo visual de evolução;
+- navegador de escolhas evolutivas;
+- ferramentas de Mestre para progresso de parceiros;
+- Wizard de criação de Digimon;
+- Builder de forma atual e de formas futuras;
+- formas persistentes, evolução, regressão e troca de forma;
+- resolução automática de tokens de Digimon;
+- localização em Português do Brasil e Inglês;
+- regras opcionais e automações experimentais.
+
+Nem todos os recursos estão finalizados, completamente automatizados, balanceados ou prontos para uma campanha longa.
+
+---
+
+## Compatibilidade
+
+O sistema foi desenvolvido atualmente para:
+
+```txt
+Foundry Virtual Tabletop v13
+```
+
+Compatibilidade declarada:
+
+```json
+{
+  "minimum": "13",
+  "verified": "13"
+}
+```
+
+A compatibilidade com versões futuras do Foundry VTT não é garantida.
+
+---
+
+## Instalação
+
+As futuras releases públicas alpha disponibilizarão um manifesto de instalação e um arquivo `.zip` para download.
+
+Enquanto não houver um manifesto público, a instalação deve ser feita manualmente:
+
+1. Baixe o arquivo da release.
+2. Extraia a pasta em:
+
+```txt
+FoundryVTT/Data/systems/digimon-digital-adventures
+```
+
+3. Reinicie o Foundry VTT.
+4. Crie ou abra um mundo usando o sistema **Digimon Digital Adventures V2**.
+
+Estrutura esperada:
+
+```txt
+digimon-digital-adventures/
+  system.json
+  template.json
+  scripts/
+  styles/
+  templates/
+  lang/
+  assets/
+  LICENSE
+  README.md
+```
+
+---
+
+## Idiomas
+
+O sistema inclui atualmente:
+
+- Português (Brasil) — `pt-BR`
+- English — `en`
+
+O Português do Brasil é o idioma principal de desenvolvimento.
+
+---
+
+## Feedback e testes
+
+Feedback é muito bem-vindo, especialmente sobre:
+
+- bugs e regressões;
+- fichas, janelas ou diálogos quebrados;
+- evolução e persistência de formas;
+- criação de Digimon e builders de forma;
+- fluxo de combate;
+- comportamento dos tokens;
+- problemas de localização;
+- problemas visuais ou de acessibilidade;
+- compatibilidade com Foundry VTT v13.
+
+Teste com cuidado e mantenha backups dos seus mundos antes de atualizar.
+
+---
+
+## Créditos
+
+### Implementação para Foundry VTT
+
+Criado e mantido por:
+
+```txt
+Murilo Lamegal
+```
+Agradecimentos a meus jogadores e amigos **Mário F. Nulle** (https://github.com/mariofnulle), **Guilherme França**, **Murilo Anderson**, **Maicon Minatti**, **Cloves Ferreira**, **Renato Zacarias**, **Aline de Santis**, **Layle Garcia**, **Jean Nakamoto**, **Ariel Xavier**, **Victor Barrio** e é claro, meu querido irmão **Gabriel Augusto** e minha esposa **Luiza Lamegal**, por sempre me apoiarem quando eu decido cometer uma loucura como essa. Obrigado por sempre me apoiarem galera!
+Agradecimentos especiais a **ZeppyDingus**, criador da atual 2ª Edição de Digimon Digital Adventures, e a todas as pessoas que ajudaram a construir, testar, revisar e manter esse sistema vivo ao longo dos anos.
+
+### Desenvolvimento de Digimon Digital Adventures
+
+Os créditos abaixo são atribuídos às pessoas responsáveis pelo desenvolvimento de Digimon Digital Adventures, conforme apresentados na página final do *Player's Guide*.
+
+#### Desenvolvedores do Sistema
+
+```txt
+Digimon Emperor
+(Start - Version 8)
+
+TM93
+(Version 9 - Version 13)
+
+Alycoris
+(Version 14 + Illustrations)
+
+ZeppyDingus, Alycoris and Kranic
+(2nd Edition)
+```
+
+#### Contribuidores
+
+```txt
+223hero7
+heliotropeHero
+Koru
+Mallow
+SirTideTheHunter
+SmugCoffeeMan
+Vyrozeal
+```
+
+#### Playtesters da 2ª Edição
+
+```txt
+Zenxas
+Dr. Digitama
+ItsGaz
+TheMeev
+Boz
+ZeroHeart10
+DeltaMachina
+Kritik Kainan & Friends
+N1ro_the_GM
+heliotropeHero
+SmugCoffeeMan
+CaptainCrossbones
+Vyrozeal
+Figon
+```
+
+### Teste fechado inicial deste sistema
+
+Agradecimentos especiais às pessoas que participaram do primeiro teste fechado desta implementação para Foundry VTT:
+
+```txt
+DeltaMachina
+Quag
+Rordrik
+Ruby Summer
+Burningchill
+Temmye
+heliotropeHero
+Figon
+```
+
+Desculpas sinceras caso alguém importante tenha sido esquecido nesta lista.
+
+Também fica um enorme agradecimento a toda a comunidade do Discord de **Digimon Digital Adventures**, pelas conversas, ideias, testes, discussões de regras, incentivo e paixão contínua pelo jogo.
+
+### Artes dos Digivices
+
+Os Digivices utilizados neste projeto foram feitos por [Zeniltonjrart](https://www.deviantart.com/zeniltonjrart), com exceção dos Digivices de **Compaixão (Kindness)**, **Milagre (Miracles)** e **Destino (Fate)**, que foram feitos por [indigoblue36](https://www.deviantart.com/indigoblue36).
+
+Não foi possível estabelecer contato com indigoblue36 antes desta publicação. Caso o artista deseje que suas artes sejam removidas do projeto, o mantenedor se compromete a remover prontamente os conteúdos correspondentes.
+
+### Agradecimentos gerais
+
+Agradecimentos à comunidade de Digimon Digital Adventures, à comunidade do Foundry VTT, às pessoas testadoras, colaboradoras e a todos que mantêm campanhas de Digimon vivas nas mesas de RPG.
+
+---
+
+## Aviso legal
+
+Digimon, Digital Monsters e todos os nomes, marcas, personagens, criaturas, conceitos, imagens e referências relacionados pertencem aos seus respectivos detentores de direitos.
+
+Este projeto é:
+
+- não oficial;
+- não comercial;
+- feito por fãs;
+- destinado ao uso em mesas de RPG;
+- não substitui livros, materiais ou publicações originais.
+
+Este repositório não fornece os livros originais de Digimon Digital Adventures, scans ou texto integral protegido por direitos autorais. Cada usuário é responsável por obter e utilizar qualquer material externo de forma legal.
+
+Caso você represente algum detentor de direitos e acredite que algum conteúdo deste repositório deve ser revisado, corrigido ou removido, entre em contato por meio do repositório.
+
+---
+
+## Licença
+
+O código original desta implementação para Foundry VTT pode ser usado, modificado e compartilhado para fins não comerciais, desde que o aviso de licença incluído seja preservado.
+
+Não adicione material protegido por direitos autorais ao repositório sem autorização ou sem que ele possa ser redistribuído legalmente.
+
+---
