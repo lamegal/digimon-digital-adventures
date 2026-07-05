@@ -174,7 +174,7 @@ Created and maintained by:
 ```txt
 Murilo Lamegal
 ```
-Special thanks to my players and friends **Mário F. Nulle** (https://github.com/mariofnulle), **Guilherme França**, **Murilo Anderson**, **Maicon Minatti**, **Cloves Ferreira**, **Renato Zacarias**, **Aline de Santis**, **Layle Garcia**, **Jean Nakamoto**, **Ariel Xavier**, **Victor Barrio**, and—of course—my dear brother **Gabriel Augusto** and my dear wife **Luiza Lamegal**, for always supporting me whenever I decide to do something crazy like this. Thanks for always having my back, everyone!
+Special thanks to my players and friends **Mário F. Nulle** (https://github.com/mariofnulle), **Guilherme França**, **Murilo Anderson**, **Maicon Minatti**, **Cloves Ferreira**, **Renato Zacarias**, **Aline de Santis**, **Layle Garcia**, **Felipe de Carvalho**, **Jean Nakamoto**, **Ariel Xavier**, **Victor Barrio**, and—of course—my dear brother **Gabriel Augusto** and my dear wife **Luiza Lamegal**, for always supporting me whenever I decide to do something crazy like this. Thanks for always having my back, everyone!
 Special thanks to **ZeppyDingus**, creator of the current 2nd Edition of Digimon Digital Adventures, and to everyone who helped build, test, review, and maintain the game through the years.
 
 ### Digimon Digital Adventures development
@@ -461,7 +461,7 @@ Criado e mantido por:
 ```txt
 Murilo Lamegal
 ```
-Agradecimentos a meus jogadores e amigos **Mário F. Nulle** (https://github.com/mariofnulle), **Guilherme França**, **Murilo Anderson**, **Maicon Minatti**, **Cloves Ferreira**, **Renato Zacarias**, **Aline de Santis**, **Layle Garcia**, **Jean Nakamoto**, **Ariel Xavier**, **Victor Barrio** e é claro, meu querido irmão **Gabriel Augusto** e minha esposa **Luiza Lamegal**, por sempre me apoiarem quando eu decido cometer uma loucura como essa. Obrigado por sempre me apoiarem galera!
+Agradecimentos a meus jogadores e amigos **Mário F. Nulle** (https://github.com/mariofnulle), **Guilherme França**, **Murilo Anderson**, **Maicon Minatti**, **Cloves Ferreira**, **Renato Zacarias**, **Aline de Santis**, **Layle Garcia**, **Felipe de Carvalho**, **Jean Nakamoto**, **Ariel Xavier**, **Victor Barrio** e é claro, meu querido irmão **Gabriel Augusto** e minha esposa **Luiza Lamegal**, por sempre me apoiarem quando eu decido cometer uma loucura como essa. Obrigado por sempre me apoiarem galera!
 Agradecimentos especiais a **ZeppyDingus**, criador da atual 2ª Edição de Digimon Digital Adventures, e a todas as pessoas que ajudaram a construir, testar, revisar e manter esse sistema vivo ao longo dos anos.
 
 ### Desenvolvimento de Digimon Digital Adventures
