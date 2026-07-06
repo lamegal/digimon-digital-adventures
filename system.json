@@ -1,165 +1,64 @@
 {
-  "id": "digimon-digital-adventures",
-  "title": "Digimon Digital Adventures V2",
-  "description": "Sistema não oficial para jogar Digimon Digital Adventures 2ª Edição no Foundry Virtual Tabletop. Inclui fichas para Digi-Escolhidos, Digimon parceiros e NPCs, com suporte a Aspectos, PI, PE, Tormentos, Marcos, PD, Qualidades, Ataques, Estágios Evolutivos, Posturas, Ações de Combate e rolagens de Testes e Reservas.",
-  "version": "2.0.0-alpha.2",
-  "compatibility": {
-    "minimum": "13",
-    "verified": "13"
-  },
-  "authors": [
-    {
-      "name": "Murilo Lamegal"
-    }
-  ],
-  "esmodules": [
-    "scripts/dda.js",
-    "scripts/apps/gm-partner-progress-panel.js",
-    "scripts/apps/evolution-choice-browser.js",
-    "scripts/data/motifs.js",
-    "scripts/data/option-cards.js",
-    "scripts/data/expendable-items.js",
-    "scripts/data/equipment-items.js"
-  ],
-  "styles": [
-    "styles/wizard.css",
-    "styles/dda.css",
-    "styles/chat-cards.css",
-    "styles/digimon-evolution-graph.css",
-    "styles/tamer-sheet.css",
-    "styles/group-sheet.css",
-    "styles/hybrid-evolution.css",
-    "styles/dda-quality-browser.css",
-    "styles/tamer-talent-browser.css",
-    "styles/gm-partner-progress-panel.css",
-    "styles/crest-plaque.css",
-    "styles/evolution-choice-browser.css",
-    "styles/optional-rules.css",
-    "styles/item-sheets.css",
-    "styles/dda-gm-tools.css"
-  ],
-  "languages": [
-    {
-      "lang": "pt-BR",
-      "name": "Português (Brasil)",
-      "path": "lang/pt-BR.json"
-    },
-    {
-      "lang": "en",
-      "name": "English",
-      "path": "lang/en.json"
-    }
-  ],
-"packs": [
-  {
-    "name": "baby1",
-    "label": "Baby I",
-    "path": "packs/baby1",
-    "type": "Actor",
-    "system": "digimon-digital-adventures",
-    "ownership": {
-      "PLAYER": "OBSERVER",
-      "ASSISTANT": "OWNER"
-    }
-  },
-  {
-    "name": "baby2",
-    "label": "Baby II",
-    "path": "packs/baby2",
-    "type": "Actor",
-    "system": "digimon-digital-adventures",
-    "ownership": {
-      "PLAYER": "OBSERVER",
-      "ASSISTANT": "OWNER"
-    }
-  },
-  {
-    "name": "child",
-    "label": "Child",
-    "path": "packs/child",
-    "type": "Actor",
-    "system": "digimon-digital-adventures",
-    "ownership": {
-      "PLAYER": "OBSERVER",
-      "ASSISTANT": "OWNER"
-    }
-  },
-  {
-    "name": "adult",
-    "label": "Adult",
-    "path": "packs/adult",
-    "type": "Actor",
-    "system": "digimon-digital-adventures",
-    "ownership": {
-      "PLAYER": "OBSERVER",
-      "ASSISTANT": "OWNER"
-    }
-  },
-  {
-    "name": "perfect",
-    "label": "Perfect",
-    "path": "packs/perfect",
-    "type": "Actor",
-    "system": "digimon-digital-adventures",
-    "ownership": {
-      "PLAYER": "OBSERVER",
-      "ASSISTANT": "OWNER"
-    }
-  },
-  {
-    "name": "ultimate",
-    "label": "Ultimate",
-    "path": "packs/ultimate",
-    "type": "Actor",
-    "system": "digimon-digital-adventures",
-    "ownership": {
-      "PLAYER": "OBSERVER",
-      "ASSISTANT": "OWNER"
-    }
-  },
-  {
-    "name": "ultimateplus",
-    "label": "Ultimate+",
-    "path": "packs/ultimateplus",
-    "type": "Actor",
-    "system": "digimon-digital-adventures",
-    "ownership": {
-      "PLAYER": "OBSERVER",
-      "ASSISTANT": "OWNER"
-    }
-  },
-  {
-    "name": "armor",
-    "label": "Armor",
-    "path": "packs/armor",
-    "type": "Actor",
-    "system": "digimon-digital-adventures",
-    "ownership": {
-      "PLAYER": "OBSERVER",
-      "ASSISTANT": "OWNER"
-    }
-  },
-  {
-    "name": "hybrid",
-    "label": "Hybrid",
-    "path": "packs/hybrid",
-    "type": "Actor",
-    "system": "digimon-digital-adventures",
-    "ownership": {
-      "PLAYER": "OBSERVER",
-      "ASSISTANT": "OWNER"
-    }
-  }
-],
-  "socket": false,
-  "gridDistance": 1,
-  "gridUnits": "m",
-  "primaryTokenAttribute": "combat.wounds",
-  "secondaryTokenAttribute": "combat.actions",
-  "url": "https://github.com/lamegal/digimon-digital-adventures",
-  "manifest": "https://raw.githubusercontent.com/lamegal/digimon-digital-adventures/main/system.json",
-  "download": "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.0-alpha.2/digimon-digital-adventures-v2.0.0-alpha.2.zip",
-  "bugs": "https://github.com/lamegal/digimon-digital-adventures/issues",
-  "changelog": "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.0-alpha.2",
-  "license": "LICENSE"
+    "id":  "digimon-digital-adventures",
+    "title":  "Digimon Digital Adventures V2 — Forge Diagnostic (No Packs)",
+    "description":  "Sistema nÃ£o oficial para jogar Digimon Digital Adventures 2Âª EdiÃ§Ã£o no Foundry Virtual Tabletop. Inclui fichas para Digi-Escolhidos, Digimon parceiros e NPCs, com suporte a Aspectos, PI, PE, Tormentos, Marcos, PD, Qualidades, Ataques, EstÃ¡gios Evolutivos, Posturas, AÃ§Ãµes de Combate e rolagens de Testes e Reservas.",
+    "version":  "2.0.0-alpha.2-forge.1",
+    "compatibility":  {
+                          "minimum":  "13",
+                          "verified":  "13"
+                      },
+    "authors":  [
+                    {
+                        "name":  "Murilo Lamegal"
+                    }
+                ],
+    "esmodules":  [
+                      "scripts/dda.js",
+                      "scripts/apps/gm-partner-progress-panel.js",
+                      "scripts/apps/evolution-choice-browser.js",
+                      "scripts/data/motifs.js",
+                      "scripts/data/option-cards.js",
+                      "scripts/data/expendable-items.js",
+                      "scripts/data/equipment-items.js"
+                  ],
+    "styles":  [
+                   "styles/wizard.css",
+                   "styles/dda.css",
+                   "styles/chat-cards.css",
+                   "styles/digimon-evolution-graph.css",
+                   "styles/tamer-sheet.css",
+                   "styles/group-sheet.css",
+                   "styles/hybrid-evolution.css",
+                   "styles/dda-quality-browser.css",
+                   "styles/tamer-talent-browser.css",
+                   "styles/gm-partner-progress-panel.css",
+                   "styles/crest-plaque.css",
+                   "styles/evolution-choice-browser.css",
+                   "styles/optional-rules.css",
+                   "styles/item-sheets.css",
+                   "styles/dda-gm-tools.css"
+               ],
+    "languages":  [
+                      {
+                          "lang":  "pt-BR",
+                          "name":  "PortuguÃªs (Brasil)",
+                          "path":  "lang/pt-BR.json"
+                      },
+                      {
+                          "lang":  "en",
+                          "name":  "English",
+                          "path":  "lang/en.json"
+                      }
+                  ],
+    "socket":  false,
+    "gridDistance":  1,
+    "gridUnits":  "m",
+    "primaryTokenAttribute":  "combat.wounds",
+    "secondaryTokenAttribute":  "combat.actions",
+    "url":  "https://github.com/lamegal/digimon-digital-adventures",
+    "manifest":  "https://raw.githubusercontent.com/lamegal/digimon-digital-adventures/diagnostic/forge-no-packs/system.json",
+    "download":  "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.0-alpha.2-forge.1/digimon-digital-adventures-v2.0.0-alpha.2-forge.1-no-packs.zip",
+    "bugs":  "https://github.com/lamegal/digimon-digital-adventures/issues",
+    "changelog":  "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.0-alpha.2-forge.1",
+    "license":  "LICENSE"
 }
