@@ -1,0 +1,148 @@
+<section class="dda-quality-browser dda-enemy-quality-browser">
+  <header class="quality-browser-header">
+    <div class="quality-browser-intro">
+      <strong>{{formName}}</strong>
+      <small>{{labels.stage}}: {{formStage}}</small>
+      <small>{{labels.catalogOnly}}</small>
+    </div>
+
+    <div class="quality-browser-search-row">
+      <input
+        type="search"
+        value="{{searchTerm}}"
+        placeholder="{{labels.search}}"
+        data-enemy-quality-search
+        autocomplete="off"
+      />
+
+      <button
+        type="button"
+        data-action="clearEnemyQualitySearch"
+        title="{{labels.clear}}"
+      >
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <small>{{labels.searchHint}}</small>
+        <nav
+  class="quality-browser-category-filters"
+  aria-label="{{labels.category}}"
+>
+  <span class="quality-browser-filter-label">
+    {{labels.category}}
+  </span>
+
+  <div class="quality-browser-category-chips">
+    {{#each categories}}
+    <button
+      type="button"
+      class="{{#if active}}active{{/if}}"
+      data-action="filterEnemyQualityCategory"
+      data-category="{{key}}"
+    >
+      {{label}}
+    </button>
+    {{/each}}
+  </div>
+</nav>
+    <nav class="quality-browser-filters">
+      {{#each tiers}}
+      <button
+        type="button"
+        class="{{#if active}}active{{/if}}"
+        data-action="filterEnemyQualityTier"
+        data-tier="{{key}}"
+      >
+        {{label}}
+      </button>
+      {{/each}}
+    </nav>
+  </header>
+
+  <section class="quality-browser-list dda-enemy-quality-list">
+    {{#if qualities.length}}
+      {{#each qualities}}
+      <article
+  class="quality-card tier-{{tier}} {{#if selected}}is-selected{{/if}} {{#if isNegative}}negative{{/if}} {{#if isFree}}free{{/if}}"
+  data-enemy-quality-card="{{id}}"
+>
+<header class="quality-card-header">
+  <div>
+    <h3>{{name}}</h3>
+
+    {{#if originalName}}
+    <span class="quality-original">{{originalName}}</span>
+    {{/if}}
+
+    {{#if selected}}
+    <span class="quality-original">
+      {{../labels.selected}} · {{../labels.rank}} {{selectedRank}}/{{maxRank}}
+    </span>
+    {{/if}}
+  </div>
+
+  <div class="dda-enemy-quality-card-actions">
+    {{#if hasChoiceOptions}}
+    <label>
+      <span>{{../labels.choice}}</span>
+
+      <select data-enemy-quality-choice>
+        {{#each choiceOptions}}
+        <option value="{{key}}">{{label}}</option>
+        {{/each}}
+      </select>
+    </label>
+    {{/if}}
+
+    {{#if unsupportedChoiceLabel}}
+    <small>{{unsupportedChoiceLabel}}</small>
+    {{/if}}
+
+    <button
+      type="button"
+      data-action="addEnemyQuality"
+      data-quality-id="{{id}}"
+      {{#unless canAdd}}disabled{{/unless}}
+    >
+      <i class="fa-solid fa-plus"></i>
+      {{#if canAdd}}
+        {{addLabel}}
+      {{else}}
+        {{maxRankLabel}}
+      {{/if}}
+    </button>
+  </div>
+</header>
+        <div class="quality-card-meta">
+        <span class="quality-tier-badge">{{tierLabel}}</span>
+        <span class="quality-category-badge">{{section}}</span>
+        <span class="quality-cost-badge">{{costLabel}}</span>
+        </div>
+
+        {{#if requirements.text}}
+        <p class="quality-requirements">
+          <strong>{{../labels.requirements}}:</strong> {{requirements.text}}
+        </p>
+        {{/if}}
+
+        {{#if incompatible.text}}
+        <p class="quality-incompatible">
+          <strong>{{../labels.incompatible}}:</strong> {{incompatible.text}}
+        </p>
+        {{/if}}
+
+        <p class="quality-effect">{{effect}}</p>
+      </article>
+      {{/each}}
+    {{else}}
+      <p class="quality-blocked">{{labels.noResults}}</p>
+    {{/if}}
+  </section>
+
+  <footer class="quality-browser-footer">
+    <button type="button" data-action="closeEnemyQualityBrowser">
+      {{labels.close}}
+    </button>
+  </footer>
+</section>

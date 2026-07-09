@@ -198,16 +198,84 @@ export function getTamerMilestoneCount(tamer) {
   );
 }
 
+export function getTamerMilestoneBreakdown(tamer) {
+  const total = getTamerMilestoneCount(tamer);
+  const seenMilestoneIds = new Set();
+
+  let partyMilestones = 0;
+  let recordedIndividualMilestones = 0;
+
+  for (const entry of getMilestoneHistory(tamer)) {
+    const milestoneId = String(entry?.milestoneId ?? "").trim();
+
+    if (!milestoneId || seenMilestoneIds.has(milestoneId)) {
+      continue;
+    }
+
+    seenMilestoneIds.add(milestoneId);
+
+    if (normalizeScope(entry?.scope) === "individual") {
+      recordedIndividualMilestones += 1;
+    } else {
+      partyMilestones += 1;
+    }
+  }
+
+  const recordedTotal = partyMilestones + recordedIndividualMilestones;
+
+  /*
+   * Marcos antigos podem existir antes do histórico detalhado.
+   * Eles são inferidos pela diferença entre o contador total e o histórico.
+   */
+  const inferredLegacyIndividualMilestones = Math.max(
+    0,
+    total - recordedTotal
+  );
+
+  /*
+   * Crédito exclusivo de migração.
+   *
+   * Não cria um Marco novo e não altera o total de Marcos.
+   * Serve apenas para preservar o cap de personagens que já possuíam
+   * Atributos válidos no teto antigo antes da separação entre Marcos
+   * de Equipe e Marcos Individuais.
+   */
+  const legacyIndividualCapCredit = integer(
+    tamer?.system?.advancement?.milestones?.legacyIndividualCapCredit,
+    0
+  );
+
+  return {
+    total,
+    partyMilestones,
+    recordedIndividualMilestones,
+
+    inferredLegacyIndividualMilestones,
+
+    // Mantido para compatibilidade com o resumo/painel atual.
+    legacyIndividualMilestones: inferredLegacyIndividualMilestones,
+
+    legacyIndividualCapCredit,
+
+    individualMilestones: (
+      recordedIndividualMilestones +
+      inferredLegacyIndividualMilestones +
+      legacyIndividualCapCredit
+    )
+  };
+}
+
 /**
  * Progressão padrão:
- * 0–2 Marcos: cap inicial.
- * 3–5 Marcos: +1 cap.
- * 6+ Marcos: +2 cap.
+ * 0–2 Marcos Individuais: cap inicial.
+ * 3–5 Marcos Individuais: +1 cap.
+ * 6+ Marcos Individuais: +2 cap.
  *
- * Campanhas Classic e Extreme preservam os caps configurados no sistema.
+ * Marcos de Equipe concedem GP e Bonus DP, mas não aumentam o cap.
  */
 export function getTamerAttributeCap(tamer) {
-  const milestones = getTamerMilestoneCount(tamer);
+  const { individualMilestones } = getTamerMilestoneBreakdown(tamer);
+
   const startingCap = integer(getAttributeStartingCap(), 5);
   const finalCap = Math.max(
     startingCap,
@@ -216,11 +284,12 @@ export function getTamerAttributeCap(tamer) {
 
   const capIncrease = Math.min(
     Math.max(0, finalCap - startingCap),
-    Math.floor(milestones / 3)
+    Math.floor(individualMilestones / 3)
   );
 
   return startingCap + capIncrease;
 }
+
 
 export function getSkillAssociatedAttributes(skillKey = "") {
   return DDA_TAMER_SKILL_ATTRIBUTES[skillKey] ?? [];
@@ -319,13 +388,23 @@ export function getTamerProgressSummary(actor) {
     0
   );
 
+  const milestones = getTamerMilestoneBreakdown(actor);
+
   return {
-    milestonesCompleted: getTamerMilestoneCount(actor),
+    milestonesCompleted: milestones.total,
+    partyMilestones: milestones.partyMilestones,
+    individualMilestones: milestones.individualMilestones,
+    legacyIndividualMilestones: milestones.legacyIndividualMilestones,
+    legacyIndividualCapCredit: milestones.legacyIndividualCapCredit,
+
     attributeCap: getTamerAttributeCap(actor),
+
     growthPointsAvailable: available,
+
     pendingGrowthPackages: packages.filter(
       (entry) => entry.remaining > 0
     ),
+
     nextGrowthPackage: getNextTamerGrowthPackage(actor)
   };
 }
@@ -478,33 +557,47 @@ async function releaseMilestoneToTarget(record, target) {
     const nextBonusDp = partnerAlreadyReceived
       ? previousBonusDp
       : previousBonusDp + DDA_BONUS_DP_PER_MILESTONE;
-    const spentStats = integer(
-      partner.system?.advancement?.bonusDp?.spentStats,
-      0
+
+    const milestonePackages = appendBonusDpPackage(partner, record);
+
+    const sharedSpent = getSharedBonusDpSpent(
+      partner,
+      nextBonusDp
     );
 
-    const spentQualities = integer(
-      partner.system?.advancement?.bonusDp?.spentQualities,
-      0
+    const bonusProgress = synchronizeBonusDpPackages(
+      {
+        system: {
+          advancement: {
+            bonusDp: {
+              ...clone(partner.system?.advancement?.bonusDp),
+              packages: milestonePackages
+            }
+          }
+        }
+      },
+      nextBonusDp,
+      sharedSpent
     );
-
-    tamerUpdates["system.partner.bonusDp"] = nextBonusDp;
 
     await partner.update({
-      "system.advancement.bonusDp.total": nextBonusDp,
-      "system.advancement.bonusDp.remaining": Math.max(
-        0,
-        nextBonusDp - spentStats - spentQualities
-      ),
-      "system.advancement.bonusDp.packages": appendBonusDpPackage(
-        partner,
-        record
-      ),
-      "system.creation.dp.bonus": nextBonusDp,
-      "system.creation.bonusDp": nextBonusDp
+      "system.advancement.bonusDp.total": bonusProgress.total,
+      "system.advancement.bonusDp.sharedSpent": bonusProgress.spent,
+      "system.advancement.bonusDp.remaining": bonusProgress.remaining,
+      "system.advancement.bonusDp.packages": bonusProgress.packages,
+      "system.creation.dp.bonus": bonusProgress.total,
+      "system.creation.bonusDp": bonusProgress.total
     });
 
-    partner.sheet?.render(false);
+    const synchronizedBonusProgress =
+      await synchronizePartnerBonusDpAcrossForms(
+        partner,
+        bonusProgress.total
+      );
+
+    tamerUpdates["system.partner.bonusDp"] =
+      synchronizedBonusProgress?.total ?? bonusProgress.total;
+
     partnerStatus = "released";
   }
 
@@ -900,73 +993,290 @@ export async function spendTamerGrowthPackage(
   };
 }
 
-function getCreationBonusSpent(creation = {}, totalBonusDp = 0) {
+function getCreationNumber(creation = {}, paths = [], fallback = 0) {
+  for (const path of paths) {
+    const value = foundry.utils.getProperty(creation, path);
+
+    if (value === undefined || value === null || value === "") {
+      continue;
+    }
+
+    const numeric = number(value, Number.NaN);
+
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+  }
+
+  return fallback;
+}
+
+function getCreationSpendAllocation(creation = {}) {
   const dp = creation?.dp ?? {};
 
   const base = Math.max(
     0,
-    number(dp.base ?? creation?.baseDp, 0)
+    getCreationNumber(creation, ["dp.base", "baseDp"], 0)
   );
 
-  const negative = Math.max(
+  const storedTotalNegative = Math.max(
     0,
-    number(
-      dp.negative ??
-      creation?.negativeDp ??
-      creation?.totalNegativeDp,
+    getCreationNumber(
+      creation,
+      ["dp.totalNegative", "totalNegativeDp"],
+      Number.NaN
+    )
+  );
+
+  const explicitManualNegative = getCreationNumber(
+    creation,
+    ["dp.manualNegative", "manualNegativeDp"],
+    Number.NaN
+  );
+
+  const explicitQualityNegative = getCreationNumber(
+    creation,
+    ["dp.negativeFromQualities", "negativeQualityDp"],
+    Number.NaN
+  );
+
+  const legacyNegative = Math.max(
+    0,
+    getCreationNumber(creation, ["dp.negative", "negativeDp"], 0)
+  );
+
+  const manualNegative = Number.isFinite(explicitManualNegative)
+    ? Math.max(0, explicitManualNegative)
+    : (
+      Number.isFinite(storedTotalNegative) &&
+      Number.isFinite(explicitQualityNegative)
+    )
+      ? Math.max(0, storedTotalNegative - explicitQualityNegative)
+      : legacyNegative;
+
+  const negativeFromQualities = Number.isFinite(explicitQualityNegative)
+    ? Math.max(0, explicitQualityNegative)
+    : Math.max(0, (
+      Number.isFinite(storedTotalNegative)
+        ? storedTotalNegative
+        : manualNegative
+    ) - manualNegative);
+
+  const totalNegative = Number.isFinite(storedTotalNegative)
+    ? Math.max(0, storedTotalNegative)
+    : manualNegative + negativeFromQualities;
+
+  const storedBaseStats = Math.max(
+    0,
+    getCreationNumber(creation, ["dp.spentBaseStats"], 0)
+  );
+
+  const storedBaseQualities = Math.max(
+    0,
+    getCreationNumber(creation, ["dp.spentBaseQualities"], 0)
+  );
+
+  const storedBonusStats = Math.max(
+    0,
+    getCreationNumber(creation, ["dp.spentBonusStats"], 0)
+  );
+
+  const storedBonusQualities = Math.max(
+    0,
+    getCreationNumber(creation, ["dp.spentBonusQualities"], 0)
+  );
+
+  const storedStats = storedBaseStats + storedBonusStats;
+  const storedQualities = storedBaseQualities + storedBonusQualities;
+  const bucketTotal = storedStats + storedQualities;
+
+  const storedTotal = Math.max(
+    0,
+    getCreationNumber(
+      creation,
+      ["dp.spentTotal", "spentDp", "dp.spent"],
       0
     )
   );
 
-  const spent = Math.max(
-    0,
-    number(
-      dp.spentTotal ??
-      creation?.spentDp ??
-      dp.spent ??
-      0,
-      0
-    )
+  /*
+   * Em versões antigas, `spentTotal` ignorava Atributos. Quando os
+   * buckets forem maiores, eles preservam a compra real.
+   */
+  const spentTotal = Math.max(storedTotal, bucketTotal);
+
+  let spentStats = storedStats;
+  let spentQualities = storedQualities;
+
+  if (spentStats + spentQualities < spentTotal) {
+    spentQualities += spentTotal - (
+      spentStats + spentQualities
+    );
+  }
+
+  const localPool = base + totalNegative;
+
+  const spentBaseStats = Math.min(
+    spentStats,
+    localPool
   );
+
+  const localAfterStats = Math.max(
+    0,
+    localPool - spentBaseStats
+  );
+
+  const spentBaseQualities = Math.min(
+    spentQualities,
+    localAfterStats
+  );
+
+  const spentBonusStats = Math.max(
+    0,
+    spentStats - spentBaseStats
+  );
+
+  const spentBonusQualities = Math.max(
+    0,
+    spentQualities - spentBaseQualities
+  );
+
+  return {
+    base,
+    manualNegative,
+    negativeFromQualities,
+    totalNegative,
+    localPool,
+
+    spentStats,
+    spentQualities,
+    spentTotal,
+
+    spentBaseStats,
+    spentBaseQualities,
+    spentBonusStats,
+    spentBonusQualities,
+
+    spentBaseTotal: (
+      spentBaseStats +
+      spentBaseQualities
+    ),
+
+    spentBonusTotal: (
+      spentBonusStats +
+      spentBonusQualities
+    )
+  };
+}
+
+function getFormEntrySourceUuid(
+  snapshot = {},
+  fallback = ""
+) {
+  return String(
+    snapshot?.sourceFormUuid ??
+    fallback ??
+    ""
+  ).trim();
+}
+
+function getPartnerFormCreationEntries(
+  partner,
+  extraSnapshot = null,
+  options = {}
+) {
+  const entries = new Map();
+
+  const insert = (snapshot = {}, fallback = "") => {
+    const sourceFormUuid = getFormEntrySourceUuid(
+      snapshot,
+      fallback
+    );
+
+    if (!sourceFormUuid) return;
+
+    entries.set(sourceFormUuid, {
+      sourceFormUuid,
+      creation: snapshot?.creation ?? {},
+      updatedAt: String(snapshot?.updatedAt ?? "")
+    });
+  };
+
+  for (const [key, snapshot] of Object.entries(
+    partner?.system?.evolution?.formSnapshots ?? {}
+  )) {
+    insert(snapshot, key);
+  }
+
+  if (extraSnapshot) {
+    insert(
+      extraSnapshot,
+      extraSnapshot?.key ?? options.extraFallbackKey ?? ""
+    );
+  }
+
+  const currentSourceFormUuid = String(
+    partner?.system?.evolution?.currentFormUuid ??
+    partner?.system?.evolution?.sourceFormUuid ??
+    ""
+  ).trim();
+
+  if (currentSourceFormUuid && partner?.system?.creation) {
+    /*
+     * O Actor persistente sempre vence o snapshot equivalente porque ele
+     * representa a forma ativa mais recente.
+     */
+    entries.set(currentSourceFormUuid, {
+      sourceFormUuid: currentSourceFormUuid,
+      creation: partner.system.creation,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  if (options.excludeSourceFormUuid) {
+    entries.delete(
+      String(options.excludeSourceFormUuid)
+    );
+  }
+
+  return [...entries.values()];
+}
+
+function getCreationBonusSpent(
+  creation = {},
+  totalBonusDp = 0
+) {
+  const allocation = getCreationSpendAllocation(creation);
 
   return Math.min(
     Math.max(0, number(totalBonusDp, 0)),
-    Math.max(0, spent - base - negative)
+    allocation.spentBonusTotal
   );
 }
 
 export function getSharedBonusDpSpent(
   partner,
   totalBonusDp = null,
-  extraSnapshot = null
+  extraSnapshot = null,
+  options = {}
 ) {
   const total = totalBonusDp === null
     ? getPartnerBonusDpTotal(null, partner)
     : Math.max(0, number(totalBonusDp, 0));
 
-  const candidates = [
-    partner?.system?.creation,
-    ...Object.values(
-      partner?.system?.evolution?.formSnapshots ?? {}
-    ).map((snapshot) => snapshot?.creation),
-    extraSnapshot?.creation
-  ].filter(Boolean);
-
-  const calculated = candidates.reduce(
-    (highest, creation) => {
-      return Math.max(
-        highest,
-        getCreationBonusSpent(creation, total)
-      );
-    },
-    0
+  const entries = getPartnerFormCreationEntries(
+    partner,
+    extraSnapshot,
+    options
   );
 
-  /**
-   * Quando houver dados das formas, o gasto atual delas é a fonte de verdade.
-   * Isso permite editar uma forma no Wizard e recuperar Bonus DP removido.
-   * Em Actors legados sem snapshot, preservamos o valor antigo.
-   */
+  const calculated = entries.reduce((sum, entry) => {
+    return sum + getCreationBonusSpent(
+      entry.creation,
+      total
+    );
+  }, 0);
+
   const stored = Math.max(
     0,
     number(
@@ -975,11 +1285,36 @@ export function getSharedBonusDpSpent(
     )
   );
 
-  const spent = candidates.length
+  const spent = entries.length
     ? calculated
     : stored;
 
   return Math.min(total, Math.max(0, spent));
+}
+
+/*
+ * Para abrir uma forma no Wizard, ela pode reutilizar o próprio Bonus DP
+ * já gasto nela, mas nunca o Bonus DP comprometido pelas outras formas.
+ */
+export function getPartnerFormBonusDpAvailable(
+  partner,
+  sourceFormUuid = "",
+  totalBonusDp = null
+) {
+  const total = totalBonusDp === null
+    ? getPartnerBonusDpTotal(null, partner)
+    : Math.max(0, number(totalBonusDp, 0));
+
+  const spentByOtherForms = getSharedBonusDpSpent(
+    partner,
+    total,
+    null,
+    {
+      excludeSourceFormUuid: sourceFormUuid
+    }
+  );
+
+  return Math.max(0, total - spentByOtherForms);
 }
 
 export function synchronizeBonusDpPackages(
@@ -1003,13 +1338,12 @@ export function synchronizeBonusDpPackages(
     : [];
 
   const packageTotal = packages.reduce((sum, entry) => {
-    return sum + Math.max(0, integer(entry?.points, 0));
+    return sum + Math.max(
+      0,
+      integer(entry?.points, 0)
+    );
   }, 0);
 
-  /**
-   * Bonus DP de campanhas antigas é consumido primeiro.
-   * Só depois os pacotes originados por Marcos passam a ser gastos.
-   */
   let packageSpendRemaining = Math.max(
     0,
     spent - Math.max(0, total - packageTotal)
@@ -1027,7 +1361,11 @@ export function synchronizeBonusDpPackages(
     );
 
     packageEntry.spent = packageSpent;
-    packageEntry.remaining = Math.max(0, points - packageSpent);
+    packageEntry.remaining = Math.max(
+      0,
+      points - packageSpent
+    );
+
     packageEntry.status = packageEntry.remaining > 0
       ? "available"
       : "spent";
@@ -1057,12 +1395,193 @@ export function getDigimonBonusDpSummary(tamer, partner) {
 
   return {
     ...progress,
-    milestoneGranted: progress.packages.reduce((sum, entry) => {
-      return sum + Math.max(0, integer(entry?.points, 0));
-    }, 0),
 
-    milestoneRemaining: progress.packages.reduce((sum, entry) => {
-      return sum + Math.max(0, integer(entry?.remaining, 0));
-    }, 0)
+    milestoneGranted: progress.packages.reduce(
+      (sum, entry) => {
+        return sum + Math.max(
+          0,
+          integer(entry?.points, 0)
+        );
+      },
+      0
+    ),
+
+    milestoneRemaining: progress.packages.reduce(
+      (sum, entry) => {
+        return sum + Math.max(
+          0,
+          integer(entry?.remaining, 0)
+        );
+      },
+      0
+    )
+  };
+}
+
+function synchronizeBonusDpCreation(
+  creation = {},
+  totalBonusDp = 0,
+  sharedSpent = 0
+) {
+  const next = clone(creation);
+  next.dp = clone(next.dp ?? {});
+
+  const allocation = getCreationSpendAllocation(next);
+
+  const bonus = Math.max(
+    0,
+    number(totalBonusDp, 0)
+  );
+
+  const sharedRemaining = Math.max(
+    0,
+    bonus - Math.max(0, number(sharedSpent, 0))
+  );
+
+  const localRemaining = Math.max(
+    0,
+    allocation.localPool - allocation.spentBaseTotal
+  );
+
+  const total = Math.max(
+    0,
+    allocation.localPool + bonus
+  );
+
+  const remaining = Math.max(
+    0,
+    localRemaining + sharedRemaining
+  );
+
+  next.dp.base = allocation.base;
+  next.dp.bonus = bonus;
+
+  next.dp.manualNegative =
+    allocation.manualNegative;
+
+  next.dp.negative =
+    allocation.manualNegative;
+
+  next.dp.negativeFromQualities =
+    allocation.negativeFromQualities;
+
+  next.dp.totalNegative =
+    allocation.totalNegative;
+
+  next.dp.total = total;
+
+  next.dp.spentBaseStats =
+    allocation.spentBaseStats;
+
+  next.dp.spentBaseQualities =
+    allocation.spentBaseQualities;
+
+  next.dp.spentBonusStats =
+    allocation.spentBonusStats;
+
+  next.dp.spentBonusQualities =
+    allocation.spentBonusQualities;
+
+  next.dp.spentTotal =
+    allocation.spentTotal;
+
+  next.dp.remaining = remaining;
+
+  next.baseDp = allocation.base;
+  next.bonusDp = bonus;
+  next.manualNegativeDp =
+    allocation.manualNegative;
+
+  next.negativeDp =
+    allocation.manualNegative;
+
+  next.negativeQualityDp =
+    allocation.negativeFromQualities;
+
+  next.totalNegativeDp =
+    allocation.totalNegative;
+
+  next.totalDp = total;
+  next.spentDp = allocation.spentTotal;
+  next.remainingDp = remaining;
+
+  return next;
+}
+
+function synchronizePartnerFormSnapshotBonusDp(
+  partner,
+  totalBonusDp,
+  sharedSpent
+) {
+  const snapshots = clone(
+    partner?.system?.evolution?.formSnapshots ?? {}
+  );
+
+  for (const snapshot of Object.values(snapshots)) {
+    if (!snapshot || typeof snapshot !== "object") {
+      continue;
+    }
+
+    snapshot.creation = synchronizeBonusDpCreation(
+      snapshot.creation,
+      totalBonusDp,
+      sharedSpent
+    );
+
+    snapshot.updatedAt = nowIso();
+  }
+
+  return snapshots;
+}
+
+export async function synchronizePartnerBonusDpAcrossForms(
+  partner,
+  totalBonusDp = null
+) {
+  if (!partner || partner.type !== "digimon") {
+    return null;
+  }
+
+  const total = totalBonusDp === null
+    ? getPartnerBonusDpTotal(null, partner)
+    : Math.max(0, number(totalBonusDp, 0));
+
+  const sharedSpent = getSharedBonusDpSpent(
+    partner,
+    total
+  );
+
+  const progress = synchronizeBonusDpPackages(
+    partner,
+    total,
+    sharedSpent
+  );
+
+  const currentCreation = synchronizeBonusDpCreation(
+    partner.system?.creation,
+    progress.total,
+    progress.spent
+  );
+
+  const snapshots = synchronizePartnerFormSnapshotBonusDp(
+    partner,
+    progress.total,
+    progress.spent
+  );
+
+  await partner.update({
+    "system.advancement.bonusDp.total": progress.total,
+    "system.advancement.bonusDp.sharedSpent": progress.spent,
+    "system.advancement.bonusDp.remaining": progress.remaining,
+    "system.advancement.bonusDp.packages": progress.packages,
+    "system.creation": currentCreation,
+    "system.evolution.formSnapshots": snapshots
+  });
+
+  partner.sheet?.render(false);
+
+  return {
+    ...progress,
+    snapshotCount: Object.keys(snapshots).length
   };
 }

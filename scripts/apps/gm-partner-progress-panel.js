@@ -888,7 +888,8 @@ Hooks.on("renderActorDirectory", (_app, html) => {
     button = document.createElement("button");
     button.type = "button";
     button.classList.add(
-      "dda-open-gm-partner-progress-panel"
+      "dda-open-gm-partner-progress-panel",
+      "dda-open-partner-progress"
     );
 
     button.addEventListener(
@@ -900,7 +901,11 @@ Hooks.on("renderActorDirectory", (_app, html) => {
   }
 
   button.innerHTML =
-    `<i class="fas fa-flag-checkered"></i> ${
-      localize("DDA.GMPartnerProgress.Open")
-    }`;
+    `<img
+      class="dda-directory-action-icon"
+      src="systems/digimon-digital-adventures/assets/ui/progress-partner.svg"
+      alt=""
+    />
+    <span>${localize("DDA.GMPartnerProgress.Open")}</span>
+  `;
 });

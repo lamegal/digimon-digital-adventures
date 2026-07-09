@@ -1,12 +1,60 @@
 // DDA Portrait Integration — Renamon Line
-import { applyDdaPortraitAndManualDigimonData } from "./dda-portrait-and-manual-digimon-data.js";
+import {
+  applyDdaPortraitAndManualDigimonData,
+  getDdaPortraitPath
+} from "./dda-portrait-and-manual-digimon-data.js";
+import { DDA } from "../config.js";
 
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 const DDA_DIGIMON_DATABASE_PATH = `systems/${DDA_SYSTEM_ID}/data/digimon/all_digimon_with_evolution_index_v6.json`;
 const PLACEHOLDER_IMAGE = "icons/svg/mystery-man.svg";
 
 const STAGE_ORDER = ["baby1", "baby2", "child", "adult", "perfect", "ultimate", "ultimatePlus"];
+const SPECIAL_FORM_CATEGORY_ORDER = Object.freeze([
+  "normal",
+  "armor",
+  "hybrid",
+  "jogress",
+  "burst",
+  "mode",
+  "antibody",
+  "variant"
+]);
 
+const SPECIAL_FORM_CATEGORY_SET = new Set(
+  SPECIAL_FORM_CATEGORY_ORDER
+);
+
+/*
+ * O V6 não possui uma coluna exclusiva de Variant.
+ * Estes são identificadores editoriais já existentes nos sourceIds.
+ * Eles não substituem Armor, Burst, Mode ou X-Antibody.
+ */
+const VARIANT_SOURCE_ID_SEGMENTS = new Set([
+  "black",
+  "blue",
+  "green",
+  "red",
+  "white",
+  "orange",
+  "violet",
+  "gold",
+  "silver",
+  "2010",
+  "2006",
+  "anime",
+  "version",
+  "alter",
+  "alterous",
+  "awake",
+  "awaken",
+  "vice",
+  "virtue",
+  "deva",
+  "virus",
+  "king",
+  "evolved"
+]);
 const IDENTITY_REDIRECTS = {
   "baby1:pabumon": "baby1:bubbmon",
   "baby1:chibomon": "baby1:chicomon",
@@ -279,6 +327,337 @@ function collectKeys(actor = {}) {
   return values.map(normalizeKey).filter(Boolean);
 }
 
+function uniqueStrings(values = []) {
+  return Array.from(new Set(
+    values
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+  ));
+}
+
+function getBaseEvolutionCategory(system = {}) {
+  const category = String(
+    system.evolutionCategory ?? "normal"
+  ).trim();
+
+  return SPECIAL_FORM_CATEGORY_SET.has(category)
+    ? category
+    : "normal";
+}
+
+function getFolderSpecialCategory(system = {}) {
+  const folderPath = String(system.folderPath ?? "")
+    .trim()
+    .toLowerCase();
+
+  const [folderCategory] = folderPath.split("/");
+
+  return SPECIAL_FORM_CATEGORY_SET.has(folderCategory)
+    ? folderCategory
+    : "";
+}
+
+function getActorIdentityKeys(actor = {}) {
+  return new Set(collectKeys(actor));
+}
+
+function buildJogressResultKeySet(jogressRules = []) {
+  const resultKeys = new Set();
+
+  for (const rule of jogressRules) {
+    if (rule?.parseStatus !== "parsed") continue;
+
+    const resultKey = normalizeKey(rule?.resultId);
+
+    if (resultKey) {
+      resultKeys.add(resultKey);
+    }
+  }
+
+  return resultKeys;
+}
+
+function hasJogressResultIdentity(actor = {}, jogressResultKeys = new Set()) {
+  if (!jogressResultKeys.size) return false;
+
+  for (const key of getActorIdentityKeys(actor)) {
+    if (jogressResultKeys.has(key)) return true;
+  }
+
+  return false;
+}
+
+function isRegisteredVariant(actor = {}) {
+  const system = actor.system ?? {};
+
+  if (getBaseEvolutionCategory(system) !== "normal") {
+    return false;
+  }
+
+  const sourceId = String(system.sourceId ?? "").trim();
+  const segments = sourceId
+    .split("_")
+    .map((segment) => normalizeKey(segment))
+    .filter(Boolean);
+
+  return segments.some((segment) => {
+    return VARIANT_SOURCE_ID_SEGMENTS.has(segment);
+  });
+}
+
+function orderSpecialCategories(categories = []) {
+  const set = new Set(
+    categories.filter((category) => {
+      return SPECIAL_FORM_CATEGORY_SET.has(category);
+    })
+  );
+
+  return SPECIAL_FORM_CATEGORY_ORDER.filter((category) => {
+    return set.has(category);
+  });
+}
+
+function applySpecialFormCategories(
+  actor = {},
+  { jogressResultKeys = new Set() } = {}
+) {
+  const system = actor.system ?? {};
+  actor.system = system;
+
+  const categories = new Set();
+  const baseCategory = getBaseEvolutionCategory(system);
+  const folderCategory = getFolderSpecialCategory(system);
+
+  categories.add(baseCategory);
+
+  if (folderCategory) {
+    categories.add(folderCategory);
+  }
+
+  if (hasJogressResultIdentity(actor, jogressResultKeys)) {
+    categories.add("jogress");
+  }
+
+  if (isRegisteredVariant(actor)) {
+    categories.add("variant");
+  }
+
+  system.specialCategories = orderSpecialCategories(
+    Array.from(categories)
+  );
+
+  system.primarySpecialCategory = (
+    system.specialCategories.find((category) => category !== "normal")
+    ?? baseCategory
+  );
+
+  return actor;
+}
+
+function makeEmptyEvolutionIndex() {
+  return {
+    normalFrom: [],
+    normalTo: [],
+    candidateFrom: [],
+    candidateTo: [],
+    specialFrom: [],
+    specialTo: [],
+    candidateSpecialFrom: [],
+    candidateSpecialTo: [],
+    unresolvedFrom: [],
+    unresolvedTo: [],
+    rawFrom: [],
+    rawTo: [],
+    reviewRequired: false
+  };
+}
+
+function makeVirtualHybridActor(recipe = {}) {
+  if (recipe?.method !== "hybrid") return null;
+
+  const result = recipe.result ?? {};
+  const displayName = String(
+    result.name ?? result.species ?? ""
+  ).trim();
+
+  if (!displayName) return null;
+
+  const sourceId = normalizeKey(
+    result.species ?? result.name
+  );
+
+  if (!sourceId) return null;
+
+  const stage = STAGE_ORDER.includes(recipe.equivalentStage)
+    ? recipe.equivalentStage
+    : "child";
+
+  const aliases = uniqueStrings([
+    displayName,
+    result.species,
+    ...(Array.isArray(result.aliases) ? result.aliases : [])
+  ]);
+
+  const portraitPath = getDdaPortraitPath({
+    key: sourceId,
+    name: displayName,
+    species: displayName,
+    aliases
+  });
+
+  const databaseId = stageIdentity(stage, sourceId);
+
+  return {
+    name: displayName,
+    type: "digimon",
+    img: portraitPath || PLACEHOLDER_IMAGE,
+
+    prototypeToken: {
+      texture: {
+        src: portraitPath || PLACEHOLDER_IMAGE
+      }
+    },
+
+    system: {
+      sourceId,
+      databaseId,
+      species: displayName,
+      isPersistentPartner: false,
+      nickname: "",
+
+      stage,
+      sourceStageKey: stage,
+
+      attribute: "none",
+      type: "",
+      group: "",
+      groups: [],
+      field: "none",
+      fieldId: "",
+      family: "",
+      digimental: "",
+
+      names: {
+        canonical: sourceId,
+        original: displayName,
+        dub: displayName,
+        aliases
+      },
+
+      evolutionCategory: "hybrid",
+      primarySpecialCategory: "hybrid",
+      specialCategories: ["hybrid"],
+      isSpecialForm: true,
+      folderPath: `hybrid/${stage}`,
+
+      images: {
+        portrait: portraitPath || "",
+        token: "",
+        source: "config:hybrid-recipes",
+        imageFileName: "",
+        localImagePath: "",
+        officialImageUrl: "",
+        portraitImagePath: portraitPath || "",
+        tokenImagePath: ""
+      },
+
+      officialReference: {
+        directoryName: sourceId,
+        url: "",
+        displayName,
+        level: "",
+        type: "",
+        attribute: "",
+        imageUrl: "",
+        imageLocalPath: "",
+        related: []
+      },
+
+      wikimon: {
+        title: displayName,
+        url: "",
+        evolvesFrom: [],
+        evolvesTo: [],
+        level: "",
+        type: "",
+        attribute: "",
+        field: "",
+        group: []
+      },
+
+      evolutionHints: {
+        evolvesFrom: [],
+        evolvesTo: []
+      },
+
+      evolutionIndex: makeEmptyEvolutionIndex(),
+
+      specialForm: {
+        virtual: true,
+        source: "config.hybridRecipes",
+        method: "hybrid",
+        recipeId: String(recipe.id ?? "")
+      },
+
+      curation: {
+        sourceSheet: "Config Hybrid Recipes",
+        sourceRow: 0,
+        curationStatus: "virtual",
+        confidence: 100,
+        relationSource: "DDA config",
+        notes: "Virtual Hybrid Actor for special-form browsers. Profile fields await a dedicated actor source."
+      }
+    },
+
+    databaseId
+  };
+}
+
+function createVirtualHybridActors(existingActors = []) {
+  const existingIdentityKeysByStage = new Map();
+
+  const getStageKeySet = (stage = "") => {
+    const key = String(stage ?? "").trim();
+
+    if (!existingIdentityKeysByStage.has(key)) {
+      existingIdentityKeysByStage.set(key, new Set());
+    }
+
+    return existingIdentityKeysByStage.get(key);
+  };
+
+  for (const actor of existingActors) {
+    const stageKeySet = getStageKeySet(actor?.system?.stage);
+
+    for (const key of getActorIdentityKeys(actor)) {
+      stageKeySet.add(key);
+    }
+  }
+
+  const virtualActors = [];
+
+  for (const recipe of DDA.hybridRecipes ?? []) {
+    const actor = makeVirtualHybridActor(recipe);
+
+    if (!actor) continue;
+
+    const stageKeySet = getStageKeySet(actor.system?.stage);
+    const identityKeys = getActorIdentityKeys(actor);
+
+    if ([...identityKeys].some((key) => stageKeySet.has(key))) {
+      continue;
+    }
+
+    virtualActors.push(actor);
+
+    for (const key of identityKeys) {
+      stageKeySet.add(key);
+    }
+  }
+
+  return virtualActors;
+}
+
 export function isHybridRulesEnabled() {
   try {
     return Boolean(game.settings.get(DDA_SYSTEM_ID, "enableHybridEvolution"));
@@ -316,6 +695,7 @@ export function getEffectiveDigimonEvolutionData(actorData = {}) {
 
 export class DDADigimonDatabase {
   static _actors = null;
+  static _virtualSpecialActors = null;
   static _byDatabaseId = null;
   static _byStageKey = null;
 
@@ -326,13 +706,30 @@ export class DDADigimonDatabase {
     if (!response.ok) throw new Error(`DDA | Não foi possível carregar banco de Digimon: ${DDA_DIGIMON_DATABASE_PATH}`);
 
     const data = await response.json();
-    const rawActors = Array.isArray(data) ? data : (Array.isArray(data.actors) ? data.actors : []);
+
+    const rawActors = Array.isArray(data)
+      ? data
+      : (Array.isArray(data.actors) ? data.actors : []);
+
+    const jogressResultKeys = buildJogressResultKeySet(
+      Array.isArray(data?.jogressRules)
+        ? data.jogressRules
+        : []
+    );
+
     const actors = [];
 
     for (const actor of applyDdaPortraitAndManualDigimonData(rawActors)) {
       if (!actor || shouldSkipActor(actor)) continue;
-      actors.push(applyCuration(actor));
+
+      actors.push(applySpecialFormCategories(
+        applyCuration(actor),
+        { jogressResultKeys }
+      ));
     }
+
+    this._virtualSpecialActors = createVirtualHybridActors(actors);
+    this._actors = actors;
 
     this._actors = actors;
     this._byDatabaseId = new Map();
@@ -355,8 +752,17 @@ export class DDADigimonDatabase {
     return this._actors;
   }
 
-  static async getAll() {
-    return await this.load();
+  static async getAll({ includeVirtualSpecialForms = false } = {}) {
+    await this.load();
+
+    if (!includeVirtualSpecialForms) {
+      return this._actors;
+    }
+
+    return [
+      ...this._actors,
+      ...(this._virtualSpecialActors ?? [])
+    ];
   }
 
   static async getActorData(databaseId = "") {

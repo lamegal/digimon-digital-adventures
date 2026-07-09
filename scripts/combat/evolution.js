@@ -5,6 +5,11 @@ import { runDigimonTokenEvolutionTransition } from "../tokens/digimon-token-scal
 import { clearClashStateForActor } from "./clash.js";
 import { getDdaTokenPath } from "../data/dda-portrait-and-manual-digimon-data.js";
 
+import {
+  getPartnerFormBonusDpAvailable,
+  synchronizePartnerBonusDpAcrossForms
+} from "../rules/tamer-progression.js";
+
 export const DDA_SYSTEM_ID = "digimon-digital-adventures";
 
 export async function evolvePartner(tamerActor) {
@@ -171,9 +176,13 @@ await runDigimonTokenEvolutionTransition(
   await tamerActor.update({
     "system.partner.baseName": tamerActor.system.partner?.baseName || tamerActor.system.partner?.name || previousFormName || partnerActor.name,
     "system.partner.name": tamerActor.system.partner?.name || tamerActor.system.partner?.baseName || previousFormName || partnerActor.name,
-    "system.partner.uuid": partnerActor.uuid,
-    "system.partner.currentFormUuid": formTemplateActor.uuid,
-    "system.partner.currentFormName": formTemplateActor.name,
+        "system.partner.uuid": partnerActor.uuid,
+    "system.partner.currentFormUuid":
+      partnerActor.system.evolution?.currentFormUuid ||
+      formTemplateActor.uuid,
+    "system.partner.currentFormName":
+      partnerActor.system.evolution?.currentFormName ||
+      formTemplateActor.name,
     ...(continuedHybridState ? {
       "system.specialEvolutions.hybrid.state": continuedHybridState
     } : {})
@@ -434,27 +443,93 @@ export async function getCurrentPartnerFormWizardContext(tamerActor) {
   }
 
   const partnerUuid = tamerActor.system.partner?.uuid;
+
   if (!partnerUuid) {
     ui.notifications.warn(localize("DDA.Warning.NoPartnerLinked"));
     return null;
   }
 
   const partnerActor = await resolveActor(partnerUuid);
+
   if (!partnerActor || partnerActor.type !== "digimon") {
     ui.notifications.warn(localize("DDA.Warning.PartnerNotFound"));
     return null;
   }
 
-  const currentFormUuid = tamerActor.system.partner?.currentFormUuid || partnerActor.system.evolution?.currentFormUuid || partnerActor.system.evolution?.sourceFormUuid || partnerActor.uuid;
-  const formTemplateActor = await resolveActor(currentFormUuid) ?? partnerActor;
-  const snapshot = await getOrCreatePartnerFormSnapshot(partnerActor, formTemplateActor);
+    /*
+   * O Actor parceiro persistente é a fonte de verdade da forma ativa.
+   * O Tamer mantém um espelho para interface e referências externas.
+   */
+  const partnerCurrentFormUuid = String(
+    partnerActor.system.evolution?.currentFormUuid ||
+    partnerActor.system.evolution?.sourceFormUuid ||
+    ""
+  ).trim();
+
+  const tamerCurrentFormUuid = String(
+    tamerActor.system.partner?.currentFormUuid || ""
+  ).trim();
+
+  const currentFormUuid =
+    partnerCurrentFormUuid ||
+    tamerCurrentFormUuid ||
+    partnerActor.uuid;
+
+  /*
+   * Formas DDA-SNAPSHOT.* não são Actors reais. Primeiro procuramos
+   * o snapshot persistente; só então tentamos resolver um Actor real.
+   */
+  const storedSnapshot = getPartnerFormSnapshot(
+    partnerActor,
+    currentFormUuid
+  );
+
+  let formTemplateActor = await resolveActor(currentFormUuid);
+
+  if (!formTemplateActor && storedSnapshot) {
+    formTemplateActor = buildPseudoActorFromFormSnapshot(
+      storedSnapshot,
+      partnerActor
+    );
+  }
+
+  formTemplateActor ??= partnerActor;
+
+  const snapshot = storedSnapshot ??
+    await getOrCreatePartnerFormSnapshot(
+      partnerActor,
+      formTemplateActor
+    );
+
+  const totalBonusDp = Math.max(
+    0,
+    Number(
+      partnerActor.system?.advancement?.bonusDp?.total ?? 0
+    ) || 0,
+    Number(
+      partnerActor.system?.creation?.dp?.bonus ?? 0
+    ) || 0,
+    Number(
+      partnerActor.system?.creation?.bonusDp ?? 0
+    ) || 0
+  );
+
+  const formBonusDp = getPartnerFormBonusDpAvailable(
+    partnerActor,
+    snapshot?.sourceFormUuid ||
+      currentFormUuid ||
+      formTemplateActor?.uuid ||
+      "",
+    totalBonusDp
+  );
 
   return {
     tamerActor,
     partnerActor,
     formTemplateActor,
     snapshot,
-    bonusDp: Number(partnerActor.system.advancement?.bonusDp?.total ?? partnerActor.system.creation?.dp?.bonus ?? 0)
+    bonusDp: formBonusDp,
+    bonusDpTotal: totalBonusDp
   };
 }
 
@@ -531,16 +606,28 @@ export async function getFuturePartnerFormWizardContext(
     items: []
   };
 
+  const totalBonusDp = Math.max(
+    0,
+    Number(partnerActor.system?.advancement?.bonusDp?.total ?? 0) || 0,
+    Number(partnerActor.system?.creation?.dp?.bonus ?? 0) || 0,
+    Number(partnerActor.system?.creation?.bonusDp ?? 0) || 0
+  );
+
+  const formBonusDp = getPartnerFormBonusDpAvailable(
+    partnerActor,
+    snapshot?.sourceFormUuid ||
+      formTemplateActor?.uuid ||
+      "",
+    totalBonusDp
+  );
+
   return {
     tamerActor,
     partnerActor,
     formTemplateActor,
     snapshot,
-    bonusDp: Number(
-      partnerActor.system?.advancement?.bonusDp?.total
-      ?? partnerActor.system?.creation?.dp?.bonus
-      ?? 0
-    )
+    bonusDp: formBonusDp,
+    bonusDpTotal: totalBonusDp
   };
 }
 
@@ -569,7 +656,9 @@ await upsertPartnerFormSnapshot(partnerActor, storedSnapshot);
     transitionType: "formWizard"
   });
 
-  return storedSnapshot;
+  await synchronizePartnerBonusDpAcrossForms(partnerActor);
+
+  return storedSnapshot;;
 }
 
 export async function savePartnerFutureFormSnapshot({
@@ -596,6 +685,8 @@ export async function savePartnerFutureFormSnapshot({
 });
 
   await upsertPartnerFormSnapshot(partnerActor, storedSnapshot);
+
+  await synchronizePartnerBonusDpAcrossForms(partnerActor);
 
   return storedSnapshot;
 }
@@ -3274,7 +3365,20 @@ async function updateJogressSharedInitiative(participants = [], resultActor, sha
 
 function getDigimonBonusDp(digimonActor) {
   if (!digimonActor) return 0;
-  return Math.max(0, Number(digimonActor.system?.creation?.dp?.bonus ?? 0) + Number(digimonActor.system?.advancement?.bonusDp?.total ?? 0));
+
+  const creationBonus = Number(
+    digimonActor.system?.creation?.dp?.bonus ?? 0
+  ) || 0;
+
+  const advancementBonus = Number(
+    digimonActor.system?.advancement?.bonusDp?.total ?? 0
+  ) || 0;
+
+  return Math.max(
+    0,
+    creationBonus,
+    advancementBonus
+  );
 }
 
 async function applyJogressResultOwnership(resultActor, participants = []) {

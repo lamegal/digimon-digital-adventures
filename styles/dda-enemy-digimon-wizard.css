@@ -1,0 +1,1330 @@
+.application.dda-digimon-enemy-wizard,
+.window-app.dda-digimon-enemy-wizard,
+.dda-digimon-enemy-wizard {
+  min-width: 860px;
+}
+
+.dda-digimon-enemy-wizard .window-content {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dda-enemy-wizard-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: #edf5ff;
+  background:
+    radial-gradient(circle at 7% 0%, rgba(159, 23, 65, 0.35), transparent 34%),
+    radial-gradient(circle at 92% 8%, rgba(67, 15, 131, 0.30), transparent 32%),
+    linear-gradient(145deg, #10131e 0%, #17101d 54%, #080a11 100%);
+}
+
+.dda-enemy-wizard-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 116px;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 113, 157, 0.32);
+  background: linear-gradient(90deg, rgba(37, 14, 28, 0.86), rgba(24, 14, 35, 0.70));
+}
+
+.dda-enemy-wizard-device-wrap {
+  width: 86px;
+  height: 86px;
+  flex: 0 0 86px;
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 0 12px rgba(255, 52, 122, 0.45));
+}
+
+.dda-enemy-wizard-device-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.dda-enemy-wizard-hero-copy {
+  min-width: 0;
+}
+
+.dda-enemy-wizard-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #ff9cbf;
+  font: 700 0.72rem/1 "PixelOperatorBold", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dda-enemy-wizard-hero h1 {
+  margin: 4px 0 3px;
+  color: #ffffff;
+  font: 700 1.35rem/1.1 "Chronotype", "PixelOperatorBold", sans-serif;
+  letter-spacing: 0.05em;
+}
+
+.dda-enemy-wizard-hero p {
+  max-width: 770px;
+  margin: 0;
+  color: #c9c6d6;
+  font-size: 0.9rem;
+}
+
+.dda-enemy-wizard-filter-panel {
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 9, 15, 0.74);
+}
+
+.dda-enemy-search-row {
+  display: grid;
+  grid-template-columns: max-content minmax(220px, 1fr) max-content;
+  align-items: center;
+  gap: 9px;
+}
+
+.dda-enemy-search-row > label,
+.dda-enemy-filter-label,
+.dda-enemy-filter-grid label > span,
+.dda-enemy-npc-name-field > span {
+  color: #f6d6e1;
+  font: 700 0.75rem/1 "PixelOperatorBold", sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dda-enemy-search-row small {
+  grid-column: 2 / -1;
+  color: #9895a8;
+  font-size: 0.74rem;
+}
+
+.dda-enemy-search-control {
+  position: relative;
+}
+
+.dda-enemy-search-control i {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  color: #e78cb0;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.dda-enemy-search-control input,
+.dda-enemy-filter-grid select,
+.dda-enemy-npc-name-field input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid rgba(255, 142, 183, 0.27);
+  border-radius: 6px;
+  outline: none;
+  color: #f9f3f6;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.dda-enemy-search-control input {
+  padding: 6px 10px 6px 31px;
+}
+
+.dda-enemy-filter-grid select,
+.dda-enemy-npc-name-field input {
+  padding: 6px 8px;
+}
+
+.dda-enemy-search-control input:focus,
+.dda-enemy-filter-grid select:focus,
+.dda-enemy-npc-name-field input:focus {
+  border-color: rgba(255, 132, 175, 0.92);
+  box-shadow: 0 0 0 2px rgba(255, 91, 147, 0.20);
+}
+
+.dda-enemy-search-row > button,
+.dda-enemy-clear-filters,
+.dda-enemy-category-chip,
+.dda-enemy-category-show-all,
+.dda-enemy-form-card,
+.dda-enemy-create-button {
+  border: 1px solid rgba(255, 158, 192, 0.24);
+  border-radius: 6px;
+  cursor: pointer;
+  color: #f8ebf0;
+  background: rgba(255, 255, 255, 0.06);
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.dda-enemy-search-row > button {
+  width: 34px;
+  height: 34px;
+}
+
+.dda-enemy-search-row > button:hover,
+.dda-enemy-clear-filters:hover,
+.dda-enemy-category-chip:hover,
+.dda-enemy-category-show-all:hover,
+.dda-enemy-form-card:hover {
+  border-color: rgba(255, 150, 189, 0.78);
+  background: rgba(255, 113, 157, 0.14);
+}
+
+.dda-enemy-category-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.dda-enemy-filter-label {
+  width: 142px;
+  padding-top: 8px;
+  flex: 0 0 142px;
+}
+
+.dda-enemy-category-chips {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dda-enemy-category-chip,
+.dda-enemy-category-show-all {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 0.74rem;
+}
+
+.dda-enemy-category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dda-enemy-category-chip small {
+  min-width: 16px;
+  padding: 1px 4px;
+  border-radius: 99px;
+  color: #bbb1c6;
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.66rem;
+  text-align: center;
+}
+
+.dda-enemy-category-chip.is-active {
+  border-color: rgba(255, 105, 158, 0.96);
+  color: #fff8fa;
+  background: linear-gradient(135deg, rgba(196, 37, 96, 0.72), rgba(91, 33, 118, 0.70));
+  box-shadow: 0 0 14px rgba(247, 61, 128, 0.18);
+}
+
+.dda-enemy-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.dda-enemy-filter-grid label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.dda-enemy-clear-filters {
+  align-self: end;
+  min-height: 34px;
+  padding: 6px 9px;
+  font-size: 0.77rem;
+}
+
+.dda-enemy-wizard-content {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+}
+
+.dda-enemy-results-column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dda-enemy-results-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: #f3d7e1;
+}
+
+.dda-enemy-results-header small {
+  color: #aaa2b2;
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+.dda-enemy-form-results {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(225px, 1fr));
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
+}
+
+.dda-enemy-form-card {
+  min-width: 0;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 9px;
+  padding: 8px;
+  text-align: left;
+}
+
+.dda-enemy-form-card:hover {
+  transform: translateY(-1px);
+}
+
+.dda-enemy-form-card.is-selected {
+  border-color: rgba(255, 166, 202, 0.98);
+  background: linear-gradient(135deg, rgba(186, 41, 97, 0.55), rgba(92, 35, 119, 0.56));
+  box-shadow:
+    0 0 0 1px rgba(255, 139, 183, 0.24),
+    0 0 18px rgba(228, 52, 119, 0.20);
+}
+
+.dda-enemy-form-card > img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.dda-enemy-form-card-main,
+.dda-enemy-form-card-meta {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.dda-enemy-form-card-main strong,
+.dda-enemy-preview-title strong {
+  overflow: hidden;
+  color: #fffafd;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-enemy-form-card-main small,
+.dda-enemy-form-card-meta small,
+.dda-enemy-preview-title small {
+  color: #beb4c2;
+  font-size: 0.69rem;
+}
+
+.dda-enemy-form-card-meta {
+  justify-items: end;
+  text-align: right;
+}
+
+.dda-enemy-category-tag {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 2px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  color: #e9cfda !important;
+  background: rgba(0, 0, 0, 0.24);
+  white-space: nowrap;
+}
+
+.dda-enemy-category-antibody,
+.dda-enemy-category-hybrid,
+.dda-enemy-category-jogress,
+.dda-enemy-category-burst,
+.dda-enemy-category-mode {
+  border-color: rgba(173, 130, 255, 0.54);
+  color: #dac8ff !important;
+}
+
+.dda-enemy-category-armor {
+  border-color: rgba(101, 203, 233, 0.54);
+  color: #c9f3ff !important;
+}
+
+.dda-enemy-empty-results,
+.dda-enemy-preview-empty {
+  margin: 24px;
+  color: #bdb3c1;
+  text-align: center;
+}
+
+.dda-enemy-preview-panel {
+  min-height: 0;
+  overflow: auto;
+  padding: 15px;
+  background: linear-gradient(180deg, rgba(28, 17, 34, 0.93), rgba(10, 11, 18, 0.96));
+}
+
+.dda-enemy-preview-panel h2 {
+  margin: 0 0 12px;
+  color: #ffccdc;
+  font: 700 0.92rem/1 "PixelOperatorBold", sans-serif;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.dda-enemy-preview-art {
+  display: grid;
+  place-items: center;
+  min-height: 190px;
+  border: 1px solid rgba(255, 149, 188, 0.22);
+  border-radius: 9px;
+  background:
+    radial-gradient(circle, rgba(151, 50, 97, 0.26), transparent 62%),
+    rgba(0, 0, 0, 0.22);
+}
+
+.dda-enemy-preview-art img {
+  width: min(190px, 100%);
+  height: 190px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.48));
+}
+
+.dda-enemy-preview-title {
+  display: grid;
+  gap: 3px;
+  margin: 12px 0;
+  text-align: center;
+}
+
+.dda-enemy-preview-title strong {
+  font-size: 1.05rem;
+}
+
+.dda-enemy-preview-data {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.dda-enemy-preview-data > div {
+  display: grid;
+  grid-template-columns: 42% minmax(0, 1fr);
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.dda-enemy-preview-data dt {
+  color: #b8adba;
+  font-size: 0.72rem;
+}
+
+.dda-enemy-preview-data dd {
+  min-width: 0;
+  margin: 0;
+  color: #fff9fb;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.dda-enemy-special-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0;
+  padding: 8px;
+  border: 1px solid rgba(182, 126, 255, 0.38);
+  border-radius: 6px;
+  color: #dfd0ff;
+  background: rgba(104, 60, 145, 0.20);
+  font-size: 0.75rem;
+}
+
+.dda-enemy-npc-name-field {
+  display: grid;
+  gap: 5px;
+  margin-top: 15px;
+}
+
+.dda-enemy-npc-name-field small {
+  color: #aaa0ad;
+  font-size: 0.69rem;
+}
+
+.dda-enemy-create-button {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 15px;
+  border-color: rgba(255, 139, 180, 0.72);
+  color: #ffffff;
+  background: linear-gradient(135deg, #be285d, #652d89);
+  box-shadow: 0 7px 16px rgba(0, 0, 0, 0.30);
+  font-weight: 700;
+}
+
+.dda-enemy-create-button:hover {
+  border-color: #ffe3ee;
+  background: linear-gradient(135deg, #db3973, #7a3eaa);
+  transform: translateY(-1px);
+}
+
+/* Actor Directory — acesso exclusivo do Narrador */
+.directory-footer .dda-open-enemy-digimon-wizard {
+  width: 100%;
+  margin-top: 0.35rem;
+  min-height: 32px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(178, 68, 121, 0.72);
+  border-radius: 5px;
+  color: #fff3f8;
+  background: linear-gradient(
+    135deg,
+    rgba(124, 29, 73, 0.96),
+    rgba(65, 27, 100, 0.96)
+  );
+  box-shadow: inset 0 0 0 1px rgba(255, 222, 240, 0.08);
+  font-family: "PixelOperatorBold", sans-serif;
+  font-size: 0.73rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.directory-footer .dda-open-enemy-digimon-wizard:hover {
+  border-color: rgba(255, 187, 219, 0.95);
+  filter: brightness(1.12);
+}
+
+/* NPC inimigo — a moldura visível é o ::after */
+form.dda-enemy-npc-sheet .dda-window-side-device {
+  filter:
+    drop-shadow(0 10px 14px rgba(0, 0, 0, 0.48))
+    drop-shadow(0 0 12px rgba(236, 46, 106, 0.52)) !important;
+}
+
+form.dda-enemy-npc-sheet .dda-window-side-device::after {
+  background-image: url("../assets/ui/digimon-enemy.webp") !important;
+}
+
+form.dda-enemy-npc-sheet .dda-window-side-device:hover {
+  filter:
+    drop-shadow(0 10px 14px rgba(0, 0, 0, 0.48))
+    drop-shadow(0 0 16px rgba(255, 58, 127, 0.72)) !important;
+}
+
+form.dda-enemy-npc-sheet .dda-stage-orb {
+  filter: hue-rotate(292deg) saturate(1.45);
+}
+
+form.dda-enemy-npc-sheet .dda-digimon-header {
+  border-bottom-color: rgba(117, 32, 68, 0.86) !important;
+}
+
+form.dda-enemy-npc-sheet .dda-device-button:hover {
+  background: rgba(203, 31, 93, 0.18) !important;
+  box-shadow:
+    0 0 8px rgba(236, 46, 106, 0.58),
+    inset 0 0 8px rgba(255, 225, 240, 0.12) !important;
+}
+/* Construtor individual de inimigo */
+.dda-digimon-enemy-wizard .dda-enemy-wizard-content {
+  grid-template-columns: minmax(0, 1fr) 410px;
+}
+
+.dda-enemy-build-section,
+.dda-enemy-narrative-section {
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 177, 208, 0.16);
+}
+
+.dda-enemy-build-heading,
+.dda-enemy-stat-row-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dda-enemy-build-heading h3,
+.dda-enemy-build-section h4 {
+  margin: 0;
+  color: #ffd6e5;
+  font: 700 0.78rem/1 "PixelOperatorBold", sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dda-enemy-build-section h4 {
+  margin-bottom: 8px;
+  color: #e9bfd0;
+  font-size: 0.7rem;
+}
+
+.dda-enemy-reset-stats {
+  min-height: 26px;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 180, 210, 0.26);
+  border-radius: 4px;
+  color: #f5dce7;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  font-size: 0.66rem;
+}
+
+.dda-enemy-reset-stats:hover {
+  border-color: rgba(255, 159, 198, 0.8);
+  background: rgba(199, 42, 101, 0.2);
+}
+
+.dda-enemy-health-advice,
+.dda-enemy-qualities-next {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 8px 0 10px;
+  padding: 8px;
+  border: 1px solid rgba(255, 193, 105, 0.22);
+  border-radius: 6px;
+  color: #e9d5b5;
+  background: rgba(113, 73, 24, 0.18);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.dda-enemy-qualities-next {
+  border-color: rgba(152, 128, 224, 0.26);
+  color: #d9cef6;
+  background: rgba(70, 46, 117, 0.18);
+}
+
+.dda-enemy-budget-card {
+  padding: 10px;
+  border: 1px solid rgba(255, 147, 189, 0.25);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dda-enemy-budget-card > strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #fff0f6;
+  font-size: 0.77rem;
+}
+
+.dda-enemy-budget-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.dda-enemy-budget-inputs label,
+.dda-enemy-text-field {
+  display: grid;
+  gap: 4px;
+}
+
+.dda-enemy-budget-inputs label > span,
+.dda-enemy-text-field > span {
+  color: #e2bbc9;
+  font: 700 0.66rem/1 "PixelOperatorBold", sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dda-enemy-budget-inputs input,
+.dda-enemy-text-field input,
+.dda-enemy-text-field select,
+.dda-enemy-text-field textarea {
+  width: 100%;
+  min-height: 30px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 159, 198, 0.24);
+  border-radius: 5px;
+  outline: none;
+  color: #fff7fa;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.dda-enemy-budget-inputs input,
+.dda-enemy-text-field input,
+.dda-enemy-text-field select {
+  padding: 5px 7px;
+}
+
+.dda-enemy-text-field textarea {
+  min-height: 54px;
+  padding: 7px;
+  resize: vertical;
+}
+
+.dda-enemy-budget-inputs input:focus,
+.dda-enemy-text-field input:focus,
+.dda-enemy-text-field select:focus,
+.dda-enemy-text-field textarea:focus {
+  border-color: rgba(255, 133, 178, 0.9);
+  box-shadow: 0 0 0 2px rgba(232, 58, 124, 0.16);
+}
+
+.dda-enemy-budget-inputs small,
+.dda-enemy-base-dp-hint {
+  color: #9e94a5;
+  font-size: 0.63rem;
+  line-height: 1.2;
+}
+
+.dda-enemy-base-dp-hint {
+  display: block;
+  margin-top: 7px;
+}
+
+.dda-enemy-budget-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.dda-enemy-budget-summary > span {
+  display: grid;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  text-align: center;
+}
+
+.dda-enemy-budget-summary small {
+  color: #b9afbc;
+  font-size: 0.61rem;
+}
+
+.dda-enemy-budget-summary strong {
+  color: #fff5f9;
+  font-size: 0.92rem;
+}
+
+.dda-enemy-budget-summary.is-over-budget > span:last-child strong,
+.dda-enemy-over-budget {
+  color: #ff9daf;
+}
+
+.dda-enemy-over-budget {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 0.7rem;
+}
+
+.dda-enemy-stat-section,
+.dda-enemy-derived-preview {
+  margin-top: 12px;
+}
+
+.dda-enemy-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dda-enemy-stat-row {
+  padding: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.dda-enemy-stat-row-heading strong {
+  color: #fff5f8;
+  font-size: 0.75rem;
+}
+
+.dda-enemy-stat-row-heading span,
+.dda-enemy-stat-row > small {
+  color: #aaa0ad;
+  font-size: 0.61rem;
+}
+
+.dda-enemy-stat-row-heading b {
+  color: #ffd5e3;
+  font-size: 0.77rem;
+}
+
+.dda-enemy-stat-controls {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 26px;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 4px;
+}
+
+.dda-enemy-stat-controls button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(255, 155, 195, 0.28);
+  border-radius: 4px;
+  color: #ffeaf2;
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+}
+
+.dda-enemy-stat-controls button:hover {
+  border-color: rgba(255, 145, 188, 0.85);
+  background: rgba(201, 38, 96, 0.28);
+}
+
+.dda-enemy-stat-controls output {
+  display: grid;
+  min-height: 26px;
+  place-items: center;
+  border-radius: 4px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.3);
+  font-weight: 700;
+}
+
+.dda-enemy-derived-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.dda-enemy-derived-grid > span {
+  display: grid;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid rgba(185, 142, 245, 0.18);
+  border-radius: 4px;
+  background: rgba(70, 42, 102, 0.17);
+  text-align: center;
+}
+
+.dda-enemy-derived-grid small {
+  color: #c8b9d5;
+  font-size: 0.6rem;
+}
+
+.dda-enemy-derived-grid strong {
+  color: #ffffff;
+  font-size: 0.88rem;
+}
+
+.dda-enemy-narrative-section {
+  display: grid;
+  gap: 9px;
+}
+
+.dda-enemy-narrative-section .dda-enemy-npc-name-field {
+  margin-top: 0;
+}
+
+.dda-enemy-create-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: grayscale(0.4);
+  transform: none;
+}
+
+@media (max-width: 1100px) {
+  .dda-digimon-enemy-wizard .dda-enemy-wizard-content {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+@media (max-width: 760px) {
+  .dda-digimon-enemy-wizard .dda-enemy-wizard-content {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-enemy-stat-grid,
+  .dda-enemy-budget-inputs {
+    grid-template-columns: 1fr;
+  }
+}
+/* Dropdowns nativos: fundo e texto legíveis no Windows/Chromium */
+.dda-digimon-enemy-wizard select {
+  color: #fff4f8 !important;
+  color-scheme: dark;
+  background-color: #211522 !important;
+}
+
+.dda-digimon-enemy-wizard select option,
+.dda-digimon-enemy-wizard select optgroup {
+  color: #fff4f8 !important;
+  background-color: #211522 !important;
+}
+
+.dda-digimon-enemy-wizard select option:checked {
+  color: #ffffff !important;
+  background-color: #7a2f63 !important;
+}
+
+/* A janela não rola: cada coluna rola por conta própria */
+.application.dda-digimon-enemy-wizard .window-content,
+.window-app.dda-digimon-enemy-wizard .window-content {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-wizard-shell {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-wizard-hero,
+.dda-digimon-enemy-wizard .dda-enemy-wizard-filter-panel {
+  flex: 0 0 auto;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-wizard-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-results-column {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-results-header {
+  flex: 0 0 auto;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-form-results {
+  min-height: 0;
+  flex: 1 1 0;
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-preview-panel {
+  min-height: 0;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+/* Categorias múltiplas e painéis de rolagem realmente independentes. */
+.dda-enemy-category-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 3px;
+}
+
+.application.dda-digimon-enemy-wizard .window-content,
+.window-app.dda-digimon-enemy-wizard .window-content {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-wizard-shell {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-wizard-content {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-results-column,
+.dda-digimon-enemy-wizard .dda-enemy-preview-panel {
+  min-height: 0;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-form-results,
+.dda-digimon-enemy-wizard .dda-enemy-preview-panel {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* Fallback adicional para Chromium/Opera em dropdowns nativos. */
+.dda-digimon-enemy-wizard .dda-enemy-filter-grid select,
+.dda-digimon-enemy-wizard .dda-enemy-text-field select {
+  color: #fff4f8 !important;
+  background-color: #211522 !important;
+  color-scheme: dark;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-filter-grid select option,
+.dda-digimon-enemy-wizard .dda-enemy-text-field select option,
+.dda-digimon-enemy-wizard .dda-enemy-filter-grid select optgroup,
+.dda-digimon-enemy-wizard .dda-enemy-text-field select optgroup {
+  color: #fff4f8 !important;
+  background: #211522 !important;
+}
+
+.dda-digimon-enemy-wizard .dda-enemy-over-budget[hidden] {
+  display: none;
+}
+/* ===================================================== */
+/* DDA — Enemy Wizard: Attacks + Selected Qualities      */
+/* ===================================================== */
+
+.dda-enemy-attacks-section,
+.dda-enemy-qualities-section {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.dda-enemy-attack-list,
+.dda-enemy-selected-qualities {
+  display: grid;
+  gap: 0.55rem;
+}
+
+/* ----------------------------- */
+/* Ataques do inimigo            */
+/* ----------------------------- */
+
+.dda-enemy-attack-row {
+  display: grid;
+  grid-template-columns:
+    minmax(130px, 1.25fr)
+    minmax(105px, 0.8fr)
+    minmax(105px, 0.8fr)
+    32px;
+  align-items: end;
+  gap: 0.45rem;
+
+  padding: 0.55rem;
+
+  border: 1px solid rgba(255, 143, 184, 0.22);
+  border-radius: 8px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(62, 24, 45, 0.72),
+      rgba(30, 21, 48, 0.72)
+    );
+}
+
+.dda-enemy-attack-row .dda-enemy-text-field {
+  margin: 0;
+}
+
+.dda-enemy-attack-row .dda-enemy-text-field > span {
+  color: #f4c3d6;
+  font-size: 0.61rem;
+}
+
+.dda-enemy-attack-row input,
+.dda-enemy-attack-row select {
+  min-height: 28px;
+  font-size: 0.72rem;
+}
+
+.dda-enemy-attack-row > button {
+  width: 32px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+
+  color: #ffdce8;
+
+  border-color: rgba(255, 139, 180, 0.30);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dda-enemy-attack-row > button:hover {
+  color: #ffffff;
+
+  border-color: rgba(255, 148, 190, 0.82);
+  background: rgba(191, 37, 96, 0.24);
+}
+
+/* ----------------------------- */
+/* Qualidades selecionadas       */
+/* ----------------------------- */
+
+.dda-enemy-selected-qualities {
+  padding: 0.55rem;
+
+  border: 1px solid rgba(168, 133, 255, 0.20);
+  border-radius: 8px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(41, 25, 67, 0.72),
+      rgba(31, 20, 43, 0.72)
+    );
+}
+
+.dda-enemy-selected-qualities h4 {
+  margin: 0 0 0.15rem;
+
+  color: #ead9ff;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dda-enemy-selected-quality {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 0.55rem;
+
+  padding: 0.5rem;
+
+  border: 1px solid rgba(207, 151, 255, 0.20);
+  border-radius: 7px;
+
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.dda-enemy-selected-quality > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.13rem;
+}
+
+.dda-enemy-selected-quality strong {
+  overflow: hidden;
+
+  color: #fff7ff;
+
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-enemy-selected-quality small {
+  overflow: hidden;
+
+  color: rgba(232, 216, 255, 0.74);
+
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-enemy-selected-quality-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dda-enemy-selected-quality-meta span {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 20px;
+  padding: 0.12rem 0.42rem;
+
+  color: #f4eaff;
+
+  border: 1px solid rgba(192, 145, 255, 0.32);
+  border-radius: 999px;
+
+  background: rgba(88, 56, 143, 0.46);
+
+  font-family: "PixelOperatorBold", Arial, sans-serif;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.dda-enemy-selected-quality-meta button {
+  width: 26px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+
+  color: #ffdce8;
+
+  border: 1px solid rgba(255, 139, 180, 0.28);
+  border-radius: 5px;
+
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dda-enemy-selected-quality-meta button:hover {
+  color: #ffffff;
+
+  border-color: rgba(255, 148, 190, 0.82);
+  background: rgba(191, 37, 96, 0.26);
+}
+
+.dda-enemy-selected-quality-empty {
+  margin: 0;
+  padding: 0.55rem;
+
+  color: rgba(229, 216, 239, 0.72);
+
+  border: 1px dashed rgba(207, 151, 255, 0.24);
+  border-radius: 7px;
+
+  background: rgba(0, 0, 0, 0.14);
+
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+/* ----------------------------- */
+/* Orçamento expandido           */
+/* ----------------------------- */
+
+.dda-enemy-budget-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dda-enemy-budget-summary > span {
+  min-height: 45px;
+}
+
+@media (min-width: 1180px) {
+  .dda-enemy-budget-summary {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .dda-enemy-attack-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-enemy-attack-row > button {
+    width: 100%;
+  }
+
+  .dda-enemy-selected-quality {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-enemy-selected-quality-meta {
+    justify-content: flex-start;
+  }
+}
+/* ===================================================== */
+/* DDA — Enemy Wizard: compact attack rows fix           */
+/* ===================================================== */
+
+.dda-enemy-attacks-section {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dda-enemy-attacks-section .dda-enemy-build-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dda-enemy-attacks-section .dda-enemy-build-heading h3 {
+  min-width: 0;
+}
+
+.dda-enemy-attacks-section .dda-enemy-build-heading button {
+  max-width: 150px;
+  min-width: 0;
+  padding-inline: 0.55rem;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-enemy-attack-list {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dda-enemy-attack-row {
+  grid-template-columns: minmax(0, 1fr) minmax(88px, 0.72fr) 30px;
+  grid-template-areas:
+    "name name remove"
+    "range function remove";
+
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dda-enemy-attack-row .dda-enemy-text-field {
+  min-width: 0;
+}
+
+.dda-enemy-attack-row .dda-enemy-text-field:nth-of-type(1) {
+  grid-area: name;
+}
+
+.dda-enemy-attack-row .dda-enemy-text-field:nth-of-type(2) {
+  grid-area: range;
+}
+
+.dda-enemy-attack-row .dda-enemy-text-field:nth-of-type(3) {
+  grid-area: function;
+}
+
+.dda-enemy-attack-row > button {
+  grid-area: remove;
+  align-self: stretch;
+
+  width: 30px;
+  height: auto;
+  min-height: 30px;
+}
+
+.dda-enemy-attack-row input,
+.dda-enemy-attack-row select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1100px) {
+  .dda-enemy-attack-row {
+    grid-template-columns: minmax(0, 1fr) 30px;
+    grid-template-areas:
+      "name remove"
+      "range remove"
+      "function remove";
+  }
+}

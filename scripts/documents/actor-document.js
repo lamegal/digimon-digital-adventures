@@ -1,3 +1,7 @@
+import { getAttributeFinalCap } from "../rules/campaign-rules.js";
+import { getTamerAttributeCap } from "../rules/tamer-progression.js";
+
+
 const DIGIMON_SIZE_ORDER = [
   "small",
   "medium",
@@ -357,20 +361,39 @@ export class DDAActor extends Actor {
     const willpower = Number(system.attributes?.willpower?.value ?? 0);
     const endurance = Number(system.skills?.endurance?.value ?? 0);
     const agility = Number(system.attributes?.agility?.value ?? 0);
-    const milestones = Number(system.advancement?.milestones?.completed ?? 0);
+    const milestoneValue = Number(
+      system.advancement?.milestones?.completed ?? 0
+    );
+    const milestones = Number.isFinite(milestoneValue)
+      ? Math.max(0, milestoneValue)
+      : 0;
 
     const ipMax = 2 + willpower;
     const evolutionPointsMax = milestones;
     const woundsMax = 3 + Math.max(0, endurance);
     const movement = Math.max(0, agility);
+    const attributeCap = getTamerAttributeCap(this);
 
-    let attributeCap = 5;
+    system.advancement ??= {};
+    system.advancement.milestones ??= {
+      completed: milestones,
+      method: "narrative",
+      history: []
+    };
+    system.advancement.milestones.history ??= [];
 
-    if (milestones >= 6) {
-      attributeCap = 7;
-    } else if (milestones >= 3) {
-      attributeCap = 6;
-    }
+    system.advancement.growthPoints ??= {
+      available: 0,
+      spent: 0,
+      perMilestone: 3,
+      packages: []
+    };
+    system.advancement.growthPoints.packages ??= [];
+
+    system.advancement.attributeCap ??= {
+      current: attributeCap,
+      final: getAttributeFinalCap()
+    };
 
     system.resources.ip.max = ipMax;
     system.resources.evolutionPoints.max = evolutionPointsMax;
@@ -418,7 +441,11 @@ export class DDAActor extends Actor {
       system.derived.movement.value = movement;
 
     system.advancement.attributeCap.current = attributeCap;
-  }
+    system.advancement.attributeCap.final = Math.max(
+      attributeCap,
+      Number(getAttributeFinalCap() ?? attributeCap)
+    );
+    }
 
   _prepareDigimonData() {
     const system = this.system;
@@ -1377,7 +1404,34 @@ _prepareDigimonStage(system) {
   const stageData = CONFIG.DDA?.stages?.[stage] ?? CONFIG.DDA?.stages?.child;
 
   const stageValue = Number(stageData?.stageValue ?? 2);
-  const baseDp = Number(stageData?.baseDp ?? stageData?.startingDp ?? 10);
+  const stageBaseDp = Number(
+    stageData?.baseDp ??
+    stageData?.startingDp ??
+    10
+  );
+
+  /*
+   * NPCs adversários podem usar um PD Base próprio para representar
+   * o rank individual de um antagonista.
+   *
+   * null ou vazio significa: usar o valor normal do estágio.
+   */
+  const enemyBaseDpOverrideRaw = this.type === "npc"
+    ? system.enemy?.baseDpOverride
+    : undefined;
+
+  const enemyBaseDpOverride = Number(enemyBaseDpOverrideRaw);
+
+  const hasEnemyBaseDpOverride = (
+    enemyBaseDpOverrideRaw !== null &&
+    enemyBaseDpOverrideRaw !== "" &&
+    Number.isFinite(enemyBaseDpOverride) &&
+    enemyBaseDpOverride >= 0
+  );
+
+  const baseDp = hasEnemyBaseDpOverride
+    ? Math.floor(enemyBaseDpOverride)
+    : stageBaseDp;
 
   system.stageValue = stageValue;
   system.size = clampDigimonSizeForStage(system.size, stage);
@@ -2020,15 +2074,27 @@ for (const movementType of extraMovementTypes) {
 }
 
 _prepareDigimonDp(system) {
-  const creation = system.creation ?? {};
+  const creation = system.creation ??= {};
   const dp = creation.dp ?? {};
 
-  const baseDp = Number(dp.base ?? creation.baseDp ?? 0);
-  const bonusDp = Number(dp.bonus ?? creation.bonusDp ?? 0);
-  const manualNegativeDp = Number(dp.negative ?? creation.negativeDp ?? 0);
-  const stageValue = Number(system.stageValue ?? 0);
+  const baseDp = Math.max(
+    0,
+    Number(dp.base ?? creation.baseDp ?? 0)
+  );
 
-  let spentDp = 0;
+  const bonusDp = Math.max(
+    0,
+    Number(system.advancement?.bonusDp?.total ?? 0),
+    Number(dp.bonus ?? 0),
+    Number(creation.bonusDp ?? 0)
+  );
+
+  const stageValue = Math.max(
+    1,
+    Number(system.stageValue ?? 1)
+  );
+
+  let spentQualityDp = 0;
   let grantedDp = 0;
   let negativeQualityDp = 0;
   let freeQualityUsed = 0;
@@ -2070,113 +2136,273 @@ _prepareDigimonDp(system) {
       itemSystem.category?.core
     );
 
-let itemGrantedDp = Number(itemSystem.grants?.dp?.total ?? 0);
+    let itemGrantedDp = Number(
+      itemSystem.grants?.dp?.total ?? 0
+    );
 
-      if (itemSystem.grants?.dp) {
-        const grantsDpEnabled = Boolean(itemSystem.grants.dp.enabled);
-        const grantsDpValue = Math.max(0, Number(itemSystem.grants.dp.value ?? 0));
-        const grantsDpTotal = grantsDpEnabled ? grantsDpValue : 0;
+    if (itemSystem.grants?.dp) {
+      const grantsDpEnabled = Boolean(
+        itemSystem.grants.dp.enabled
+      );
 
-        itemSystem.grants.dp.total = grantsDpTotal;
-        itemGrantedDp = grantsDpTotal;
-      }
-    // Compatibilidade com o modelo antigo, em que "Concede PD"
-    // transformava o custo em negativo.
+      const grantsDpValue = Math.max(
+        0,
+        Number(itemSystem.grants.dp.value ?? 0)
+      );
+
+      const grantsDpTotal = grantsDpEnabled
+        ? grantsDpValue
+        : 0;
+
+      itemSystem.grants.dp.total = grantsDpTotal;
+      itemGrantedDp = grantsDpTotal;
+    }
+
     if (legacyGrantsDp && itemGrantedDp === 0) {
       itemGrantedDp = Math.abs(itemCost);
     }
 
     if (isNegativeQuality || legacyGrantsDp) {
-      const grantedByNegativeQuality = Math.max(0, itemGrantedDp);
+      const grantedByNegativeQuality = Math.max(
+        0,
+        itemGrantedDp
+      );
 
       grantedDp += grantedByNegativeQuality;
       negativeQualityDp += grantedByNegativeQuality;
       continue;
     }
-    
-    // Custos negativos antigos não devem reduzir o PD gasto duas vezes.
+
     const positiveCost = Math.max(0, itemCost);
 
     let coreDiscountApplied = 0;
 
-    if (coreDiscountAvailable && positiveCost > 0 && coreDiscountRemaining > 0) {
-      coreDiscountApplied = Math.min(positiveCost, coreDiscountRemaining);
+    if (
+      coreDiscountAvailable &&
+      positiveCost > 0 &&
+      coreDiscountRemaining > 0
+    ) {
+      coreDiscountApplied = Math.min(
+        positiveCost,
+        coreDiscountRemaining
+      );
+
       coreDiscountRemaining -= coreDiscountApplied;
       coreDiscountUsed += coreDiscountApplied;
     }
 
-    spentDp += Math.max(0, positiveCost - coreDiscountApplied);
+    spentQualityDp += Math.max(
+      0,
+      positiveCost - coreDiscountApplied
+    );
   }
 
-const totalNegativeDp = manualNegativeDp + negativeQualityDp;
-const totalDp = baseDp + bonusDp + totalNegativeDp;
-const remainingDp = totalDp - spentDp;
+  /*
+   * Atributos não existem como Items. O gasto deles é a diferença entre
+   * o valor-base atual da forma e o valor-base natural do Estágio.
+   */
+  const spentStatDp = Object.values(system.mainStats ?? {})
+    .reduce((total, stat) => {
+      const value = Number(stat?.base ?? stageValue);
+
+      return total + Math.max(
+        0,
+        value - stageValue
+      );
+    }, 0);
+
+  const explicitManualNegative = (
+    dp.manualNegative ??
+    creation.manualNegativeDp
+  );
+
+  const legacyNegative = Number(
+    dp.negative ??
+    creation.negativeDp ??
+    0
+  );
+
+  /*
+   * Versões antigas gravavam o valor de Qualidades Negativas em
+   * `dp.negative`. Quando uma Qualidade negativa existir, não tratamos
+   * esse campo legado como bônus manual para evitar soma duplicada.
+   */
+  const manualNegativeDp = Number.isFinite(
+    Number(explicitManualNegative)
+  )
+    ? Math.max(0, Number(explicitManualNegative))
+    : negativeQualityDp > 0
+      ? 0
+      : Math.max(0, legacyNegative);
+
+  const totalNegativeDp = (
+    manualNegativeDp +
+    negativeQualityDp
+  );
+
+  const spentTotal = (
+    spentStatDp +
+    spentQualityDp
+  );
+
+  const localDpPool = (
+    baseDp +
+    totalNegativeDp
+  );
+
+  const spentBaseStats = Math.min(
+    spentStatDp,
+    localDpPool
+  );
+
+  const localAfterStats = Math.max(
+    0,
+    localDpPool - spentBaseStats
+  );
+
+  const spentBaseQualities = Math.min(
+    spentQualityDp,
+    localAfterStats
+  );
+
+  const spentBonusStats = Math.max(
+    0,
+    spentStatDp - spentBaseStats
+  );
+
+  const spentBonusQualities = Math.max(
+    0,
+    spentQualityDp - spentBaseQualities
+  );
+
+  const sharedBonusSpent = Math.max(
+    0,
+    Number(system.advancement?.bonusDp?.sharedSpent ?? 0)
+  );
+
+  const sharedBonusRemaining = Math.max(
+    0,
+    bonusDp - sharedBonusSpent
+  );
+
+  const remainingDp = Math.max(
+    0,
+    (
+      localDpPool -
+      spentBaseStats -
+      spentBaseQualities
+    ) +
+    sharedBonusRemaining
+  );
+
+  const totalDp = (
+    localDpPool +
+    bonusDp
+  );
 
   const negativeLimitMax = Math.max(0, stageValue);
-  const negativeLimitRemaining = Math.max(0, negativeLimitMax - negativeQualityDp);
-  const negativeLimitExceeded = negativeQualityDp > negativeLimitMax;
+  const negativeLimitRemaining = Math.max(
+    0,
+    negativeLimitMax - negativeQualityDp
+  );
 
-  // Modelo atual da ficha
-  if (creation.dp) {
-    creation.dp.base = baseDp;
-    creation.dp.bonus = bonusDp;
-    creation.dp.negative = manualNegativeDp;
-    creation.dp.granted = grantedDp;
-    creation.dp.negativeFromQualities = negativeQualityDp;
-    creation.dp.totalNegative = totalNegativeDp;
-    creation.dp.total = totalDp;
-    creation.dp.spentTotal = spentDp;
-    creation.dp.remaining = remainingDp;
-  }
+  const negativeLimitExceeded = (
+    negativeQualityDp > negativeLimitMax
+  );
 
-  // Compatibilidade com campos usados antes
+  creation.dp ??= {};
+
+  creation.dp.base = baseDp;
+  creation.dp.bonus = bonusDp;
+
+  creation.dp.manualNegative = manualNegativeDp;
+  creation.dp.negative = manualNegativeDp;
+  creation.dp.granted = grantedDp;
+  creation.dp.negativeFromQualities =
+    negativeQualityDp;
+  creation.dp.totalNegative = totalNegativeDp;
+
+  creation.dp.total = totalDp;
+
+  creation.dp.spentBaseStats = spentBaseStats;
+  creation.dp.spentBaseQualities =
+    spentBaseQualities;
+  creation.dp.spentBonusStats = spentBonusStats;
+  creation.dp.spentBonusQualities =
+    spentBonusQualities;
+
+  creation.dp.spentTotal = spentTotal;
+  creation.dp.remaining = remainingDp;
+
   creation.baseDp = baseDp;
   creation.bonusDp = bonusDp;
+  creation.manualNegativeDp = manualNegativeDp;
   creation.negativeDp = manualNegativeDp;
   creation.grantedDp = grantedDp;
   creation.negativeQualityDp = negativeQualityDp;
   creation.totalNegativeDp = totalNegativeDp;
   creation.totalDp = totalDp;
-  creation.spentDp = spentDp;
+  creation.spentDp = spentTotal;
   creation.remainingDp = remainingDp;
 
   if (system.qualityLimits?.negativeDp) {
-    system.qualityLimits.negativeDp.max = negativeLimitMax;
-    system.qualityLimits.negativeDp.used = negativeQualityDp;
-    system.qualityLimits.negativeDp.remaining = negativeLimitRemaining;
-    system.qualityLimits.negativeDp.exceeded = negativeLimitExceeded;
+    system.qualityLimits.negativeDp.max =
+      negativeLimitMax;
+
+    system.qualityLimits.negativeDp.used =
+      negativeQualityDp;
+
+    system.qualityLimits.negativeDp.remaining =
+      negativeLimitRemaining;
+
+    system.qualityLimits.negativeDp.exceeded =
+      negativeLimitExceeded;
   }
 
   if (system.qualityLimits?.freeQualities) {
-    const freeQualityMax = Number(system.qualityLimits.freeQualities.max ?? 0);
-    const freeQualityRemaining = Math.max(0, freeQualityMax - freeQualityUsed);
-    const freeQualityExceeded = freeQualityUsed > freeQualityMax;
+    const freeQualityMax = Number(
+      system.qualityLimits.freeQualities.max ?? 0
+    );
 
-    system.qualityLimits.freeQualities.max = freeQualityMax;
-    system.qualityLimits.freeQualities.used = freeQualityUsed;
-    system.qualityLimits.freeQualities.remaining = freeQualityRemaining;
-    system.qualityLimits.freeQualities.exceeded = freeQualityExceeded;
+    const freeQualityRemaining = Math.max(
+      0,
+      freeQualityMax - freeQualityUsed
+    );
+
+    const freeQualityExceeded = (
+      freeQualityUsed > freeQualityMax
+    );
+
+    system.qualityLimits.freeQualities.max =
+      freeQualityMax;
+
+    system.qualityLimits.freeQualities.used =
+      freeQualityUsed;
+
+    system.qualityLimits.freeQualities.remaining =
+      freeQualityRemaining;
+
+    system.qualityLimits.freeQualities.exceeded =
+      freeQualityExceeded;
   }
 
   if (creation.negativeDpLimit) {
     creation.negativeDpLimit.max = negativeLimitMax;
     creation.negativeDpLimit.used = negativeQualityDp;
-    creation.negativeDpLimit.remaining = negativeLimitRemaining;
-    creation.negativeDpLimit.exceeded = negativeLimitExceeded;
+    creation.negativeDpLimit.remaining =
+      negativeLimitRemaining;
+    creation.negativeDpLimit.exceeded =
+      negativeLimitExceeded;
   }
 
-  if (!creation.coreDiscount) {
-    creation.coreDiscount = {};
-  }
+  creation.coreDiscount ??= {};
 
   creation.coreDiscount.base = coreDiscountBase;
   creation.coreDiscount.used = coreDiscountUsed;
   creation.coreDiscount.spent = coreDiscountUsed;
   creation.coreDiscount.remaining = coreDiscountRemaining;
 
-  if (!system.coreDiscount) {
-    system.coreDiscount = {};
-  }
+  system.coreDiscount ??= {};
 
   system.coreDiscount.base = coreDiscountBase;
   system.coreDiscount.used = coreDiscountUsed;

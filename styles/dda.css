@@ -1,3 +1,5 @@
+@import url("./tamer-advancement.css");
+@import url("./dda-enemy-digimon-wizard.css");
 @import url("./dda-combat-tracker.css");
 @font-face {
   font-family: "Reactor7";
@@ -17666,4 +17668,636 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box label {
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+}
+.dda-digimon-window-shell a.dda-device-button,
+.dda-tamer-window-shell a.dda-device-button {
+  text-decoration: none !important;
+  color: inherit !important;
+}
+
+.dda-digimon-window-shell a.dda-device-button:focus,
+.dda-tamer-window-shell a.dda-device-button:focus {
+  outline: none !important;
+}
+/* ===================================================== */
+/* DDA — Digivice anchor button reset                    */
+/* Mantém o <a> clicável como botão, sem mexer no glow   */
+/* nem no tooltip original dos botões do Digivice.       */
+/* ===================================================== */
+
+.dda-digimon-window-shell a.dda-device-button,
+.dda-tamer-window-shell a.dda-device-button {
+  display: block !important;
+
+  padding: 0 !important;
+  margin: 0 !important;
+
+  text-decoration: none !important;
+  color: inherit !important;
+
+  cursor: pointer !important;
+}
+
+.dda-digimon-window-shell a.dda-device-button:focus,
+.dda-tamer-window-shell a.dda-device-button:focus {
+  outline: none !important;
+}
+/* ===================================================== */
+/* DDA — Digivice: remover tooltip custom desalinhado    */
+/* Mantém o botão clicável e deixa só o tooltip Foundry  */
+/* ===================================================== */
+
+.dda-digimon-window-shell .dda-device-button::after,
+.dda-tamer-window-shell .dda-device-button::after {
+  content: none !important;
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Esconde texto interno caso o botão tenha virado <a> com texto */
+.dda-digimon-window-shell a.dda-device-button,
+.dda-tamer-window-shell a.dda-device-button {
+  font-size: 0 !important;
+  line-height: 0 !important;
+  text-indent: -9999px !important;
+  overflow: hidden !important;
+
+  text-decoration: none !important;
+  color: transparent !important;
+}
+/* ===================================================== */
+/* DDA — Digivice button glow: visual separado do hitbox */
+/* ===================================================== */
+
+/* O botão continua clicável, mas não desenha brilho no hitbox inteiro */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button {
+  background: rgba(90, 190, 255, 0.001) !important;
+  box-shadow: none !important;
+
+  overflow: visible !important;
+}
+
+/* Remove o hover antigo que iluminava o retângulo inteiro */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button:hover,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button:hover {
+  background: rgba(90, 190, 255, 0.001) !important;
+  box-shadow: none !important;
+}
+
+/* Glow real, menor e independente da área clicável */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button::before,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button::before {
+  content: "" !important;
+
+  position: absolute !important;
+
+  left: var(--dda-device-glow-left, 50%) !important;
+  top: var(--dda-device-glow-top, 50%) !important;
+
+  width: var(--dda-device-glow-width, 34px) !important;
+  height: var(--dda-device-glow-height, 34px) !important;
+
+  transform: translate(-50%, -50%) !important;
+
+  display: block !important;
+
+  border-radius: 999px !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+
+  pointer-events: none !important;
+  opacity: 0 !important;
+
+  z-index: 1 !important;
+}
+
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button:hover::before,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button:hover::before {
+  opacity: 1 !important;
+
+  background: rgba(90, 190, 255, 0.16) !important;
+
+  box-shadow:
+    0 0 8px rgba(90, 190, 255, 0.50),
+    inset 0 0 8px rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Mata o tooltip custom por CSS. Fica só o tooltip nativo do Foundry. */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button::after,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Botão circular esquerdo físico */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button-close,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button-sheet {
+  --dda-device-glow-left: 50%;
+  --dda-device-glow-top: 50%;
+  --dda-device-glow-width: 34px;
+  --dda-device-glow-height: 34px;
+}
+
+/* Botão direito superior físico */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button-sheet,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button-token {
+  --dda-device-glow-left: 50%;
+  --dda-device-glow-top: 50%;
+  --dda-device-glow-width: 34px;
+  --dda-device-glow-height: 25px;
+}
+
+/* Botão direito inferior físico */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button-token,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button-close {
+  --dda-device-glow-left: 50%;
+  --dda-device-glow-top: 50%;
+  --dda-device-glow-width: 34px;
+  --dda-device-glow-height: 25px;
+}
+
+/* Links usados como botão de fechar não devem desenhar texto */
+.dda-digimon-window-shell .dda-window-side-device a.dda-device-button,
+.dda-tamer-window-shell .dda-window-side-device a.dda-device-button {
+  text-decoration: none !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+/* ===================================================== */
+/* DDA — Ajuste manual do glow dos botões do Digivice    */
+/* Mexer só nos valores --glow-x / --glow-y / tamanho    */
+/* ===================================================== */
+
+/* Base: o botão continua sendo o hitbox; o ::before é só o brilho */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button {
+  background: rgba(90, 190, 255, 0.001) !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button:hover,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button:hover {
+  background: rgba(90, 190, 255, 0.001) !important;
+  box-shadow: none !important;
+}
+
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button::before,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button::before {
+  content: "" !important;
+
+  position: absolute !important;
+
+  /*
+    Ajuste manual:
+    --glow-x maior = move brilho para a direita
+    --glow-x menor = move brilho para a esquerda
+
+    --glow-y maior = move brilho para baixo
+    --glow-y menor = move brilho para cima
+  */
+  left: var(--glow-x, 50%) !important;
+  top: var(--glow-y, 50%) !important;
+
+  width: var(--glow-w, 34px) !important;
+  height: var(--glow-h, 34px) !important;
+
+  transform: translate(-50%, -50%) !important;
+
+  display: block !important;
+
+  border-radius: 999px !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+
+  pointer-events: none !important;
+  opacity: 0 !important;
+
+  z-index: 1 !important;
+}
+
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button:hover::before,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button:hover::before {
+  opacity: 1 !important;
+
+  background: rgba(90, 190, 255, 0.16) !important;
+
+  box-shadow:
+    0 0 8px rgba(90, 190, 255, 0.50),
+    inset 0 0 8px rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Mata tooltip custom azul por CSS; deixa só o tooltip do Foundry */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button::after,
+.dda-tamer-window-shell .dda-window-side-device .dda-device-button::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* ===================================================== */
+/* DIGIMON — ajuste manual                               */
+/* ===================================================== */
+
+/* Digimon: botão esquerdo / Close */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button-close {
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-w: 34px;
+  --glow-h: 34px;
+}
+
+/* Digimon: botão direito superior / Sheet Config */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button-sheet {
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-w: 34px;
+  --glow-h: 25px;
+}
+
+/* Digimon: botão direito inferior / Prototype Token */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button-token {
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-w: 34px;
+  --glow-h: 25px;
+}
+/* ===================================================== */
+/* DDA — Digimon Digivice: hover por fundo + ordem final */
+/* Close esquerda | Sheet direita cima | Token direita baixo */
+/* ===================================================== */
+
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button {
+  position: absolute !important;
+  display: block !important;
+
+  padding: 0 !important;
+  margin: 0 !important;
+
+  border: none !important;
+  box-shadow: none !important;
+
+  background: rgba(255, 255, 255, 0.001) !important;
+
+  overflow: hidden !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease,
+    backdrop-filter 140ms ease,
+    -webkit-backdrop-filter 140ms ease !important;
+
+  z-index: 50 !important;
+}
+
+/* Remove pseudo-glows antigos e tooltip custom azul */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button::before,
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Hover: intensifica a cor real do botão por baixo */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button:hover {
+  background: rgba(255, 255, 255, 0.025) !important;
+
+  backdrop-filter:
+    saturate(1.75)
+    brightness(1.12)
+    contrast(1.03) !important;
+
+  -webkit-backdrop-filter:
+    saturate(1.75)
+    brightness(1.12)
+    contrast(1.03) !important;
+
+  box-shadow:
+    inset 0 0 14px rgba(255, 255, 255, 0.16),
+    inset 0 0 24px rgba(255, 255, 255, 0.08),
+    0 0 10px rgba(255, 255, 255, 0.10),
+    0 0 18px rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Link usado como botão */
+.dda-digimon-window-shell .dda-window-side-device a.dda-device-button {
+  text-decoration: none !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+/* Botão esquerdo físico — Close */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button-close {
+  left: 8px !important;
+  top: 88px !important;
+
+  width: 44px !important;
+  height: 44px !important;
+
+  border-radius: 999px !important;
+}
+
+/* Botão direito superior — Sheet Configuration */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button-sheet {
+  left: 165px !important;
+  top: 67px !important;
+
+  width: 41px !important;
+  height: 35px !important;
+
+  border-radius: 999px !important;
+}
+
+/* Botão direito inferior — Prototype Token */
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button-token {
+  left: 165px !important;
+  top: 120px !important;
+
+  width: 41px !important;
+  height: 28px !important;
+
+
+  border-radius: 999px !important;
+}
+/* ===================================================== */
+/* DDA — Digivice: matar glow antigo em NPC/Inimigo      */
+/* Mantém apenas o hover novo por backdrop-filter        */
+/* ===================================================== */
+
+/* Remove qualquer pseudo-glow antigo nos botões do Digivice */
+.window-app.dda.sheet.actor.digimon .dda-window-side-device .dda-device-button::before,
+.window-app.dda.sheet.actor.digimon .dda-window-side-device .dda-device-button::after,
+.window-app.dda.sheet.actor.npc .dda-window-side-device .dda-device-button::before,
+.window-app.dda.sheet.actor.npc .dda-window-side-device .dda-device-button::after,
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button::before,
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button::after {
+  content: none !important;
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+
+  width: 0 !important;
+  height: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Garante que o botão em si usa só o efeito novo */
+.window-app.dda.sheet.actor.digimon .dda-window-side-device .dda-device-button,
+.window-app.dda.sheet.actor.npc .dda-window-side-device .dda-device-button,
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button {
+  background: rgba(255, 255, 255, 0.001) !important;
+
+  box-shadow: none !important;
+
+  overflow: hidden !important;
+
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Hover novo: intensifica a cor real por baixo, sem glow azul antigo */
+.window-app.dda.sheet.actor.digimon .dda-window-side-device .dda-device-button:hover,
+.window-app.dda.sheet.actor.npc .dda-window-side-device .dda-device-button:hover,
+.dda-digimon-window-shell .dda-window-side-device .dda-device-button:hover {
+  background: rgba(255, 255, 255, 0.025) !important;
+
+  backdrop-filter:
+    saturate(1.75)
+    brightness(1.12)
+    contrast(1.03) !important;
+
+  -webkit-backdrop-filter:
+    saturate(1.75)
+    brightness(1.12)
+    contrast(1.03) !important;
+
+  box-shadow:
+    inset 0 0 14px rgba(255, 255, 255, 0.16),
+    inset 0 0 24px rgba(255, 255, 255, 0.08),
+    0 0 10px rgba(255, 255, 255, 0.10),
+    0 0 18px rgba(255, 255, 255, 0.06) !important;
+}
+/* ===================================================== */
+/* DDA — Actor Directory action buttons                  */
+/* Partner Progress / Tamer / Partner Digimon / Enemy    */
+/* ===================================================== */
+
+.directory-footer .dda-open-partner-progress,
+.directory-footer .dda-open-tamer-wizard,
+.directory-footer .dda-open-digimon-wizard,
+.directory-footer .dda-open-enemy-digimon-wizard,
+.directory-header .dda-open-partner-progress,
+.directory-header .dda-open-tamer-wizard,
+.directory-header .dda-open-digimon-wizard,
+.directory-header .dda-open-enemy-digimon-wizard {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.45rem !important;
+
+  width: 100% !important;
+  min-height: 34px !important;
+
+  margin: 0.35rem 0 0 !important;
+  padding: 0.45rem 0.65rem !important;
+
+  color: #fff7ec !important;
+
+  font-family: "PixelOperatorBold", "Chronotype", sans-serif !important;
+  font-size: 0.78rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+
+  border-radius: 5px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 2px 7px rgba(0, 0, 0, 0.20) !important;
+
+  transition:
+    filter 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease !important;
+}
+
+.directory-footer .dda-open-partner-progress:hover,
+.directory-footer .dda-open-tamer-wizard:hover,
+.directory-footer .dda-open-digimon-wizard:hover,
+.directory-footer .dda-open-enemy-digimon-wizard:hover,
+.directory-header .dda-open-partner-progress:hover,
+.directory-header .dda-open-tamer-wizard:hover,
+.directory-header .dda-open-digimon-wizard:hover,
+.directory-header .dda-open-enemy-digimon-wizard:hover {
+  filter: brightness(1.12) saturate(1.08) !important;
+  transform: translateY(-1px) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 10px rgba(255, 255, 255, 0.08),
+    0 3px 9px rgba(0, 0, 0, 0.24) !important;
+}
+
+.directory-footer .dda-open-partner-progress:active,
+.directory-footer .dda-open-tamer-wizard:active,
+.directory-footer .dda-open-digimon-wizard:active,
+.directory-footer .dda-open-enemy-digimon-wizard:active,
+.directory-header .dda-open-partner-progress:active,
+.directory-header .dda-open-tamer-wizard:active,
+.directory-header .dda-open-digimon-wizard:active,
+.directory-header .dda-open-enemy-digimon-wizard:active {
+  transform: translateY(0) !important;
+  filter: brightness(0.98) !important;
+}
+
+.directory-footer .dda-directory-action-icon,
+.directory-header .dda-directory-action-icon {
+  flex: 0 0 auto !important;
+
+  width: 17px !important;
+  height: 17px !important;
+
+  object-fit: contain !important;
+  object-position: center !important;
+
+  filter:
+    brightness(0)
+    invert(0.96)
+    sepia(0.18)
+    saturate(0.75)
+    hue-rotate(350deg)
+    brightness(1.03) !important;
+
+  pointer-events: none !important;
+}
+
+.directory-footer .dda-open-partner-progress span,
+.directory-footer .dda-open-tamer-wizard span,
+.directory-footer .dda-open-digimon-wizard span,
+.directory-footer .dda-open-enemy-digimon-wizard span,
+.directory-header .dda-open-partner-progress span,
+.directory-header .dda-open-tamer-wizard span,
+.directory-header .dda-open-digimon-wizard span,
+.directory-header .dda-open-enemy-digimon-wizard span {
+  pointer-events: none !important;
+}
+
+/* Partner Progress — azul */
+.directory-footer .dda-open-partner-progress,
+.directory-header .dda-open-partner-progress {
+  color: #edf8ff !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(24, 92, 148, 0.96),
+      rgba(12, 50, 104, 0.96)
+    ) !important;
+
+  border: 1px solid rgba(126, 210, 255, 0.62) !important;
+}
+
+.directory-footer .dda-open-partner-progress:hover,
+.directory-header .dda-open-partner-progress:hover {
+  border-color: rgba(185, 238, 255, 0.92) !important;
+}
+
+/* Create Tamer — âmbar */
+.directory-footer .dda-open-tamer-wizard,
+.directory-header .dda-open-tamer-wizard {
+  color: #fff7e6 !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(150, 94, 24, 0.96),
+      rgba(92, 56, 14, 0.96)
+    ) !important;
+
+  border: 1px solid rgba(255, 210, 126, 0.62) !important;
+}
+
+.directory-footer .dda-open-tamer-wizard:hover,
+.directory-header .dda-open-tamer-wizard:hover {
+  border-color: rgba(255, 232, 180, 0.94) !important;
+}
+
+/* Create Partner Digimon — verde digital */
+.directory-footer .dda-open-digimon-wizard,
+.directory-header .dda-open-digimon-wizard {
+  color: #edfff8 !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(22, 124, 98, 0.96),
+      rgba(10, 72, 68, 0.96)
+    ) !important;
+
+  border: 1px solid rgba(132, 255, 220, 0.54) !important;
+}
+
+.directory-footer .dda-open-digimon-wizard:hover,
+.directory-header .dda-open-digimon-wizard:hover {
+  border-color: rgba(190, 255, 236, 0.90) !important;
+}
+
+/* Create Enemy Digimon — magenta/roxo */
+.directory-footer .dda-open-enemy-digimon-wizard,
+.directory-header .dda-open-enemy-digimon-wizard {
+  color: #fff3f8 !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(124, 29, 73, 0.96),
+      rgba(65, 27, 100, 0.96)
+    ) !important;
+
+  border: 1px solid rgba(178, 68, 121, 0.72) !important;
+}
+
+.directory-footer .dda-open-enemy-digimon-wizard:hover,
+.directory-header .dda-open-enemy-digimon-wizard:hover {
+  border-color: rgba(255, 187, 219, 0.95) !important;
+}
+/* ===================================================== */
+/* DDA — Actor Directory: aumentar ícones Progress/Tamer */
+/* ===================================================== */
+
+/* Partner Progress */
+.directory-footer .dda-directory-action-icon--progress,
+.directory-header .dda-directory-action-icon--progress,
+.directory-footer .dda-open-partner-progress .dda-directory-action-icon,
+.directory-header .dda-open-partner-progress .dda-directory-action-icon {
+  width: 26px !important;
+  height: 26px !important;
+
+  transform: scale(1.23E) !important;
+  transform-origin: center !important;
+}
+
+/* Create Tamer — goggles */
+.directory-footer .dda-directory-action-icon--tamer,
+.directory-header .dda-directory-action-icon--tamer,
+.directory-footer .dda-open-tamer-wizard .dda-directory-action-icon,
+.directory-header .dda-open-tamer-wizard .dda-directory-action-icon {
+  width: 30px !important;
+  height: 30px !important;
+
+  transform: scale(1) !important;
+  transform-origin: center !important;
 }

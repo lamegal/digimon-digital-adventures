@@ -1,0 +1,641 @@
+{{#if isGM}}
+<section class="dda-enemy-wizard-shell">
+  <header class="dda-enemy-wizard-hero">
+    <div class="dda-enemy-wizard-device-wrap" aria-hidden="true">
+      <img src="{{enemyDevicePath}}" alt="" />
+    </div>
+
+    <div class="dda-enemy-wizard-hero-copy">
+      <span class="dda-enemy-wizard-kicker">
+        <i class="fa-solid fa-skull"></i>
+        {{title}}
+      </span>
+
+      <h1>{{title}}</h1>
+      <p>{{subtitle}}</p>
+    </div>
+  </header>
+
+  <section class="dda-enemy-wizard-filter-panel">
+    <div class="dda-enemy-search-row">
+      <label for="dda-enemy-search-input">{{labels.search}}</label>
+
+      <div class="dda-enemy-search-control">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+
+        <input
+          id="dda-enemy-search-input"
+          type="search"
+          value="{{filters.searchDraft}}"
+          data-enemy-search
+          autocomplete="off"
+        />
+      </div>
+
+      <button
+        type="button"
+        data-action="clearEnemySearch"
+        aria-label="{{labels.reset}}"
+      >
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <small>{{searchHint}}</small>
+    </div>
+
+    <div class="dda-enemy-category-row">
+      <span class="dda-enemy-filter-label">{{labels.categories}}</span>
+
+      <div class="dda-enemy-category-chips">
+        {{#each categoryFilters}}
+        <button
+          type="button"
+          class="dda-enemy-category-chip {{#if active}}is-active{{/if}}"
+          data-action="toggleEnemyCategory"
+          data-category="{{key}}"
+        >
+          <span>{{label}}</span>
+          <small>{{count}}</small>
+        </button>
+        {{/each}}
+
+        <button
+          type="button"
+          class="dda-enemy-category-show-all"
+          data-action="showAllEnemyCategories"
+        >
+          {{labels.allCategories}}
+        </button>
+      </div>
+    </div>
+
+    <div class="dda-enemy-filter-grid">
+      <label>
+        <span>{{labels.stage}}</span>
+        <select data-enemy-filter="stage">
+          {{#each stageOptions}}
+          <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+
+      <label>
+        <span>{{labels.attribute}}</span>
+        <select data-enemy-filter="attribute">
+          {{#each attributeOptions}}
+          <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+
+      <label>
+        <span>{{labels.type}}</span>
+        <select data-enemy-filter="type">
+          {{#each typeOptions}}
+          <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+
+      <label>
+        <span>{{labels.field}}</span>
+        <select data-enemy-filter="field">
+          {{#each fieldOptions}}
+          <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+
+      <label>
+        <span>{{labels.group}}</span>
+        <select data-enemy-filter="group">
+          {{#each groupOptions}}
+          <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+
+      <button
+        type="button"
+        class="dda-enemy-clear-filters"
+        data-action="clearEnemyFilters"
+      >
+        <i class="fa-solid fa-filter-circle-xmark"></i>
+        {{labels.reset}}
+      </button>
+    </div>
+  </section>
+
+  <div class="dda-enemy-wizard-content">
+    <section class="dda-enemy-results-column">
+      <div class="dda-enemy-results-header">
+        <strong>{{labels.results}}: {{resultCount}}</strong>
+
+        {{#if resultLimited}}
+        <small>{{labels.refine}}</small>
+        {{/if}}
+      </div>
+
+      <div class="dda-enemy-form-results">
+        {{#if results.length}}
+          {{#each results}}
+          <button
+            type="button"
+            class="dda-enemy-form-card {{#if selected}}is-selected{{/if}}"
+            data-action="selectEnemyForm"
+            data-form-id="{{id}}"
+          >
+            <img
+            src="{{img}}"
+            data-image-fallbacks="{{imageFallbacks}}"
+            alt="{{displayName}}"
+            loading="lazy"
+            />
+
+            <span class="dda-enemy-form-card-main">
+              <strong>{{displayName}}</strong>
+
+              {{#if originalName}}
+              <small>{{originalName}}</small>
+              {{/if}}
+            </span>
+
+            <span class="dda-enemy-form-card-meta">
+              <small>{{stageLabel}}</small>
+
+              <span class="dda-enemy-category-tags">
+                {{#each categoryTags}}
+                <small class="dda-enemy-category-tag dda-enemy-category-{{key}}">
+                  {{label}}
+                </small>
+                {{/each}}
+              </span>
+            </span>
+          </button>
+          {{/each}}
+        {{else}}
+          <p class="dda-enemy-empty-results">{{labels.noResults}}</p>
+        {{/if}}
+      </div>
+    </section>
+
+    <aside class="dda-enemy-preview-panel">
+      <h2>{{labels.selected}}</h2>
+
+      {{#if hasSelectedForm}}
+        <div class="dda-enemy-preview-art">
+          <img
+            src="{{selectedForm.img}}"
+            data-image-fallbacks="{{selectedForm.imageFallbacks}}"
+            alt="{{selectedForm.displayName}}"
+          />
+        </div>
+
+        <div class="dda-enemy-preview-title">
+          <strong>{{selectedForm.displayName}}</strong>
+
+          {{#if selectedForm.originalName}}
+          <small>{{selectedForm.originalName}}</small>
+          {{/if}}
+        </div>
+
+        <dl class="dda-enemy-preview-data">
+          <div>
+            <dt>{{labels.stage}}</dt>
+            <dd>{{selectedForm.stageLabel}}</dd>
+          </div>
+
+          <div>
+            <dt>{{labels.attribute}}</dt>
+            <dd>{{selectedForm.attributeLabel}}</dd>
+          </div>
+
+          <div>
+            <dt>{{labels.type}}</dt>
+            <dd>{{selectedForm.typeLabel}}</dd>
+          </div>
+
+          <div>
+            <dt>{{labels.field}}</dt>
+            <dd>{{selectedForm.fieldLabel}}</dd>
+          </div>
+
+          <div>
+            <dt>{{labels.group}}</dt>
+            <dd>{{selectedForm.groupLabel}}</dd>
+          </div>
+
+          <div>
+            <dt>{{labels.source}}</dt>
+            <dd>{{selectedForm.categorySummary}}</dd>
+                      </div>
+        </dl>
+
+        <section class="dda-enemy-build-section">
+          <div class="dda-enemy-build-heading">
+            <h3>{{labels.build}}</h3>
+
+            <button
+              type="button"
+              class="dda-enemy-reset-stats"
+              data-action="resetEnemyStats"
+            >
+              <i class="fa-solid fa-arrow-rotate-left"></i>
+              {{labels.resetStats}}
+            </button>
+          </div>
+
+          <p class="dda-enemy-health-advice">
+            <i class="fa-solid fa-heart-pulse"></i>
+            {{labels.healthAdvice}}
+          </p>
+
+          <div class="dda-enemy-budget-card">
+            <strong>{{labels.budget}}</strong>
+
+            <div class="dda-enemy-budget-inputs">
+              <label>
+                <span>{{labels.baseDp}}</span>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value="{{enemyBuild.baseDp}}"
+                  data-enemy-build-number="baseDp"
+                />
+
+                <small>{{labels.stageBaseDp}}: {{enemyBuild.stageBaseDp}}</small>
+              </label>
+
+              <label>
+                <span>{{labels.bonusDp}}</span>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value="{{enemyBuild.bonusDp}}"
+                  data-enemy-build-number="bonusDp"
+                />
+
+                <small>{{labels.bonusDpHint}}</small>
+              </label>
+            </div>
+
+            <small class="dda-enemy-base-dp-hint">
+              {{labels.baseDpHint}}
+            </small>
+
+            <div
+              class="dda-enemy-budget-summary {{#if enemyBuild.hasBudgetOverrun}}is-over-budget{{/if}}"
+              data-enemy-budget-summary
+            >
+              <span>
+                <small>{{labels.totalDp}}</small>
+                <strong data-enemy-total-dp>{{enemyBuild.totalDp}}</strong>
+              </span>
+
+              <span>
+                <small>{{labels.spentDp}}</small>
+                <strong data-enemy-spent-dp>{{enemyBuild.spentDp}}</strong>
+              </span>
+
+              <span>
+                <small>{{labels.remainingDp}}</small>
+                <strong data-enemy-remaining-dp>{{enemyBuild.remainingDp}}</strong>
+              </span>
+
+              <span>
+                <small>{{labels.qualityDp}}</small>
+                <strong data-enemy-quality-dp>{{enemyBuild.qualityDp}}</strong>
+              </span>
+
+              <span>
+                <small>{{labels.negativeDp}}</small>
+                <strong data-enemy-negative-quality-dp>{{enemyBuild.negativeQualityDp}}</strong>
+              </span>
+
+              <span>
+                <small>{{labels.freeQualities}}</small>
+                <strong data-enemy-free-quality-count>
+                  {{enemyBuild.freeQualityCount}}/{{enemyBuild.freeQualityLimit}}
+                </strong>
+              </span>
+            </div>
+
+            <p
+              class="dda-enemy-over-budget"
+              data-enemy-over-budget
+              {{#unless enemyBuild.hasBudgetOverrun}}hidden{{/unless}}
+            >
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              {{labels.overBudget}}
+            </p>
+          </div>
+
+          <div class="dda-enemy-stat-section">
+            <h4>{{labels.statInvestment}}</h4>
+
+            <div class="dda-enemy-stat-grid">
+              {{#each enemyBuild.statRows}}
+              <article class="dda-enemy-stat-row">
+                <div class="dda-enemy-stat-row-heading">
+                  <strong>{{label}}</strong>
+                  <span>
+                    {{../../labels.total}}:
+                    <b data-enemy-stat-total="{{key}}">{{total}}</b>
+                  </span>
+                </div>
+
+                <div class="dda-enemy-stat-controls">
+                  <button
+                    type="button"
+                    data-action="adjustEnemyStat"
+                    data-stat="{{key}}"
+                    data-adjust="-1"
+                  >
+                    <i class="fa-solid fa-minus"></i>
+                  </button>
+
+                  <output data-enemy-stat-investment="{{key}}">{{investment}}</output>
+
+                  <button
+                    type="button"
+                    data-action="adjustEnemyStat"
+                    data-stat="{{key}}"
+                    data-adjust="1"
+                  >
+                    <i class="fa-solid fa-plus"></i>
+                  </button>
+                </div>
+
+                <small>
+                  {{../../labels.starting}} {{starting}}
+                  +
+                  {{../../labels.invested}}
+                  <span data-enemy-stat-investment="{{key}}">{{investment}}</span>
+                </small>
+              </article>
+              {{/each}}
+            </div>
+          </div>
+
+          <div class="dda-enemy-derived-preview">
+            <h4>{{labels.derived}}</h4>
+
+            <div class="dda-enemy-derived-grid">
+              {{#each enemyBuild.derivedRows}}
+              <span>
+                <small>{{label}}</small>
+                <strong data-enemy-derived="{{key}}">{{value}}</strong>
+              </span>
+              {{/each}}
+
+              <span>
+                <small>{{labels.wounds}}</small>
+              <strong data-enemy-wounds>{{enemyBuild.wounds}}</strong>
+              </span>
+
+              <span>
+                <small>Mov.</small>
+                <strong data-enemy-movement>{{enemyBuild.movement}}</strong>
+              </span>
+
+              <span>
+                <small>Range</small>
+                <strong data-enemy-range>{{enemyBuild.range}}</strong>
+              </span>
+
+              <span>
+                <small>EL</small>
+                <strong data-enemy-effective-limit>{{enemyBuild.effectiveLimit}}</strong>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section class="dda-enemy-narrative-section">
+          <label class="dda-enemy-npc-name-field">
+            <span>{{labels.npcName}}</span>
+
+            <input
+              type="text"
+              value="{{enemyName}}"
+              data-enemy-name
+              autocomplete="off"
+            />
+
+            <small>{{labels.npcNameHint}}</small>
+          </label>
+
+          <label class="dda-enemy-text-field">
+            <span>{{labels.role}}</span>
+
+            <select data-enemy-role>
+              {{#each enemyRoleOptions}}
+              <option value="{{key}}" {{#if selected}}selected{{/if}}>
+                {{label}}
+              </option>
+              {{/each}}
+            </select>
+          </label>
+
+          <label class="dda-enemy-text-field">
+            <span>{{labels.goal}}</span>
+
+            <input
+              type="text"
+              value="{{enemyBuild.goal}}"
+              data-enemy-build-text="goal"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="dda-enemy-text-field">
+            <span>{{labels.motivation}}</span>
+
+            <input
+              type="text"
+              value="{{enemyBuild.motivation}}"
+              data-enemy-build-text="motivation"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="dda-enemy-text-field">
+            <span>{{labels.tactic}}</span>
+
+            <textarea data-enemy-build-text="tactic">{{enemyBuild.tactic}}</textarea>
+          </label>
+
+          <label class="dda-enemy-text-field">
+            <span>{{labels.notes}}</span>
+
+            <textarea data-enemy-build-text="notes">{{enemyBuild.notes}}</textarea>
+          </label>
+        </section>
+<section class="dda-enemy-build-section dda-enemy-attacks-section">
+  <div class="dda-enemy-build-heading">
+    <h3>{{labels.attacks}}</h3>
+
+    <button
+      type="button"
+      class="dda-enemy-reset-stats"
+      data-action="addEnemyAttack"
+    >
+      <i class="fa-solid fa-plus"></i>
+      {{labels.addAttack}}
+    </button>
+  </div>
+
+  <div class="dda-enemy-attack-list">
+    {{#each enemyBuild.attackRows}}
+    <article class="dda-enemy-attack-row">
+      <label class="dda-enemy-text-field">
+        <span>{{../labels.attackName}}</span>
+
+        <input
+          type="text"
+          value="{{name}}"
+          data-enemy-attack-field="name"
+          data-attack-key="{{key}}"
+          autocomplete="off"
+        />
+      </label>
+
+      <label class="dda-enemy-text-field">
+        <span>{{../labels.attackRangeType}}</span>
+
+        <select
+          data-enemy-attack-field="rangeType"
+          data-attack-key="{{key}}"
+        >
+          {{#each rangeOptions}}
+          <option value="{{key}}" {{#if selected}}selected{{/if}}>
+            {{label}}
+          </option>
+          {{/each}}
+        </select>
+      </label>
+
+      <label class="dda-enemy-text-field">
+        <span>{{../labels.attackFunctionType}}</span>
+
+        <select
+          data-enemy-attack-field="functionType"
+          data-attack-key="{{key}}"
+        >
+          {{#each functionOptions}}
+          <option value="{{key}}" {{#if selected}}selected{{/if}}>
+            {{label}}
+          </option>
+          {{/each}}
+        </select>
+      </label>
+
+      <button
+        type="button"
+        class="dda-enemy-reset-stats"
+        data-action="removeEnemyAttack"
+        data-attack-key="{{key}}"
+        title="{{../labels.removeAttack}}"
+      >
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    </article>
+    {{/each}}
+  </div>
+</section>
+<section class="dda-enemy-build-section dda-enemy-qualities-section">
+  <div class="dda-enemy-build-heading">
+    <h3>{{labels.qualities}}</h3>
+
+    <button
+      type="button"
+      class="dda-enemy-reset-stats"
+      data-action="openEnemyQualityBrowser"
+    >
+      <i class="fa-solid fa-book-open"></i>
+      {{labels.openQualities}}
+    </button>
+  </div>
+
+  <p class="dda-enemy-health-advice">
+    <i class="fa-solid fa-circle-info"></i>
+    {{labels.qualityBrowserHint}}
+  </p>
+
+  <div class="dda-enemy-selected-qualities">
+    <h4>{{labels.selectedQualities}}</h4>
+
+    {{#if enemyBuild.selectedQualityRows.length}}
+      {{#each enemyBuild.selectedQualityRows}}
+      <article class="dda-enemy-selected-quality">
+        <div>
+          <strong>{{name}}</strong>
+
+          {{#if originalName}}
+          <small>{{originalName}}</small>
+          {{/if}}
+
+          {{#if choiceLabel}}
+          <small>{{choiceLabel}}</small>
+          {{/if}}
+        </div>
+
+        <div class="dda-enemy-selected-quality-meta">
+          <span>Rank {{rank}}</span>
+
+          {{#if qualityDp}}
+          <span>{{qualityDp}} PD</span>
+          {{/if}}
+
+          {{#if negativeDp}}
+          <span>+{{negativeDp}} PD</span>
+          {{/if}}
+
+          {{#if isFree}}
+          <span>{{../../labels.freeQualities}}</span>
+          {{/if}}
+
+          <button
+            type="button"
+            data-action="removeEnemyQuality"
+            data-quality-id="{{id}}"
+            title="{{../../labels.removeQuality}}"
+          >
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </article>
+      {{/each}}
+    {{else}}
+      <p class="dda-enemy-selected-quality-empty">
+        {{labels.noSelectedQualities}}
+      </p>
+    {{/if}}
+  </div>
+</section>
+
+        <button
+          type="button"
+          class="dda-enemy-create-button"
+          data-action="createEnemyNpc"
+          {{#if enemyBuild.hasBudgetOverrun}}disabled{{/if}}
+        >
+          <i class="fa-solid fa-plus"></i>
+          {{labels.createAndOpen}}
+        </button>
+      {{else}}
+        <p class="dda-enemy-preview-empty">{{labels.choose}}</p>
+      {{/if}}
+    </aside>
+  </div>
+</section>
+{{else}}
+<section class="dda-enemy-wizard-denied">
+  <i class="fa-solid fa-lock"></i>
+  <p>Somente o Narrador pode abrir esta ferramenta.</p>
+</section>
+{{/if}}

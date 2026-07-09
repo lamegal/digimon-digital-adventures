@@ -1,4 +1,7 @@
-<form class="{{cssClass}} dda-digimon-sheet dda-digimon-window-sheet" autocomplete="off">
+<form
+  class="{{cssClass}} dda-digimon-sheet dda-digimon-window-sheet {{#if (eq actor.type "npc")}}dda-enemy-npc-sheet{{/if}}"
+  autocomplete="off"
+>
   <div class="dda-window-shell dda-digimon-window-shell">
 
     <div class="dda-window-side-device" aria-hidden="false">
@@ -40,14 +43,14 @@
         aria-label="{{localize 'DDA.Digivice.PrototypeToken'}}">
       </button>
 
-      <button
-        type="button"
+      <a
+        href="#"
+        role="button"
         class="dda-device-button dda-device-button-close"
         data-action="digivice-close"
         data-tooltip="{{localize 'DDA.Button.Close'}}"
-        title="{{localize 'DDA.Button.Close'}}"
         aria-label="{{localize 'DDA.Button.Close'}}">
-      </button>
+      </a>
     </div>
 
 <div class="dda-stage-orb">
@@ -274,6 +277,8 @@
   <p>{{humanScaling.description}}</p>
 </div>
 
+{{#unless (eq actor.type "npc")}}
+
             <h3>{{localize "DDA.DigimonSheet.TamerBond"}}</h3>
 
             {{#unless system.tamer.uuid}}
@@ -295,6 +300,7 @@
     <input type="text" value="{{system.tamer.name}}" readonly />
   </div>
 </div>
+{{/unless}}
 
 <details class="dda-creation-data-panel">
   <summary>

@@ -2,7 +2,7 @@
   "id": "digimon-digital-adventures",
   "title": "Digimon Digital Adventures V2",
   "description": "Sistema não oficial para jogar Digimon Digital Adventures 2ª Edição no Foundry Virtual Tabletop. Inclui fichas para Digi-Escolhidos, Digimon parceiros e NPCs, com suporte a Aspectos, PI, PE, Tormentos, Marcos, PD, Qualidades, Ataques, Estágios Evolutivos, Posturas, Ações de Combate e rolagens de Testes e Reservas.",
-  "version": "2.0.0-alpha.2",
+  "version": "2.0.3-beta",
   "compatibility": {
     "minimum": "13",
     "verified": "13"
@@ -24,12 +24,14 @@
   "styles": [
     "styles/wizard.css",
     "styles/dda.css",
+    "styles/dda-enemy-digimon-wizard.css",
     "styles/chat-cards.css",
     "styles/digimon-evolution-graph.css",
     "styles/tamer-sheet.css",
     "styles/group-sheet.css",
     "styles/hybrid-evolution.css",
     "styles/dda-quality-browser.css",
+    "styles/dda-enemy-quality-browser.css",
     "styles/tamer-talent-browser.css",
     "styles/gm-partner-progress-panel.css",
     "styles/crest-plaque.css",

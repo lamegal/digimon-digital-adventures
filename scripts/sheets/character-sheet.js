@@ -12,12 +12,14 @@ import { evolvePartner, executeJogressEvolution, endJogressEvolution, executeHyb
 import { DDA_TAMER_TALENTS } from "../data/tamer-talents.js";
 import {
   getCampaignLevelSummary,
-  getAttributeStartingCap,
-  getSkillStartingCap,
   getStartingAttributePoints,
   getStartingSkillPoints,
   getScaledTalentRequirement
 } from "../rules/campaign-rules.js";
+import {
+  getTamerAttributeCap,
+  getTamerSkillCap
+} from "../rules/tamer-progression.js";
 import { syncTamerAndPartnerOwnership } from "../utils/ownership.js";
 import { validateTamerTalentUse, useTamerTalent } from "../rules/tamer-talent-automation.js";
 
@@ -115,10 +117,22 @@ return context;
       return total + Number(skill?.value ?? 0);
     }, 0);
 
-    const attributeCap = getAttributeStartingCap();
-    const skillCap = getSkillStartingCap();
+    const attributeCap = getTamerAttributeCap(this.actor);
+
+    const skillCaps = Object.fromEntries(
+      Object.keys(skills).map((skillKey) => {
+        return [skillKey, getTamerSkillCap(this.actor, skillKey)];
+      })
+    );
+
+    const skillCap = Math.max(0, ...Object.values(skillCaps));
+
     const startingAttributePoints = getStartingAttributePoints();
     const startingSkillPoints = getStartingSkillPoints();
+
+    const milestonesCompleted = Number(
+      this.actor.system?.advancement?.milestones?.completed ?? 0
+    );
 
     const attributeOverCap = Object.entries(attributes)
       .filter(([key, attribute]) => Number(attribute?.value ?? 0) > attributeCap)
@@ -130,18 +144,27 @@ return context;
       }));
 
     const skillOverCap = Object.entries(skills)
-      .filter(([key, skill]) => Number(skill?.value ?? 0) > skillCap)
+      .filter(([key, skill]) => {
+        return Number(skill?.value ?? 0) > Number(skillCaps[key] ?? 0);
+      })
       .map(([key, skill]) => ({
         key,
         label: game.i18n.localize(skill?.label ?? key),
         value: Number(skill?.value ?? 0),
-        cap: skillCap
+        cap: Number(skillCaps[key] ?? 0)
       }));
+
+    const hasStartingBudgetWarning = milestonesCompleted <= 0 && (
+      attributeTotal > startingAttributePoints ||
+      skillTotal > startingSkillPoints
+    );
 
     return {
       ...rules,
       attributeCap,
       skillCap,
+      skillCaps,
+      milestonesCompleted,
       startingAttributePoints,
       startingSkillPoints,
       attributeTotal,
@@ -152,7 +175,7 @@ return context;
       skillOverCap,
       hasAttributeOverCap: attributeOverCap.length > 0,
       hasSkillOverCap: skillOverCap.length > 0,
-      hasPointWarning: attributeTotal > startingAttributePoints || skillTotal > startingSkillPoints
+      hasPointWarning: hasStartingBudgetWarning
     };
   }
 
@@ -169,7 +192,8 @@ return context;
         key,
         ...foundry.utils.deepClone(skill ?? {}),
         label: labelKey,
-        localizedLabel
+        localizedLabel,
+        cap: getTamerSkillCap(this.actor, key)
       };
     })
     .sort((a, b) => {
@@ -184,9 +208,11 @@ return context;
     });
 }
 
-  activateListeners(html) {
+    activateListeners(html) {
     super.activateListeners(html);
-      this._ensureTamerEndTurnButton(html);
+
+    this._ensureTamerEndTurnButton(html);
+    this._lockTamerProgressionInputs(html);
     html.find(".item-create").on("click", this._onItemCreate.bind(this));
     html.find(".item-edit").on("click", this._onItemEdit.bind(this));
     html.find(".item-delete").on("click", this._onItemDelete.bind(this));
@@ -229,10 +255,27 @@ return context;
     // e o Digivice externo fica parcialmente fora da área visível.
     html.find(".dda-window-frame, .dda-window-paper > .sheet-header").on("pointerdown", this._onCustomSheetDragStart.bind(this));
 
-    html.find(".dda-device-button").on("pointerdown dblclick", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
+html.find(".dda-device-button")
+  .not('[data-action="digivice-close"]')
+  .on("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
+html.find(".dda-device-button").on("dblclick", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+});
+
+html.find(".dda-device-button").on("dblclick", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+});
+
+      html.find(".open-tamer-advancement").on(
+  "click",
+  this._onOpenTamerAdvancement.bind(this)
+);
 
     html.find(".open-tamer-talent-compendium").on("click", this._onOpenTamerTalentCompendium.bind(this));
     html.find(".open-official-tamer-talent").on("click", this._onOpenOfficialTamerTalent.bind(this));
@@ -253,6 +296,65 @@ return context;
   );
 }
 
+
+
+  _lockTamerProgressionInputs(html) {
+    const selector = [
+      'input[name^="system.attributes."][name$=".value"]',
+      'input[name^="system.skills."][name$=".value"]',
+      'input[name="system.advancement.milestones.completed"]',
+      'input[name="system.advancement.growthPoints.available"]'
+    ].join(", ");
+
+    const fields = html.find(selector);
+
+    if (!fields.length) return;
+
+    fields
+      .prop("readonly", true)
+      .attr("aria-readonly", "true")
+      .attr(
+        "title",
+        game.i18n.localize("DDA.TamerSheet.Advancement")
+      )
+      .addClass("dda-progression-locked");
+  }
+
+  _stripSheetProgressionEdits(formData) {
+    const protectedPatterns = [
+      /^system\.attributes\.[^.]+\.value$/,
+      /^system\.skills\.[^.]+\.value$/,
+      /^system\.advancement\.milestones\.completed$/,
+      /^system\.advancement\.growthPoints\.(available|spent)$/
+    ];
+
+    for (const key of Object.keys(formData)) {
+      if (protectedPatterns.some((pattern) => pattern.test(key))) {
+        delete formData[key];
+      }
+    }
+  }
+
+
+
+  async _onOpenTamerAdvancement(event) {
+    event.preventDefault();
+
+    if (!game.user?.isGM && !this.actor?.isOwner) {
+      ui.notifications.warn(
+        "You do not have permission to advance this Tamer."
+      );
+      return;
+    }
+
+    const { openTamerAdvancement } = await import(
+      "../apps/dda-tamer-advancement.js"
+    );
+
+    return openTamerAdvancement(this.actor);
+  }
+
+
   async _updateObject(event, formData) {
 if (!game.user?.isGM) {
   delete formData["system.partner.bonusDp"];
@@ -265,6 +367,8 @@ if (!game.user?.isGM) {
   }
 }
 
+        this._stripSheetProgressionEdits(formData);
+
     const validation = this._validateCampaignLevelFormData(formData);
 
     if (validation.messages.length) {
@@ -275,43 +379,60 @@ if (!game.user?.isGM) {
   }
 
   _validateCampaignLevelFormData(formData) {
-    const attributeCap = getAttributeStartingCap();
-    const skillCap = getSkillStartingCap();
+    const attributeCap = getTamerAttributeCap(this.actor);
+    const attributeOverrides = {};
     const messages = [];
 
     for (const [key, value] of Object.entries(formData)) {
-      if (key.startsWith("system.attributes.") && key.endsWith(".value")) {
-        const numericValue = Number(value ?? 0);
+      const match = key.match(/^system\.attributes\.([^.]+)\.value$/);
+      if (!match) continue;
 
-        if (numericValue < 1) {
-          messages.push(game.i18n.localize("DDA.Warning.AttributeBelowMinimum"));
-          formData[key] = 1;
-          continue;
-        }
+      const attributeKey = match[1];
+      let numericValue = Math.floor(Number(value ?? 0));
 
-        if (numericValue > attributeCap) {
-          messages.push(game.i18n.format("DDA.Warning.AttributeAboveCampaignCap", {
-            value: numericValue,
-            cap: attributeCap
-          }));
-          formData[key] = attributeCap;
-          continue;
-        }
+      if (!Number.isFinite(numericValue) || numericValue < 1) {
+        messages.push(game.i18n.localize("DDA.Warning.AttributeBelowMinimum"));
+        numericValue = 1;
       }
+
+      if (numericValue > attributeCap) {
+        messages.push(game.i18n.format("DDA.Warning.AttributeAboveCampaignCap", {
+          value: numericValue,
+          cap: attributeCap
+        }));
+        numericValue = attributeCap;
+      }
+
+      formData[key] = numericValue;
+      attributeOverrides[attributeKey] = numericValue;
     }
 
     for (const [key, value] of Object.entries(formData)) {
-      if (key.startsWith("system.skills.") && key.endsWith(".value")) {
-        const numericValue = Number(value ?? 0);
+      const match = key.match(/^system\.skills\.([^.]+)\.value$/);
+      if (!match) continue;
 
-        if (numericValue > skillCap) {
-          messages.push(game.i18n.format("DDA.Warning.SkillAboveCampaignCap", {
-            value: numericValue,
-            cap: skillCap
-          }));
-          break;
-        }
+      const skillKey = match[1];
+      let numericValue = Math.floor(Number(value ?? 0));
+
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        numericValue = 0;
       }
+
+      const skillCap = getTamerSkillCap(
+        this.actor,
+        skillKey,
+        attributeOverrides
+      );
+
+      if (numericValue > skillCap) {
+        messages.push(game.i18n.format("DDA.Warning.SkillAboveCampaignCap", {
+          value: numericValue,
+          cap: skillCap
+        }));
+        numericValue = skillCap;
+      }
+
+      formData[key] = numericValue;
     }
 
     return { messages };
@@ -1702,7 +1823,9 @@ _onDigivicePrototypeToken(event) {
 
 _onDigiviceClose(event) {
   event.preventDefault();
-  this.close();
+  event.stopPropagation();
+
+  return this.close();
 }
 
 _onDigiviceDoubleClick(event) {
