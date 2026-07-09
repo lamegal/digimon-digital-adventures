@@ -1,0 +1,141 @@
+<section class="dda-tamer-advancement-app">
+  <header class="dda-tamer-advancement-header">
+    <div class="dda-tamer-advancement-identity">
+      <img src="{{actorImg}}" alt="{{actorName}}" />
+
+      <div>
+        <span>{{labels.title}}</span>
+        <h2>{{actorName}}</h2>
+        <p>{{labels.subtitle}}</p>
+      </div>
+    </div>
+
+    <div class="dda-tamer-advancement-points">
+      <span>{{labels.growthPoints}}</span>
+      <strong>{{growthPointsAvailable}}</strong>
+    </div>
+  </header>
+
+  <div class="dda-tamer-advancement-body">
+    {{#if hasPackage}}
+      {{#if canSpend}}
+        <section class="dda-tamer-advancement-package">
+          <div>
+            <span>{{labels.package}}</span>
+            <strong>{{package.scopeLabel}} • {{labels.packagePoints}}</strong>
+          </div>
+
+          {{#if package.note}}
+            <p>{{package.note}}</p>
+          {{/if}}
+        </section>
+
+        <section class="dda-tamer-advancement-mode-choice">
+          <label>
+            <input
+              type="radio"
+              name="growth-mode"
+              value="attribute"
+              data-growth-mode
+              {{#if modeAttribute}}checked{{/if}}
+            />
+            <span>{{labels.attributeChoice}}</span>
+          </label>
+
+          <label>
+            <input
+              type="radio"
+              name="growth-mode"
+              value="skills"
+              data-growth-mode
+              {{#if modeSkills}}checked{{/if}}
+            />
+            <span>{{labels.skillChoice}}</span>
+          </label>
+        </section>
+
+        {{#if modeAttribute}}
+          <section class="dda-tamer-advancement-section">
+            <header>
+              <h3>{{labels.attributes}}</h3>
+              <p>{{labels.attributeHint}}</p>
+            </header>
+
+            <div class="dda-tamer-advancement-attribute-grid">
+              {{#each attributes as |attribute|}}
+                <button
+                  type="button"
+                  data-action="selectAttribute"
+                  data-attribute-key="{{attribute.key}}"
+                  class="{{#if attribute.selected}}is-selected{{/if}}"
+                  {{#unless attribute.canIncrease}}disabled{{/unless}}
+                >
+                  <strong>{{attribute.label}}</strong>
+                  <span>
+                    {{labels.current}} {{attribute.value}}
+                    •
+                    {{labels.cap}} {{attribute.cap}}
+                  </span>
+                </button>
+              {{/each}}
+            </div>
+          </section>
+        {{else}}
+          <section class="dda-tamer-advancement-section">
+            <header>
+              <h3>{{labels.skills}}</h3>
+              <p>{{labels.skillHint}}</p>
+            </header>
+
+            <div class="dda-tamer-advancement-skill-list">
+              {{#each skills as |skill|}}
+                <label class="dda-tamer-advancement-skill-row">
+                  <span>
+                    <strong>{{skill.label}}</strong>
+                    <small>
+                      {{labels.current}} {{skill.value}}
+                      •
+                      {{labels.cap}} {{skill.cap}}
+                    </small>
+                  </span>
+
+                  <input
+                    type="number"
+                    min="0"
+                    max="{{skill.maxIncrease}}"
+                    value="{{skill.draftValue}}"
+                    data-growth-skill="{{skill.key}}"
+                    {{#unless skill.canIncrease}}disabled{{/unless}}
+                  />
+                </label>
+              {{/each}}
+            </div>
+
+            <p
+              class="dda-tamer-advancement-skill-summary"
+              data-growth-skill-summary
+            >
+              {{labels.allocated}}:
+              <strong data-growth-skill-total>{{draftSkillTotal}}</strong>
+              /
+              {{package.remaining}}
+              •
+              {{labels.remaining}}:
+              <strong data-growth-skill-remaining>{{draftSkillRemaining}}</strong>
+            </p>
+          </section>
+        {{/if}}
+
+        <footer class="dda-tamer-advancement-footer">
+          <button type="button" data-action="spendGrowth">
+            {{labels.spendPackage}}
+          </button>
+        </footer>
+      {{else}}
+        <p class="notification warning">{{labels.readOnly}}</p>
+      {{/if}}
+    {{else}}
+      <p class="notification info">{{labels.noPackage}}</p>
+    {{/if}}
+  </div>
+</section>

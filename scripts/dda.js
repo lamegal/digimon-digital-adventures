@@ -18,7 +18,54 @@ import { DDA_TAMER_TALENTS } from "./data/tamer-talents.js";
 import { DDADigimonQualityBrowser } from "./apps/digimon-quality-browser.js";
 import { DDAGmTools, registerDdaGmToolsControls } from "./apps/dda-gm-tools.js";
 import { DDADigimonWizard } from "./wizard/dda-digimon-wizard.js";
+import {
+  DDADigimonEnemyWizard,
+  registerEnemyDigimonWizardDirectoryButton
+} from "./apps/dda-digimon-enemy-wizard.js";
 import { registerMovementTracker } from "./canvas/movement-tracker.js";
+import { registerDdaHealthPips } from "./canvas/health-pips.js";
+function registerDdaDefaultTokenDispositions() {
+  Hooks.on("preCreateActor", (actor, data) => {
+    if (!actor) return;
+
+    const actorType = String(actor.type ?? "");
+    const supportedTypes = new Set(["character", "digimon", "npc"]);
+
+    if (!supportedTypes.has(actorType)) return;
+
+    const incomingDisposition = foundry.utils.getProperty(
+      data,
+      "prototypeToken.disposition"
+    );
+
+    if (incomingDisposition !== undefined && incomingDisposition !== null) {
+      return;
+    }
+
+    const isEnemy = Boolean(
+      foundry.utils.getProperty(data, "system.enemy.isEnemy") ??
+      actor.system?.enemy?.isEnemy
+    );
+
+    let disposition = null;
+
+    if (actorType === "character" || actorType === "digimon") {
+      disposition = CONST.TOKEN_DISPOSITIONS.FRIENDLY;
+    } else if (actorType === "npc" && isEnemy) {
+      disposition = CONST.TOKEN_DISPOSITIONS.HOSTILE;
+    }
+
+    if (disposition === null) return;
+
+    actor.updateSource({
+      prototypeToken: foundry.utils.mergeObject(
+        actor.prototypeToken?.toObject?.() ?? {},
+        { disposition },
+        { inplace: false }
+      )
+    });
+  });
+}
 import {
   registerDDACombatInitiativeHooks
 } from "./combat/initiative.js";
@@ -31,7 +78,8 @@ const ActorCollection = foundry.documents.collections.Actors;
 const ItemCollection = foundry.documents.collections.Items;
 
 const ActorSheetV1 = foundry.appv1.sheets.ActorSheet;
-const ItemSheetV1 = foundry.appv1.sheets.ItemSheet;
+const ItemSheetV1 = foundry.appv1?.sheets?.ItemSheet;
+const ItemSheetV2 = foundry.applications.sheets.ItemSheetV2;
 
 async function loadDDAFlatTranslations() {
   const lang = game.i18n.lang ?? "en";
@@ -59,9 +107,10 @@ async function loadDDAFlatTranslations() {
 Hooks.once("init", async function () {
   await loadDDAFlatTranslations();
 
-  registerDDASettings();
+    registerDDASettings();
   registerOwnershipSyncHooks();
   registerDdaGmToolsControls();
+  registerEnemyDigimonWizardDirectoryButton();
   console.log("Digimon Digital Adventures V2 | Inicializando sistema");
 
   game.dda = game.dda ?? {};
@@ -115,7 +164,8 @@ ActorCollection.registerSheet(
   }
 );
 
-ItemCollection.unregisterSheet("core", ItemSheetV1);
+if (ItemSheetV1) ItemCollection.unregisterSheet("core", ItemSheetV1);
+if (ItemSheetV2) ItemCollection.unregisterSheet("core", ItemSheetV2);
 
 ItemCollection.registerSheet(
   "digimon-digital-adventures",
@@ -237,8 +287,13 @@ Hooks.once("ready", async () => {
   game.dda.rules.campaignLevel = getCampaignLevelSummary();
 
   game.dda.applications = game.dda.applications ?? {};
-  game.dda.applications.DDADigimonWizard = DDADigimonWizard;
-  game.dda.applications.DDATamerWizard = DDATamerWizard;
+    game.dda.applications.DDADigimonWizard = DDADigimonWizard;
+    game.dda.applications.DDATamerWizard = DDATamerWizard;
+    game.dda.applications.DDADigimonEnemyWizard = DDADigimonEnemyWizard;
+
+    game.dda.openEnemyDigimonWizard = () => {
+      return DDADigimonEnemyWizard.open();
+    };
 
   game.dda.applications.DDAGmTools = DDAGmTools;
     game.dda.openGmTools = () => DDAGmTools.open();
@@ -388,8 +443,9 @@ Hooks.once("ready", () => {
 });
 Hooks.once("ready", () => {
   registerMovementTracker();
+  registerDdaHealthPips();
+  registerDdaDefaultTokenDispositions();
 });
-
 Hooks.on("updateCombat", async (combat, changed) => {
   if (!("round" in changed)) return;
   if (!combat?.combatants?.size) return;
@@ -468,7 +524,14 @@ Hooks.on("renderActorDirectory", (app, html, data) => {
     target.prepend(digimonButton);
   }
 
-  digimonButton.innerHTML = `<i class="fas fa-dragon"></i> ${game.i18n.localize("DDA.Wizard.CreatePartnerDigimon")}`;
+  digimonButton.innerHTML = `
+  <img
+    class="dda-directory-action-icon"
+    src="systems/digimon-digital-adventures/assets/ui/digimon.svg"
+    alt=""
+  />
+  <span>${game.i18n.localize("DDA.Wizard.CreatePartnerDigimon")}</span>
+`;
 
   let tamerButton = root.querySelector(".dda-open-tamer-wizard");
 
@@ -484,7 +547,14 @@ Hooks.on("renderActorDirectory", (app, html, data) => {
     target.prepend(tamerButton);
   }
 
-  tamerButton.innerHTML = `<i class="fas fa-user"></i> ${game.i18n.localize("DDA.Wizard.CreateTamer")}`;
+  tamerButton.innerHTML = `
+  <img
+    class="dda-directory-action-icon"
+    src="systems/digimon-digital-adventures/assets/ui/tamer.svg"
+    alt=""
+  />
+  <span>${game.i18n.localize("DDA.Wizard.CreateTamer")}</span>
+`;
 });
 
 async function rechargeQualityUses(actor, rechargeType) {

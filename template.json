@@ -371,26 +371,28 @@
         "combatActionLocked": false
       },
       "advancement": {
-        "milestones": {
-          "completed": 0,
-          "method": "narrative"
-        },
-        "experience": {
-          "party": {
-            "value": 0,
-            "max": 7
-          }
-        },
-        "growthPoints": {
-          "available": 0,
-          "spent": 0,
-          "perMilestone": 3
-        },
-        "attributeCap": {
-          "current": 5,
-          "final": 7
-        }
-      },
+  "milestones": {
+    "completed": 0,
+    "method": "narrative",
+    "history": []
+  },
+  "experience": {
+    "party": {
+      "value": 0,
+      "max": 7
+    }
+  },
+  "growthPoints": {
+    "available": 0,
+    "spent": 0,
+    "perMilestone": 3,
+    "packages": []
+  },
+  "attributeCap": {
+    "current": 5,
+    "final": 7
+  }
+},
       "evolution": {
         "defaultRange": {
           "value": 1,
@@ -747,7 +749,9 @@
           "total": 0,
           "spentStats": 0,
           "spentQualities": 0,
-          "remaining": 0
+          "remaining": 0,
+          "sharedSpent": 0,
+          "packages": []
         },
         "sharedStatBonus": {
           "accuracy": 0,

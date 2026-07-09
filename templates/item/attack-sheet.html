@@ -1,6 +1,6 @@
-<form class="{{cssClass}} dda-item-sheet dda-{{item.type}}-sheet" autocomplete="off">
+<section class="dda-item-sheet-content">
   <header class="sheet-header">
-    <img class="profile-img" src="{{item.img}}" data-edit="img" title="{{item.name}}" />
+    <img class="profile-img" src="{{item.img}}" data-action="editImage" title="{{item.name}}" />
 
     <div class="header-fields">
       <h1>
@@ -21,13 +21,13 @@
   </header>
 
   <nav class="sheet-tabs tabs" data-group="primary">
-<a class="item" data-tab="details">{{localize "DDA.Label.Details"}}</a>
-<a class="item" data-tab="tags">{{localize "DDA.AttackSheet.Tags"}}</a>
-<a class="item" data-tab="notes">{{localize "DDA.Label.Description"}}</a>
+<a class="item {{tabs.primary.details.cssClass}}" data-group="primary" data-tab="details">{{localize "DDA.Label.Details"}}</a>
+<a class="item {{tabs.primary.tags.cssClass}}" data-group="primary" data-tab="tags">{{localize "DDA.AttackSheet.Tags"}}</a>
+<a class="item {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">{{localize "DDA.Label.Description"}}</a>
   </nav>
 
   <section class="sheet-body">
-    <section class="tab dda-attack-details-tab" data-group="primary" data-tab="details">
+    <section class="tab dda-attack-details-tab {{tabs.primary.details.cssClass}}" data-group="primary" data-tab="details">
 <h2>{{localize "DDA.AttackSheet.AttackData"}}</h2>
 
       <div class="grid-2">
@@ -308,7 +308,7 @@
       </div>
     </section>
 
-    <section class="tab dda-attack-tags-tab" data-group="primary" data-tab="tags">
+    <section class="tab dda-attack-tags-tab {{tabs.primary.tags.cssClass}}" data-group="primary" data-tab="tags">
       <h2>{{localize "DDA.AttackSheet.Tags"}}</h2>
 
       <div class="form-group">
@@ -367,7 +367,7 @@
       <p class="muted">{{localize "DDA.AttackSheet.QualityTagLimitHint"}}</p>
     </section>
 
-    <section class="tab dda-attack-notes-tab" data-group="primary" data-tab="notes">
+    <section class="tab dda-attack-notes-tab {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">
       <h2>{{localize "DDA.Label.Description"}}</h2>
       <textarea name="system.description">{{system.description}}</textarea>
 
@@ -375,4 +375,4 @@
       <textarea name="system.notes">{{system.notes}}</textarea>
     </section>
   </section>
-</form>
+</section>

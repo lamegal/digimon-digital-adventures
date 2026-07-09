@@ -3752,7 +3752,7 @@ async _onSaveFormSnapshot(event) {
   const formTemplateActor = context.formTemplateActor ?? partnerActor;
   const existingSnapshot = context.snapshot ?? {};
   const selectedQualities = [...this.data.qualities.positive, ...this.data.qualities.negative];
-  const persistentBonusDp = this._getFormBonusDp();
+
   const stageKey = this.data.stage || formTemplateActor?.system?.stage || partnerActor?.system?.stage || "child";
   const stageData = this._getStageOptions().find((entry) => entry.key === stageKey) ?? this._getStageOptions()[0];
 
@@ -3862,18 +3862,7 @@ coreDiscount: {
   });
 }
 
-  if (
-  !this._isFutureFormWizard()
-  && partnerActor
-  && Number.isFinite(persistentBonusDp)
-) {
-    const spentStats = Number(partnerActor.system?.advancement?.bonusDp?.spentStats ?? 0);
-    const spentQualities = Number(partnerActor.system?.advancement?.bonusDp?.spentQualities ?? 0);
-    await partnerActor.update({
-      "system.advancement.bonusDp.total": persistentBonusDp,
-      "system.advancement.bonusDp.remaining": Math.max(0, persistentBonusDp - spentStats - spentQualities)
-    });
-  }
+
 
   ui.notifications.info(game.i18n.format("DDA.Info.FormSnapshotSaved", { form: snapshot.name, partner: partnerActor.name }));
   this.close();
@@ -8373,28 +8362,17 @@ _getSpentStatDp() {
 _getFormBonusDp() {
   if (this.mode !== "formSnapshot") return 0;
 
-  const context = this.formContext ?? {};
-  const tamerBonusDp = context.tamerActor?.system?.partner?.bonusDp;
+  /*
+   * evolution.js já calcula o orçamento utilizável desta forma:
+   * total compartilhado menos o que as OUTRAS formas consumiram.
+   *
+   * Zero é um valor válido e não pode cair em fallback global.
+   */
+  const value = Number(this.formContext?.bonusDp);
 
-  if (tamerBonusDp !== undefined && tamerBonusDp !== null && tamerBonusDp !== "") {
-    const value = Number(tamerBonusDp);
-    return Number.isFinite(value) ? Math.max(0, value) : 0;
-  }
-
-  const sources = [
-    context.bonusDp,
-    context.partnerActor?.system?.advancement?.bonusDp?.total,
-    context.partnerActor?.system?.creation?.dp?.bonus,
-    context.snapshot?.creation?.dp?.bonus
-  ];
-
-  for (const source of sources) {
-    if (source === undefined || source === null || source === "") continue;
-    const value = Number(source);
-    if (Number.isFinite(value)) return Math.max(0, value);
-  }
-
-  return 0;
+  return Number.isFinite(value)
+    ? Math.max(0, value)
+    : 0;
 }
 
 _recalculateStatAllocation(stage = null) {

@@ -1,0 +1,678 @@
+/* ===================================================== */
+/* DDA — Tamer Advancement                               */
+/* ===================================================== */
+
+#dda-tamer-advancement,
+.application.dda-tamer-advancement,
+.window-app.dda-tamer-advancement {
+  min-width: 640px !important;
+
+  color: #dff6ff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(66, 190, 255, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(9, 29, 48, 0.99), rgba(3, 15, 28, 0.99)) !important;
+
+  border: 1px solid rgba(112, 210, 255, 0.46) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    0 16px 42px rgba(0, 0, 0, 0.62),
+    0 0 22px rgba(50, 175, 255, 0.16) !important;
+
+  overflow: hidden !important;
+}
+
+#dda-tamer-advancement .window-header,
+.application.dda-tamer-advancement .window-header,
+.window-app.dda-tamer-advancement .window-header {
+  min-height: 34px !important;
+
+  color: #eaf9ff !important;
+
+  background:
+    linear-gradient(90deg, rgba(4, 18, 33, 1), rgba(16, 62, 94, 0.98)) !important;
+
+  border-bottom: 1px solid rgba(125, 215, 255, 0.24) !important;
+}
+
+#dda-tamer-advancement .window-title,
+.application.dda-tamer-advancement .window-title,
+.window-app.dda-tamer-advancement .window-title {
+  color: #f4fcff !important;
+
+  font-family: "PixelOperatorBold", "Arial Black", Arial, sans-serif !important;
+  font-size: 0.84rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+}
+
+#dda-tamer-advancement .window-content,
+.application.dda-tamer-advancement .window-content,
+.window-app.dda-tamer-advancement .window-content {
+  display: flex !important;
+  flex-direction: column !important;
+
+  min-height: 0 !important;
+  padding: 0 !important;
+
+  color: #dff6ff !important;
+
+  background:
+    radial-gradient(circle at top right, rgba(60, 190, 255, 0.12), transparent 38%),
+    linear-gradient(180deg, rgba(10, 33, 53, 0.99), rgba(4, 18, 32, 0.99)) !important;
+
+  overflow: hidden !important;
+}
+
+.dda-tamer-advancement-app {
+  display: flex !important;
+  flex-direction: column !important;
+
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+
+  color: #dff6ff !important;
+}
+
+.dda-tamer-advancement-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 1rem !important;
+  align-items: center !important;
+
+  padding: 1rem 1.1rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(8, 43, 70, 0.96), rgba(5, 27, 48, 0.97)) !important;
+
+  border-bottom: 1px solid rgba(128, 218, 255, 0.22) !important;
+
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(180, 235, 255, 0.06) !important;
+}
+
+.dda-tamer-advancement-identity {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.85rem !important;
+
+  min-width: 0 !important;
+}
+
+.dda-tamer-advancement-identity > img {
+  width: 62px !important;
+  height: 62px !important;
+
+  flex: 0 0 62px !important;
+
+  object-fit: cover !important;
+  object-position: center !important;
+
+  background:
+    radial-gradient(circle, rgba(125, 218, 255, 0.22), rgba(4, 25, 44, 0.98)) !important;
+
+  border: 1px solid rgba(142, 225, 255, 0.44) !important;
+  border-radius: 10px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 0 10px rgba(50, 180, 255, 0.14) !important;
+}
+
+.dda-tamer-advancement-identity span {
+  display: block !important;
+
+  margin-bottom: 0.22rem !important;
+
+  color: #92dfff !important;
+
+  font-size: 0.67rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-tamer-advancement-identity h2 {
+  margin: 0 !important;
+
+  color: #ffffff !important;
+
+  font-family: "PixelOperatorBold", "Arial Black", Arial, sans-serif !important;
+  font-size: 1.22rem !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0.025em !important;
+}
+
+.dda-tamer-advancement-identity p {
+  margin: 0.35rem 0 0 !important;
+
+  color: #bfeeff !important;
+
+  font-size: 0.76rem !important;
+  line-height: 1.35 !important;
+}
+
+.dda-tamer-advancement-points {
+  min-width: 104px !important;
+  padding: 0.7rem 0.85rem !important;
+
+  text-align: center !important;
+
+  background:
+    linear-gradient(180deg, rgba(10, 59, 92, 0.96), rgba(5, 34, 60, 0.98)) !important;
+
+  border: 1px solid rgba(130, 220, 255, 0.36) !important;
+  border-radius: 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 3px 10px rgba(0, 0, 0, 0.24) !important;
+}
+
+.dda-tamer-advancement-points span {
+  display: block !important;
+
+  color: #b9eaff !important;
+
+  font-size: 0.63rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-tamer-advancement-points strong {
+  display: block !important;
+
+  margin-top: 0.2rem !important;
+
+  color: #ffffff !important;
+
+  font-family: "PixelOperatorBold", "Arial Black", Arial, sans-serif !important;
+  font-size: 1.55rem !important;
+  line-height: 1 !important;
+
+  text-shadow:
+    0 0 6px rgba(125, 225, 255, 0.72),
+    0 0 12px rgba(50, 180, 255, 0.32) !important;
+}
+
+.dda-tamer-advancement-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+
+  padding: 1rem 1.1rem 1.15rem !important;
+
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+
+  scrollbar-width: thin;
+  scrollbar-color: #218bc5 rgba(3, 21, 38, 0.94);
+}
+
+.dda-tamer-advancement-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.dda-tamer-advancement-body::-webkit-scrollbar-track {
+  background: rgba(3, 21, 38, 0.94);
+}
+
+.dda-tamer-advancement-body::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(180deg, rgba(36, 145, 205, 0.98), rgba(8, 67, 116, 0.98));
+
+  border: 2px solid rgba(3, 21, 38, 0.94);
+  border-radius: 999px;
+}
+
+.dda-tamer-advancement-package {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 1rem !important;
+  align-items: center !important;
+
+  margin-bottom: 0.9rem !important;
+  padding: 0.75rem 0.85rem !important;
+
+  background:
+    linear-gradient(135deg, rgba(17, 91, 112, 0.70), rgba(7, 44, 70, 0.88)) !important;
+
+  border: 1px solid rgba(116, 235, 218, 0.36) !important;
+  border-left: 4px solid rgba(96, 255, 210, 0.82) !important;
+  border-radius: 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 3px 10px rgba(0, 0, 0, 0.16) !important;
+}
+
+.dda-tamer-advancement-package span {
+  display: block !important;
+
+  margin-bottom: 0.18rem !important;
+
+  color: #9cfbe5 !important;
+
+  font-size: 0.62rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-tamer-advancement-package strong {
+  color: #f2fffd !important;
+
+  font-size: 0.9rem !important;
+  font-weight: 900 !important;
+}
+
+.dda-tamer-advancement-package p {
+  max-width: 45% !important;
+  margin: 0 !important;
+
+  color: #d2fff4 !important;
+
+  font-size: 0.74rem !important;
+  font-style: italic !important;
+  line-height: 1.35 !important;
+  text-align: right !important;
+}
+
+.dda-tamer-advancement-mode-choice {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.65rem !important;
+
+  margin-bottom: 0.9rem !important;
+}
+
+.dda-tamer-advancement-mode-choice label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+
+  min-height: 48px !important;
+  padding: 0.65rem 0.75rem !important;
+
+  color: #dcf6ff !important;
+
+  font-size: 0.8rem !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+
+  background:
+    linear-gradient(180deg, rgba(12, 53, 84, 0.92), rgba(5, 29, 51, 0.96)) !important;
+
+  border: 1px solid rgba(120, 208, 255, 0.26) !important;
+  border-radius: 8px !important;
+
+  cursor: pointer !important;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease !important;
+}
+
+.dda-tamer-advancement-mode-choice label:hover {
+  background:
+    linear-gradient(180deg, rgba(19, 81, 123, 0.96), rgba(8, 43, 73, 0.98)) !important;
+
+  border-color: rgba(160, 230, 255, 0.58) !important;
+
+  transform: translateY(-1px) !important;
+}
+
+.dda-tamer-advancement-mode-choice input[type="radio"] {
+  width: 16px !important;
+  height: 16px !important;
+
+  accent-color: #58e0ff !important;
+}
+
+.dda-tamer-advancement-section {
+  padding: 0.9rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(6, 31, 53, 0.86), rgba(3, 20, 37, 0.94)) !important;
+
+  border: 1px solid rgba(112, 205, 255, 0.20) !important;
+  border-radius: 9px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    0 4px 12px rgba(0, 0, 0, 0.18) !important;
+}
+
+.dda-tamer-advancement-section > header {
+  margin-bottom: 0.75rem !important;
+}
+
+.dda-tamer-advancement-section h3 {
+  margin: 0 !important;
+
+  color: #ffffff !important;
+
+  font-family: "PixelOperatorBold", "Arial Black", Arial, sans-serif !important;
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-tamer-advancement-section header p {
+  margin: 0.3rem 0 0 !important;
+
+  color: #aee9ff !important;
+
+  font-size: 0.75rem !important;
+  line-height: 1.35 !important;
+}
+
+.dda-tamer-advancement-attribute-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.55rem !important;
+}
+
+.dda-tamer-advancement-app button {
+  min-height: 34px !important;
+  padding: 0.45rem 0.7rem !important;
+
+  color: #eafaff !important;
+
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.76rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.035em !important;
+
+  background:
+    linear-gradient(180deg, rgba(19, 89, 133, 0.98), rgba(5, 43, 76, 0.98)) !important;
+
+  border: 1px solid rgba(139, 220, 255, 0.43) !important;
+  border-radius: 6px !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 2px 6px rgba(0, 0, 0, 0.24) !important;
+
+  cursor: pointer !important;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease !important;
+}
+
+.dda-tamer-advancement-app button:hover:not(:disabled) {
+  color: #ffffff !important;
+
+  background:
+    linear-gradient(180deg, rgba(37, 126, 178, 1), rgba(8, 57, 95, 1)) !important;
+
+  border-color: rgba(190, 245, 255, 0.72) !important;
+
+  transform: translateY(-1px) !important;
+}
+
+.dda-tamer-advancement-app button:disabled {
+  color: rgba(189, 215, 228, 0.48) !important;
+
+  background:
+    linear-gradient(180deg, rgba(39, 55, 68, 0.74), rgba(19, 31, 42, 0.80)) !important;
+
+  border-color: rgba(136, 164, 181, 0.15) !important;
+
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.68 !important;
+}
+
+.dda-tamer-advancement-attribute-grid button {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+
+  min-height: 62px !important;
+
+  text-align: left !important;
+}
+
+.dda-tamer-advancement-attribute-grid button strong {
+  color: #ffffff !important;
+
+  font-size: 0.86rem !important;
+  line-height: 1.1 !important;
+}
+
+.dda-tamer-advancement-attribute-grid button span {
+  margin-top: 0.22rem !important;
+
+  color: #b6eaff !important;
+
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+}
+
+.dda-tamer-advancement-attribute-grid button.is-selected {
+  background:
+    linear-gradient(180deg, rgba(22, 138, 142, 0.98), rgba(6, 78, 93, 0.99)) !important;
+
+  border-color: rgba(135, 255, 224, 0.82) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(235, 255, 252, 0.13),
+    0 0 14px rgba(63, 255, 207, 0.18) !important;
+}
+
+.dda-tamer-advancement-skill-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.5rem !important;
+}
+
+.dda-tamer-advancement-skill-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 0.7rem !important;
+  align-items: center !important;
+
+  min-height: 54px !important;
+  padding: 0.55rem 0.65rem !important;
+
+  background:
+    linear-gradient(180deg, rgba(10, 48, 78, 0.88), rgba(4, 26, 47, 0.94)) !important;
+
+  border: 1px solid rgba(116, 204, 255, 0.18) !important;
+  border-radius: 7px !important;
+}
+
+.dda-tamer-advancement-skill-row span {
+  min-width: 0 !important;
+}
+
+.dda-tamer-advancement-skill-row strong {
+  display: block !important;
+
+  overflow: hidden !important;
+
+  color: #f2fbff !important;
+
+  font-size: 0.78rem !important;
+  font-weight: 900 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.dda-tamer-advancement-skill-row small {
+  display: block !important;
+
+  margin-top: 0.2rem !important;
+
+  color: #a9deef !important;
+
+  font-size: 0.64rem !important;
+  font-weight: 700 !important;
+}
+
+.dda-tamer-advancement-app input[type="number"] {
+  width: 46px !important;
+  height: 32px !important;
+
+  flex: 0 0 46px !important;
+
+  padding: 0 !important;
+
+  color: #f1fcff !important;
+
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.9rem !important;
+  font-weight: 900 !important;
+  line-height: 32px !important;
+  text-align: center !important;
+
+  background:
+    linear-gradient(180deg, rgba(15, 73, 110, 0.95), rgba(6, 39, 69, 0.98)) !important;
+
+  border: 1px solid rgba(137, 225, 255, 0.40) !important;
+  border-radius: 5px !important;
+
+  box-shadow:
+    inset 0 0 6px rgba(0, 0, 0, 0.18),
+    0 1px 4px rgba(0, 0, 0, 0.20) !important;
+}
+
+.dda-tamer-advancement-app input[type="number"]:disabled {
+  color: rgba(202, 225, 238, 0.42) !important;
+
+  background: rgba(27, 42, 54, 0.72) !important;
+
+  border-color: rgba(130, 155, 170, 0.12) !important;
+}
+
+.dda-tamer-advancement-skill-summary {
+  margin: 0.8rem 0 0 !important;
+  padding: 0.65rem 0.75rem !important;
+
+  color: #c9efff !important;
+
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+
+  background: rgba(6, 36, 60, 0.74) !important;
+
+  border: 1px solid rgba(105, 195, 242, 0.20) !important;
+  border-radius: 6px !important;
+}
+
+.dda-tamer-advancement-skill-summary strong {
+  color: #ffffff !important;
+  font-weight: 900 !important;
+}
+
+.dda-tamer-advancement-skill-summary.is-complete {
+  color: #dcfff2 !important;
+
+  background: rgba(11, 96, 78, 0.54) !important;
+
+  border-color: rgba(116, 255, 207, 0.50) !important;
+}
+
+.dda-tamer-advancement-skill-summary.is-over {
+  color: #ffe5e5 !important;
+
+  background: rgba(122, 42, 54, 0.56) !important;
+
+  border-color: rgba(255, 151, 162, 0.52) !important;
+}
+
+.dda-tamer-advancement-footer {
+  display: flex !important;
+  justify-content: flex-end !important;
+
+  margin-top: 0.9rem !important;
+  padding-top: 0.85rem !important;
+
+  border-top: 1px solid rgba(124, 211, 255, 0.18) !important;
+}
+
+.dda-tamer-advancement-footer button {
+  min-width: 190px !important;
+
+  color: #ecfffb !important;
+
+  background:
+    linear-gradient(180deg, rgba(18, 141, 110, 0.99), rgba(4, 79, 72, 1)) !important;
+
+  border-color: rgba(134, 255, 211, 0.60) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 255, 252, 0.10),
+    0 3px 10px rgba(0, 0, 0, 0.30),
+    0 0 12px rgba(55, 244, 191, 0.12) !important;
+}
+
+.dda-tamer-advancement-footer button:hover:not(:disabled) {
+  background:
+    linear-gradient(180deg, rgba(32, 177, 136, 1), rgba(6, 98, 82, 1)) !important;
+
+  border-color: rgba(190, 255, 229, 0.88) !important;
+}
+
+.dda-tamer-advancement-app .notification {
+  margin: 0 !important;
+  padding: 0.85rem !important;
+
+  color: #d9f5ff !important;
+
+  background: rgba(12, 59, 91, 0.72) !important;
+
+  border: 1px solid rgba(122, 210, 255, 0.32) !important;
+  border-radius: 7px !important;
+}
+
+.dda-tamer-advancement-app .notification.warning {
+  color: #fff0d8 !important;
+
+  background: rgba(111, 71, 24, 0.58) !important;
+
+  border-color: rgba(255, 199, 108, 0.38) !important;
+}
+
+@media (max-width: 720px) {
+  #dda-tamer-advancement,
+  .application.dda-tamer-advancement,
+  .window-app.dda-tamer-advancement {
+    min-width: 0 !important;
+  }
+
+  .dda-tamer-advancement-header,
+  .dda-tamer-advancement-package {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dda-tamer-advancement-package {
+    display: block !important;
+  }
+
+  .dda-tamer-advancement-package p {
+    max-width: none !important;
+    margin-top: 0.5rem !important;
+    text-align: left !important;
+  }
+
+  .dda-tamer-advancement-mode-choice,
+  .dda-tamer-advancement-attribute-grid,
+  .dda-tamer-advancement-skill-list {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dda-tamer-advancement-points {
+    justify-self: start !important;
+  }
+}

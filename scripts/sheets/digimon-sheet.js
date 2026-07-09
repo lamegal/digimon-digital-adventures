@@ -855,9 +855,10 @@ _getEvolutionGraphData() {
 }
 
 
-  activateListeners(html) {
+    activateListeners(html) {
     super.activateListeners(html);
 
+    this._applyEnemyNpcSheetClass(html);
     this._applyEvolutionSolarDynamicStyles(html);
 
     html.find(".item-create").on("click", this.#onItemCreate.bind(this));
@@ -949,13 +950,55 @@ _getEvolutionGraphData() {
     html.find(".dda-window-side-device").on("dblclick", this._onDigiviceDoubleClick.bind(this));
     html.find(".dda-window-side-device").on("pointerdown", this._onDigiviceDragStart.bind(this));
 
-    html.find(".dda-device-button").on("pointerdown dblclick", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
+html.find(".dda-device-button").on("pointerdown", (event) => {
+  event.stopPropagation();
+});
+
+html.find(".dda-device-button")
+  .not('[data-action="digivice-close"]')
+  .on("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
+html.find(".dda-device-button").on("dblclick", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+});
 
     html.find(".remove-active-effect").on("click", this._onRemoveActiveEffect.bind(this));
   }
+
+  _applyEnemyNpcSheetClass(html) {
+    const root = html instanceof HTMLElement
+      ? html
+      : html?.[0] instanceof HTMLElement
+        ? html[0]
+        : null;
+
+    if (!root) return;
+
+    const systemId = game.system?.id ?? "digimon-digital-adventures";
+
+    const isEnemyNpc =
+      this.actor?.type === "npc" ||
+      Boolean(
+        this.actor?.getFlag?.(systemId, "enemyNpc")?.isEnemy
+      );
+
+    root.classList.toggle(
+      "dda-enemy-npc-sheet",
+      isEnemyNpc
+    );
+
+    const appElement = root.closest(".window-app");
+
+    appElement?.classList.toggle(
+      "dda-enemy-npc-window",
+      isEnemyNpc
+    );
+  }
+
 
   async _onEditDigimonName(event) {
   event.preventDefault();
@@ -2945,7 +2988,9 @@ _onDigivicePrototypeToken(event) {
 
 _onDigiviceClose(event) {
   event.preventDefault();
-  this.close();
+  event.stopPropagation();
+
+  return this.close();
 }
 
 _onDigiviceDoubleClick(event) {

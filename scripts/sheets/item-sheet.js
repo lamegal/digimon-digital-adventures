@@ -1,34 +1,109 @@
-const ItemSheetV1 = foundry.appv1.sheets.ItemSheet;
+const { ItemSheetV2 } = foundry.applications.sheets;
+const { HandlebarsApplicationMixin } = foundry.applications.api;
 
-export class DDAItemSheet extends ItemSheetV1 {
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      classes: ["dda", "sheet", "item"],
-      template: "systems/digimon-digital-adventures/templates/item/item-sheet.html",
+const ITEM_SHEET_TEMPLATE_PATH = "systems/digimon-digital-adventures/templates/item";
+
+const ITEM_SHEET_TEMPLATES = {
+  item: `${ITEM_SHEET_TEMPLATE_PATH}/item-sheet.html`,
+  attack: `${ITEM_SHEET_TEMPLATE_PATH}/attack-sheet.html`,
+  quality: `${ITEM_SHEET_TEMPLATE_PATH}/quality-sheet.html`,
+  torment: `${ITEM_SHEET_TEMPLATE_PATH}/torment-sheet.html`,
+  tamerTalent: `${ITEM_SHEET_TEMPLATE_PATH}/tamer-talent-sheet.html`,
+  digimental: `${ITEM_SHEET_TEMPLATE_PATH}/digimental-sheet.html`
+};
+
+const ITEM_SHEET_PARTS = {
+  attack: "attack",
+  quality: "quality",
+  torment: "torment",
+  tamerTalent: "tamerTalent",
+  digimental: "digimental"
+};
+
+const ITEM_SHEET_TYPE_CLASSES = [
+  "dda-attack-sheet",
+  "dda-quality-sheet",
+  "dda-torment-sheet",
+  "dda-tamerTalent-sheet",
+  "dda-digimental-sheet",
+  "dda-motif-sheet",
+  "dda-equipment-sheet",
+  "dda-consumable-sheet",
+  "dda-card-sheet",
+  "dda-milestone-sheet",
+  "dda-trait-sheet",
+  "dda-evolutionLink-sheet"
+];
+
+const DDAItemSheetBase = HandlebarsApplicationMixin(ItemSheetV2);
+
+export class DDAItemSheet extends DDAItemSheetBase {
+  static DEFAULT_OPTIONS = {
+    classes: [
+      "dda",
+      "sheet",
+      "item",
+      "dda-item-sheet-window",
+      "dda-item-sheet"
+    ],
+    position: {
       width: 640,
-      height: 600,
+      height: 600
+    },
+    form: {
+      closeOnSubmit: false,
+      submitOnChange: true
+    },
+    window: {
+      resizable: true
+    },
+    actions: {
+      editImage: DDAItemSheet._onActionEditImage,
+      clearArmorForm: DDAItemSheet._onActionClearArmorForm,
+      applyDigimentalTemplate: DDAItemSheet._onActionApplyDigimentalTemplate
+    }
+  };
+
+  static PARTS = {
+    item: { template: ITEM_SHEET_TEMPLATES.item },
+    attack: { template: ITEM_SHEET_TEMPLATES.attack },
+    quality: { template: ITEM_SHEET_TEMPLATES.quality },
+    torment: { template: ITEM_SHEET_TEMPLATES.torment },
+    tamerTalent: { template: ITEM_SHEET_TEMPLATES.tamerTalent },
+    digimental: { template: ITEM_SHEET_TEMPLATES.digimental }
+  };
+
+  static TABS = {
+    primary: {
+      initial: "details",
       tabs: [
-        {
-          navSelector: ".sheet-tabs",
-          contentSelector: ".sheet-body",
-          initial: "details"
-        }
+        { id: "details" },
+        { id: "tags" },
+        { id: "requirements" },
+        { id: "grants" },
+        { id: "template" },
+        { id: "notes" }
       ]
-    });
+    }
+  };
+
+  _initializeApplicationOptions(options = {}) {
+    const initialized = super._initializeApplicationOptions(options);
+    const itemType = initialized.document?.type ?? options.document?.type ?? this.item?.type ?? "";
+    const typeClass = itemType ? `dda-${itemType}-sheet` : "";
+    const classes = new Set(initialized.classes ?? []);
+
+    classes.add("dda-item-sheet-window");
+    classes.add("dda-item-sheet");
+    if (typeClass) classes.add(typeClass);
+
+    initialized.classes = Array.from(classes);
+    return initialized;
   }
 
-  get template() {
-    const path = "systems/digimon-digital-adventures/templates/item";
-
-    const templates = {
-      attack: `${path}/attack-sheet.html`,
-      quality: `${path}/quality-sheet.html`,
-      torment: `${path}/torment-sheet.html`,
-      tamerTalent: `${path}/tamer-talent-sheet.html`,
-      digimental: `${path}/digimental-sheet.html`
-    };
-
-    return templates[this.item.type] ?? `${path}/item-sheet.html`;
+  _configureRenderOptions(options) {
+    super._configureRenderOptions(options);
+    options.parts = [ITEM_SHEET_PARTS[this.item?.type] ?? "item"];
   }
 
   get title() {
@@ -40,47 +115,39 @@ export class DDAItemSheet extends ItemSheetV1 {
     return `${itemTypeLabel}: ${this.item.name}`;
   }
 
-    async _render(...args) {
-    const result = await super._render(...args);
+  _syncWindowTitle() {
+    const title = this.title;
+    const root = this.element?.closest?.(".application, .app, .window-app") ?? this.element;
+    const windowTitle = this.window?.title ?? root?.querySelector?.(".window-title");
 
-    this._syncWindowTitle();
+    if (windowTitle) {
+      windowTitle.textContent = title;
+    }
 
-    return result;
+    const itemTypeLabelKey = getItemTypeLabel(this.item?.type);
+    const itemTypeLabel = localize(itemTypeLabelKey) !== itemTypeLabelKey
+      ? localize(itemTypeLabelKey)
+      : this.item?.type ?? localize("DDA.Item.Item");
+
+    const sheetTabTitle = game.i18n.format("DDA.ItemSheet.Title", {
+      type: itemTypeLabel
+    });
+
+    root?.setAttribute?.("data-dda-sheet-title", sheetTabTitle);
   }
 
-_syncWindowTitle() {
-  const title = this.title;
+  async _prepareContext(options = {}) {
+    const context = await super._prepareContext(options);
 
-  if (this.options) {
-    this.options.title = title;
-  }
+    context.cssClass = `dda-item-sheet dda-${this.item.type}-sheet`;
+    context.item = this.item;
+    context.system = this.item.system;
+    context.config = CONFIG.DDA;
+    context.itemTypeLabel = getItemTypeLabel(this.item.type);
+    context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
 
-  const root = this.element?.[0]?.closest?.(".app, .window-app") ?? this.element?.[0];
-  const windowTitle = root?.querySelector?.(".window-title");
-
-  if (windowTitle) {
-    windowTitle.textContent = title;
-  }
-
-  const itemTypeLabelKey = getItemTypeLabel(this.item?.type);
-  const itemTypeLabel = localize(itemTypeLabelKey) !== itemTypeLabelKey
-    ? localize(itemTypeLabelKey)
-    : this.item?.type ?? localize("DDA.Item.Item");
-
-  const sheetTabTitle = game.i18n.format("DDA.ItemSheet.Title", {
-    type: itemTypeLabel
-  });
-
-  root?.setAttribute?.("data-dda-sheet-title", sheetTabTitle);
-}
-
-  async getData(options = {}) {
-        const context = await super.getData(options);
-
-context.system = this.item.system;
-context.config = CONFIG.DDA;
-context.itemTypeLabel = getItemTypeLabel(this.item.type);
-context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
+    context.tabs ??= {};
+    context.tabs.primary ??= this._prepareTabs("primary");
 
     if (this.item.type === "digimental") {
       context.stageOptions = getDigimentalStageOptions();
@@ -93,30 +160,130 @@ context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
       context.appliedQualities = this._getAppliedAttackQualities();
     }
 
-        if (this.item.type === "quality") {
+    if (this.item.type === "quality") {
       context.attackChoice = this._getQualityAttackChoiceContext();
     }
 
     return context;
   }
 
-    activateListeners(html) {
-    super.activateListeners(html);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
 
-    this._activateAttackFormulaBuilderListeners(html);
-    this._activateDigimentalListeners(html);
-        this._activateQualityAttackChoiceListeners(html);
+    const root = this.element;
+    if (!root) return;
+
+    this._syncItemSheetClasses(root);
+    this._syncWindowTitle();
+    this._bindItemTabListeners(root);
+    this._bindAttackFormulaBuilderListeners(root);
+    this._bindDigimentalListeners(root);
+    this._bindQualityAttackChoiceListeners(root);
   }
 
-  _activateDigimentalListeners(html) {
+  _syncItemSheetClasses(root = this.element) {
+    const itemType = this.item?.type ?? "item";
+    const typeClass = `dda-${itemType}-sheet`;
+    const elements = [root, this.form].filter(Boolean);
+
+    for (const element of elements) {
+      for (const itemClass of ITEM_SHEET_TYPE_CLASSES) {
+        element.classList.remove(itemClass);
+      }
+    }
+
+    root?.classList?.add("dda-item-sheet-window", "dda-item-sheet", typeClass);
+    this.form?.classList?.add("dda-item-sheet", typeClass);
+    this.form?.setAttribute?.("autocomplete", "off");
+  }
+
+  _bindItemTabListeners(root) {
+    const activePrimaryTab = this.tabGroups.primary ?? "details";
+    this._syncItemTabDom(root, "primary", activePrimaryTab);
+
+    for (const tab of root.querySelectorAll(".sheet-tabs [data-group][data-tab]")) {
+      tab.addEventListener("click", this._onItemTabClick.bind(this));
+    }
+  }
+
+  _onItemTabClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const target = event.currentTarget;
+    const group = target?.dataset?.group ?? "primary";
+    const tab = target?.dataset?.tab ?? "";
+    if (!tab) return;
+
+    this.tabGroups[group] = tab;
+    this.changeTab(tab, group, {
+      event,
+      force: true,
+      updatePosition: false
+    });
+
+    this._syncItemTabDom(this.element, group, tab);
+  }
+
+  _syncItemTabDom(root, group, activeTab) {
+    if (!root) return;
+
+    for (const element of root.querySelectorAll("[data-group][data-tab]")) {
+      if (element.dataset.group !== group) continue;
+      element.classList.toggle("active", element.dataset.tab === activeTab);
+    }
+  }
+
+  static async _onActionEditImage(event, target) {
+    return this._onEditImage(event, target);
+  }
+
+  static async _onActionClearArmorForm(event, target) {
+    return this._onClearArmorForm(event, target);
+  }
+
+  static async _onActionApplyDigimentalTemplate(event, target) {
+    return this._onApplyDigimentalTemplate(event, target);
+  }
+
+  async _onEditImage(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const FilePickerClass =
+      globalThis.foundry?.applications?.apps?.FilePicker?.implementation
+      ?? globalThis.FilePicker
+      ?? null;
+
+    if (!FilePickerClass) {
+      ui.notifications.warn("DDA | FilePicker implementation is unavailable.");
+      return;
+    }
+
+    const picker = new FilePickerClass({
+      type: "image",
+      current: this.item.img,
+      callback: async (path) => {
+        if (!path) return;
+        await this.item.update({ img: path });
+        await this.render();
+      }
+    });
+
+    picker.render(true);
+  }
+
+  _bindDigimentalListeners(root) {
     if (this.item.type !== "digimental") return;
 
-    html.find("[data-digimental-drop-zone]").on("dragover", this._onDigimentalArmorDragOver.bind(this));
-    html.find("[data-digimental-drop-zone]").on("dragleave", this._onDigimentalArmorDragLeave.bind(this));
-    html.find("[data-digimental-drop-zone]").on("drop", this._onDigimentalArmorDrop.bind(this));
-    html.find("[data-action='clear-armor-form']").on("click", this._onClearArmorForm.bind(this));
-    html.find("[data-action='apply-digimental-template']").on("click", this._onApplyDigimentalTemplate.bind(this));
-    html.find("select[name='system.digimentalId']").on("change", this._onDigimentalTemplateChange.bind(this));
+    for (const dropZone of root.querySelectorAll("[data-digimental-drop-zone]")) {
+      dropZone.addEventListener("dragover", this._onDigimentalArmorDragOver.bind(this));
+      dropZone.addEventListener("dragleave", this._onDigimentalArmorDragLeave.bind(this));
+      dropZone.addEventListener("drop", this._onDigimentalArmorDrop.bind(this));
+    }
+
+    const digimentalSelect = root.querySelector("select[name='system.digimentalId']");
+    digimentalSelect?.addEventListener("change", this._onDigimentalTemplateChange.bind(this));
   }
 
   _onDigimentalArmorDragOver(event) {
@@ -141,7 +308,9 @@ context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
     let data = null;
 
     try {
-      data = TextEditor.getDragEventData(rawEvent);
+      const TextEditorClass = getDdaTextEditor();
+      if (!TextEditorClass) throw new Error("TextEditor implementation is unavailable.");
+      data = TextEditorClass.getDragEventData(rawEvent);
     } catch (error) {
       // Quando o listener vem do jQuery, Foundry reclama se receber o wrapper
       // em vez do DragEvent nativo. A linha acima já usa originalEvent, mas
@@ -219,10 +388,14 @@ context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
   }
 
   async _onDigimentalTemplateChange(event) {
-    const template = getDigimentalTemplateById(event.currentTarget?.value);
+    event.preventDefault();
+    event.stopPropagation();
+
+    const digimentalId = event.currentTarget?.value;
+    const template = getDigimentalTemplateById(digimentalId);
     if (!template) return;
 
-    await this._applyDigimentalTemplate(template);
+    await this._applyDigimentalTemplate(template, { digimentalId });
   }
 
   async _onApplyDigimentalTemplate(event) {
@@ -238,10 +411,9 @@ context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
     await this._applyDigimentalTemplate(template);
   }
 
-  async _applyDigimentalTemplate(template) {
+  async _applyDigimentalTemplate(template, { digimentalId } = {}) {
     const qualitySummary = formatDigimentalQualitySummary(template.qualityGrants);
-
-    await this.item.update({
+    const updateData = {
       "system.crest": template.crest ?? "",
       "system.crestLabel": template.crestLabel ?? template.ptName ?? template.name ?? "",
       "system.targetStage": template.stage ?? "child",
@@ -250,53 +422,67 @@ context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
       "system.template.qualitySummary": qualitySummary,
       "system.cost.evolutionPoints": 0,
       "system.cost.actions": getDefaultArmorActionCostForStage(template.stage ?? "child")
-    });
+    };
+
+    if (digimentalId !== undefined) {
+      updateData["system.digimentalId"] = digimentalId;
+    }
+
+    await this.item.update(updateData);
   }
 
-  _activateAttackFormulaBuilderListeners(html) {
+  _bindAttackFormulaBuilderListeners(root) {
     if (this.item.type !== "attack") return;
 
-    html.find("[data-formula-preset]").on("change", async (event) => {
-      event.preventDefault();
+    for (const formulaPreset of root.querySelectorAll("[data-formula-preset]")) {
+      formulaPreset.addEventListener("change", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
 
-      const select = event.currentTarget;
-      const builder = select.closest("[data-formula-builder]");
-      if (!builder) return;
+        const select = event.currentTarget;
+        const builder = select.closest("[data-formula-builder]");
+        if (!builder) return;
 
-      const targetPath = builder.dataset.formulaTarget;
-      if (!targetPath) return;
+        const targetPath = builder.dataset.formulaTarget;
+        if (!targetPath) return;
 
-      const formula = select.value ?? "";
+        const formula = select.value ?? "";
 
-      const input = html.find(`input[name="${targetPath}"]`);
-      if (input.length) {
-        input.val(formula);
-      }
+        const input = root.querySelector(`input[name="${targetPath}"]`);
+        if (input) {
+          input.value = formula;
+        }
 
-      await this.item.update(
-        { [targetPath]: formula },
-        { render: false }
-      );
-    });
+        await this.item.update(
+          { [targetPath]: formula },
+          { render: false }
+        );
+      });
+    }
 
-    html.find(".formula-mode-toggle input[type='checkbox']").on("change", async (event) => {
-      event.preventDefault();
+    for (const formulaMode of root.querySelectorAll(".formula-mode-toggle input[type='checkbox']")) {
+      formulaMode.addEventListener("change", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
 
-      const input = event.currentTarget;
-      const updatePath = input.name;
-      if (!updatePath) return;
+        const input = event.currentTarget;
+        const updatePath = input.name;
+        if (!updatePath) return;
 
-      await this.item.update(
-        { [updatePath]: input.checked },
-        { render: false }
-      );
-    });
+        await this.item.update(
+          { [updatePath]: input.checked },
+          { render: false }
+        );
+      });
+    }
   }
 
-    _activateQualityAttackChoiceListeners(html) {
+  _bindQualityAttackChoiceListeners(root) {
     if (this.item.type !== "quality") return;
 
-    html.find("[data-action='select-quality-attack']").on("change", this._onQualityAttackChoiceChange.bind(this));
+    for (const select of root.querySelectorAll("[data-quality-attack-select]")) {
+      select.addEventListener("change", this._onQualityAttackChoiceChange.bind(this));
+    }
   }
 
   _getQualityAttackChoiceContext() {
@@ -388,6 +574,7 @@ context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
 
   async _onQualityAttackChoiceChange(event) {
     event.preventDefault();
+    event.stopPropagation();
 
     const attackId = String(event.currentTarget?.value ?? "").trim();
     const actor = this.item.actor ?? this.item.parent;
@@ -423,23 +610,26 @@ context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
     });
   }
 
-  async _updateObject(event, formData) {
-  if (this.item.type === "attack") {
-  formData["system.damage.enabled"] = normalizeFormBoolean(formData["system.damage.enabled"]);
-  formData["system.isSignature"] = normalizeFormBoolean(formData["system.isSignature"]);
-  formData["system.effectTag.enabled"] = normalizeFormBoolean(formData["system.effectTag.enabled"]);
-  }
+  _prepareSubmitData(event, form, formData, updateData = {}) {
+    const submitData = super._prepareSubmitData(event, form, formData, updateData);
+    const flatData = foundry.utils.flattenObject(submitData);
 
-  if (this.item.type === "tamerTalent") {
-    normalizeTamerTalentFormData(formData);
-  }
+    if (this.item.type === "attack") {
+      flatData["system.damage.enabled"] = normalizeFormBoolean(flatData["system.damage.enabled"]);
+      flatData["system.isSignature"] = normalizeFormBoolean(flatData["system.isSignature"]);
+      flatData["system.effectTag.enabled"] = normalizeFormBoolean(flatData["system.effectTag.enabled"]);
+    }
 
-  if (this.item.type === "digimental") {
-    normalizeDigimentalFormData(formData);
-  }
+    if (this.item.type === "tamerTalent") {
+      normalizeTamerTalentFormData(flatData);
+    }
 
-  return super._updateObject(event, formData);
-}
+    if (this.item.type === "digimental") {
+      normalizeDigimentalFormData(flatData);
+    }
+
+    return foundry.utils.expandObject(flatData);
+  }
 
   _getAppliedAttackQualities() {
     const attack = this.item;
@@ -541,6 +731,12 @@ context.digimentals = CONFIG.DDA?.DIGIMENTALS ?? [];
 
 function localize(key) {
   return game.i18n.localize(key);
+}
+
+function getDdaTextEditor() {
+  return globalThis.foundry?.applications?.ux?.TextEditor?.implementation
+    ?? globalThis.TextEditor
+    ?? null;
 }
 
 const DIGIMENTAL_STAGE_ORDER = [

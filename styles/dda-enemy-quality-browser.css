@@ -1,0 +1,669 @@
+/* ===================================================== */
+/* DDA — Browser de Qualidades do Inimigo                */
+/* Arquivo único de layout, filtros e rolagem.            */
+/* ===================================================== */
+
+/* ----------------------------------------------------- */
+/* Janela ApplicationV2                                  */
+/* ----------------------------------------------------- */
+
+#dda-enemy-quality-browser,
+.application.dda-enemy-quality-browser-window,
+.window-app.dda-enemy-quality-browser-window {
+  min-width: 720px !important;
+  min-height: 520px !important;
+  max-height: calc(100vh - 40px) !important;
+}
+
+#dda-enemy-quality-browser .window-content,
+.application.dda-enemy-quality-browser-window .window-content,
+.window-app.dda-enemy-quality-browser-window .window-content {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+
+  min-height: 0 !important;
+  padding: 0 !important;
+
+  overflow: hidden !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(7, 34, 62, 0.98),
+      rgba(4, 20, 39, 0.99)
+    ) !important;
+}
+
+/* ----------------------------------------------------- */
+/* Estrutura interna                                     */
+/* ----------------------------------------------------- */
+
+.dda-enemy-quality-browser {
+  display: grid !important;
+  flex: 1 1 auto !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+
+  min-height: 0 !important;
+  height: 100% !important;
+
+  gap: 0.75rem !important;
+  padding: 0.85rem !important;
+
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+
+  color: #edf8ff !important;
+}
+
+/* ----------------------------------------------------- */
+/* Cabeçalho                                             */
+/* ----------------------------------------------------- */
+
+.dda-enemy-quality-browser .quality-browser-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 1.15fr) !important;
+  align-items: center !important;
+
+  gap: 0.65rem !important;
+  margin: 0 !important;
+  padding: 0.75rem !important;
+
+  border: 1px solid rgba(112, 196, 255, 0.25) !important;
+  border-radius: 10px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(8, 40, 72, 0.98),
+      rgba(5, 24, 46, 0.99)
+    ) !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-header > small,
+.dda-enemy-quality-browser .quality-browser-category-filters,
+.dda-enemy-quality-browser .quality-browser-filters {
+  grid-column: 1 / -1 !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-intro {
+  display: grid !important;
+  gap: 0.15rem !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-intro strong {
+  color: #ffffff !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-intro small,
+.dda-enemy-quality-browser .quality-browser-header > small {
+  color: rgba(225, 243, 255, 0.78) !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-search-row {
+  display: flex !important;
+  align-items: center !important;
+
+  gap: 0.45rem !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-search-row input {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-search-row button {
+  flex: 0 0 auto !important;
+
+  width: 32px !important;
+  height: 32px !important;
+}
+
+/* ----------------------------------------------------- */
+/* Categorias                                            */
+/* ----------------------------------------------------- */
+
+.dda-enemy-quality-browser .quality-browser-category-filters {
+  display: grid !important;
+  grid-template-columns: max-content minmax(0, 1fr) !important;
+  align-items: center !important;
+
+  gap: 0.55rem !important;
+  margin: 0 !important;
+  padding: 0.55rem !important;
+
+  border: 1px solid rgba(112, 196, 255, 0.20) !important;
+  border-radius: 9px !important;
+
+  background: rgba(2, 15, 31, 0.34) !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-filter-label {
+  color: rgba(232, 246, 255, 0.88) !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-category-chips {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-flow: row wrap !important;
+  align-items: center !important;
+
+  gap: 0.35rem !important;
+  min-width: 0 !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-category-chips button {
+  --category-top: rgba(38, 83, 122, 0.98);
+  --category-bottom: rgba(10, 39, 66, 0.99);
+  --category-border: rgba(112, 196, 255, 0.62);
+  --category-glow: rgba(112, 196, 255, 0.28);
+
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: auto !important;
+  min-width: max-content !important;
+  min-height: 28px !important;
+
+  margin: 0 !important;
+  padding: 0.18rem 0.65rem !important;
+
+  color: #eef9ff !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.65rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+
+  border: 1px solid var(--category-border) !important;
+  border-radius: 999px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      var(--category-top),
+      var(--category-bottom)
+    ) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -4px 7px rgba(0, 0, 0, 0.20) !important;
+}
+
+.dda-enemy-quality-browser button[data-category="all"] {
+  --category-top: rgba(72, 68, 120, 0.98);
+  --category-bottom: rgba(31, 28, 67, 0.99);
+  --category-border: rgba(183, 180, 255, 0.68);
+  --category-glow: rgba(174, 169, 255, 0.30);
+}
+
+.dda-enemy-quality-browser button[data-category="core"] {
+  --category-top: rgba(30, 103, 166, 0.98);
+  --category-bottom: rgba(9, 51, 96, 0.99);
+  --category-border: rgba(111, 205, 255, 0.72);
+  --category-glow: rgba(94, 195, 255, 0.32);
+}
+
+.dda-enemy-quality-browser button[data-category="attack"] {
+  --category-top: rgba(151, 40, 75, 0.98);
+  --category-bottom: rgba(76, 15, 43, 0.99);
+  --category-border: rgba(255, 118, 155, 0.74);
+  --category-glow: rgba(255, 86, 137, 0.34);
+}
+
+.dda-enemy-quality-browser button[data-category="defense"] {
+  --category-top: rgba(32, 119, 82, 0.98);
+  --category-bottom: rgba(10, 59, 42, 0.99);
+  --category-border: rgba(108, 230, 180, 0.74);
+  --category-glow: rgba(87, 222, 162, 0.34);
+}
+
+.dda-enemy-quality-browser button[data-category="clash"] {
+  --category-top: rgba(154, 89, 24, 0.98);
+  --category-bottom: rgba(78, 40, 9, 0.99);
+  --category-border: rgba(255, 184, 92, 0.76);
+  --category-glow: rgba(255, 172, 69, 0.34);
+}
+
+.dda-enemy-quality-browser button[data-category="effect"] {
+  --category-top: rgba(101, 55, 164, 0.98);
+  --category-bottom: rgba(48, 22, 94, 0.99);
+  --category-border: rgba(200, 142, 255, 0.76);
+  --category-glow: rgba(186, 120, 255, 0.35);
+}
+
+.dda-enemy-quality-browser button[data-category="utility"] {
+  --category-top: rgba(23, 111, 137, 0.98);
+  --category-bottom: rgba(6, 54, 72, 0.99);
+  --category-border: rgba(114, 214, 239, 0.74);
+  --category-glow: rgba(96, 207, 235, 0.32);
+}
+
+.dda-enemy-quality-browser button[data-category="stanceMode"] {
+  --category-top: rgba(128, 95, 29, 0.98);
+  --category-bottom: rgba(65, 43, 8, 0.99);
+  --category-border: rgba(255, 218, 109, 0.76);
+  --category-glow: rgba(255, 210, 86, 0.34);
+}
+
+.dda-enemy-quality-browser button[data-category="digizoid"] {
+  --category-top: rgba(95, 108, 124, 0.98);
+  --category-bottom: rgba(43, 53, 65, 0.99);
+  --category-border: rgba(211, 228, 240, 0.74);
+  --category-glow: rgba(200, 220, 235, 0.30);
+}
+
+.dda-enemy-quality-browser .quality-browser-category-chips button:hover {
+  filter: brightness(1.17) !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-category-chips button.active {
+  color: #ffffff !important;
+
+  border-color: #ffffff !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.32),
+    inset 0 -4px 7px rgba(0, 0, 0, 0.20),
+    0 0 11px var(--category-glow) !important;
+}
+
+/* ----------------------------------------------------- */
+/* Pílulas de tier                                       */
+/* ----------------------------------------------------- */
+
+.dda-enemy-quality-browser .quality-browser-filters {
+  display: flex !important;
+  flex-flow: row wrap !important;
+  align-items: center !important;
+
+  gap: 0.35rem !important;
+  margin: 0 !important;
+}
+
+.dda-enemy-quality-browser .quality-browser-filters button {
+  --tier-top: rgba(50, 68, 94, 0.98);
+  --tier-bottom: rgba(21, 33, 50, 0.99);
+  --tier-border: rgba(159, 191, 219, 0.55);
+  --tier-glow: rgba(159, 191, 219, 0.25);
+
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: auto !important;
+  min-width: max-content !important;
+  min-height: 28px !important;
+
+  margin: 0 !important;
+  padding: 0.18rem 0.62rem !important;
+
+  color: #edf8ff !important;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.64rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+
+  border: 1px solid var(--tier-border) !important;
+  border-radius: 999px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      var(--tier-top),
+      var(--tier-bottom)
+    ) !important;
+}
+
+.dda-enemy-quality-browser button[data-tier="starting"] {
+  --tier-top: rgba(28, 106, 164, 0.98);
+  --tier-bottom: rgba(8, 53, 93, 0.99);
+  --tier-border: rgba(108, 204, 255, 0.72);
+  --tier-glow: rgba(97, 195, 255, 0.32);
+}
+
+.dda-enemy-quality-browser button[data-tier="champion"] {
+  --tier-top: rgba(146, 92, 26, 0.98);
+  --tier-bottom: rgba(73, 42, 8, 0.99);
+  --tier-border: rgba(255, 194, 99, 0.74);
+  --tier-glow: rgba(255, 182, 76, 0.32);
+}
+
+.dda-enemy-quality-browser button[data-tier="perfect"] {
+  --tier-top: rgba(105, 55, 166, 0.98);
+  --tier-bottom: rgba(52, 22, 99, 0.99);
+  --tier-border: rgba(207, 145, 255, 0.76);
+  --tier-glow: rgba(194, 125, 255, 0.35);
+}
+
+.dda-enemy-quality-browser button[data-tier="mega"] {
+  --tier-top: rgba(166, 41, 76, 0.98);
+  --tier-bottom: rgba(84, 14, 39, 0.99);
+  --tier-border: rgba(255, 122, 157, 0.76);
+  --tier-glow: rgba(255, 90, 138, 0.35);
+}
+
+.dda-enemy-quality-browser button[data-tier="free"] {
+  --tier-top: rgba(29, 120, 75, 0.98);
+  --tier-bottom: rgba(8, 60, 35, 0.99);
+  --tier-border: rgba(112, 232, 168, 0.74);
+  --tier-glow: rgba(95, 220, 153, 0.32);
+}
+
+.dda-enemy-quality-browser button[data-tier="negative"] {
+  --tier-top: rgba(108, 57, 61, 0.98);
+  --tier-bottom: rgba(53, 24, 29, 0.99);
+  --tier-border: rgba(241, 151, 154, 0.72);
+  --tier-glow: rgba(237, 133, 139, 0.30);
+}
+
+.dda-enemy-quality-browser .quality-browser-filters button.active {
+  color: #ffffff !important;
+
+  border-color: #ffffff !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    0 0 10px var(--tier-glow) !important;
+}
+
+/* ----------------------------------------------------- */
+/* Lista com rolagem própria                             */
+/* ----------------------------------------------------- */
+
+.dda-enemy-quality-browser .dda-enemy-quality-list {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-content: start !important;
+
+  min-height: 0 !important;
+  height: 100% !important;
+
+  gap: 0.75rem !important;
+  margin: 0 !important;
+  padding: 0.1rem 0.6rem 0.85rem 0.1rem !important;
+
+  column-count: unset !important;
+  column-gap: normal !important;
+
+  overflow-x: hidden !important;
+  overflow-y: scroll !important;
+
+  overscroll-behavior: contain !important;
+  scrollbar-color: rgba(105, 194, 246, 0.95) rgba(3, 15, 29, 0.82) !important;
+  scrollbar-gutter: stable !important;
+  scrollbar-width: thin !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-list .quality-card {
+  width: 100% !important;
+  margin: 0 !important;
+
+  break-inside: auto !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-list::-webkit-scrollbar {
+  width: 11px !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-list::-webkit-scrollbar-track {
+  border-radius: 999px !important;
+
+  background: rgba(3, 15, 29, 0.82) !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-list::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(3, 15, 29, 0.82) !important;
+  border-radius: 999px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(109, 195, 246, 0.99),
+      rgba(22, 82, 132, 1)
+    ) !important;
+}
+
+/* ----------------------------------------------------- */
+/* Tags nos cards                                        */
+/* ----------------------------------------------------- */
+
+.dda-enemy-quality-browser .quality-card-meta {
+  display: flex !important;
+  flex-wrap: wrap !important;
+
+  gap: 0.32rem !important;
+}
+
+.dda-enemy-quality-browser .quality-card-meta span {
+  display: inline-flex !important;
+  align-items: center !important;
+
+  min-height: 19px !important;
+  padding: 0.12rem 0.48rem !important;
+
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.62rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.035em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+
+  border-radius: 999px !important;
+}
+
+.dda-enemy-quality-browser .quality-tier-badge {
+  color: #ddf4ff !important;
+
+  border: 1px solid rgba(112, 196, 255, 0.35) !important;
+  background: rgba(24, 91, 136, 0.62) !important;
+}
+
+.dda-enemy-quality-browser .quality-category-badge {
+  color: #f2e7ff !important;
+
+  border: 1px solid rgba(192, 145, 255, 0.38) !important;
+  background: rgba(91, 56, 152, 0.62) !important;
+}
+
+.dda-enemy-quality-browser .quality-cost-badge {
+  color: #fff0c2 !important;
+
+  border: 1px solid rgba(255, 206, 108, 0.38) !important;
+  background: rgba(125, 84, 20, 0.62) !important;
+}
+
+/* ----------------------------------------------------- */
+/* Rodapé                                                */
+/* ----------------------------------------------------- */
+
+.dda-enemy-quality-browser .quality-browser-footer {
+  display: flex !important;
+  justify-content: flex-end !important;
+
+  margin: 0 !important;
+  padding: 0.1rem 0 !important;
+
+  border: none !important;
+  background: transparent !important;
+}
+
+@media (max-width: 760px), (max-height: 680px) {
+  .dda-enemy-quality-browser .quality-browser-header {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dda-enemy-quality-browser .quality-browser-category-filters {
+    grid-template-columns: 1fr !important;
+    align-items: start !important;
+  }
+}
+/* ===================================================== */
+/* DDA — Enemy Quality Browser: selection controls       */
+/* ===================================================== */
+
+.dda-enemy-quality-browser .quality-card.is-selected {
+  border-color: rgba(255, 181, 221, 0.62) !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(34, 28, 66, 0.96),
+      rgba(18, 24, 50, 0.98)
+    ) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 0 12px rgba(255, 92, 157, 0.16) !important;
+}
+
+.dda-enemy-quality-browser .quality-card-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) max-content !important;
+  align-items: start !important;
+  gap: 0.65rem !important;
+}
+
+.dda-enemy-quality-browser .quality-card-header > div:first-child {
+  min-width: 0 !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-card-actions {
+  display: grid !important;
+  justify-items: end !important;
+  gap: 0.35rem !important;
+
+  min-width: 148px !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-card-actions label {
+  display: grid !important;
+  gap: 0.18rem !important;
+
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-card-actions label span {
+  color: rgba(224, 243, 255, 0.78) !important;
+
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-card-actions select {
+  width: 100% !important;
+  min-height: 28px !important;
+  max-width: 190px !important;
+
+  color: #eef9ff !important;
+  background-color: #081b31 !important;
+  color-scheme: dark !important;
+
+  border: 1px solid rgba(112, 196, 255, 0.34) !important;
+  border-radius: 6px !important;
+
+  font-size: 0.72rem !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-card-actions select option {
+  color: #eef9ff !important;
+  background-color: #081b31 !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-card-actions small {
+  max-width: 190px !important;
+
+  color: #ffd2df !important;
+
+  font-size: 0.65rem !important;
+  text-align: right !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-card-actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.35rem !important;
+
+  width: auto !important;
+  min-width: 96px !important;
+  min-height: 29px !important;
+
+  margin: 0 !important;
+  padding: 0.18rem 0.62rem !important;
+
+  color: #ffffff !important;
+
+  border: 1px solid rgba(255, 145, 190, 0.62) !important;
+  border-radius: 999px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(197, 48, 111, 0.96),
+      rgba(104, 25, 70, 0.98)
+    ) !important;
+
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.64rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.035em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.13),
+    inset 0 -4px 7px rgba(0, 0, 0, 0.20),
+    0 0 8px rgba(255, 76, 145, 0.18) !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-card-actions button:hover:not(:disabled) {
+  filter: brightness(1.15) !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-quality-card-actions button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.48 !important;
+  filter: grayscale(0.4) !important;
+}
+
+.dda-enemy-quality-browser .quality-card-meta {
+  margin-top: 0.3rem !important;
+}
+
+@media (max-width: 700px) {
+  .dda-enemy-quality-browser .quality-card-header {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dda-enemy-quality-browser .dda-enemy-quality-card-actions {
+    justify-items: stretch !important;
+  }
+
+  .dda-enemy-quality-browser .dda-enemy-quality-card-actions select {
+    max-width: none !important;
+  }
+
+  .dda-enemy-quality-browser .dda-enemy-quality-card-actions button {
+    width: 100% !important;
+  }
+}

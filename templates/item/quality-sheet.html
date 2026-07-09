@@ -1,6 +1,6 @@
-<form class="{{cssClass}} dda-item-sheet dda-{{item.type}}-sheet" autocomplete="off">
+<section class="dda-item-sheet-content">
   <header class="sheet-header">
-    <img class="profile-img" src="{{item.img}}" data-edit="img" title="{{item.name}}" />
+    <img class="profile-img" src="{{item.img}}" data-action="editImage" title="{{item.name}}" />
 
     <div class="header-fields">
       <h1>
@@ -16,14 +16,14 @@
   </header>
 
   <nav class="sheet-tabs tabs" data-group="primary">
-<a class="item" data-tab="details">{{localize "DDA.Label.Details"}}</a>
-<a class="item" data-tab="requirements">{{localize "DDA.Label.Requirements"}}</a>
-<a class="item" data-tab="grants">{{localize "DDA.QualitySheet.Grants"}}</a>
-<a class="item" data-tab="notes">{{localize "DDA.Label.Description"}}</a>
+<a class="item {{tabs.primary.details.cssClass}}" data-group="primary" data-tab="details">{{localize "DDA.Label.Details"}}</a>
+<a class="item {{tabs.primary.requirements.cssClass}}" data-group="primary" data-tab="requirements">{{localize "DDA.Label.Requirements"}}</a>
+<a class="item {{tabs.primary.grants.cssClass}}" data-group="primary" data-tab="grants">{{localize "DDA.QualitySheet.Grants"}}</a>
+<a class="item {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">{{localize "DDA.Label.Description"}}</a>
   </nav>
 
   <section class="sheet-body">
-    <section class="tab dda-quality-details-tab" data-group="primary" data-tab="details">
+    <section class="tab dda-quality-details-tab {{tabs.primary.details.cssClass}}" data-group="primary" data-tab="details">
 <h2>{{localize "DDA.QualitySheet.Category"}}</h2>
 
       <div class="checkbox-grid quality-category-grid">
@@ -123,7 +123,7 @@
 
     </section>
 
-<section class="tab dda-quality-requirements-tab" data-group="primary" data-tab="requirements">
+<section class="tab dda-quality-requirements-tab {{tabs.primary.requirements.cssClass}}" data-group="primary" data-tab="requirements">
   <h2>{{localize "DDA.Label.Requirements"}}</h2>
 
   <label class="quality-toggle-card">
@@ -188,7 +188,7 @@
   </div>
 </section>
 
-    <section class="tab dda-quality-grants-tab" data-group="primary" data-tab="grants">
+    <section class="tab dda-quality-grants-tab {{tabs.primary.grants.cssClass}}" data-group="primary" data-tab="grants">
 <h2>{{localize "DDA.QualitySheet.ChoicesAndBenefits"}}</h2>
 
 <label class="quality-toggle-card">
@@ -615,7 +615,7 @@
 </label>
 
   {{#if attackChoice.hasAvailableAttacks}}
-    <select data-action="select-quality-attack">
+    <select data-quality-attack-select>
       <option value="">{{localize "DDA.Label.None"}}</option>
       {{#each attackChoice.availableAttacks as |attack|}}
         <option value="{{attack.id}}" {{#if attack.selected}}selected{{/if}}>
@@ -640,7 +640,7 @@
 
     </section>
 
-    <section class="tab dda-quality-notes-tab" data-group="primary" data-tab="notes">
+    <section class="tab dda-quality-notes-tab {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">
   <h2>{{localize "DDA.Label.Description"}}</h2>
       <textarea name="system.description">{{system.description}}</textarea>
 
@@ -648,4 +648,4 @@
       <textarea name="system.notes">{{system.notes}}</textarea>
     </section>
   </section>
-</form>
+</section>

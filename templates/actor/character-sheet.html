@@ -33,14 +33,14 @@
       aria-label="{{localize 'DDA.TamerSheet.Tooltip.TokenPrototype'}}">
     </button>
 
-    <button
-      type="button"
+    <a
+      href="#"
+      role="button"
       class="dda-device-button dda-device-button-close"
       data-action="digivice-close"
       data-tooltip="{{localize 'DDA.Button.Close'}}"
-      title="{{localize 'DDA.Button.Close'}}"
       aria-label="{{localize 'DDA.Button.Close'}}">
-    </button>
+    </a>
     </div>
 
 <div class="dda-luck-orb">
@@ -620,13 +620,28 @@
     <section class="tab dda-tamer-advancement-tab" data-group="primary" data-tab="advancement">
       <h2>{{localize "DDA.TamerSheet.Advancement"}}</h2>
 
+      <div class="combat-actions dda-tamer-advancement-actions">
+        <button
+          type="button"
+          class="open-tamer-advancement"
+          title="{{localize "DDA.TamerSheet.Advancement"}}"
+        >
+          <i class="fa-solid fa-arrow-up-right-dots"></i>
+          {{localize "DDA.Button.Open"}}
+          {{localize "DDA.TamerSheet.Advancement"}}
+        </button>
+      </div>
+
       <details class="dda-campaign-rules-summary dda-campaign-rules-details">
         <summary>
           <span>{{localize "DDA.CampaignRules.Title"}}</span>
+
           <small>
             {{campaignRules.label}} •
-            {{localize "DDA.CampaignRules.AttributePoints"}} {{campaignRules.attributeTotal}}/{{campaignRules.startingAttributePoints}} •
-            {{localize "DDA.CampaignRules.SkillPoints"}} {{campaignRules.skillTotal}}/{{campaignRules.startingSkillPoints}}
+            {{localize "DDA.CampaignRules.AttributeCap"}}
+            {{campaignRules.attributeCap}} •
+            {{localize "DDA.CampaignRules.SkillCap"}}
+            {{campaignRules.skillCap}}
           </small>
         </summary>
 
@@ -634,16 +649,6 @@
           <div class="resource-box">
             <label>{{localize "DDA.CampaignRules.Level"}}</label>
             <input type="text" value="{{campaignRules.label}}" readonly />
-          </div>
-
-          <div class="resource-box">
-            <label>{{localize "DDA.CampaignRules.AttributePoints"}}</label>
-            <input type="text" value="{{campaignRules.attributeTotal}} / {{campaignRules.startingAttributePoints}}" readonly />
-          </div>
-
-          <div class="resource-box">
-            <label>{{localize "DDA.CampaignRules.SkillPoints"}}</label>
-            <input type="text" value="{{campaignRules.skillTotal}} / {{campaignRules.startingSkillPoints}}" readonly />
           </div>
 
           <div class="resource-box">
@@ -657,73 +662,21 @@
           </div>
 
           <div class="resource-box">
-            <label>{{localize "DDA.CampaignRules.RecommendedMilestones"}}</label>
-            <input type="number" value="{{campaignRules.recommendedMilestones}}" readonly />
-          </div>
-
-          <div class="resource-box">
             <label>{{localize "DDA.CampaignRules.SkillTnModifier"}}</label>
             <input type="number" value="{{campaignRules.skillTnModifier}}" readonly />
           </div>
 
           <div class="resource-box">
             <label>{{localize "DDA.CampaignRules.StartingTormentBoxes"}}</label>
-            <input type="number" value="{{campaignRules.startingMarkedTormentBoxes}}" readonly />
+            <input
+              type="number"
+              value="{{campaignRules.startingMarkedTormentBoxes}}"
+              readonly
+            />
           </div>
         </div>
-
-        {{#if campaignRules.hasPointWarning}}
-          <p class="dda-campaign-warning">{{localize "DDA.CampaignRules.PointWarning"}}</p>
-        {{/if}}
-
-        {{#if campaignRules.hasAttributeOverCap}}
-          <p class="dda-campaign-warning">{{localize "DDA.CampaignRules.AttributeCapWarning"}}</p>
-        {{/if}}
-
-        {{#if campaignRules.hasSkillOverCap}}
-          <p class="dda-campaign-warning">{{localize "DDA.CampaignRules.SkillCapWarning"}}</p>
-        {{/if}}
       </details>
 
-      <div class="resource-grid">
-        <div class="resource-box">
-          <label>{{localize "DDA.TamerSheet.Milestones"}}</label>
-          <input type="number" name="system.advancement.milestones.completed" value="{{system.advancement.milestones.completed}}" />
-        </div>
-
-        <div class="resource-box">
-          <label>{{localize "DDA.TamerSheet.PartyXP"}}</label>
-          <div class="inline-inputs">
-            <input type="number" name="system.advancement.experience.party.value" value="{{system.advancement.experience.party.value}}" />
-            <span>/</span>
-            <input type="number" name="system.advancement.experience.party.max" value="{{system.advancement.experience.party.max}}" />
-          </div>
-        </div>
-
-        <div class="resource-box">
-          <label>{{localize "DDA.TamerSheet.GrowthPoints"}}</label>
-          <input type="number" name="system.advancement.growthPoints.available" value="{{system.advancement.growthPoints.available}}" />
-        </div>
-
-        <div class="resource-box">
-          <label>{{localize "DDA.TamerSheet.AttributeCap"}}</label>
-          <input type="number" value="{{campaignRules.attributeFinalCap}}" readonly />
-        </div>
-
-        <div class="resource-box">
-          <label>{{localize "DDA.TamerSheet.DefaultRange"}}</label>
-          <input type="number" name="system.evolution.defaultRange.value" value="{{system.evolution.defaultRange.value}}" />
-        </div>
-
-        <div class="resource-box">
-          <label>{{localize "DDA.TamerSheet.BlastEvolution"}}</label>
-          <div class="inline-inputs">
-            <input type="number" name="system.blastEvolution.uses.value" value="{{system.blastEvolution.uses.value}}" />
-            <span>/</span>
-            <input type="number" name="system.blastEvolution.uses.max" value="{{system.blastEvolution.uses.max}}" />
-          </div>
-        </div>
-      </div>
 
 <h3>{{localize "DDA.TamerSheet.PartnerBond"}}</h3>
 
