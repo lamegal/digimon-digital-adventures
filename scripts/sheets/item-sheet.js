@@ -37,6 +37,8 @@ const ITEM_SHEET_TYPE_CLASSES = [
 
 const DDAItemSheetBase = HandlebarsApplicationMixin(ItemSheetV2);
 
+registerQualityAttackChoiceCleanupHooks();
+
 export class DDAItemSheet extends DDAItemSheetBase {
   static DEFAULT_OPTIONS = {
     classes: [
@@ -486,130 +488,1284 @@ export class DDAItemSheet extends DDAItemSheetBase {
   }
 
   _getQualityAttackChoiceContext() {
-    if (this.item.type !== "quality") return { enabled: false };
-
-    const actor = this.item.actor ?? this.item.parent;
-    const modifier = this.item.system?.attackModifier ?? {};
-    const appliesTo = String(modifier.appliesTo ?? "");
-
-    const attackChoiceAppliesTo = new Set([
-      "oneAttack",
-      "oneDamageAttack",
-      "oneMeleeAttack",
-      "oneRangedAttack",
-      "differentAttackPerRank",
-      "taggedAttack"
-    ]);
-
-    if (!modifier.enabled && !attackChoiceAppliesTo.has(appliesTo)) {
-      return { enabled: false };
+    if (this.item.type !== "quality") {
+      return {
+        enabled: false,
+        rows: [],
+        hasRows: false
+      };
     }
 
-    if (!attackChoiceAppliesTo.has(appliesTo)) {
-      return { enabled: false };
+    const actor =
+      this.item.actor ??
+      this.item.parent;
+
+    if (!actor?.items) {
+      return {
+        enabled: false,
+        rows: [],
+        hasRows: false
+      };
     }
 
-    const rawGrantedTags = Array.isArray(modifier.grantsTags) ? modifier.grantsTags : [];
-    const grantedTag = String(rawGrantedTags[0] ?? "").trim().toLowerCase();
-    const grantedTagLabel = grantedTag ? `[${grantedTag.toUpperCase()}]` : "";
+    const modifier =
+      this.item.system?.attackModifier ?? {};
 
-    const selectedChoices = Array.isArray(this.item.system?.choices?.selectedRanks)
-      ? this.item.system.choices.selectedRanks
-      : [];
+    const choices =
+      this.item.system?.choices ?? {};
 
-    const selectedChoice = selectedChoices[0] ?? {};
-    const selectedAttackId = String(
-      selectedChoice.attackId
-      ?? selectedChoice.attackItemId
-      ?? selectedChoice.itemId
-      ?? selectedChoice.id
-      ?? ""
+    const appliesTo = String(
+      modifier.appliesTo ?? ""
     ).trim();
 
-    const allAttacks = actor?.items?.filter?.((item) => item.type === "attack") ?? [];
+    const choiceType = String(
+      choices.type ?? ""
+    ).trim();
 
-    const availableAttacks = allAttacks
-      .filter((attack) => this._qualityAttackChoiceCanUseAttack(attack, appliesTo))
-      .map((attack) => {
-        const rangeType = String(attack.system?.baseTags?.rangeType ?? "");
-        const functionType = String(attack.system?.baseTags?.functionType ?? "");
+    const grantedTags = (
+      Array.isArray(modifier.grantsTags)
+        ? modifier.grantsTags
+        : []
+    )
+      .map((tag) => {
+        return this
+          ._normalizeQualityAttackTag(tag);
+      })
+      .filter(Boolean);
 
-        return {
-          id: attack.id,
-          name: attack.name,
-          rangeType,
-          functionType,
-          selected: attack.id === selectedAttackId
-        };
+    const isAreaChoice =
+      Boolean(modifier.areaAttack) ||
+      (
+        appliesTo ===
+          "differentAttackPerRank" &&
+
+        grantedTags.some((tag) => {
+          return tag.startsWith("t:");
+        })
+      );
+
+    const isEffectChoice =
+      choiceType === "effectTagPerRank" ||
+      appliesTo ===
+        "oneAttackPerPurchasedEffect";
+
+    const selectableAppliesTo =
+      new Set([
+        "oneAttack",
+        "oneDamageAttack",
+        "oneMeleeAttack",
+        "oneRangedAttack",
+        "oneMeleeDamageAttack",
+        "differentAttackPerRank",
+        "oneAttackPerPurchasedEffect",
+        "taggedAttack"
+      ]);
+
+    if (
+      !isAreaChoice &&
+      !isEffectChoice &&
+      !selectableAppliesTo.has(
+        appliesTo
+      )
+    ) {
+      return {
+        enabled: false,
+        rows: [],
+        hasRows: false
+      };
+    }
+
+    const selectedChoices =
+      Array.isArray(
+        choices.selectedRanks
+      )
+        ? choices.selectedRanks
+        : [];
+
+    const rankValue = Math.max(
+      1,
+      Number(
+        this.item.system?.rank?.value ??
+        1
+      )
+    );
+
+    const rowCount =
+      (
+        isAreaChoice ||
+        isEffectChoice ||
+        appliesTo ===
+          "differentAttackPerRank"
+      )
+        ? rankValue
+        : 1;
+
+    const allAttacks =
+      actor.items.filter((item) => {
+        return item.type === "attack";
       });
 
-    const selectedAttackExists = availableAttacks.some((attack) => attack.id === selectedAttackId);
+    const configuredEffectTags =
+      this._getConfiguredEffectTagsForActor(
+        actor
+      );
+
+    const configuredAreaTags =
+      new Set(
+        grantedTags.filter((tag) => {
+          return tag.startsWith("t:");
+        })
+      );
+
+    const rows = [];
+
+    for (
+      let rank = 1;
+      rank <= rowCount;
+      rank += 1
+    ) {
+      const selectedChoice =
+        selectedChoices.find(
+          (choice, index) => {
+            return Math.max(
+              1,
+              Number(
+                choice?.rank ??
+                index + 1
+              )
+            ) === rank;
+          }
+        ) ?? {};
+
+      const selectedIdentity =
+        this._getQualityChoiceIdentity(
+          selectedChoice
+        );
+
+      const otherChoices =
+        selectedChoices.filter(
+          (choice, index) => {
+            return Math.max(
+              1,
+              Number(
+                choice?.rank ??
+                index + 1
+              )
+            ) !== rank;
+          }
+        );
+
+      const usedAttackIds =
+        new Set(
+          otherChoices
+            .map((choice) => {
+              return this
+                ._getQualityChoiceIdentity(
+                  choice
+                )
+                .attackId;
+            })
+            .filter(Boolean)
+        );
+
+      const usedTags =
+        new Set(
+          otherChoices
+            .map((choice) => {
+              return this
+                ._getQualityChoiceIdentity(
+                  choice
+                )
+                .tag;
+            })
+            .filter(Boolean)
+        );
+
+      const options = [];
+
+      /*
+       * ÁREA DE ATAQUE
+       */
+      if (isAreaChoice) {
+        const areaOptions =
+          Array.isArray(
+            choices.options
+          ) &&
+          choices.options.length
+            ? choices.options
+            : grantedTags
+                .filter((tag) => {
+                  return tag.startsWith(
+                    "t:"
+                  );
+                })
+                .map((tag) => ({
+                  key: tag,
+                  label:
+                    `[${tag.toUpperCase()}]`
+                }));
+
+        for (const option of areaOptions) {
+          const rawTag =
+            this._normalizeQualityAttackTag(
+              option.key
+            );
+
+          const areaTag =
+            rawTag.startsWith("t:")
+              ? rawTag
+              : `t:${rawTag}`;
+
+          if (!areaTag) continue;
+
+          if (
+            choices.cannotRepeat &&
+            usedTags.has(areaTag) &&
+            selectedIdentity.tag !== areaTag
+          ) {
+            continue;
+          }
+
+          for (const attack of allAttacks) {
+            if (
+              usedAttackIds.has(
+                attack.id
+              ) &&
+              selectedIdentity.attackId !==
+                attack.id
+            ) {
+              continue;
+            }
+
+            if (
+              !this
+                ._qualityAttackChoiceCanUseAttack(
+                  attack,
+                  option.appliesTo ??
+                    appliesTo
+                )
+            ) {
+              continue;
+            }
+
+            const attackTags =
+              this._getAttackChoiceTags(
+                attack
+              );
+
+            const hasDifferentAreaTag =
+              attackTags.some((tag) => {
+                return (
+                  configuredAreaTags.has(
+                    tag
+                  ) &&
+                  tag !== areaTag
+                );
+              });
+
+            if (hasDifferentAreaTag) {
+              continue;
+            }
+
+            options.push({
+              key:
+                `${attack.id}:${areaTag}`,
+
+              label:
+                `${attack.name} — [${areaTag.toUpperCase()}]`,
+
+              attackId:
+                attack.id,
+
+              attackName:
+                attack.name,
+
+              attackTag:
+                areaTag,
+
+              effectTag:
+                "",
+
+              derivedStat:
+                option.derivedStat ?? "",
+
+              appliesTo:
+                option.appliesTo ?? "",
+
+              requirements:
+                foundry.utils.deepClone(
+                  option.requirements ?? {}
+                ),
+
+              effect:
+                option.effect ?? "",
+
+              selected:
+                selectedIdentity.attackId ===
+                  attack.id &&
+                selectedIdentity.tag ===
+                  areaTag
+            });
+          }
+        }
+      }
+
+      /*
+       * EFEITO BÁSICO, AVANÇADO OU MESTRE
+       */
+      else if (isEffectChoice) {
+        const effectOptions =
+          Array.isArray(
+            choices.options
+          )
+            ? choices.options
+            : [];
+
+        for (
+          const option of
+          effectOptions
+        ) {
+          const effectTag =
+            this._normalizeQualityAttackTag(
+              option.key
+            );
+
+          if (!effectTag) continue;
+
+          if (
+            choices.cannotRepeat &&
+            usedTags.has(effectTag) &&
+            selectedIdentity.tag !==
+              effectTag
+          ) {
+            continue;
+          }
+
+          for (const attack of allAttacks) {
+            if (
+              usedAttackIds.has(
+                attack.id
+              ) &&
+              selectedIdentity.attackId !==
+                attack.id
+            ) {
+              continue;
+            }
+
+            if (
+              !this
+                ._qualityAttackChoiceCanUseAttack(
+                  attack,
+                  appliesTo,
+                  {
+                    requiresDamageTag:
+                      Boolean(
+                        option
+                          .requiresDamageTag
+                      )
+                  }
+                )
+            ) {
+              continue;
+            }
+
+            const attackTags =
+              this._getAttackChoiceTags(
+                attack
+              );
+
+            const existingEffectTags =
+              attackTags.filter((tag) => {
+                return configuredEffectTags
+                  .has(tag);
+              });
+
+            const isCurrentSelection =
+              selectedIdentity.attackId ===
+                attack.id &&
+              selectedIdentity.tag ===
+                effectTag;
+
+            if (
+              existingEffectTags.length &&
+              !isCurrentSelection
+            ) {
+              continue;
+            }
+
+            if (
+              isCurrentSelection &&
+              existingEffectTags.some(
+                (tag) => {
+                  return tag !== effectTag;
+                }
+              )
+            ) {
+              continue;
+            }
+
+            options.push({
+              key:
+                `${attack.id}:${effectTag}`,
+
+              label:
+                `${attack.name} — [${effectTag.toUpperCase()}]`,
+
+              attackId:
+                attack.id,
+
+              attackName:
+                attack.name,
+
+              attackTag:
+                effectTag,
+
+              effectTag,
+
+              effectType:
+                option.type ?? "",
+
+              potencyStat:
+                option.potency ??
+                option.potencyStat ??
+                "",
+
+              duration:
+                option.duration ?? true,
+
+              extraActionRequired:
+                Boolean(
+                  option.extraActionRequired
+                ),
+
+              requiresDamageTag:
+                Boolean(
+                  option.requiresDamageTag
+                ),
+
+              onlyAffectsAllies:
+                Boolean(
+                  option.onlyAffectsAllies
+                ),
+
+              requirements:
+                foundry.utils.deepClone(
+                  option.requirements ?? {}
+                ),
+
+              effect:
+                option.effect ?? "",
+
+              selected:
+                isCurrentSelection
+            });
+          }
+        }
+      }
+
+      /*
+       * OUTRAS QUALIDADES VINCULADAS
+       * A UM ATAQUE
+       */
+      else {
+        const grantedTag =
+          grantedTags[0] ?? "";
+
+        for (const attack of allAttacks) {
+          if (
+            !this
+              ._qualityAttackChoiceCanUseAttack(
+                attack,
+                appliesTo
+              )
+          ) {
+            continue;
+          }
+
+          options.push({
+            key:
+              grantedTag
+                ? `${attack.id}:${grantedTag}`
+                : attack.id,
+
+            label:
+              grantedTag
+                ? `${attack.name} — [${grantedTag.toUpperCase()}]`
+                : attack.name,
+
+            attackId:
+              attack.id,
+
+            attackName:
+              attack.name,
+
+            attackTag:
+              grantedTag,
+
+            effectTag:
+              "",
+
+            effect:
+              "",
+
+            selected:
+              selectedIdentity.attackId ===
+                attack.id &&
+              (
+                !grantedTag ||
+                selectedIdentity.tag ===
+                  grantedTag
+              )
+          });
+        }
+      }
+
+      const selectedOption =
+        options.find((option) => {
+          return option.selected;
+        }) ?? null;
+
+      const selectedTag =
+        selectedOption?.attackTag ??
+        selectedIdentity.tag ??
+        "";
+
+      rows.push({
+        rank,
+
+        selectedTagLabel:
+          selectedTag
+            ? `[${selectedTag.toUpperCase()}]`
+            : "",
+
+        options,
+
+        hasOptions:
+          options.length > 0,
+
+        selectedMissing:
+          Boolean(
+            selectedIdentity.attackId &&
+            !selectedOption
+          )
+      });
+    }
 
     return {
       enabled: true,
-      appliesTo,
-      grantedTag,
-      grantedTagLabel,
-      selectedAttackId,
-      selectedAttackName: String(selectedChoice.attackName ?? ""),
-      hasSelectedAttack: Boolean(selectedAttackId),
-      selectedAttackMissing: Boolean(selectedAttackId && !selectedAttackExists),
-      availableAttacks,
-      hasAvailableAttacks: availableAttacks.length > 0,
-      emptyWarning: "Este Digimon ainda não possui ataques compatíveis. Crie pelo menos um ataque compatível antes de configurar esta Qualidade.",
-      missingWarning: "O ataque escolhido não foi encontrado ou não é mais compatível. Escolha outro ataque."
+
+      rows,
+
+      hasRows:
+        rows.length > 0,
+
+      emptyWarning:
+        "Este Digimon ainda não possui ataques compatíveis para esta escolha.",
+
+      missingWarning:
+        "A escolha salva não foi encontrada ou deixou de ser compatível. Selecione outra combinação de Ataque e Tag."
     };
   }
 
-  _qualityAttackChoiceCanUseAttack(attack, appliesTo) {
-    const rangeType = String(attack.system?.baseTags?.rangeType ?? "");
-    const functionType = String(attack.system?.baseTags?.functionType ?? "");
+  _normalizeQualityAttackTag(
+    value = ""
+  ) {
+    return String(value ?? "")
+      .trim()
+      .replace(/^\[|\]$/g, "")
+      .toLowerCase();
+  }
 
-    if (appliesTo === "oneDamageAttack") return functionType === "damage";
-    if (appliesTo === "oneMeleeAttack") return rangeType === "melee";
-    if (appliesTo === "oneRangedAttack") return rangeType === "range" || rangeType === "ranged";
+_getQualityChoiceIdentity(
+  choice = {}
+) {
+  const keyText =
+    String(
+      choice.key ?? ""
+    ).trim();
+
+  const separatorIndex =
+    keyText.indexOf(":");
+
+  const keyAttackId =
+    separatorIndex > 0
+      ? keyText
+          .slice(
+            0,
+            separatorIndex
+          )
+          .trim()
+      : "";
+
+  const keyTag =
+    separatorIndex > 0
+      ? keyText
+          .slice(
+            separatorIndex + 1
+          )
+          .trim()
+      : "";
+
+  const rawAttackId =
+    String(
+      choice.attackId ??
+      choice.attackItemId ??
+      choice.itemId ??
+      choice.attackKey ??
+      choice.id ??
+      keyAttackId ??
+      ""
+    ).trim();
+
+  const actor =
+    this.item.actor ??
+    this.item.parent;
+
+  /*
+   * Qualidades vindas do Wizard ou de snapshots
+   * podem guardar uma chave estável do Ataque em
+   * vez do ID atual do Item recriado.
+   *
+   * Aqui transformamos essa chave estável no ID
+   * atual antes que o restante da ficha compare,
+   * exiba ou sincronize a escolha.
+   */
+  const resolvedAttack =
+    rawAttackId && actor?.items
+      ? actor.items.find((item) => {
+          if (item.type !== "attack") {
+            return false;
+          }
+
+          const identityKeys =
+            new Set([
+              item.id,
+
+              item.system
+                ?.wizard
+                ?.attackKey,
+
+              item.flags
+                ?.[
+                  "digimon-digital-adventures"
+                ]
+                ?.wizardAttackKey,
+
+              item.flags
+                ?.[
+                  "digimon-digital-adventures"
+                ]
+                ?.enemyBuilderAttackKey
+            ]
+              .map((value) => {
+                return String(
+                  value ?? ""
+                ).trim();
+              })
+              .filter(Boolean));
+
+          return identityKeys.has(
+            rawAttackId
+          );
+        })
+      : null;
+
+  return {
+    attackId:
+      resolvedAttack?.id ??
+      rawAttackId,
+
+    tag:
+      this._normalizeQualityAttackTag(
+        choice.effectTag ??
+        choice.attackTag ??
+        choice.grantedTag ??
+        keyTag
+      )
+  };
+}
+
+  _getAttackChoiceTags(
+    attack
+  ) {
+    const tags = [
+      ...(
+        Array.isArray(
+          attack?.system?.qualityTags
+        )
+          ? attack.system.qualityTags
+          : []
+      ),
+
+      ...(
+        Array.isArray(
+          attack?.system?.tags
+        )
+          ? attack.system.tags
+          : []
+      )
+    ].map((tag) => {
+      return this
+        ._normalizeQualityAttackTag(
+          tag
+        );
+    });
+
+    const directEffectTag =
+      attack?.system?.effectTag?.enabled
+        ? this
+            ._normalizeQualityAttackTag(
+              attack.system
+                .effectTag
+                .tag
+            )
+        : "";
+
+    if (directEffectTag) {
+      tags.push(directEffectTag);
+    }
+
+    return [
+      ...new Set(
+        tags.filter(Boolean)
+      )
+    ];
+  }
+
+  _getConfiguredEffectTagsForActor(
+    actor
+  ) {
+    const tags = new Set(
+      Object.keys(
+        CONFIG.DDA?.effectTags ?? {}
+      ).map((tag) => {
+        return this
+          ._normalizeQualityAttackTag(
+            tag
+          );
+      })
+    );
+
+    for (
+      const quality of
+      actor?.items?.filter?.(
+        (item) => {
+          return item.type ===
+            "quality";
+        }
+      ) ?? []
+    ) {
+      if (
+        quality.system
+          ?.choices
+          ?.type !==
+        "effectTagPerRank"
+      ) {
+        continue;
+      }
+
+      for (
+        const option of
+        quality.system
+          ?.choices
+          ?.options ?? []
+      ) {
+        const tag =
+          this
+            ._normalizeQualityAttackTag(
+              option.key
+            );
+
+        if (tag) {
+          tags.add(tag);
+        }
+      }
+    }
+
+    return tags;
+  }
+
+  _qualityAttackChoiceCanUseAttack(
+    attack,
+    appliesTo,
+    {
+      requiresDamageTag = false
+    } = {}
+  ) {
+    const rangeType = String(
+      attack.system
+        ?.baseTags
+        ?.rangeType ?? ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const functionType = String(
+      attack.system
+        ?.baseTags
+        ?.functionType ?? ""
+    )
+      .trim()
+      .toLowerCase();
+
+    if (
+      requiresDamageTag &&
+      functionType !== "damage"
+    ) {
+      return false;
+    }
+
+    const target = String(
+      appliesTo ?? ""
+    )
+      .trim()
+      .toLowerCase();
+
+    if (
+      [
+        "oneattack",
+        "differentattackperrank",
+        "oneattackperpurchasedeffect",
+        "taggedattack",
+        "meleeorrangeattack",
+        "meleeorrangedattack"
+      ].includes(target)
+    ) {
+      return true;
+    }
+
+    if (
+      [
+        "onedamageattack",
+        "damageattack"
+      ].includes(target)
+    ) {
+      return (
+        functionType === "damage"
+      );
+    }
+
+    if (
+      [
+        "onemeleeattack",
+        "meleeattack"
+      ].includes(target)
+    ) {
+      return (
+        rangeType === "melee"
+      );
+    }
+
+    if (
+      [
+        "onerangedattack",
+        "rangeattack",
+        "rangedattack"
+      ].includes(target)
+    ) {
+      return [
+        "range",
+        "ranged"
+      ].includes(rangeType);
+    }
+
+    if (
+      target ===
+      "onemeleedamageattack"
+    ) {
+      return (
+        rangeType === "melee" &&
+        functionType === "damage"
+      );
+    }
+
+    if (
+      target === "supportattack"
+    ) {
+      return (
+        functionType === "support"
+      );
+    }
 
     return true;
   }
 
-  async _onQualityAttackChoiceChange(event) {
+  async _onQualityAttackChoiceChange(
+    event
+  ) {
     event.preventDefault();
     event.stopPropagation();
 
-    const attackId = String(event.currentTarget?.value ?? "").trim();
-    const actor = this.item.actor ?? this.item.parent;
-    const attack = actor?.items?.get?.(attackId) ?? null;
+    const select =
+      event.currentTarget;
 
-    if (!attackId || !attack) {
-      await this.item.update({
-        "system.choices.selectedRanks": []
+    const rank = Math.max(
+      1,
+      Number(
+        select?.dataset?.rank ?? 1
+      )
+    );
+
+    const selectedKey =
+      String(
+        select?.value ?? ""
+      ).trim();
+
+    const actor =
+      this.item.actor ??
+      this.item.parent;
+
+    const previousChoices =
+      Array.isArray(
+        this.item.system
+          ?.choices
+          ?.selectedRanks
+      )
+        ? foundry.utils.deepClone(
+            this.item.system
+              .choices
+              .selectedRanks
+          )
+        : [];
+
+    const context =
+      this._getQualityAttackChoiceContext();
+
+    const row =
+      context.rows?.find((entry) => {
+        return Number(entry.rank) ===
+          rank;
+      }) ?? null;
+
+    const selectedOption =
+      row?.options?.find((option) => {
+        return option.key ===
+          selectedKey;
+      }) ?? null;
+
+    const nextChoices =
+      previousChoices.filter(
+        (choice, index) => {
+          return Math.max(
+            1,
+            Number(
+              choice?.rank ??
+              index + 1
+            )
+          ) !== rank;
+        }
+      );
+
+    if (selectedOption) {
+      nextChoices.push({
+        rank,
+
+        key:
+          selectedOption.key,
+
+        label:
+          selectedOption.label,
+
+        originalLabel:
+          "",
+
+        attackId:
+          selectedOption.attackId,
+
+        attackName:
+          selectedOption.attackName,
+
+        attackTag:
+          selectedOption.attackTag ??
+          "",
+
+        effectTag:
+          selectedOption.effectTag ??
+          "",
+
+        effectType:
+          selectedOption.effectType ??
+          "",
+
+        potencyStat:
+          selectedOption.potencyStat ??
+          "",
+
+        duration:
+          selectedOption.duration ??
+          true,
+
+        extraActionRequired:
+          Boolean(
+            selectedOption
+              .extraActionRequired
+          ),
+
+        requiresDamageTag:
+          Boolean(
+            selectedOption
+              .requiresDamageTag
+          ),
+
+        onlyAffectsAllies:
+          Boolean(
+            selectedOption
+              .onlyAffectsAllies
+          ),
+
+        appliesTo:
+          selectedOption.appliesTo ??
+          "",
+
+        requirements:
+          foundry.utils.deepClone(
+            selectedOption
+              .requirements ?? {}
+          ),
+
+        effect:
+          selectedOption.effect ?? ""
       });
-
-      return;
     }
 
-    const modifier = this.item.system?.attackModifier ?? {};
-    const rawGrantedTags = Array.isArray(modifier.grantsTags) ? modifier.grantsTags : [];
-    const grantedTag = String(rawGrantedTags[0] ?? "").trim().toLowerCase();
+    nextChoices.sort(
+      (left, right) => {
+        return (
+          Number(left.rank ?? 0) -
+          Number(right.rank ?? 0)
+        );
+      }
+    );
 
-    const currentChoices = Array.isArray(this.item.system?.choices?.selectedRanks)
-      ? foundry.utils.deepClone(this.item.system.choices.selectedRanks)
-      : [];
+await this.item.update(
+  {
+    "system.choices.enabled": true,
+    "system.choices.selectedRanks": nextChoices
+  },
+  {
+    ddaSkipQualityChoiceCleanup: true
+  }
+);
 
-    const nextChoice = {
-      ...(currentChoices[0] ?? {}),
-      rank: 1,
-      attackId: attack.id,
-      attackName: attack.name,
-      grantedTag
-    };
+    await this
+      ._syncQualityAttackChoiceTags(
+        actor,
+        previousChoices,
+        nextChoices
+      );
 
-    await this.item.update({
-      "system.choices.enabled": true,
-      "system.choices.selectedRanks": [nextChoice]
-    });
+    await this.render();
   }
 
+  async _syncQualityAttackChoiceTags(
+    actor,
+    previousChoices = [],
+    nextChoices = []
+  ) {
+    if (!actor?.items) return;
+
+    const previousBindings =
+      previousChoices
+        .map((choice) => {
+          return this
+            ._getQualityChoiceIdentity(
+              choice
+            );
+        })
+        .filter((binding) => {
+          return (
+            binding.attackId &&
+            binding.tag
+          );
+        });
+
+    const nextBindings =
+      nextChoices
+        .map((choice) => {
+          return this
+            ._getQualityChoiceIdentity(
+              choice
+            );
+        })
+        .filter((binding) => {
+          return (
+            binding.attackId &&
+            binding.tag
+          );
+        });
+
+    const touchedAttackIds =
+      new Set([
+        ...previousBindings.map(
+          (binding) => {
+            return binding.attackId;
+          }
+        ),
+
+        ...nextBindings.map(
+          (binding) => {
+            return binding.attackId;
+          }
+        )
+      ]);
+
+    for (
+      const attackId of
+      touchedAttackIds
+    ) {
+      const attack =
+        actor.items.get(attackId);
+
+      if (
+        !attack ||
+        attack.type !== "attack"
+      ) {
+        continue;
+      }
+
+      const currentTags = (
+        Array.isArray(
+          attack.system
+            ?.qualityTags
+        )
+          ? attack.system.qualityTags
+          : []
+      )
+        .map((tag) => {
+          return this
+            ._normalizeQualityAttackTag(
+              tag
+            );
+        })
+        .filter(Boolean);
+
+      const nextTagSet =
+        new Set(currentTags);
+
+      for (
+        const binding of
+        previousBindings.filter(
+          (entry) => {
+            return entry.attackId ===
+              attackId;
+          }
+        )
+      ) {
+        const remainsInThisQuality =
+          nextBindings.some((entry) => {
+            return (
+              entry.attackId ===
+                binding.attackId &&
+              entry.tag === binding.tag
+            );
+          });
+
+        if (remainsInThisQuality) {
+          continue;
+        }
+
+        if (
+          this
+            ._isAttackTagGrantedByAnotherQuality(
+              actor,
+              attackId,
+              binding.tag
+            )
+        ) {
+          continue;
+        }
+
+        nextTagSet.delete(
+          binding.tag
+        );
+      }
+
+      for (
+        const binding of
+        nextBindings.filter(
+          (entry) => {
+            return entry.attackId ===
+              attackId;
+          }
+        )
+      ) {
+        nextTagSet.add(
+          binding.tag
+        );
+      }
+
+      const nextTags = [
+        ...nextTagSet
+      ];
+
+      const changed =
+        nextTags.length !==
+          currentTags.length ||
+        nextTags.some(
+          (tag, index) => {
+            return tag !==
+              currentTags[index];
+          }
+        );
+
+      if (changed) {
+        await attack.update({
+          "system.qualityTags":
+            nextTags
+        });
+      }
+    }
+  }
+
+  _isAttackTagGrantedByAnotherQuality(
+    actor,
+    attackId,
+    tag
+  ) {
+    const normalizedTag =
+      this
+        ._normalizeQualityAttackTag(
+          tag
+        );
+
+    return actor.items.some((item) => {
+      if (
+        item.type !== "quality" ||
+        item.id === this.item.id
+      ) {
+        return false;
+      }
+
+      const selectedRanks =
+        Array.isArray(
+          item.system
+            ?.choices
+            ?.selectedRanks
+        )
+          ? item.system
+              .choices
+              .selectedRanks
+          : [];
+
+      return selectedRanks.some(
+        (choice) => {
+          const identity =
+            this
+              ._getQualityChoiceIdentity(
+                choice
+              );
+
+          return (
+            identity.attackId ===
+              attackId &&
+            identity.tag ===
+              normalizedTag
+          );
+        }
+      );
+    });
+  }
+  
   _prepareSubmitData(event, form, formData, updateData = {}) {
     const submitData = super._prepareSubmitData(event, form, formData, updateData);
     const flatData = foundry.utils.flattenObject(submitData);
@@ -637,96 +1793,775 @@ export class DDAItemSheet extends DDAItemSheetBase {
 
     if (!actor) return [];
 
-    const rangeType = attack.system.baseTags?.rangeType ?? "";
-    const functionType = attack.system.baseTags?.functionType ?? "";
-    const isSignature = Boolean(attack.system.isSignature);
+    const rangeType = String(
+      attack.system
+        ?.baseTags
+        ?.rangeType ?? ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const functionType = String(
+      attack.system
+        ?.baseTags
+        ?.functionType ?? ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const isSignature =
+      Boolean(
+        attack.system?.isSignature
+      );
+
+    const effectTagLabels =
+      CONFIG.DDA?.effectTags ?? {};
 
     const appliesToLabels = {
-      all: localize("DDA.Attack.AppliesTo.All"),
-      melee: localize("DDA.Attack.Range.Melee"),
-      range: localize("DDA.Attack.Range.Ranged"),
-      ranged: localize("DDA.Attack.Range.Ranged"),
-      damage: localize("DDA.Attack.Function.Damage"),
-      support: localize("DDA.Attack.Function.Support"),
-      signature: localize("DDA.Attack.Signature"),
-      taggedAttack: localize("DDA.Attack.AppliedTags"),
-      oneAttack: localize("DDA.Attack.AppliedTags"),
-      oneDamageAttack: localize("DDA.Attack.Function.Damage"),
-      oneMeleeAttack: localize("DDA.Attack.Range.Melee"),
-      oneRangedAttack: localize("DDA.Attack.Range.Ranged"),
-      differentAttackPerRank: localize("DDA.Attack.AppliedTags")
+      all:
+        localize(
+          "DDA.Attack.AppliesTo.All"
+        ),
+
+      melee:
+        localize(
+          "DDA.Attack.Range.Melee"
+        ),
+
+      range:
+        localize(
+          "DDA.Attack.Range.Ranged"
+        ),
+
+      ranged:
+        localize(
+          "DDA.Attack.Range.Ranged"
+        ),
+
+      damage:
+        localize(
+          "DDA.Attack.Function.Damage"
+        ),
+
+      support:
+        localize(
+          "DDA.Attack.Function.Support"
+        ),
+
+      signature:
+        localize(
+          "DDA.Attack.Signature"
+        ),
+
+      signatureMove:
+        localize(
+          "DDA.Attack.Signature"
+        ),
+
+      taggedAttack:
+        localize(
+          "DDA.Attack.AppliedTags"
+        ),
+
+      oneAttack:
+        localize(
+          "DDA.Attack.AppliedTags"
+        ),
+
+      oneDamageAttack:
+        localize(
+          "DDA.Attack.Function.Damage"
+        ),
+
+      oneMeleeAttack:
+        localize(
+          "DDA.Attack.Range.Melee"
+        ),
+
+      oneRangedAttack:
+        localize(
+          "DDA.Attack.Range.Ranged"
+        ),
+
+      oneMeleeDamageAttack:
+        localize(
+          "DDA.Attack.Range.Melee"
+        ),
+
+      differentAttackPerRank:
+        localize(
+          "DDA.Attack.AppliedTags"
+        ),
+
+      oneAttackPerPurchasedEffect:
+        localize(
+          "DDA.Attack.AppliedTags"
+        )
     };
 
-    const effectTagLabels = CONFIG.DDA?.effectTags ?? {};
+    const attackQualityTags =
+      new Set(
+        (
+          attack.system
+            ?.qualityTags ?? []
+        ).map((tag) => {
+          return this
+            ._normalizeQualityAttackTag(
+              tag
+            );
+        })
+      );
 
-    const qualities = actor.items.filter((item) => item.type === "quality");
+    return actor.items
+      .filter((item) => {
+        return item.type === "quality";
+      })
+      .filter((quality) => {
+        const modifier =
+          quality.system
+            ?.attackModifier ?? {};
 
-    return qualities
-.filter((quality) => {
-  const modifier = quality.system.attackModifier ?? {};
-  const rawGrantedTags = Array.isArray(modifier.grantsTags) ? modifier.grantsTags : [];
+        const rawGrantedTags =
+          Array.isArray(
+            modifier.grantsTags
+          )
+            ? modifier.grantsTags
+            : [];
 
-  if (
-    !modifier.enabled &&
-    !rawGrantedTags.length &&
-    !Number(modifier.accuracyBonus ?? 0) &&
-    !Number(modifier.damageBonus ?? 0) &&
-    !Number(modifier.accuracyBonusPerRank ?? 0) &&
-    !Number(modifier.damageBonusPerRank ?? 0)
-  ) return false;
+        if (
+          !modifier.enabled &&
+          !rawGrantedTags.length &&
+          !Number(
+            modifier.accuracyBonus ?? 0
+          ) &&
+          !Number(
+            modifier.damageBonus ?? 0
+          ) &&
+          !Number(
+            modifier
+              .accuracyBonusPerRank ?? 0
+          ) &&
+          !Number(
+            modifier
+              .damageBonusPerRank ?? 0
+          ) &&
+          !modifier.effectTag
+        ) {
+          return false;
+        }
 
-  const appliesTo = modifier.appliesTo ?? "";
+        const appliesTo = String(
+          modifier.appliesTo ?? ""
+        ).trim();
 
-  const qualityTags = new Set((attack.system.qualityTags ?? []).map((tag) => String(tag).toLowerCase()));
-  const grantedTags = rawGrantedTags.map((tag) => String(tag).toLowerCase());
-  const hasGrantedTag = grantedTags.some((tag) => qualityTags.has(tag));
+        const grantedTags =
+          rawGrantedTags.map((tag) => {
+            return this
+              ._normalizeQualityAttackTag(
+                tag
+              );
+          });
 
-  const selectedChoices = Array.isArray(quality.system?.choices?.selectedRanks)
-    ? quality.system.choices.selectedRanks
-    : [];
+        const hasGrantedTag =
+          grantedTags.some((tag) => {
+            return attackQualityTags
+              .has(tag);
+          });
 
-  const selectedAttackIds = selectedChoices
-    .map((choice) => String(
-      choice.attackId
-      ?? choice.attackItemId
-      ?? choice.itemId
-      ?? choice.id
-      ?? ""
-    ).trim())
-    .filter(Boolean);
+        const selectedChoices =
+          Array.isArray(
+            quality.system
+              ?.choices
+              ?.selectedRanks
+          )
+            ? quality.system
+                .choices
+                .selectedRanks
+            : [];
 
-  const attackMatchesExplicitSelection = selectedAttackIds.includes(attack.id);
+        const explicitSelection =
+          selectedChoices.some(
+            (choice) => {
+              return this
+                ._getQualityChoiceIdentity(
+                  choice
+                )
+                .attackId ===
+                attack.id;
+            }
+          );
 
-        if (attackMatchesExplicitSelection) return true;
-        if (["oneAttack", "oneDamageAttack", "oneMeleeAttack", "oneRangedAttack", "differentAttackPerRank", "taggedAttack"].includes(appliesTo)) return hasGrantedTag;
-        
-        if (!appliesTo && grantedTags.length) return hasGrantedTag;
-        if (appliesTo === "all") return true;
-        if (appliesTo === "signature") return isSignature;
-        if (appliesTo === rangeType) return true;
-        if (appliesTo === functionType) return true;
+        if (explicitSelection) {
+          return true;
+        }
 
-        return false;
+        if (
+          appliesTo ===
+          "oneAttackPerPurchasedEffect"
+        ) {
+          return false;
+        }
+
+        if (
+          [
+            "oneAttack",
+            "oneDamageAttack",
+            "oneMeleeAttack",
+            "oneRangedAttack",
+            "oneMeleeDamageAttack",
+            "differentAttackPerRank",
+            "taggedAttack"
+          ].includes(appliesTo)
+        ) {
+          return hasGrantedTag;
+        }
+
+        if (
+          !appliesTo &&
+          grantedTags.length
+        ) {
+          return hasGrantedTag;
+        }
+
+        if (appliesTo === "all") {
+          return true;
+        }
+
+        if (
+          [
+            "signature",
+            "signatureMove"
+          ].includes(appliesTo)
+        ) {
+          return isSignature;
+        }
+
+        return (
+          appliesTo === rangeType ||
+          appliesTo === functionType
+        );
       })
       .map((quality) => {
-        const modifier = quality.system.attackModifier ?? {};
-        const appliesTo = modifier.appliesTo ?? "";
-        const effectTag = modifier.effectTag ?? "";
+        const modifier =
+          quality.system
+            ?.attackModifier ?? {};
+
+        const appliesTo = String(
+          modifier.appliesTo ?? ""
+        ).trim();
+
+        const selectedChoices =
+          Array.isArray(
+            quality.system
+              ?.choices
+              ?.selectedRanks
+          )
+            ? quality.system
+                .choices
+                .selectedRanks
+            : [];
+
+        const selectedChoice =
+          selectedChoices.find(
+            (choice) => {
+              return this
+                ._getQualityChoiceIdentity(
+                  choice
+                )
+                .attackId ===
+                attack.id;
+            }
+          ) ?? null;
+
+        const selectedIdentity =
+          this._getQualityChoiceIdentity(
+            selectedChoice ?? {}
+          );
+
+        const directEffectTag =
+          this
+            ._normalizeQualityAttackTag(
+              modifier.effectTag ?? ""
+            );
+
+        const displayedTag =
+          selectedIdentity.tag ||
+          directEffectTag;
+
+        const extraActionCost =
+          Number(
+            modifier.extraActionCost ??
+            modifier.actionCostIncrease ??
+            0
+          ) +
+          (
+            selectedChoice
+              ?.extraActionRequired &&
+            !isSignature
+              ? 1
+              : 0
+          );
 
         return {
-          id: quality.id,
-          name: quality.name,
+          id:
+            quality.id,
+
+          name:
+            quality.name,
+
           appliesTo,
-          appliesToLabel: appliesToLabels[appliesTo] ?? appliesTo,
-          accuracyBonus: Number(modifier.accuracyBonus ?? 0),
-          damageBonus: Number(modifier.damageBonus ?? 0),
-          unalterableDamage: Number(modifier.unalterableDamage ?? 0),
-          extraActionCost: Number(modifier.extraActionCost ?? 0),
-          effectTag,
-          effectTagLabel: effectTag ? effectTagLabels[effectTag] ?? effectTag : ""
+
+          appliesToLabel:
+            appliesToLabels[
+              appliesTo
+            ] ?? appliesTo,
+
+          accuracyBonus:
+            Number(
+              modifier.accuracyBonus ??
+              0
+            ),
+
+          damageBonus:
+            Number(
+              modifier.damageBonus ??
+              0
+            ),
+
+          unalterableDamage:
+            Number(
+              modifier
+                .unalterableDamage ?? 0
+            ),
+
+          extraActionCost,
+
+          effectTag:
+            displayedTag,
+
+          effectTagLabel:
+            displayedTag
+              ? effectTagLabels[
+                  displayedTag
+                ] ??
+                `[${displayedTag.toUpperCase()}]`
+              : ""
         };
       });
   }
+}
+
+function registerQualityAttackChoiceCleanupHooks() {
+  if (globalThis.__ddaQualityAttackChoiceCleanupHooksRegistered) return;
+
+  globalThis.__ddaQualityAttackChoiceCleanupHooksRegistered = true;
+
+  Hooks.on("updateItem", (item, changed, options, userId) => {
+    if (
+      userId !== game.user?.id ||
+      item?.type !== "quality" ||
+      options?.ddaSkipQualityChoiceCleanup
+    ) return;
+
+    if (
+      !foundry.utils.hasProperty(
+        changed,
+        "system.rank.value"
+      )
+    ) return;
+
+    void pruneQualityAttackChoicesToCurrentRank(item).catch((error) => {
+      console.warn(
+        "DDA | Could not prune Quality attack choices after a Rank change.",
+        error
+      );
+    });
+  });
+
+  Hooks.on("deleteItem", (item, _options, userId) => {
+    if (
+      userId !== game.user?.id ||
+      item?.type !== "quality"
+    ) return;
+
+    const actor =
+      item.actor ??
+      item.parent;
+
+    if (!actor?.items) return;
+
+    const previousChoices =
+      Array.isArray(
+        item.system?.choices?.selectedRanks
+      )
+        ? foundry.utils.deepClone(
+            item.system.choices.selectedRanks
+          )
+        : [];
+
+    void syncQualityAttackChoiceTagsAfterLifecycleChange(
+      actor,
+      item.id,
+      previousChoices,
+      []
+    ).catch((error) => {
+      console.warn(
+        "DDA | Could not clean attack Tags from a deleted Quality.",
+        error
+      );
+    });
+  });
+}
+
+async function pruneQualityAttackChoicesToCurrentRank(
+  quality
+) {
+  const actor =
+    quality?.actor ??
+    quality?.parent;
+
+  if (
+    quality?.type !== "quality" ||
+    !actor?.items
+  ) return;
+
+  const previousChoices =
+    Array.isArray(
+      quality.system?.choices?.selectedRanks
+    )
+      ? foundry.utils.deepClone(
+          quality.system.choices.selectedRanks
+        )
+      : [];
+
+  const currentRank = Math.max(
+    1,
+    Number(
+      quality.system?.rank?.value ??
+      1
+    )
+  );
+
+  const nextChoices =
+    previousChoices.filter((choice, index) => {
+      const choiceRank = Math.max(
+        1,
+        Number(
+          choice?.rank ??
+          index + 1
+        )
+      );
+
+      return choiceRank <= currentRank;
+    });
+
+  if (
+    nextChoices.length ===
+    previousChoices.length
+  ) return;
+
+  await quality.update(
+    {
+      "system.choices.selectedRanks":
+        nextChoices
+    },
+    {
+      render: false,
+      ddaSkipQualityChoiceCleanup: true
+    }
+  );
+
+  await syncQualityAttackChoiceTagsAfterLifecycleChange(
+    actor,
+    quality.id,
+    previousChoices,
+    nextChoices
+  );
+
+  quality.sheet?.render(true);
+}
+
+async function syncQualityAttackChoiceTagsAfterLifecycleChange(
+  actor,
+  sourceQualityId,
+  previousChoices = [],
+  nextChoices = []
+) {
+  if (!actor?.items) return;
+
+  const previousBindings =
+    previousChoices
+      .map(
+        getQualityAttackChoiceCleanupBinding
+      )
+      .filter((binding) => {
+        return (
+          binding.attackId &&
+          binding.tag
+        );
+      });
+
+  const nextBindings =
+    nextChoices
+      .map(
+        getQualityAttackChoiceCleanupBinding
+      )
+      .filter((binding) => {
+        return (
+          binding.attackId &&
+          binding.tag
+        );
+      });
+
+  const touchedAttackIdentities =
+    new Set([
+      ...previousBindings.map(
+        (binding) => binding.attackId
+      ),
+
+      ...nextBindings.map(
+        (binding) => binding.attackId
+      )
+    ]);
+
+  for (
+    const attackIdentity of
+    touchedAttackIdentities
+  ) {
+    const attack =
+      actor.items.find((item) => {
+        return (
+          item.type === "attack" &&
+          getAttackChoiceCleanupIdentityKeys(
+            item
+          ).has(attackIdentity)
+        );
+      });
+
+    if (!attack) continue;
+
+    const attackIdentityKeys =
+      getAttackChoiceCleanupIdentityKeys(
+        attack
+      );
+
+    const currentTags =
+      Array.isArray(
+        attack.system?.qualityTags
+      )
+        ? attack.system.qualityTags
+            .map(
+              normalizeQualityAttackCleanupTag
+            )
+            .filter(Boolean)
+        : [];
+
+    const nextTagSet =
+      new Set(currentTags);
+
+    for (
+      const binding of
+      previousBindings
+    ) {
+      if (
+        !attackIdentityKeys.has(
+          binding.attackId
+        )
+      ) continue;
+
+      const remainsInThisQuality =
+        nextBindings.some((entry) => {
+          return (
+            attackIdentityKeys.has(
+              entry.attackId
+            ) &&
+            entry.tag === binding.tag
+          );
+        });
+
+      if (remainsInThisQuality) continue;
+
+      if (
+        isQualityAttackTagGrantedElsewhere(
+          actor,
+          sourceQualityId,
+          attackIdentityKeys,
+          binding.tag
+        )
+      ) continue;
+
+      nextTagSet.delete(
+        binding.tag
+      );
+    }
+
+    for (
+      const binding of
+      nextBindings
+    ) {
+      if (
+        attackIdentityKeys.has(
+          binding.attackId
+        )
+      ) {
+        nextTagSet.add(
+          binding.tag
+        );
+      }
+    }
+
+    const nextTags = [
+      ...nextTagSet
+    ];
+
+    const changed =
+      nextTags.length !==
+        currentTags.length ||
+      nextTags.some((tag, index) => {
+        return tag !==
+          currentTags[index];
+      });
+
+    if (!changed) continue;
+
+    await attack.update({
+      "system.qualityTags":
+        nextTags
+    });
+  }
+}
+
+function isQualityAttackTagGrantedElsewhere(
+  actor,
+  sourceQualityId,
+  attackIdentityKeys,
+  tag
+) {
+  const normalizedTag =
+    normalizeQualityAttackCleanupTag(
+      tag
+    );
+
+  return actor.items.some((item) => {
+    if (
+      item.type !== "quality" ||
+      item.id === sourceQualityId
+    ) {
+      return false;
+    }
+
+    const selectedRanks =
+      Array.isArray(
+        item.system?.choices?.selectedRanks
+      )
+        ? item.system.choices.selectedRanks
+        : [];
+
+    return selectedRanks.some((choice) => {
+      const binding =
+        getQualityAttackChoiceCleanupBinding(
+          choice
+        );
+
+      return (
+        attackIdentityKeys.has(
+          binding.attackId
+        ) &&
+        binding.tag === normalizedTag
+      );
+    });
+  });
+}
+
+function getAttackChoiceCleanupIdentityKeys(
+  attack
+) {
+  return new Set([
+    attack?.id,
+
+    attack?.system
+      ?.wizard
+      ?.attackKey,
+
+    attack?.flags
+      ?.[
+        "digimon-digital-adventures"
+      ]
+      ?.wizardAttackKey,
+
+    attack?.flags
+      ?.[
+        "digimon-digital-adventures"
+      ]
+      ?.enemyBuilderAttackKey
+  ]
+    .map((value) => {
+      return String(
+        value ?? ""
+      ).trim();
+    })
+    .filter(Boolean));
+}
+
+function getQualityAttackChoiceCleanupBinding(
+  choice = {}
+) {
+  const keyText =
+    String(
+      choice.key ?? ""
+    ).trim();
+
+  const separatorIndex =
+    keyText.indexOf(":");
+
+  const keyAttackId =
+    separatorIndex > 0
+      ? keyText
+          .slice(
+            0,
+            separatorIndex
+          )
+          .trim()
+      : "";
+
+  const keyTag =
+    separatorIndex > 0
+      ? keyText
+          .slice(
+            separatorIndex + 1
+          )
+          .trim()
+      : "";
+
+  return {
+    attackId:
+      String(
+        choice.attackId ??
+        choice.attackItemId ??
+        choice.itemId ??
+        choice.attackKey ??
+        choice.id ??
+        keyAttackId ??
+        ""
+      ).trim(),
+
+    tag:
+      normalizeQualityAttackCleanupTag(
+        choice.effectTag ??
+        choice.attackTag ??
+        choice.grantedTag ??
+        keyTag
+      )
+  };
+}
+
+function normalizeQualityAttackCleanupTag(
+  value = ""
+) {
+  return String(value ?? "")
+    .trim()
+    .replace(/^\[|\]$/g, "")
+    .toLowerCase();
 }
 
 function localize(key) {

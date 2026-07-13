@@ -11,6 +11,66 @@ function normalizeQualityAutomationData(quality) {
   next.grants ??= {};
   next.attackModifier ??= {};
 
+  next.grants.mainStats ??= {};
+  next.grants.miscStats ??= {};
+  next.grants.derivedStats ??= {};
+  next.grants.automaticSuccesses ??= {};
+
+const applyLegacyMainStatGrant = (legacyKey, statKey) => {
+  if (next.grants?.[legacyKey] === undefined) return;
+
+  const legacyValue = Number(next.grants[legacyKey] ?? 0);
+  const canonicalValue = Number(next.grants.mainStats?.[statKey] ?? 0);
+
+  if (legacyValue === 0) return;
+  if (canonicalValue !== 0) return;
+
+  next.grants.mainStats[statKey] = legacyValue;
+};
+
+const applyLegacyMiscStatGrant = (legacyKey, statKey) => {
+  if (next.grants?.[legacyKey] === undefined) return;
+
+  const legacyValue = Number(next.grants[legacyKey] ?? 0);
+  const canonicalValue = Number(next.grants.miscStats?.[statKey] ?? 0);
+
+  if (legacyValue === 0) return;
+  if (canonicalValue !== 0) return;
+
+  next.grants.miscStats[statKey] = legacyValue;
+};
+
+const applyLegacyDerivedStatGrant = (legacyKey, statKey) => {
+  if (next.grants?.[legacyKey] === undefined) return;
+
+  const legacyValue = Number(next.grants[legacyKey] ?? 0);
+  const canonicalValue = Number(next.grants.derivedStats?.[statKey] ?? 0);
+
+  if (legacyValue === 0) return;
+  if (canonicalValue !== 0) return;
+
+  next.grants.derivedStats[statKey] = legacyValue;
+};
+
+  applyLegacyMainStatGrant("armorBonus", "armor");
+  applyLegacyMainStatGrant("healthBonus", "health");
+  applyLegacyMainStatGrant("dodgeBonus", "dodge");
+
+  applyLegacyMiscStatGrant("movementBonus", "movement");
+  applyLegacyMiscStatGrant("movementPenalty", "movement");
+
+  applyLegacyDerivedStatGrant("bitBonus", "bit");
+  applyLegacyDerivedStatGrant("dosBonus", "dos");
+  applyLegacyDerivedStatGrant("ramBonus", "ram");
+  applyLegacyDerivedStatGrant("cpuBonus", "cpu");
+
+  if (next.grants.automaticDodgeSuccesses !== undefined && next.grants.automaticSuccesses.dodge === undefined) {
+    const value = Number(next.grants.automaticDodgeSuccesses ?? 0);
+    if (value !== 0) {
+      next.grants.automaticSuccesses.dodge = value;
+    }
+  }
+
   if (id === "instinto") {
     next.grants.mainStatsPerRank ??= {};
     next.grants.miscStats ??= {};
@@ -40,17 +100,24 @@ if (id === "arma") {
 }
 
 if (id === "golpeCerteiro") {
+  next.cost ??= {};
+  next.cost.dp = 2;
+  next.cost.perRank = true;
+
   next.choices = {
     ...(next.choices ?? {}),
     required: true,
     type: "singleAttack",
+    label: next.choices?.label || "Ataque com [CERTAIN]",
     options: Array.isArray(next.choices?.options) ? next.choices.options : []
   };
 
   next.attackModifier.enabled = true;
   next.attackModifier.appliesTo = "oneDamageAttack";
   next.attackModifier.grantsTags = ["certain"];
-  next.attackModifier.automaticSuccessesPerRank = Number(next.attackModifier.automaticSuccessesPerRank ?? 1);
+  next.attackModifier.automaticSuccessesPerRank = 1;
+  next.attackModifier.signatureBatteryAutomaticSuccessThreshold = 2;
+  next.attackModifier.signatureBatteryAutomaticSuccessBonus = 1;
   next.attackModifier.cannotShareWithTagsUnlessSignatureMove = ["piercing"];
 
   next.statRankRequirement = {
@@ -64,6 +131,20 @@ if (id === "golpeCerteiro") {
       3: 12
     }
   };
+
+  next.requirements = {
+    ...(next.requirements ?? {}),
+    text: "Requer Acerto Total 4 para Rank 1, Acerto Total 8 para Rank 2 e Acerto Total 12 para Rank 3."
+  };
+
+  next.incompatible = {
+    ...(next.incompatible ?? {}),
+    text: "[CERTAIN] e [PIERCING] não podem ser aplicadas ao mesmo ataque, a menos que ambas sejam aplicadas ao Movimento Assinatura."
+  };
+
+  next.effect = "Na primeira compra, aplique a Tag [CERTAIN] a um ataque [DAMAGE]. Um ataque com [CERTAIN] recebe Sucessos automáticos iguais aos Ranks nesta Qualidade. [CERTAIN] só pode ser aplicada a um ataque por Digimon. Se [CERTAIN] for aplicada a um Movimento Assinatura e o Digimon tiver 2 Bateria ou mais, o ataque recebe +1 Sucesso automático adicional.";
+
+  next.description = "Golpe Certeiro torna um ataque [DAMAGE] específico mais confiável, concedendo Sucessos automáticos à rolagem de Acerto.";
 }
 
 if (id === "perfuracaoDeArmadura") {
@@ -75,6 +156,7 @@ if (id === "perfuracaoDeArmadura") {
     ...(next.choices ?? {}),
     required: true,
     type: "singleAttack",
+    label: next.choices?.label || "Ataque com [PIERCING]",
     options: Array.isArray(next.choices?.options) ? next.choices.options : []
   };
 
@@ -83,8 +165,12 @@ if (id === "perfuracaoDeArmadura") {
   next.attackModifier.grantsTags = ["piercing"];
   next.attackModifier.cannotShareWithTagsUnlessSignatureMove = ["certain"];
 
-  next.attackModifier.piercingUnalterablePerLeftoverSuccess = true;
-  next.attackModifier.piercingUnalterableMaxPerRank = Number(next.attackModifier.piercingUnalterableMaxPerRank ?? 1);
+  delete next.attackModifier.piercingUnalterablePerLeftoverSuccess;
+  delete next.attackModifier.piercingUnalterableMaxPerRank;
+
+  next.attackModifier.piercingUnalterableDamagePerRank = 2;
+  next.attackModifier.piercingUnalterableDamageAreaPerRank = 1;
+  next.attackModifier.signatureBatteryDamageCanBecomeUnalterable = true;
 
   next.statRankRequirement = {
     enabled: true,
@@ -97,6 +183,20 @@ if (id === "perfuracaoDeArmadura") {
       3: 12
     }
   };
+
+  next.requirements = {
+    ...(next.requirements ?? {}),
+    text: "Requer Dano Total 4 para Rank 1, Dano Total 8 para Rank 2 e Dano Total 12 para Rank 3."
+  };
+
+  next.incompatible = {
+    ...(next.incompatible ?? {}),
+    text: "[PIERCING] e [CERTAIN] não podem ser aplicadas ao mesmo ataque, a menos que ambas sejam aplicadas ao Movimento Assinatura."
+  };
+
+  next.effect = "Na primeira compra, aplique a Tag [PIERCING] a um ataque [DAMAGE]. Um ataque com [PIERCING] causa Dano Inalterável em um acerto igual a 2 vezes os Ranks nesta Qualidade, ou igual aos Ranks em um Ataque de Área. [PIERCING] só pode ser aplicada a um ataque por Digimon. Se [PIERCING] for aplicada a um Movimento Assinatura, a Bateria adicionada ao Dano do ataque pode ser Dano Inalterável em vez disso, até os Ranks nesta Qualidade, escolhido quando a Tag é aplicada ao ataque.";
+
+  next.description = "Perfuração de Armadura permite que um ataque [DAMAGE] específico atravesse defesas e cause Dano Inalterável fixo em acertos.";
 }
 
 if (id === "ataqueDeInvestida") {
@@ -252,6 +352,529 @@ if (id === "areaDeAtaque") {
 
 if (id === "zonista") {
   next.grants.zoner = true;
+}
+
+/* ----------------------------------------------------- */
+/* Conjurer / Summoner / Omnievoker                      */
+/* ----------------------------------------------------- */
+
+if (id === "conjurador") {
+  const english = isEnglishLanguage();
+
+  next.name = english
+    ? "Conjurer"
+    : "Conjurador";
+
+  next.originalName = "Conjurer";
+  next.section = "Omnievoker Qualities";
+
+  next.category = {
+    ...(next.category ?? {}),
+    trigger: true,
+    static: true
+  };
+
+  next.cost = {
+    ...(next.cost ?? {}),
+    dp: 1,
+    perRank: true
+  };
+
+  next.rank = {
+    ...(next.rank ?? {}),
+    value: 1,
+    max: 3,
+    limited: true
+  };
+
+  next.requirements = {
+    text: english
+      ? "Requires Champion."
+      : "Requer Adulto.",
+
+    qualityNames: ""
+  };
+
+  next.incompatible = {
+    text: english
+      ? "Incompatible with Combat Monster, Positive Reinforcement, and Showstopper."
+      : "Incompatível com Monstro de Combate, Reforço Positivo e Showstopper.",
+
+    qualityNames: english
+      ? "Combat Monster, Positive Reinforcement, Showstopper"
+      : "Monstro de Combate, Reforço Positivo, Showstopper"
+  };
+
+  next.requiredFor = [
+    "Omnievoker"
+  ];
+
+  next.choices = {
+    required: true,
+    type: "perRank",
+
+    label: english
+      ? "Structure"
+      : "Estrutura",
+
+    cannotRepeat: true,
+    repeatOnRankIncrease: true,
+
+    options: [
+      {
+        key: "wallsAndPillars",
+
+        label: english
+          ? "Walls and Pillars"
+          : "Paredes e Pilares",
+
+        originalLabel: "Walls and Pillars",
+
+        masteryCost: 1,
+        woundBoxesPerSpace: 1,
+        damageThresholdFrom: "dos",
+
+        effect: english
+          ? "Spend 1 Mastery per occupied space to create pillars up to DOS spaces high. Adjacent pillars form walls of up to 4 spaces. Each pillar has 1 Wound Box."
+          : "Gaste 1 Mastery por espaço ocupado para criar pilares com até DOS espaços de altura. Pilares adjacentes formam paredes de até 4 espaços. Cada pilar possui 1 Caixa de Ferimento."
+      },
+
+      {
+        key: "platforms",
+
+        label: english
+          ? "Platforms"
+          : "Plataformas",
+
+        originalLabel: "Platforms",
+
+        masteryCost: 2,
+        width: 2,
+        height: 1,
+        woundBoxes: 2,
+        damageThresholdFrom: "dos",
+
+        effect: english
+          ? "Spend 2 Mastery to create a 2-space-wide, 1-space-high Platform anywhere, including in mid-air. It may become Basic or Difficult Terrain of a Naturewalk Element you possess."
+          : "Gaste 2 Mastery para criar uma Plataforma de 2 espaços de largura e 1 de altura em qualquer lugar, inclusive no ar. Ela pode se tornar Terreno Básico ou Difícil de um Elemento de Passo Natural que você possua."
+      },
+
+      {
+        key: "terrain",
+
+        label: english
+          ? "Terrain"
+          : "Terreno",
+
+        originalLabel: "Terrain",
+
+        masteryCost: 2,
+        existingElementMasteryCost: 1,
+        dangerousTerrainExtraCost: 1,
+        woundBoxesPerSpace: 1,
+        damageThresholdFrom: "dos",
+
+        requirements: {
+          mode: "all",
+
+          qualityNames: english
+            ? "Element Master"
+            : "Mestre Elemental"
+        },
+
+        effect: english
+          ? "Requires Element Master. Convert 1 surface or aerial space into Difficult Terrain for 2 Mastery, or 1 if the Element already exists there. Spend +1 Mastery to make it Dangerous Terrain."
+          : "Requer Mestre Elemental. Converta 1 espaço de superfície ou aéreo em Terreno Difícil por 2 Mastery, ou 1 se o Elemento já existir ali. Gaste +1 Mastery para torná-lo Terreno Perigoso."
+      }
+    ]
+  };
+
+  next.grants = {
+    ...(next.grants ?? {}),
+
+    resource: {
+      key: "mastery",
+      label: "Mastery",
+
+      valueFormula:
+        "bit + 2 * (conjurerRanks + summonerRanks)",
+
+      maxFormula:
+        "bit + 2 * (conjurerRanks + summonerRanks)"
+    }
+  };
+
+  next.activation = {
+    ...(next.activation ?? {}),
+
+    enabled: true,
+    active: false,
+    mode: "action",
+
+    actionCostOptions: [
+      1,
+      2
+    ],
+
+    chatMessage: english
+      ? "Use Conjure with 1 Action for half Mastery or 2 Actions for full Mastery."
+      : "Use Conjurar com 1 Ação para acessar metade da Mastery ou 2 Ações para acessar toda a Mastery."
+  };
+
+  next.creation = {
+    type: "structures",
+    resourceKey: "mastery",
+
+    action: {
+      key: "conjure",
+
+      label: english
+        ? "Conjure"
+        : "Conjurar",
+
+      actionCostOptions: [
+        1,
+        2
+      ],
+
+      oneActionMasteryMultiplier: 0.5,
+      twoActionMasteryMultiplier: 1,
+      cooldownRounds: 1
+    },
+
+    rangeFrom: "range",
+    unoccupiedSpacesOnly: true,
+
+    damageThresholdFrom: "dos",
+    structuresDoNotRollDodge: true,
+
+    appearanceMustBeDefined: true,
+
+    masteryRefundedWhenDestroyedAtZeroWounds: true,
+
+    disappearOnNewConjure: true,
+    disappearAtZeroWounds: true,
+    disappearWhenQualityUnavailable: true
+  };
+
+  next.effect = english
+    ? "Gain Mastery equal to BIT + twice the combined Ranks in Conjurer and Summoner. Use Conjure with 1 Action to access half Mastery or 2 Actions to access all Mastery. Each Rank adds one different Structure option. Structures are created in unoccupied spaces within Range, have a Damage Threshold equal to DOS, do not roll Dodge, and refund their Mastery cost when destroyed at 0 Wound Boxes."
+    : "Receba Mastery igual ao BIT + duas vezes a soma dos Ranks em Conjurador e Invocador. Use Conjurar com 1 Ação para acessar metade da Mastery ou 2 Ações para acessar toda a Mastery. Cada Rank adiciona uma opção diferente de Estrutura. Estruturas são criadas em espaços desocupados dentro do Alcance, possuem Limiar de Dano igual ao DOS, não rolam Esquiva e devolvem seu custo de Mastery quando são destruídas ao chegar a 0 Caixas de Ferimento.";
+
+  next.description = english
+    ? "Conjurer creates persistent Structures and elemental terrain by spending Mastery."
+    : "Conjurador cria Estruturas persistentes e terreno elemental gastando Mastery.";
+}
+
+if (id === "invocador") {
+  const english = isEnglishLanguage();
+
+  next.name = english
+    ? "Summoner"
+    : "Invocador";
+
+  next.originalName = "Summoner";
+  next.section = "Omnievoker Qualities";
+
+  next.category = {
+    ...(next.category ?? {}),
+    trigger: true,
+    static: true
+  };
+
+  next.cost = {
+    ...(next.cost ?? {}),
+    dp: 1,
+    perRank: true
+  };
+
+  next.rank = {
+    ...(next.rank ?? {}),
+    value: 1,
+    max: 3,
+    limited: true
+  };
+
+  next.requirements = {
+    text: english
+      ? "Requires Champion."
+      : "Requer Adulto.",
+
+    qualityNames: ""
+  };
+
+  next.incompatible = {
+    text: english
+      ? "Incompatible with Combat Monster, Positive Reinforcement, and Showstopper."
+      : "Incompatível com Monstro de Combate, Reforço Positivo e Showstopper.",
+
+    qualityNames: english
+      ? "Combat Monster, Positive Reinforcement, Showstopper"
+      : "Monstro de Combate, Reforço Positivo, Showstopper"
+  };
+
+  next.requiredFor = [
+    "Omnievoker"
+  ];
+
+  next.choices = {
+    required: true,
+    type: "single",
+
+    label: english
+      ? "Minion Type"
+      : "Tipo de Lacaio",
+
+    cannotRepeat: false,
+
+    /*
+     * O tipo é escolhido uma vez.
+     * Novos Ranks aumentam o número máximo de Lacaios.
+     */
+    repeatOnRankIncrease: false,
+
+    options: [
+      {
+        key: "infantry",
+
+        label: english
+          ? "Infantry"
+          : "Infantaria",
+
+        originalLabel: "Infantry",
+
+        masteryCost: 4,
+        size: "large",
+
+        bonusStat: "movement",
+        bonusFrom: "stage",
+
+        effect: english
+          ? "Costs 4 Mastery, is Large, and gains Movement equal to Stage. Command Minion costs 1 fewer Action once per turn, but those Minions cannot Aid."
+          : "Custa 4 Mastery, é Grande e recebe Movimento igual ao Estágio. Comandar Lacaio custa 1 Ação a menos uma vez por turno, mas esses Lacaios não podem Ajudar."
+      },
+
+      {
+        key: "protector",
+
+        label: english
+          ? "Protector"
+          : "Protetor",
+
+        originalLabel: "Protector",
+
+        masteryCost: 3,
+        size: "huge",
+
+        bonusStat: "wounds",
+        bonusFormula: "stage * 2",
+
+        effect: english
+          ? "Costs 3 Mastery, is Huge, and gains Wound Boxes equal to twice Stage. It may Intercede using the Summoner's Actions and ignores all Difficult Terrain."
+          : "Custa 3 Mastery, é Enorme e recebe Caixas de Ferimento iguais ao dobro do Estágio. Pode Interceder usando as Ações do Invocador e ignora todo Terreno Difícil."
+      },
+
+      {
+        key: "recon",
+
+        label: english
+          ? "Recon"
+          : "Reconhecimento",
+
+        originalLabel: "Recon",
+
+        masteryCost: 2,
+        size: "medium",
+
+        bonusStat: "accuracy",
+        bonusFrom: "stage",
+
+        effect: english
+          ? "Costs 2 Mastery, is Medium, and gains Accuracy equal to Stage. It may make [RANGE] Attacks using the Summoner's Range and Effective Limit, and the Summoner can see through its eyes."
+          : "Custa 2 Mastery, é Médio e recebe Precisão igual ao Estágio. Pode fazer ataques [RANGE] usando Alcance e Limite Efetivo do Invocador, que também pode enxergar por seus olhos."
+      },
+
+      {
+        key: "volatile",
+
+        label: english
+          ? "Volatile"
+          : "Volátil",
+
+        originalLabel: "Volatile",
+
+        masteryCost: 1,
+        size: "large",
+
+        bonusStat: "damage",
+        bonusFrom: "stage",
+
+        requirements: {
+          mode: "all",
+
+          qualityNames: english
+            ? "Element Master"
+            : "Mestre Elemental"
+        },
+
+        effect: english
+          ? "Requires Element Master. Costs 1 Mastery, is Large, and gains Damage equal to Stage. Choose one owned Naturewalk Element when summoned. At 0 Wound Boxes it makes a free minimum-range [RANGE][DAMAGE][T:BURST] Attack."
+          : "Requer Mestre Elemental. Custa 1 Mastery, é Grande e recebe Dano igual ao Estágio. Escolha um Elemento de Passo Natural possuído ao invocá-lo. Ao chegar a 0 Caixas de Ferimento, faz um ataque gratuito [RANGE][DAMAGE][T:BURST] de alcance mínimo."
+      }
+    ]
+  };
+
+  next.grants = {
+    ...(next.grants ?? {}),
+
+    resource: {
+      key: "mastery",
+      label: "Mastery",
+
+      valueFormula:
+        "bit + 2 * (conjurerRanks + summonerRanks)",
+
+      maxFormula:
+        "bit + 2 * (conjurerRanks + summonerRanks)"
+    }
+  };
+
+  next.activation = {
+    ...(next.activation ?? {}),
+
+    enabled: true,
+    active: false,
+    mode: "action",
+
+    actionCostOptions: [
+      1,
+      2
+    ],
+
+    chatMessage: english
+      ? "Use Summon with 1 Action for half Mastery or 2 Actions for full Mastery. Command one Minion with 1 Action or all Minions with 2 Actions."
+      : "Use Invocar com 1 Ação para acessar metade da Mastery ou 2 Ações para acessar toda a Mastery. Comande um Lacaio com 1 Ação ou todos com 2 Ações."
+  };
+
+  next.creation = {
+    type: "minions",
+    resourceKey: "mastery",
+
+    summonAction: {
+      key: "summon",
+
+      label: english
+        ? "Summon"
+        : "Invocar",
+
+      actionCostOptions: [
+        1,
+        2
+      ],
+
+      oneActionMasteryMultiplier: 0.5,
+      twoActionMasteryMultiplier: 1,
+      cooldownRounds: 1
+    },
+
+    commandAction: {
+      key: "commandMinion",
+
+      label: english
+        ? "Command Minion"
+        : "Comandar Lacaio",
+
+      oneMinionActionCost: 1,
+      allMinionsActionCost: 2,
+      minionActionsGranted: 2
+    },
+
+    rangeFrom: "range",
+    unoccupiedSpacesOnly: true,
+
+    maximumMinionsFrom: "summonerRanks",
+
+    masteryRefundedWhenDestroyedAtZeroWounds: true,
+
+    baseStats: {
+      accuracyFrom: "bit",
+      damageFrom: "bit",
+      movementFrom: "bit",
+
+      woundsFormula: "dos * 2",
+
+      armor: 0,
+      dodge: 0,
+
+      extraMovement: "flight"
+    },
+
+    masteryUpgrades: {
+      woundsPerMastery: 2,
+      coreStatsPerTwoMastery: 1
+    },
+
+    disappearOnNewSummonUnlessKept: true,
+    disappearAtZeroWounds: true,
+    disappearWhenQualityUnavailable: true
+  };
+
+  next.effect = english
+    ? "Gain Mastery equal to BIT + twice the combined Ranks in Summoner and Conjurer. Use Summon with 1 Action to access half Mastery or 2 Actions to access all Mastery. The maximum number of Minions equals Summoner Ranks. Command one Minion with 1 Action or all Minions with 2 Actions; commanded Minions receive 2 Actions."
+    : "Receba Mastery igual ao BIT + duas vezes a soma dos Ranks em Invocador e Conjurador. Use Invocar com 1 Ação para acessar metade da Mastery ou 2 Ações para acessar toda a Mastery. A quantidade máxima de Lacaios é igual aos Ranks em Invocador. Comande um Lacaio com 1 Ação ou todos com 2 Ações; Lacaios comandados recebem 2 Ações.";
+
+  next.description = english
+    ? "Summoner creates and commands digital Minions by spending Mastery."
+    : "Invocador cria e comanda Lacaios digitais gastando Mastery.";
+}
+
+if (id === "evocador") {
+  const english = isEnglishLanguage();
+
+  /*
+   * O ID continua sendo evocador para preservar
+   * Actors, snapshots e Items antigos.
+   */
+  next.name = "Omnievoker";
+  next.originalName = "Omnievoker";
+  next.section = "Omnievoker Qualities";
+
+  next.requirements = {
+    text: english
+      ? "Requires 1+ Rank of Conjurer or 1+ Rank of Summoner."
+      : "Requer 1+ Rank de Conjurador ou 1+ Rank de Invocador.",
+
+    qualityNames: english
+      ? "Conjurer, Summoner"
+      : "Conjurador, Invocador",
+
+    mode: "any",
+    minimumRank: 1
+  };
+
+  next.grants = {
+    combinedConjureAndSummonActions: true,
+    sharedActionSpend: true
+  };
+
+  next.creation = {
+    type: "structuresAndMinions",
+    resourceKey: "mastery",
+
+    combinedAction: {
+      enabled: true,
+      useSameActions: true,
+      canConjureAndSummonTogether: true
+    }
+  };
+
+  next.effect = english
+    ? "The Digimon can use the Conjure and Summon Actions using the same Actions."
+    : "O Digimon pode usar as Ações Conjurar e Invocar usando as mesmas Ações.";
+
+  next.description = english
+    ? "Omnievoker combines Conjurer and Summoner into the same Action expenditure."
+    : "Omnievoker combina Conjurador e Invocador no mesmo gasto de Ações.";
 }
 
   return next;

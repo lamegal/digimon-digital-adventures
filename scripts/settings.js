@@ -423,6 +423,29 @@ game.settings.register(MODULE_ID, "humanScaling", {
     }
   });
 
+  game.settings.register(MODULE_ID, "sessionState", {
+    name: "DDA.Settings.Internal.SessionState.Name",
+    hint: "DDA.Settings.Internal.SessionState.Hint",
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {
+      version: 1,
+      active: false,
+      id: "",
+      startedAt: "",
+      startedBy: {
+        id: "",
+        name: ""
+      },
+      endedAt: "",
+      endedBy: {
+        id: "",
+        name: ""
+      }
+    }
+  });
+
 }
 
 export function getDDASetting(key) {

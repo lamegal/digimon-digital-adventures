@@ -1,4 +1,4 @@
-<form class="dda-gm-tools-form">
+<div class="dda-gm-tools-body">
   <section class="dda-gm-tools-section">
     <header class="dda-gm-tools-header">
       <img
@@ -12,6 +12,49 @@
         <p>{{localize "DDA.GmTools.HeaderHelp"}}</p>
       </div>
     </header>
+  </section>
+
+  <section class="dda-gm-tools-section dda-gm-tools-session-section">
+    <div class="dda-gm-tools-session-header">
+      <div>
+        <h3>{{localize "DDA.GmTools.Session.Title"}}</h3>
+        <p>{{localize "DDA.GmTools.Session.Help"}}</p>
+      </div>
+
+      <span class="dda-gm-tools-session-status {{#if session.active}}active{{else}}inactive{{/if}}">
+        {{session.statusLabel}}
+      </span>
+    </div>
+
+    {{#if session.active}}
+      <dl class="dda-gm-tools-session-details">
+        <div>
+          <dt>{{localize "DDA.GmTools.Session.StartedAt"}}</dt>
+          <dd>{{session.startedAtLabel}}</dd>
+        </div>
+
+        <div>
+          <dt>{{localize "DDA.GmTools.Session.StartedBy"}}</dt>
+          <dd>{{session.startedBy.name}}</dd>
+        </div>
+      </dl>
+    {{/if}}
+
+    <div class="dda-gm-tools-session-actions">
+      <button type="button" data-action="start-session">
+        <i class="fas fa-play"></i>
+        {{localize "DDA.GmTools.Session.Start"}}
+      </button>
+
+      <button
+        type="button"
+        data-action="end-session"
+        {{#unless session.active}}disabled{{/unless}}
+      >
+        <i class="fas fa-stop"></i>
+        {{localize "DDA.GmTools.Session.End"}}
+      </button>
+    </div>
   </section>
 
   <section class="dda-gm-tools-section">
@@ -84,4 +127,4 @@
       {{localize "DDA.GmTools.ApplyDamage"}}
     </button>
   </section>
-</form>
+</div>

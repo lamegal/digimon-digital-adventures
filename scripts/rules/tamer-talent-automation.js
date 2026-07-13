@@ -28,23 +28,131 @@ function getTalentAutomation(talent) {
   return getTalentSystem(talent).automation ?? talent?.automation ?? {};
 }
 
-function getTalentUses(tamer, talent, { source = "item" } = {}) {
+export function getTamerTalentUsesMax(tamer, talent) {
+  const baseUses = getTalentSystem(talent).uses ?? talent?.uses ?? {};
+
+  if (!baseUses.enabled) return 0;
+
+  const formula = baseUses.maxFormula ?? {};
+  const formulaType = String(formula.type ?? "").trim();
+
+  if (formulaType === "skillAbove") {
+    const skillKey = String(formula.key ?? "").trim();
+
+    const skillValue = Number(
+      tamer?.system?.skills?.[skillKey]?.value ?? 0
+    );
+
+    const threshold = Number(
+      formula.threshold ?? 0
+    );
+
+    const minimum = Math.max(
+      0,
+      Number(formula.minimum ?? 0)
+    );
+
+    const maximum = Number(
+      formula.maximum ?? Number.POSITIVE_INFINITY
+    );
+
+    return Math.max(
+      minimum,
+      Math.min(
+        Number.isFinite(maximum)
+          ? maximum
+          : Number.POSITIVE_INFINITY,
+
+        Math.max(
+          0,
+          skillValue - threshold
+        )
+      )
+    );
+  }
+
+  if (formulaType === "attributeAbove") {
+    const attributeKey = String(formula.key ?? "").trim();
+
+    const attributeValue = Number(
+      tamer?.system?.attributes?.[attributeKey]?.value ?? 0
+    );
+
+    const threshold = Number(
+      formula.threshold ?? 0
+    );
+
+    const minimum = Math.max(
+      0,
+      Number(formula.minimum ?? 0)
+    );
+
+    const maximum = Number(
+      formula.maximum ?? Number.POSITIVE_INFINITY
+    );
+
+    return Math.max(
+      minimum,
+      Math.min(
+        Number.isFinite(maximum)
+          ? maximum
+          : Number.POSITIVE_INFINITY,
+
+        Math.max(
+          0,
+          attributeValue - threshold
+        )
+      )
+    );
+  }
+
+  return Math.max(
+    0,
+    Number(baseUses.max ?? 0)
+  );
+}
+
+export function getTamerTalentUses(
+  tamer,
+  talent,
+  { source = "item" } = {}
+) {
   const baseUses = getTalentSystem(talent).uses ?? talent?.uses ?? {};
 
   if (!baseUses.enabled) {
-    return { enabled: false, value: 0, max: 0, recharge: "" };
+    return {
+      enabled: false,
+      value: 0,
+      max: 0,
+      recharge: ""
+    };
   }
 
-  const max = Math.max(0, Number(baseUses.max ?? 0));
+  const max = getTamerTalentUsesMax(
+    tamer,
+    talent
+  );
+
   const storedValue = source === "official"
     ? tamer?.system?.tamerTalentUses?.[talent.id]?.value
     : baseUses.value;
 
   return {
     enabled: true,
-    value: Math.max(0, Number(storedValue ?? max)),
+
+    value: Math.min(
+      max,
+      Math.max(
+        0,
+        Number(storedValue ?? max)
+      )
+    ),
+
     max,
-    recharge: String(baseUses.recharge ?? "")
+
+    recharge: String(
+      baseUses.recharge ?? ""
+    )
   };
 }
 
@@ -167,7 +275,11 @@ export function validateTamerTalentUse(tamer, talent, options = {}) {
     };
   }
 
-  const uses = getTalentUses(tamer, talent, options);
+  const uses = getTamerTalentUses(
+  tamer,
+  talent,
+  options
+);
 
   if (uses.enabled && uses.value <= 0) {
     return {
@@ -226,7 +338,11 @@ export async function useTamerTalent(tamer, talent, options = {}) {
     success: true,
     actionCost: validation.actionCost,
     actionCostNumber: validation.actionCostNumber,
-    uses: getTalentUses(tamer, talent, options)
+    uses: getTamerTalentUses(
+  tamer,
+  talent,
+  options
+)
   };
 }
 
@@ -240,7 +356,11 @@ async function commitTamerTalentUse(tamer, talent, options = {}) {
     0
   );
 
-  const uses = options.uses ?? getTalentUses(tamer, talent, { source });
+  const uses = options.uses ?? getTamerTalentUses(
+  tamer,
+  talent,
+  { source }
+);
   const actorUpdates = {};
 
   if (actionCostNumber > 0) {

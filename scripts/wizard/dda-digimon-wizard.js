@@ -40,7 +40,11 @@ function getDdaFilePickerClass() {
 }
 
 
-const DDA_SYSTEM_ID = "digimon-digital-adventures";
+const DDA_SYSTEM_ID =
+  "digimon-digital-adventures";
+
+const DDA_DIGIMON_MAIN_STAT_MAX =
+  20;
 
 const DDA_WIZARD_STAGE_ORDER = [
   "baby1",
@@ -60,6 +64,97 @@ const DDA_WIZARD_STARTING_STAGE_KEYS = [
   "perfect",
   "ultimate"
 ];
+
+const DDA_WIZARD_QUALITY_CATEGORY_FILTERS = [
+  { key: "all", pt: "Todas as categorias", en: "All categories" },
+  { key: "core", pt: "Centrais", en: "Core" },
+  { key: "attack", pt: "Ataque", en: "Attack / Offensive" },
+  { key: "defense", pt: "Defesa", en: "Defense" },
+  { key: "clash", pt: "Clash", en: "Clash" },
+  {
+    key: "effect",
+    pt: "Efeito e Conjuração",
+    en: "Effect & Conjuration"
+  },
+  { key: "utility", pt: "Utilidade", en: "Utility" },
+  {
+    key: "stanceMode",
+    pt: "Postura e Modo",
+    en: "Stance & Mode"
+  },
+  { key: "digizoid", pt: "Digizoide", en: "Digizoid" }
+];
+
+const DDA_WIZARD_QUALITY_SECTION_GROUPS = {
+  attack: [
+    "Offensive Qualities",
+    "Qualidades Ofensivas"
+  ],
+
+  defense: [
+    "Defensive Qualities",
+    "Qualidades Defensivas",
+    "Preservation Qualities",
+    "Qualidades de Preservação"
+  ],
+
+  clash: [
+    "Clash Qualities",
+    "Qualidades de Clash"
+  ],
+
+  effect: [
+    "Effect Qualities",
+    "Qualidades de Efeito",
+    "Evoker Qualities",
+    "Omnievoker Qualities",
+    "Qualidades de Conjurador",
+    "Qualidades de Conjuração"
+  ],
+
+  utility: [
+    "Utility Qualities",
+    "Qualidades Utilitárias"
+  ],
+
+  stanceMode: [
+    "Stance Qualities",
+    "Qualidades de Postura",
+    "Mode Change Qualities",
+    "Qualidades de Mudança de Modo"
+  ],
+
+  digizoid: [
+    "Digizoid Armor",
+    "Armaduras de Digizoide",
+    "Digizoid Weaponry",
+    "Armamentos de Digizoide"
+  ]
+};
+
+function matchesWizardQualityCategory(
+  quality = {},
+  categoryKey = "all"
+) {
+  if (categoryKey === "all") return true;
+
+  const category = quality.category ?? {};
+  const section = String(quality.section ?? "");
+
+  if (categoryKey === "core") {
+    return Boolean(category.core);
+  }
+
+  if (categoryKey === "attack") {
+    return Boolean(category.attack) ||
+      DDA_WIZARD_QUALITY_SECTION_GROUPS.attack
+        .includes(section);
+  }
+
+  return DDA_WIZARD_QUALITY_SECTION_GROUPS[
+    categoryKey
+  ]?.includes(section) ?? false;
+}
 
 const DDA_NORMAL_PARTNER_LINE_STAGES = [
   "baby1",
@@ -140,7 +235,7 @@ const DDA_INITIAL_STATIC_PORTRAIT_FILE_OVERRIDES = {
   algomon_child: "Argomon_Child.webp",
   algomon_adult: "Argomon_Adult.webp",
   algomon_perfect: "Argomon_perfect.webp",
-  algomon_ultimate: "Argomon_mega.webp",
+  algomon_ultimate: "Argomon-mega.webp",
 
   burgamon_child: "Burgamon_child.webp",
   burgamon_adult: "Burgamon_adult.webp"
@@ -2398,16 +2493,28 @@ _getTemplateSelectedRankForPendingChoice(quality = null, pending = null, rankNum
     return this._getTemplateChoiceRankData(quality, templateChoice, rankNumber);
   }
 
-  return {
-    rank: rankNumber,
-    key: "",
-    label: "",
-    originalLabel: "",
-    attackId: "",
-    attackName: "",
-    attackTag: "",
-    effect: ""
-  };
+return {
+  rank: rankNumber,
+
+  key: "",
+  label: "",
+  originalLabel: "",
+
+  attackId: "",
+  attackName: "",
+  attackTag: "",
+
+  effectTag: "",
+  effectType: "",
+  potencyStat: "",
+  duration: true,
+
+  extraActionRequired: false,
+  requiresDamageTag: false,
+  onlyAffectsAllies: false,
+
+  effect: ""
+};
 }
 
 _getTemplatePendingRankNumbers(pending = null, quality = null) {
@@ -2445,26 +2552,94 @@ _getTemplateAttackChoiceOptionsForPending(pending = null, quality = null, rankCh
     return this._getAttackChoiceOptionsForQuality(quality, []);
   }
 
-  if (choiceType === "effectAttack") {
-    const tag = String(rankChoice?.key || pending?.tag || "").trim().toLowerCase();
-    if (!tag) return [];
+if (
+  choiceType ===
+  "effectAttack"
+) {
+  const tag =
+    String(
+      rankChoice?.key ||
+      pending?.tag ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
 
-    return attacks
-      .filter((attack) => this._attackMatchesQualityAppliesTo(attack, "oneAttack"))
-      .map((attack) => ({
-        key: `${attack.id}:${tag}`,
-        label: `${attack.name} — [${tag.toUpperCase()}]`,
-        originalLabel: attack.name,
-        attackId: attack.id,
-        attackName: attack.name,
-        attackTag: tag,
-        effect: text(
-          `${attack.name} recebe [${tag.toUpperCase()}].`,
-          `${attack.name} gains [${tag.toUpperCase()}].`
-        )
-      }));
+  if (!tag) {
+    return [];
   }
 
+  return attacks
+    .filter((attack) => {
+      return this
+        ._attackMatchesQualityAppliesTo(
+          attack,
+          "oneAttack"
+        );
+    })
+    .map((attack) => {
+      return {
+        key:
+          `${attack.id}:${tag}`,
+
+        label:
+          `${attack.name} — [${tag.toUpperCase()}]`,
+
+        originalLabel: "",
+
+        attackId:
+          attack.id,
+
+        attackName:
+          attack.name,
+
+        attackTag:
+          tag,
+
+        effectTag:
+          tag,
+
+        effectType:
+          rankChoice?.effectType ??
+          rankChoice?.type ??
+          "",
+
+        potencyStat:
+          rankChoice?.potencyStat ??
+          rankChoice?.potency ??
+          "",
+
+        duration:
+          rankChoice?.duration ??
+          true,
+
+        extraActionRequired:
+          Boolean(
+            rankChoice
+              ?.extraActionRequired
+          ),
+
+        requiresDamageTag:
+          Boolean(
+            rankChoice
+              ?.requiresDamageTag
+          ),
+
+        onlyAffectsAllies:
+          Boolean(
+            rankChoice
+              ?.onlyAffectsAllies
+          ),
+
+        effect:
+          rankChoice?.effect ??
+          text(
+            `${attack.name} recebe [${tag.toUpperCase()}].`,
+            `${attack.name} gains [${tag.toUpperCase()}].`
+          )
+      };
+    });
+}
   if (choiceType === "areaAttack") {
     const rawTag = String(rankChoice?.key || pending?.tag || "").trim().toLowerCase();
     if (!rawTag) return [];
@@ -2477,7 +2652,7 @@ _getTemplateAttackChoiceOptionsForPending(pending = null, quality = null, rankCh
       .map((attack) => ({
         key: `${attack.id}:${tag}`,
         label: `${attack.name} — [${tag.toUpperCase()}]`,
-        originalLabel: attack.name,
+        originalLabel: "",
         attackId: attack.id,
         attackName: attack.name,
         attackTag: tag,
@@ -3200,16 +3375,61 @@ async _onIncreaseStat(event) {
 
   if (!stat) return;
 
-  if (Number(this.data.dp?.remaining ?? 0) <= 0) {
-    ui.notifications.warn(text(
-      "Você não possui PD restante para aumentar este atributo.",
-      "You do not have remaining DP to increase this stat."
-    ));
+  const currentTotal =
+    Number(
+      stat.base ?? 0
+    ) +
+    Number(
+      stat.spent ?? 0
+    );
+
+  if (
+    currentTotal >=
+    DDA_DIGIMON_MAIN_STAT_MAX
+  ) {
+    ui.notifications.warn(
+      text(
+        `Este atributo já atingiu o limite de ${DDA_DIGIMON_MAIN_STAT_MAX}.`,
+
+        `This stat has already reached the limit of ${DDA_DIGIMON_MAIN_STAT_MAX}.`
+      )
+    );
+
     return;
   }
 
-  stat.spent = Number(stat.spent ?? 0) + 1;
-  stat.total = Number(stat.base ?? 0) + Number(stat.spent ?? 0);
+  if (
+    Number(
+      this.data.dp?.remaining ?? 0
+    ) <= 0
+  ) {
+    ui.notifications.warn(
+      text(
+        "Você não possui PD restante para aumentar este atributo.",
+
+        "You do not have remaining DP to increase this stat."
+      )
+    );
+
+    return;
+  }
+
+  stat.spent =
+    Number(
+      stat.spent ?? 0
+    ) + 1;
+
+  stat.total =
+    Math.min(
+      DDA_DIGIMON_MAIN_STAT_MAX,
+
+      Number(
+        stat.base ?? 0
+      ) +
+      Number(
+        stat.spent ?? 0
+      )
+    );
 
   if (this._usesInitialFormBuildsForMechanicalState()) {
     this._syncGlobalStateToActiveFormBuild();
@@ -4091,10 +4311,47 @@ _recalculateFormBuild(build = null) {
     return build;
   }
 
-  for (const stat of Object.values(build.statAllocation)) {
-    stat.base = Math.max(1, this._getStageValue(stageKey));
-    stat.spent = Math.max(0, Number(stat.spent ?? 0));
-    stat.total = Number(stat.base ?? 0) + Number(stat.spent ?? 0);
+  for (
+    const stat of
+    Object.values(
+      build.statAllocation
+    )
+  ) {
+    stat.base =
+      Math.min(
+        DDA_DIGIMON_MAIN_STAT_MAX,
+
+        Math.max(
+          1,
+          this._getStageValue(
+            stageKey
+          )
+        )
+      );
+
+    const maximumSpent =
+      Math.max(
+        0,
+
+        DDA_DIGIMON_MAIN_STAT_MAX -
+        stat.base
+      );
+
+    stat.spent =
+      Math.min(
+        maximumSpent,
+
+        Math.max(
+          0,
+          Number(
+            stat.spent ?? 0
+          )
+        )
+      );
+
+    stat.total =
+      stat.base +
+      stat.spent;
   }
 
   build.dp.base = Number(stageData.startingDp ?? build.dp.base ?? 0);
@@ -7849,10 +8106,21 @@ coreDiscount: {
           value: 0,
           max: 4
         },
-        creationLimit: {
+        mastery: {
           enabled: false,
           value: 0,
           max: 0
+        },
+
+        /*
+         * Mantido temporariamente para Actors antigos.
+         * Não será mais exibido ou usado.
+         */
+        creationLimit: {
+          enabled: false,
+          value: 0,
+          max: 0,
+          legacy: true
         },
         mood: {
           enabled: false,
@@ -7926,10 +8194,28 @@ _buildMainStatData(stat) {
   const startingBase = Number(stat.base ?? 0);
   const spent = Number(stat.spent ?? 0);
 
-  const base = startingBase + spent;
-  const bonus = 0;
-  const qualityBonus = 0;
-  const total = base + bonus + qualityBonus;
+  const base =
+    Math.min(
+      DDA_DIGIMON_MAIN_STAT_MAX,
+
+      startingBase +
+      spent
+    );
+
+  const bonus =
+    0;
+
+  const qualityBonus =
+    0;
+
+  const total =
+    Math.min(
+      DDA_DIGIMON_MAIN_STAT_MAX,
+
+      base +
+      bonus +
+      qualityBonus
+    );
 
   return {
     label: stat.label ?? "",
@@ -7963,79 +8249,265 @@ _buildDerivedStatData(label, value) {
   };
 }
 
-async _resolveWizardQualityAttackChoices(actor, createdItems = []) {
-  if (!actor?.items) return;
+async _resolveWizardQualityAttackChoices(
+  actor,
+  createdItems = []
+) {
+  if (!actor?.items) {
+    return;
+  }
 
-  const attackByWizardKey = new Map();
+  const normalizeTag = (
+    value = ""
+  ) => {
+    return String(value ?? "")
+      .trim()
+      .replace(/^\[|\]$/g, "")
+      .toLowerCase();
+  };
 
-  const allAttacks = Array.from(actor.items).filter((item) => item.type === "attack");
+  const configuredEffectTags =
+    new Set([
+      ...Object.keys(
+        CONFIG.DDA?.effectTags ?? {}
+      ),
+
+      ...DDA_DIGIMON_QUALITIES
+        .filter((entry) => {
+          return (
+            entry.choices?.type ===
+            "effectTagPerRank"
+          );
+        })
+        .flatMap((entry) => {
+          return Array.isArray(
+            entry.choices?.options
+          )
+            ? entry.choices.options.map(
+                (option) => {
+                  return option.key;
+                }
+              )
+            : [];
+        })
+    ]
+      .map(normalizeTag)
+      .filter(Boolean));
+
+  const attackByWizardKey =
+    new Map();
+
+  const allAttacks =
+    Array.from(actor.items)
+      .filter((item) => {
+        return item.type === "attack";
+      });
 
   for (const attack of allAttacks) {
-    const wizardAttackKey = String(
-      attack.flags?.[DDA_SYSTEM_ID]?.wizardAttackKey ||
-      attack.system?.wizard?.attackKey ||
-      ""
-    ).trim();
+    const wizardAttackKey =
+      String(
+        attack.flags
+          ?.[DDA_SYSTEM_ID]
+          ?.wizardAttackKey ||
+
+        attack.system
+          ?.wizard
+          ?.attackKey ||
+
+        ""
+      ).trim();
 
     if (wizardAttackKey) {
-      attackByWizardKey.set(wizardAttackKey, attack);
+      attackByWizardKey.set(
+        wizardAttackKey,
+        attack
+      );
     }
   }
 
-  const allQualities = Array.from(actor.items).filter((item) => item.type === "quality");
+  const allQualities =
+    Array.from(actor.items)
+      .filter((item) => {
+        return item.type === "quality";
+      });
 
   for (const quality of allQualities) {
-    const selectedRanks = Array.isArray(quality.system?.choices?.selectedRanks)
-      ? foundry.utils.deepClone(quality.system.choices.selectedRanks)
-      : [];
+    const selectedRanks =
+      Array.isArray(
+        quality.system
+          ?.choices
+          ?.selectedRanks
+      )
+        ? foundry.utils.deepClone(
+            quality.system
+              .choices
+              .selectedRanks
+          )
+        : [];
 
-    if (!selectedRanks.length) continue;
+    if (!selectedRanks.length) {
+      continue;
+    }
 
     let changedQuality = false;
+    const nextChoices = [];
 
-    const nextChoices = selectedRanks.map((choice) => {
-      const provisionalAttackId = String(choice.attackId ?? "").trim();
-      const keyAttackPart = String(choice.key ?? "").split(":")[0] ?? "";
-      const lookupKey = provisionalAttackId || keyAttackPart;
+    for (
+      const choice of
+      selectedRanks
+    ) {
+      const provisionalAttackId =
+        String(
+          choice.attackId ?? ""
+        ).trim();
 
-      const attack = attackByWizardKey.get(lookupKey) || actor.items.get(provisionalAttackId);
+      const keyText =
+        String(
+          choice.key ?? ""
+        ).trim();
 
-      if (!attack || attack.type !== "attack") return choice;
+      const separatorIndex =
+        keyText.indexOf(":");
 
-      const attackTag = String(choice.attackTag ?? "").trim().toLowerCase();
+      const keyAttackPart =
+        separatorIndex > 0
+          ? keyText
+              .slice(
+                0,
+                separatorIndex
+              )
+              .trim()
+          : "";
 
-      if (attackTag) {
-        const currentTags = Array.isArray(attack.system?.qualityTags)
-          ? foundry.utils.deepClone(attack.system.qualityTags)
-          : [];
+      const keyTag =
+        separatorIndex > 0
+          ? keyText
+              .slice(
+                separatorIndex + 1
+              )
+              .trim()
+          : "";
 
-        const normalizedTags = currentTags.map((tag) => String(tag).toLowerCase());
+      const lookupKeys = [
+        provisionalAttackId,
+        keyAttackPart
+      ].filter(Boolean);
 
-        if (!normalizedTags.includes(attackTag)) {
-          currentTags.push(attackTag);
-          attack.update({ "system.qualityTags": currentTags });
+      let attack = null;
+
+      for (
+        const lookupKey of
+        lookupKeys
+      ) {
+        attack =
+          actor.items.get(
+            lookupKey
+          ) ||
+
+          attackByWizardKey.get(
+            lookupKey
+          ) ||
+
+          null;
+
+        if (attack) {
+          break;
         }
       }
 
+      if (
+        !attack ||
+        attack.type !== "attack"
+      ) {
+        nextChoices.push(choice);
+        continue;
+      }
+
+      const attackTag =
+        normalizeTag(
+          choice.effectTag ??
+          choice.attackTag ??
+          keyTag
+        );
+
+      if (attackTag) {
+        const currentTags =
+          Array.isArray(
+            attack.system?.qualityTags
+          )
+            ? foundry.utils.deepClone(
+                attack.system.qualityTags
+              )
+            : [];
+
+        const normalizedTags =
+          currentTags.map(
+            normalizeTag
+          );
+
+        if (
+          !normalizedTags.includes(
+            attackTag
+          )
+        ) {
+          currentTags.push(
+            attackTag
+          );
+
+          await attack.update({
+            "system.qualityTags":
+              currentTags
+          });
+        }
+      }
+
+      const isEffectTag =
+        configuredEffectTags.has(
+          attackTag
+        );
+
       changedQuality = true;
 
-      return {
+      nextChoices.push({
         ...choice,
-        key: attackTag ? `${attack.id}:${attackTag}` : attack.id,
+
+        key: attackTag
+          ? `${attack.id}:${attackTag}`
+          : attack.id,
+
         label: attackTag
           ? `${attack.name} — [${attackTag.toUpperCase()}]`
           : attack.name,
-        originalLabel: attack.name,
-        attackId: attack.id,
-        attackName: attack.name,
-        pendingAttackChoice: false,
-        pendingAttackSlot: null
-      };
-    });
+
+        originalLabel: "",
+
+        attackId:
+          attack.id,
+
+        attackName:
+          attack.name,
+
+        attackTag,
+
+        effectTag:
+          isEffectTag
+            ? attackTag
+            : String(
+                choice.effectTag ?? ""
+              ).trim(),
+
+        pendingAttackChoice:
+          false,
+
+        pendingAttackSlot:
+          null
+      });
+    }
 
     if (changedQuality) {
       await quality.update({
-        "system.choices.selectedRanks": nextChoices
+        "system.choices.selectedRanks":
+          nextChoices
       });
     }
   }
@@ -8083,6 +8555,8 @@ _buildQualityItemDataFromSelection(quality) {
 
       activation: quality.activation ?? {},
       uses: quality.uses ?? {},
+
+      creation: quality.creation ?? {},
 
       effect: quality.effect ?? "",
       description: quality.description ?? ""
@@ -8380,9 +8854,41 @@ _recalculateStatAllocation(stage = null) {
   const stageKey = selectedStage?.key ?? this.data.stage ?? "child";
   const baseValue = Math.max(1, this._getStageValue(stageKey));
 
-  for (const stat of Object.values(this.data.statAllocation ?? {})) {
-    stat.base = baseValue;
-    stat.total = Number(stat.base ?? 0) + Number(stat.spent ?? 0);
+  for (
+    const stat of
+    Object.values(
+      this.data.statAllocation ?? {}
+    )
+  ) {
+    stat.base =
+      Math.min(
+        DDA_DIGIMON_MAIN_STAT_MAX,
+        baseValue
+      );
+
+    const maximumSpent =
+      Math.max(
+        0,
+
+        DDA_DIGIMON_MAIN_STAT_MAX -
+        stat.base
+      );
+
+    stat.spent =
+      Math.min(
+        maximumSpent,
+
+        Math.max(
+          0,
+          Number(
+            stat.spent ?? 0
+          )
+        )
+      );
+
+    stat.total =
+      stat.base +
+      stat.spent;
   }
 }
 
@@ -8701,8 +9207,15 @@ async _onAddQuality(event) {
       ? foundry.utils.deepClone(existing.choices.selectedRanks)
       : [];
 
-    if (quality.choices?.required) {
-      const choice = await this._promptQualityChoice(quality, nextRank, existingChoices);
+    if (
+      quality.choices?.required &&
+      quality.choices.repeatOnRankIncrease !== false
+    ) {
+      const choice = await this._promptQualityChoice(
+        quality,
+        nextRank,
+        existingChoices
+      );
 
       if (!choice) return;
 
@@ -8805,6 +9318,8 @@ async _onAddQuality(event) {
     activation: quality.activation,
     uses: quality.uses,
 
+    creation: quality.creation,
+
     effect: quality.effect,
     description: quality.description
   });
@@ -8836,10 +9351,45 @@ async _promptQualityChoice(quality, rankNumber, existingChoices = []) {
     return null;
   }
 
-const isAttackChoice = ["singleAttack", "attackTag"].includes(choices.type);
+const modifier = quality.attackModifier ?? {};
+
+const grantsTags = Array.isArray(
+  modifier.grantsTags
+)
+  ? modifier.grantsTags
+  : [];
+
+const isAreaAttackChoice =
+  Boolean(modifier.areaAttack) ||
+  (
+    String(
+      modifier.appliesTo ?? ""
+    ).trim() === "differentAttackPerRank" &&
+
+    grantsTags.some((tag) => {
+      return String(tag ?? "")
+        .trim()
+        .toLowerCase()
+        .startsWith("t:");
+    })
+  );
+
+const isAttackChoice =
+  isAreaAttackChoice ||
+  [
+    "singleAttack",
+    "attackTag",
+    "effectTagPerRank"
+  ].includes(choices.type);
+
 const options = isAttackChoice
-  ? this._getAttackChoiceOptionsForQuality(quality, existingChoices)
-  : Array.isArray(choices.options) ? choices.options : [];
+  ? this._getAttackChoiceOptionsForQuality(
+      quality,
+      existingChoices
+    )
+  : Array.isArray(choices.options)
+    ? choices.options
+    : [];
 
 if (!options.length) {
   ui.notifications.warn(
@@ -8852,15 +9402,27 @@ if (!options.length) {
 
 const usedKeys = new Set(
   existingChoices
-    .map((choice) => isAttackChoice ? choice.attackId : choice.key)
+    .map((choice) => {
+      return String(
+        choice.key ?? ""
+      ).trim();
+    })
     .filter(Boolean)
 );
 
-const availableOptions = options.filter((option) => {
-  if (!choices.cannotRepeat && !isAttackChoice) return true;
-  const key = isAttackChoice ? option.attackId : option.key;
-  return !usedKeys.has(key);
-});
+const availableOptions = isAttackChoice
+  ? options
+  : options.filter((option) => {
+      if (!choices.cannotRepeat) {
+        return true;
+      }
+
+      return !usedKeys.has(
+        String(
+          option.key ?? ""
+        ).trim()
+      );
+    });
 
   if (!availableOptions.length) {
     ui.notifications.warn(text(`${quality.name} não possui mais opções disponíveis.`, `${quality.name} has no available options left.`));
@@ -8871,9 +9433,13 @@ const optionHtml = availableOptions
   .map((option) => {
     const key = this._escapeHtml(option.key);
     const label = this._escapeHtml(option.label ?? option.key);
-    const originalLabel = option.originalLabel
-      ? ` (${this._escapeHtml(option.originalLabel)})`
-      : "";
+const originalLabel =
+  !isAttackChoice &&
+  option.originalLabel
+    ? ` (${this._escapeHtml(
+        option.originalLabel
+      )})`
+    : "";
 
     return `<option value="${key}">${label}${originalLabel}</option>`;
   })
@@ -8956,11 +9522,61 @@ const optionHtml = availableOptions
     label: selectedOption.label ?? selectedOption.key,
     originalLabel: selectedOption.originalLabel ?? "",
     derivedStat: selectedOption.derivedStat ?? "",
-    attackId: selectedOption.attackId ?? "",
-    attackName: selectedOption.attackName ?? "",
-    attackTag: selectedOption.attackTag ?? "",
-    effect: selectedOption.effect ?? "",
-    pendingAttackChoice: Boolean(selectedOption.pendingAttackChoice),
+attackId:
+  selectedOption.attackId ?? "",
+
+attackName:
+  selectedOption.attackName ?? "",
+
+attackTag:
+  selectedOption.attackTag ?? "",
+
+effectTag:
+  selectedOption.effectTag ?? "",
+
+effectType:
+  selectedOption.effectType ??
+  selectedOption.type ??
+  "",
+
+potencyStat:
+  selectedOption.potencyStat ??
+  selectedOption.potency ??
+  "",
+
+duration:
+  selectedOption.duration ?? true,
+
+extraActionRequired:
+  Boolean(
+    selectedOption.extraActionRequired
+  ),
+
+requiresDamageTag:
+  Boolean(
+    selectedOption.requiresDamageTag
+  ),
+
+onlyAffectsAllies:
+  Boolean(
+    selectedOption.onlyAffectsAllies
+  ),
+
+appliesTo:
+  selectedOption.appliesTo ?? "",
+
+requirements:
+  foundry.utils.deepClone(
+    selectedOption.requirements ?? {}
+  ),
+
+effect:
+  selectedOption.effect ?? "",
+
+pendingAttackChoice:
+  Boolean(
+    selectedOption.pendingAttackChoice
+  ),
     pendingAttackSlot: selectedOption.pendingAttackSlot ?? null,
     dataOptimization: selectedOption.dataOptimization ?? "",
     dataOptimizationLabel: selectedOption.dataOptimizationLabel ?? "",
@@ -9086,55 +9702,657 @@ _getWizardAttackItemsForChoices() {
   return [];
 }
 
-_getAttackChoiceOptionsForQuality(quality, existingChoices = []) {
-  const attacks = this._getWizardAttackItemsForChoices();
-  const modifier = quality.attackModifier ?? {};
-  const grantsTags = Array.isArray(modifier.grantsTags) ? modifier.grantsTags : [];
-  const primaryTag = grantsTags[0] ?? quality.id ?? "quality";
-  const normalizedPrimaryTag = String(primaryTag).toLowerCase();
-  const appliesTo = String(modifier.appliesTo ?? "oneAttack");
+_getAttackChoiceOptionsForQuality(
+  quality,
+  existingChoices = []
+) {
+  const attacks =
+    this._getWizardAttackItemsForChoices();
 
-  const usedAttackIds = new Set(
-    existingChoices
-      .map((choice) => choice.attackId)
-      .filter(Boolean)
-  );
+  const modifier =
+    quality.attackModifier ?? {};
+
+  const choices =
+    quality.choices ?? {};
+
+  const choiceType =
+    String(
+      choices.type ?? ""
+    ).trim();
+
+  const grantsTags =
+    Array.isArray(
+      modifier.grantsTags
+    )
+      ? modifier.grantsTags
+      : [];
+
+  const normalizeTag = (
+    value = ""
+  ) => {
+    return String(value ?? "")
+      .trim()
+      .replace(/^\[|\]$/g, "")
+      .toLowerCase();
+  };
+
+  const getChoiceAttackKey = (
+    choice = {}
+  ) => {
+    const directAttackKey =
+      String(
+        choice.attackId ??
+        choice.attackItemId ??
+        choice.itemId ??
+        choice.attackKey ??
+        ""
+      ).trim();
+
+    if (directAttackKey) {
+      return directAttackKey;
+    }
+
+    const keyText =
+      String(
+        choice.key ?? ""
+      ).trim();
+
+    const separatorIndex =
+      keyText.indexOf(":");
+
+    return separatorIndex > 0
+      ? keyText
+          .slice(
+            0,
+            separatorIndex
+          )
+          .trim()
+      : "";
+  };
+
+  const getChoiceTag = (
+    choice = {}
+  ) => {
+    const directTag =
+      normalizeTag(
+        choice.effectTag ??
+        choice.attackTag ??
+        ""
+      );
+
+    if (directTag) {
+      return directTag;
+    }
+
+    const keyText =
+      String(
+        choice.key ?? ""
+      ).trim();
+
+    const separatorIndex =
+      keyText.indexOf(":");
+
+    return separatorIndex > 0
+      ? normalizeTag(
+          keyText.slice(
+            separatorIndex + 1
+          )
+        )
+      : "";
+  };
+
+  const getAttackTags = (
+    attack
+  ) => {
+    const tags = [
+      ...(
+        Array.isArray(
+          attack.system?.qualityTags
+        )
+          ? attack.system.qualityTags
+          : []
+      ),
+
+      ...(
+        Array.isArray(
+          attack.system?.tags
+        )
+          ? attack.system.tags
+          : []
+      )
+    ].map(normalizeTag);
+
+    const directEffectTag =
+      attack.system?.effectTag?.enabled
+        ? normalizeTag(
+            attack.system.effectTag.tag
+          )
+        : "";
+
+    if (directEffectTag) {
+      tags.push(directEffectTag);
+    }
+
+    return tags;
+  };
+
+  const usedAttackKeys =
+    new Set(
+      existingChoices
+        .map(getChoiceAttackKey)
+        .filter(Boolean)
+    );
+
+  const usedTags =
+    new Set(
+      existingChoices
+        .map(getChoiceTag)
+        .filter(Boolean)
+    );
+
+  /*
+   * Reúne todas as Tags de Efeito configuradas
+   * no sistema. Isso permite impedir que um Ataque
+   * receba mais de um Efeito de Ataque.
+   */
+  const configuredEffectTags =
+    new Set([
+      ...Object.keys(
+        CONFIG.DDA?.effectTags ?? {}
+      ),
+
+      ...DDA_DIGIMON_QUALITIES
+        .filter((entry) => {
+          return (
+            entry.choices?.type ===
+            "effectTagPerRank"
+          );
+        })
+        .flatMap((entry) => {
+          return Array.isArray(
+            entry.choices?.options
+          )
+            ? entry.choices.options.map(
+                (option) => {
+                  return option.key;
+                }
+              )
+            : [];
+        })
+    ]
+      .map(normalizeTag)
+      .filter(Boolean));
+
+  const selectedWizardQualities = [
+    ...(
+      Array.isArray(
+        this.data.qualities?.positive
+      )
+        ? this.data.qualities.positive
+        : []
+    ),
+
+    ...(
+      Array.isArray(
+        this.data.qualities?.negative
+      )
+        ? this.data.qualities.negative
+        : []
+    )
+  ];
+
+  const allSelectedQualityChoices =
+    selectedWizardQualities.flatMap(
+      (selectedQuality) => {
+        return Array.isArray(
+          selectedQuality
+            ?.choices
+            ?.selectedRanks
+        )
+          ? selectedQuality
+              .choices
+              .selectedRanks
+          : [];
+      }
+    );
+
+  const assignedEffectTags =
+    new Set(
+      allSelectedQualityChoices
+        .map(getChoiceTag)
+        .filter((tag) => {
+          return configuredEffectTags.has(
+            tag
+          );
+        })
+    );
+
+  const effectAssignedAttackKeys =
+    new Set(
+      allSelectedQualityChoices
+        .filter((choice) => {
+          return configuredEffectTags.has(
+            getChoiceTag(choice)
+          );
+        })
+        .map(getChoiceAttackKey)
+        .filter(Boolean)
+    );
+
+  const attackHasEffectTag = (
+    attack
+  ) => {
+    const attackKey =
+      String(
+        attack.id ?? ""
+      ).trim();
+
+    if (
+      effectAssignedAttackKeys.has(
+        attackKey
+      )
+    ) {
+      return true;
+    }
+
+    return getAttackTags(
+      attack
+    ).some((tag) => {
+      return configuredEffectTags.has(
+        tag
+      );
+    });
+  };
+
+  const buildAttackChoice = (
+    attack,
+    tag
+  ) => {
+    const normalizedTag =
+      normalizeTag(tag);
+
+    const isPendingSlot =
+      Boolean(
+        attack.pendingWizardAttackSlot
+      );
+
+    const tagLabel =
+      `[${normalizedTag.toUpperCase()}]`;
+
+    return {
+      key:
+        `${attack.id}:${normalizedTag}`,
+
+      label: isPendingSlot
+        ? text(
+            `${attack.name} — ${tagLabel} (configurar depois)`,
+            `${attack.name} — ${tagLabel} (configure later)`
+          )
+        : `${attack.name} — ${tagLabel}`,
+
+      originalLabel: "",
+
+      attackId: isPendingSlot
+        ? ""
+        : attack.id,
+
+      attackName:
+        attack.name,
+
+      attackTag:
+        normalizedTag,
+
+      pendingAttackChoice:
+        isPendingSlot,
+
+      pendingAttackSlot:
+        isPendingSlot
+          ? attack.slotNumber
+          : null
+    };
+  };
+
+  const isAreaAttackChoice =
+    Boolean(modifier.areaAttack) ||
+    (
+      String(
+        modifier.appliesTo ?? ""
+      ).trim() ===
+        "differentAttackPerRank" &&
+
+      grantsTags.some((tag) => {
+        return normalizeTag(tag)
+          .startsWith("t:");
+      })
+    );
+
+  /*
+   * Área de Ataque:
+   * cria uma opção para cada combinação válida
+   * de Ataque + Tag de Área.
+   */
+  if (isAreaAttackChoice) {
+    const configuredOptions =
+      Array.isArray(
+        choices.options
+      ) &&
+      choices.options.length
+        ? choices.options
+        : grantsTags
+            .filter((tag) => {
+              return normalizeTag(tag)
+                .startsWith("t:");
+            })
+            .map((tag) => {
+              const normalizedTag =
+                normalizeTag(tag);
+
+              return {
+                key: normalizedTag,
+                label:
+                  `[${normalizedTag.toUpperCase()}]`
+              };
+            });
+
+    const areaTagSet =
+      new Set(
+        configuredOptions
+          .map((option) => {
+            const rawTag =
+              normalizeTag(
+                option.key
+              );
+
+            return rawTag.startsWith(
+              "t:"
+            )
+              ? rawTag
+              : `t:${rawTag}`;
+          })
+          .filter(Boolean)
+      );
+
+    return configuredOptions
+      .filter((option) => {
+        const rawTag =
+          normalizeTag(
+            option.key
+          );
+
+        const areaTag =
+          rawTag.startsWith("t:")
+            ? rawTag
+            : `t:${rawTag}`;
+
+        return (
+          areaTag &&
+          !usedTags.has(areaTag)
+        );
+      })
+      .flatMap((option) => {
+        const rawTag =
+          normalizeTag(
+            option.key
+          );
+
+        const areaTag =
+          rawTag.startsWith("t:")
+            ? rawTag
+            : `t:${rawTag}`;
+
+        const rawAppliesTo =
+          String(
+            option.appliesTo ?? ""
+          ).trim();
+
+        const appliesTo = [
+          "oneAttack",
+          "oneDamageAttack",
+          "oneMeleeAttack",
+          "oneRangedAttack",
+          "oneMeleeDamageAttack"
+        ].includes(rawAppliesTo)
+          ? rawAppliesTo
+          : this._getTemplateAreaAppliesTo(
+              option
+            );
+
+        return attacks
+          .filter((attack) => {
+            return this
+              ._attackMatchesQualityAppliesTo(
+                attack,
+                appliesTo
+              );
+          })
+          .filter((attack) => {
+            return !usedAttackKeys.has(
+              String(
+                attack.id ?? ""
+              ).trim()
+            );
+          })
+          .filter((attack) => {
+            return !getAttackTags(
+              attack
+            ).some((tag) => {
+              return areaTagSet.has(
+                tag
+              );
+            });
+          })
+          .map((attack) => {
+            return {
+              ...buildAttackChoice(
+                attack,
+                areaTag
+              ),
+
+              derivedStat:
+                option.derivedStat ?? "",
+
+              appliesTo:
+                option.appliesTo ?? "",
+
+              requirements:
+                foundry.utils.deepClone(
+                  option.requirements ?? {}
+                ),
+
+              effect:
+                option.effect ??
+                text(
+                  `${attack.name} recebe [${areaTag.toUpperCase()}].`,
+                  `${attack.name} gains [${areaTag.toUpperCase()}].`
+                )
+            };
+          });
+      });
+  }
+
+  /*
+   * Efeito Básico, Avançado ou Mestre:
+   * cria uma combinação para cada
+   * Ataque + Efeito ainda disponível.
+   */
+  if (
+    choiceType ===
+    "effectTagPerRank"
+  ) {
+    const effectOptions =
+      Array.isArray(
+        choices.options
+      )
+        ? choices.options
+        : [];
+
+    return effectOptions
+      .filter((option) => {
+        const effectTag =
+          normalizeTag(
+            option.key
+          );
+
+        if (!effectTag) {
+          return false;
+        }
+
+        if (
+          usedTags.has(effectTag)
+        ) {
+          return false;
+        }
+
+        if (
+          assignedEffectTags.has(
+            effectTag
+          )
+        ) {
+          return false;
+        }
+
+        return true;
+      })
+      .flatMap((option) => {
+        const effectTag =
+          normalizeTag(
+            option.key
+          );
+
+        return attacks
+          .filter((attack) => {
+            return !usedAttackKeys.has(
+              String(
+                attack.id ?? ""
+              ).trim()
+            );
+          })
+          .filter((attack) => {
+            if (
+              !option.requiresDamageTag
+            ) {
+              return true;
+            }
+
+            const functionType =
+              String(
+                attack.system
+                  ?.baseTags
+                  ?.functionType ??
+                attack.system
+                  ?.functionType ??
+                attack.system
+                  ?.function
+                  ?.type ??
+                ""
+              )
+                .trim()
+                .toLowerCase();
+
+            return (
+              functionType === "damage"
+            );
+          })
+          .filter((attack) => {
+            return !attackHasEffectTag(
+              attack
+            );
+          })
+          .map((attack) => {
+            return {
+              ...buildAttackChoice(
+                attack,
+                effectTag
+              ),
+
+              effectTag,
+
+              effectType:
+                option.type ?? "",
+
+              potencyStat:
+                option.potency ??
+                option.potencyStat ??
+                "",
+
+              duration:
+                option.duration ?? true,
+
+              extraActionRequired:
+                Boolean(
+                  option.extraActionRequired
+                ),
+
+              requiresDamageTag:
+                Boolean(
+                  option.requiresDamageTag
+                ),
+
+              onlyAffectsAllies:
+                Boolean(
+                  option.onlyAffectsAllies
+                ),
+
+              requirements:
+                foundry.utils.deepClone(
+                  option.requirements ?? {}
+                ),
+
+              effect:
+                option.effect ?? ""
+            };
+          });
+      });
+  }
+
+  /*
+   * Demais Qualidades ligadas a um Ataque:
+   * mantém o comportamento anterior.
+   */
+  const primaryTag =
+    normalizeTag(
+      grantsTags[0] ??
+      quality.id ??
+      "quality"
+    );
+
+  const appliesTo =
+    String(
+      modifier.appliesTo ??
+      "oneAttack"
+    );
 
   return attacks
-    .filter((attack) => this._attackMatchesQualityAppliesTo(attack, appliesTo))
-    .filter((attack) => !usedAttackIds.has(attack.id))
     .filter((attack) => {
-      const tags = [
-        ...(Array.isArray(attack.system?.qualityTags) ? attack.system.qualityTags : []),
-        ...(Array.isArray(attack.system?.tags) ? attack.system.tags : [])
-      ].map((tag) => String(tag).toLowerCase());
-
-      return !tags.includes(normalizedPrimaryTag);
+      return this
+        ._attackMatchesQualityAppliesTo(
+          attack,
+          appliesTo
+        );
     })
-      .map((attack) => {
-      const isPendingSlot = Boolean(attack.pendingWizardAttackSlot);
-      const tagLabel = `[${String(normalizedPrimaryTag).toUpperCase()}]`;
-
+    .filter((attack) => {
+      return !usedAttackKeys.has(
+        String(
+          attack.id ?? ""
+        ).trim()
+      );
+    })
+    .filter((attack) => {
+      return !getAttackTags(
+        attack
+      ).includes(primaryTag);
+    })
+    .map((attack) => {
       return {
-        key: `${attack.id}:${normalizedPrimaryTag}`,
-        label: isPendingSlot
-          ? text(`${attack.name} — ${tagLabel} (configurar depois)`, `${attack.name} — ${tagLabel} (configure later)`)
-          : `${attack.name} — ${tagLabel}`,
-        originalLabel: isPendingSlot ? "" : attack.name,
-        attackId: isPendingSlot ? "" : attack.id,
-        attackName: attack.name,
-        attackTag: normalizedPrimaryTag,
-        pendingAttackChoice: isPendingSlot,
-        pendingAttackSlot: isPendingSlot ? attack.slotNumber : null,
-        effect: isPendingSlot
-          ? text(
-              `${attack.name} receberá ${tagLabel} quando o ataque real for criado/configurado.`,
-              `${attack.name} will receive ${tagLabel} once the real attack is created/configured.`
-            )
-          : text(
-              `${attack.name} recebe ${tagLabel}.`,
-              `${attack.name} gains ${tagLabel}.`
-            )
+        ...buildAttackChoice(
+          attack,
+          primaryTag
+        ),
+
+        effect: text(
+          `${attack.name} recebe [${primaryTag.toUpperCase()}].`,
+          `${attack.name} gains [${primaryTag.toUpperCase()}].`
+        )
       };
     });
 }
@@ -9324,36 +10542,12 @@ _getQualityTiers() {
 }
 
 _getQualityCategories() {
-  return [
-    {
-      key: "all",
-      label: text("Todas", "All")
-    },
-    {
-      key: "core",
-      label: text("Core", "Core")
-    },
-    {
-      key: "attack",
-      label: text("Ataque", "Attack")
-    },
-    {
-      key: "trigger",
-      label: text("Ativáveis", "Active")
-    },
-    {
-      key: "static",
-      label: text("Passivas", "Passive")
-    },
-    {
-      key: "free",
-      label: text("Grátis", "Free")
-    },
-    {
-      key: "negative",
-      label: text("Negativas", "Negative")
-    }
-  ];
+  return DDA_WIZARD_QUALITY_CATEGORY_FILTERS.map(
+    (category) => ({
+      key: category.key,
+      label: text(category.pt, category.en)
+    })
+  );
 }
 
 _normalizeQualitySearchText(value) {
@@ -9380,54 +10574,133 @@ _getQualitySearchTerms(searchTerm) {
     .filter((term) => term.length >= 3 && !stopWords.has(term));
 }
 
-_matchesQualitySearch(quality, searchTerm) {
-  const query = this._normalizeQualitySearchText(searchTerm);
+_getQualitySearchScore(quality, searchTerm) {
+  const query = this._normalizeQualitySearchText(
+    searchTerm
+  );
 
-  if (!query) return true;
+  if (!query) return 0;
 
   const terms = this._getQualitySearchTerms(query);
 
-  const nameHaystack = this._normalizeQualitySearchText([
-    quality.name,
-    quality.originalName
-  ]
-    .filter(Boolean)
-    .join(" "));
+  const displayName =
+    this._normalizeQualitySearchText(
+      quality.name
+    );
 
-  const metaHaystack = this._normalizeQualitySearchText([
-    quality.section,
-    quality.availability?.label,
-    quality.tierLabel,
-    quality.categoryLabel,
-    quality.requirements?.text,
-    quality.incompatible?.text
-  ]
-    .filter(Boolean)
-    .join(" "));
+  const originalName =
+    this._normalizeQualitySearchText(
+      quality.originalName
+    );
 
-  const fullHaystack = this._normalizeQualitySearchText([
-    quality.name,
-    quality.originalName,
-    quality.section,
-    quality.availability?.label,
-    quality.tierLabel,
-    quality.categoryLabel,
-    quality.requirements?.text,
-    quality.incompatible?.text,
-    quality.effect,
-    quality.description
-  ]
-    .filter(Boolean)
-    .join(" "));
+  const displayNameWords = new Set(
+    displayName.split(/\s+/).filter(Boolean)
+  );
 
-  if (nameHaystack.includes(query)) return true;
-  if (metaHaystack.includes(query)) return true;
-  if (fullHaystack.includes(query)) return true;
+  const originalNameWords = new Set(
+    originalName.split(/\s+/).filter(Boolean)
+  );
 
-  if (!terms.length) return false;
+  const nameHaystack =
+    this._normalizeQualitySearchText([
+      quality.name,
+      quality.originalName
+    ]
+      .filter(Boolean)
+      .join(" "));
 
-  if (terms.every((term) => nameHaystack.includes(term))) return true;
-  return terms.every((term) => fullHaystack.includes(term));
+  const metaHaystack =
+    this._normalizeQualitySearchText([
+      quality.section,
+      quality.availability?.label,
+      quality.tierLabel,
+      quality.categoryLabel,
+      quality.requirements?.text,
+      quality.incompatible?.text
+    ]
+      .filter(Boolean)
+      .join(" "));
+
+  const fullHaystack =
+    this._normalizeQualitySearchText([
+      quality.name,
+      quality.originalName,
+      quality.section,
+      quality.availability?.label,
+      quality.tierLabel,
+      quality.categoryLabel,
+      quality.requirements?.text,
+      quality.incompatible?.text,
+      quality.effect,
+      quality.description
+    ]
+      .filter(Boolean)
+      .join(" "));
+
+  if (displayName === query) return 1000;
+  if (originalName === query) return 950;
+
+  if (displayName.startsWith(query)) return 900;
+  if (originalName.startsWith(query)) return 850;
+
+  if (
+    terms.length &&
+    terms.every((term) => {
+      return displayNameWords.has(term);
+    })
+  ) {
+    return 800;
+  }
+
+  if (
+    terms.length &&
+    terms.every((term) => {
+      return originalNameWords.has(term);
+    })
+  ) {
+    return 760;
+  }
+
+  if (displayName.includes(query)) return 700;
+  if (originalName.includes(query)) return 650;
+
+  if (metaHaystack.includes(query)) return 400;
+  if (fullHaystack.includes(query)) return 200;
+
+  if (!terms.length) return -1;
+
+  if (
+    terms.every((term) => {
+      return nameHaystack.includes(term);
+    })
+  ) {
+    return 150;
+  }
+
+  if (
+    terms.every((term) => {
+      return fullHaystack.includes(term);
+    })
+  ) {
+    return 50;
+  }
+
+  return -1;
+}
+
+_matchesQualitySearch(quality, searchTerm) {
+  if (
+    !this._normalizeQualitySearchText(
+      searchTerm
+    )
+  ) {
+    return true;
+  }
+
+  return this._getQualitySearchScore(
+    quality,
+    searchTerm
+  ) >= 0;
 }
 
 _getFilteredQualities() {
@@ -9442,15 +10715,46 @@ _getFilteredQualities() {
       if (activeTier !== "all" && quality.tier !== activeTier) return false;
 
       if (activeCategory !== "all") {
-        if (!quality.category?.[activeCategory]) return false;
+        if (
+          !matchesWizardQualityCategory(
+            quality,
+            activeCategory
+          )
+        ) {
+          return false;
+        }
       }
 
       if (onlyAvailable && !quality.canBuy && !quality.owned && !quality.canIncreaseRank) return false;
 
-      return this._matchesQualitySearch(quality, searchTerm);
+      return this._matchesQualitySearch(
+        quality,
+        searchTerm
+      );
+    })
+    .sort((left, right) => {
+      if (!searchTerm) return 0;
+
+      const scoreDifference =
+        this._getQualitySearchScore(
+          right,
+          searchTerm
+        ) -
+        this._getQualitySearchScore(
+          left,
+          searchTerm
+        );
+
+      if (scoreDifference !== 0) {
+        return scoreDifference;
+      }
+
+      return String(left.name ?? "").localeCompare(
+        String(right.name ?? ""),
+        game.i18n.lang
+      );
     });
 }
-
 _prepareQualityForBrowser(quality) {
   const ownedEntry = this._getSelectedQualityById(quality.id);
   const owned = Boolean(ownedEntry);

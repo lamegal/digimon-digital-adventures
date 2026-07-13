@@ -1,4 +1,5 @@
 import { rollAttack } from "../rolls/attack-roll.js";
+import { rollPool } from "../rolls/pool-roll.js";
 import { endDigimonTurn } from "../combat/end-turn.js";
 import { rollRecovery } from "../combat/recovery.js";
 import { energizeDigimon } from "../combat/energize.js";
@@ -17,6 +18,15 @@ import {
   clearUseState,
   localizeQ
 } from "../rules/quality-automation.js";
+
+import {
+  useOverclockQuality
+} from "../rules/overclock.js";
+
+import {
+  useModeChangeQuality
+} from "../rules/mode-change.js";
+
 import {
   getDigimonAliases,
   getDigimonDisplayName,
@@ -416,12 +426,56 @@ async getData(options = {}) {
     species: this.actor.system?.species || this.actor.name,
     aliases: digimonAliases
   });
+
+  const isAlgomonPerfect =
+    String(this.actor.system?.stage ?? "").trim() === "perfect" &&
+    [
+      this.actor.system?.sourceId,
+      this.actor.system?.names?.canonical,
+      this.actor.system?.species,
+      this.actor.name,
+      ...digimonAliases
+    ].some((value) => {
+      const key = String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "");
+
+      return [
+        "algomonperfect",
+        "argomonultimate"
+      ].includes(key);
+    });
+
+  const isKnownWrongAlgomonPortrait = (path = "") => {
+    return /(?:argomon[-_ ]?mega|algomon[-_ ]?ultimate)\.(?:webp|webm)$/i.test(
+      String(path ?? "")
+    );
+  };
+
+  const correctedDigivicePortrait =
+    isAlgomonPerfect &&
+    isKnownWrongAlgomonPortrait(storedDigivicePortrait)
+      ? ""
+      : storedDigivicePortrait;
+
+  const correctedEvolutionPortrait =
+    isAlgomonPerfect &&
+    isKnownWrongAlgomonPortrait(storedEvolutionPortrait)
+      ? ""
+      : storedEvolutionPortrait;
+
   const digivicePortrait =
-    (storedDigivicePortrait && storedDigivicePortrait !== this.actor.img ? storedDigivicePortrait : "") ||
-    (storedEvolutionPortrait && storedEvolutionPortrait !== this.actor.img ? storedEvolutionPortrait : "") ||
+    (correctedDigivicePortrait && correctedDigivicePortrait !== this.actor.img
+      ? correctedDigivicePortrait
+      : "") ||
+    (correctedEvolutionPortrait && correctedEvolutionPortrait !== this.actor.img
+      ? correctedEvolutionPortrait
+      : "") ||
     mappedPortrait ||
-    storedDigivicePortrait ||
-    storedEvolutionPortrait ||
+    correctedDigivicePortrait ||
+    correctedEvolutionPortrait ||
     this.actor.img;
   context.digivicePortrait = digivicePortrait;
   context.portraitIsVideo = isVideoPath(digivicePortrait);
@@ -504,15 +558,22 @@ const qualityNames = digimonQualities.map((quality) => {
   return normalizeQualityName(quality.name);
 });
 
-context.hasCreationLimitResource = qualityNames.some((name) => {
+const qualitySourceIds = digimonQualities.map((quality) => {
+  return normalizeQualityName(
+    quality.system?.sourceId ?? ""
+  );
+});
+
+context.hasMasteryResource = [
+  ...qualityNames,
+  ...qualitySourceIds
+].some((value) => {
   return [
     "conjurer",
     "summoner",
-    "evoker",
     "conjurador",
-    "invocador",
-    "evocador"
-  ].includes(name);
+    "invocador"
+  ].includes(value);
 });
 
 context.hasResolveResource = qualityNames.some((name) => {
@@ -523,7 +584,7 @@ context.hasResolveResource = qualityNames.some((name) => {
 });
 
 context.hasQualityResources =
-  context.hasCreationLimitResource ||
+  context.hasMasteryResource ||
   context.hasResolveResource;
 
 
@@ -1547,11 +1608,45 @@ async #onQualityToggleActive(event) {
   const item = this.actor.items.get(itemId);
 
   if (!item || item.type !== "quality") {
-    ui.notifications.warn(localize("DDA.Warning.QualityNotFoundOnSheet"));
+    ui.notifications.warn(
+      localize(
+        "DDA.Warning.QualityNotFoundOnSheet"
+      )
+    );
+
     return;
   }
 
-  const activationMode = item.system.activation?.mode ?? "toggle";
+  if (
+    qualityMatches(
+      item,
+      "overclock"
+    )
+  ) {
+    await useOverclockQuality(
+      this.actor,
+      item
+    );
+
+    return;
+  }
+
+  if (
+    qualityMatches(
+      item,
+      "modeChange"
+    )
+  ) {
+    await useModeChangeQuality(
+      this.actor,
+      item
+    );
+
+    return;
+  }
+
+  const activationMode =
+    item.system.activation?.mode ?? "toggle";
   const isInstant = activationMode === "instant";
 
   const currentlyActive = Boolean(item.system.activation?.active);
@@ -1866,67 +1961,10 @@ async #onRollPool(event) {
 }
 
 async _rollMainStatPool(statKey) {
-  const stat = this.actor.system.mainStats?.[statKey];
-
-  if (!stat) {
-    ui.notifications.warn(localize("DDA.Warning.MainStatNotFound") || "Main Stat not found.");
-    return;
-  }
-
-  const statLabel = localizeMaybe(stat.displayLabel ?? stat.label ?? statKey);
-  const poolSize = Math.max(0, Number(stat.total ?? stat.value ?? 0));
-  const automaticSuccesses = Math.max(0, Number(stat.automaticSuccesses ?? 0));
-
-  const dicePoolSize = Math.max(0, poolSize - automaticSuccesses);
-  const formula = dicePoolSize > 0 ? `${dicePoolSize}d6` : "0";
-
-  const roll = await new Roll(formula).evaluate();
-
-  const diceResults = roll.dice
-    .flatMap((die) => die.results ?? [])
-    .map((result) => Number(result.result ?? 0));
-
-  const rolledSuccesses = diceResults.filter((value) => value >= 5).length;
-  const totalSuccesses = rolledSuccesses + automaticSuccesses;
-
-  const automaticSuccessSources = Array.isArray(stat.automaticSuccessSources)
-    ? stat.automaticSuccessSources
-    : [];
-
-  const automaticSuccessLine = automaticSuccesses > 0
-    ? `
-      <li>
-        Sucessos automáticos:
-        <strong>+${automaticSuccesses}</strong>
-        ${
-          automaticSuccessSources.length
-            ? `<span class="muted">(${automaticSuccessSources.map((source) => source.name).join(", ")})</span>`
-            : ""
-        }
-      </li>
-    `
-    : "";
-
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-    rolls: [roll],
-    content: `
-      <div class="dda-chat-roll-message dda-main-stat-pool-message">
-        <div class="dda-chat-card dda-effect-card effect-special dda-main-stat-pool-card">
-          <h2>${statLabel}</h2>
-
-          <ul class="dda-effect-list">
-            <li>Pool total: <strong>${poolSize}</strong></li>
-            <li>Dados rolados: <strong>${dicePoolSize}d6</strong></li>
-            <li>Sucessos nos dados: <strong>${rolledSuccesses}</strong></li>
-            ${automaticSuccessLine}
-            <li>Total de sucessos: <strong>${totalSuccesses}</strong></li>
-          </ul>
-        </div>
-        ${dicePoolSize > 0 ? await roll.render() : ""}
-      </div>
-    `
-  });
+  return await rollPool(
+    this.actor,
+    statKey
+  );
 }
 
 async _onRollDerivedStat(event) {

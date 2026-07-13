@@ -507,9 +507,145 @@ function queueAutomaticMove(document, movement) {
   return true;
 }
 
+function findTokenDocumentForActor(actor) {
+  if (!actor) return null;
+
+  const controlled = canvas.tokens?.controlled ?? [];
+  const controlledMatch = controlled.find((token) => sameActor(token.actor, actor));
+  if (controlledMatch?.document) return controlledMatch.document;
+
+  const placeables = canvas.tokens?.placeables ?? [];
+  const sceneMatch = placeables.find((token) => sameActor(token.actor, actor));
+
+  return sceneMatch?.document ?? null;
+}
+
+function isGrantedMovementSession(session, combat) {
+  if (!session || session.state !== "active") return false;
+  if (session.kind !== "granted") return false;
+
+  if (!combat?.started) return true;
+  return !session.combatId || session.combatId === combat.id;
+}
+
+function queueGrantedMove(document, movement, session) {
+  const spaces = moveSpaces(movement);
+
+  if (spaces <= 0) return true;
+
+  const remaining = Math.max(
+    0,
+    num(session.max) - num(session.spent)
+  );
+
+  if (spaces > remaining) {
+    warn(i18n(
+      `Reposicionamento insuficiente: restam ${remaining} Espaços.`,
+      `Not enough Reposition movement: ${remaining} Spaces remain.`
+    ));
+
+    return false;
+  }
+
+  const segment = buildSegment(document, movement, spaces);
+  const next = clone(session);
+
+  next.segments = [
+    ...(next.segments ?? []),
+    segment
+  ];
+
+  next.spent = num(next.spent) + segment.cost;
+  next.lastType = "land";
+  next.lastTypeLabel = dataLabel(next);
+
+  runtimeSessions.set(document.id, next);
+
+  pendingMoves.set(document.id, {
+    session: next,
+    startsNew: false,
+    reservationKey: ""
+  });
+
+  return true;
+}
+
+function dataLabel(session) {
+  return String(
+    session?.lastTypeLabel ??
+    session?.label ??
+    i18n("Reposicionar", "Reposition")
+  );
+}
+
+async function grantMovement(actor, spaces, options = {}) {
+  const maximum = Math.max(0, num(spaces));
+
+  if (!supported(actor) || maximum <= 0) {
+    return false;
+  }
+
+  const document = findTokenDocumentForActor(actor);
+
+  if (!document) {
+    return false;
+  }
+
+  const combat = game.combat;
+  const combatant = getCombatant(combat, document);
+  const label = String(
+    options.label ??
+    i18n("Reposicionar", "Reposition")
+  );
+
+  const session = {
+    version: 5,
+    kind: "granted",
+    state: "active",
+
+    combatId: combat?.id ?? "",
+    combatantId: combatant?.id ?? "",
+    round: num(combat?.round),
+
+    actionCost: 0,
+    actionSpent: true,
+    actionReservationKey: "",
+
+    start: point(document),
+    max: maximum,
+    spent: 0,
+
+    startType: "land",
+    startTypeLabel: label,
+    lastType: "land",
+    lastTypeLabel: label,
+
+    source: String(options.source ?? "grantedMovement"),
+    sourceActorUuid: String(options.sourceActorUuid ?? ""),
+    sourceActorName: String(options.sourceActorName ?? ""),
+    difficultTerrain: Boolean(options.difficultTerrain),
+
+    segments: []
+  };
+
+  await setSession(document, session);
+  refreshTracker(document);
+
+  return true;
+}
+
 function onPreMove(document, movement, operation = {}) {
   if (operation.ddaMovementUndo) return;
   if (!supported(document?.actor)) return;
+
+  const grantedSession = getSession(document);
+
+  if (isGrantedMovementSession(grantedSession, game.combat)) {
+    return queueGrantedMove(document, movement, grantedSession)
+      ? undefined
+      : false;
+  }
+
   if (!game.combat?.started) return;
 
   const combatant = getCombatant(game.combat, document);
@@ -756,6 +892,8 @@ export function registerMovementTracker() {
   game.dda ??= {};
 
   game.dda.movementTracker = {
+    grantMovement,
+
     clearSelected: async () => {
       const token = selectedToken();
 

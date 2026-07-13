@@ -1,3 +1,165 @@
+## 2.0.4-beta
+
+### English
+
+This update focuses on Partner creation and form persistence, combat stability, Tamer Talent automation, Quality handling, progression fixes, and general system polish.
+
+#### Partner Creation and Evolution
+
+- Expanded the Partner Creation Wizard with improved per-form mechanical building.
+- Improved Starting Stage and Main Form handling.
+- Improved persistence of Partner form snapshots.
+- Improved preservation of Attacks between Partner forms.
+- Improved preservation of portrait and token images between evolution and regression.
+- Removed the redundant Tamer creation prompt when editing an existing Partner form.
+- Improved current-form and future-form editing workflows.
+- Added scrolling to the selected Qualities column in Partner Creation.
+- Improved the Quality Browser filter layout and collapsible filter controls.
+- Improved Build Template and form-specific configuration handling.
+- Fixed Algomon Perfect using Algomon Ultimate's profile portrait.
+- Fixed several Partner Wizard DP, image, selection, and rendering issues.
+
+#### Tamer Talents
+
+- Added automation for Experienced.
+- Added automation for Break the Chain.
+- Added automation for Avoiding Consequences.
+- Added automation for Tuck and Roll.
+- Added automation for No Pain, No Gain.
+- Added Grit defense automation, allowing Endurance to replace Evade.
+- Added Grit survival automation, allowing a Tamer to remain at 1 Wound Box.
+- Improved Lucky Number automation and reward handling.
+- Improved triggered Talent usage, charges, Rest recovery, and chat feedback.
+
+#### Combat and Damage
+
+- Improved Dodge request cancellation and timeout handling.
+- Fixed stale or unresolved Dodge requests.
+- Fixed Fumble Attack tie behavior so equal Accuracy and Dodge correctly results in a miss.
+- Improved stable Attack identification between chat cards and resolution.
+- Fixed Attack resolution errors involving undefined Dodge data.
+- Fixed temporal initialization errors in Attack resolution.
+- Added minimum Damage handling for Grit defenses.
+- Improved central Damage application and survival interception.
+- Improved damage card feedback for Talents and automated effects.
+- Fixed Signature Move battery consumption.
+- Improved direct Digimon Main Stat rolls.
+- Improved combat effect and end-of-turn handling.
+
+#### Rest and Resources
+
+- Tamer Rest now also applies Rest recovery to the linked Partner Digimon.
+- Improved Tamer Talent use recovery during Rest.
+- Improved shared Partner and Tamer resource recovery.
+- Improved action and combat resource synchronization.
+
+#### Digivolution and Progression
+
+- Normal Digivolution now restores the Digimon to full Wound Boxes.
+- Fixed Tamer Attribute Cap progression after Milestones.
+- Increased the supported Digimon Main Stat cap to 20.
+- Improved evolution form data and snapshot normalization.
+- Improved portrait and token selection during form transitions.
+
+#### Qualities and Attacks
+
+- Improved Area Attack Quality selection and synchronization.
+- Improved Advanced Effect Quality selection and synchronization.
+- Improved Quality choice cleanup in Item sheets.
+- Improved unavailable Quality detection and filtering.
+- Improved Core Discount, free Quality, and Negative Quality calculations.
+- Improved form-specific Quality storage and restoration.
+- Fixed multiple Quality Browser display and interaction issues.
+
+#### Interface and Localization
+
+- Added missing English and Brazilian Portuguese localization keys.
+- Improved Tamer Talent prompts, cards, costs, and result messages.
+- Improved Partner Creation interface scrolling and layout.
+- Improved several chat cards and system notifications.
+- Fixed assorted interface, localization, portrait, Rest, combat, and Wizard issues.
+
+### Português
+
+Esta atualização é focada na criação e persistência do Parceiro, estabilidade do combate, automação de Talentos de Digi-Escolhido, funcionamento das Qualidades, progressão e melhorias gerais do sistema.
+
+#### Criação do Parceiro e Evolução
+
+- Expandido o Wizard de Criação do Parceiro com melhorias no builder mecânico por forma.
+- Melhorado o funcionamento do Estágio Inicial e da Forma Principal.
+- Melhorada a persistência dos snapshots das formas do Parceiro.
+- Melhorada a preservação dos Ataques entre as formas do Parceiro.
+- Melhorada a preservação de retratos e tokens durante evolução e regressão.
+- Removida a pergunta redundante de criação de Digi-Escolhido ao editar uma forma de Parceiro existente.
+- Melhorados os fluxos de edição da forma atual e de formas futuras.
+- Adicionada rolagem à coluna de Qualidades selecionadas na Criação do Parceiro.
+- Melhorado o layout dos filtros e o painel colapsável do Browser de Qualidades.
+- Melhorado o funcionamento dos Templates de Build e configurações específicas por forma.
+- Corrigido Algomon Perfect usando o retrato de perfil de Algomon Ultimate.
+- Corrigidos diversos problemas de PD, imagens, seleção e renderização no Wizard do Parceiro.
+
+#### Talentos de Digi-Escolhido
+
+- Adicionada automação para Experienced.
+- Adicionada automação para Break the Chain.
+- Adicionada automação para Avoiding Consequences.
+- Adicionada automação para Tuck and Roll.
+- Adicionada automação para No Pain, No Gain.
+- Adicionada automação de defesa para Grit, permitindo usar Resistência no lugar de Evasão.
+- Adicionada automação de sobrevivência para Grit, permitindo permanecer com 1 Caixa de Ferimento.
+- Melhorada a automação e concessão de recompensas de Lucky Number.
+- Melhorados os usos, cargas, recuperação por Descanso e mensagens dos Talentos ativados por gatilho.
+
+#### Combate e Dano
+
+- Melhorado o cancelamento e o timeout das solicitações de Esquiva.
+- Corrigidas solicitações de Esquiva antigas ou que permaneciam sem resolução.
+- Corrigido o empate de Acerto e Esquiva durante um Ataque Fumble para resultar corretamente em erro.
+- Melhorada a identificação estável de Ataques entre os cards e a resolução.
+- Corrigidos erros de resolução envolvendo dados de Esquiva indefinidos.
+- Corrigidos erros de inicialização temporal durante a resolução de Ataques.
+- Adicionado o Dano mínimo das defesas realizadas com Grit.
+- Melhorada a aplicação central de Dano e a interceptação de efeitos de sobrevivência.
+- Melhorados os cards de Dano para Talentos e efeitos automatizados.
+- Corrigido o consumo de Bateria de Signature Move.
+- Melhoradas as rolagens diretas dos Atributos Principais de Digimon.
+- Melhorado o processamento de efeitos de combate e fim de turno.
+
+#### Descanso e Recursos
+
+- O Descanso do Digi-Escolhido agora também aplica a recuperação de Descanso ao Digimon Parceiro vinculado.
+- Melhorada a recuperação dos usos dos Talentos durante o Descanso.
+- Melhorada a recuperação compartilhada de recursos entre Parceiro e Digi-Escolhido.
+- Melhorada a sincronização de Ações e recursos de combate.
+
+#### Digievolução e Progressão
+
+- A Digievolução normal agora restaura completamente as Caixas de Ferimento do Digimon.
+- Corrigida a progressão do Limite de Atributos do Digi-Escolhido após Marcos.
+- Aumentado para 20 o limite suportado dos Atributos Principais de Digimon.
+- Melhoradas a normalização e persistência dos dados das formas evolutivas.
+- Melhorada a seleção de retratos e tokens durante transições de forma.
+
+#### Qualidades e Ataques
+
+- Melhorada a seleção e sincronização de Qualidades de Ataque em Área.
+- Melhorada a seleção e sincronização de Qualidades de Efeito Avançado.
+- Melhorada a limpeza das escolhas de Qualidade nas fichas de Item.
+- Melhorados a detecção e o filtro de Qualidades indisponíveis.
+- Melhorados os cálculos de Desconto Central, Qualidade gratuita e Qualidades Negativas.
+- Melhorado o armazenamento e a restauração de Qualidades específicas por forma.
+- Corrigidos diversos problemas visuais e de interação no Browser de Qualidades.
+
+#### Interface e Localização
+
+- Adicionadas traduções ausentes em inglês e português brasileiro.
+- Melhorados os prompts, cards, custos e resultados dos Talentos de Digi-Escolhido.
+- Melhorados a rolagem e o layout da interface de Criação do Parceiro.
+- Melhorados diversos cards de chat e notificações do sistema.
+- Corrigidos diversos problemas de interface, tradução, retratos, Descanso, combate e Wizards.
+
+---
+
 ## 2.0.3-beta
 
 ### English

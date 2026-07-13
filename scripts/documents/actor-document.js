@@ -2,6 +2,12 @@ import { getAttributeFinalCap } from "../rules/campaign-rules.js";
 import { getTamerAttributeCap } from "../rules/tamer-progression.js";
 
 
+const DDA_DIGIMON_MAIN_STAT_MIN =
+  1;
+
+const DDA_DIGIMON_MAIN_STAT_MAX =
+  20;
+
 const DIGIMON_SIZE_ORDER = [
   "small",
   "medium",
@@ -122,6 +128,110 @@ function normalizeQualityChoiceKey(value = "") {
     .trim();
 }
 
+function isAdaptiveDigizoidArmorQuality(item) {
+  if (!item || item.type !== "quality") return false;
+
+  const sourceId = normalizeQualityChoiceKey(
+    getQualitySourceId(item)
+  );
+
+  const name = normalizeQualityChoiceKey(item.name);
+
+  const originalName = normalizeQualityChoiceKey(
+    item.system?.originalName ?? ""
+  );
+
+  return (
+    sourceId === "armaduradedigizoideadaptavel" ||
+    sourceId === "adaptivedigizoidarmor" ||
+    name === "armaduradedigizoideadaptavel" ||
+    name === "adaptivedigizoidarmor" ||
+    originalName === "adaptivedigizoidarmor"
+  );
+}
+
+function getAdaptiveArmorPointsPerRound(item) {
+  const configuredPoints = Number(
+    item?.system?.adaptiveArmor?.pointsPerRound ??
+    item?.system?.grants?.adaptiveArmorPointsPerRound ??
+    0
+  );
+
+  if (Number.isFinite(configuredPoints) && configuredPoints > 0) {
+    return Math.floor(configuredPoints);
+  }
+
+  return isAdaptiveDigizoidArmorQuality(item) ? 4 : 0;
+}
+
+const DDA_NEGATIVE_EFFECT_TAGS = new Set([
+  "root",
+  "slow",
+  "vague",
+
+  "confuse",
+  "distract",
+  "dull",
+  "frail",
+  "heavy",
+
+  "pacify",
+  "rattled",
+  "shaken",
+  "weak",
+
+  "debilitate"
+]);
+
+function normalizeDigimonEffectTag(value = "") {
+  return String(value ?? "")
+    .replaceAll("[", "")
+    .replaceAll("]", "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function isActiveNegativeDigimonEffect(effect = {}) {
+  if (!effect || typeof effect !== "object") return false;
+  if (effect.disabled === true || effect.active === false) return false;
+
+  const remainingValue = effect.remaining ?? effect.duration;
+
+  if (
+    remainingValue !== undefined &&
+    Number.isFinite(Number(remainingValue)) &&
+    Number(remainingValue) <= 0
+  ) {
+    return false;
+  }
+
+  const explicitType = normalizeDigimonEffectTag(
+    effect.type ??
+    effect.effectType ??
+    effect.category ??
+    ""
+  );
+
+  if (explicitType === "negative" || explicitType === "n") {
+    return true;
+  }
+
+  const tag = normalizeDigimonEffectTag(effect.tag);
+
+  return DDA_NEGATIVE_EFFECT_TAGS.has(tag);
+}
+
+function getActiveNegativeDigimonEffects(system = {}) {
+  const activeEffects = Array.isArray(system.effects?.active)
+    ? system.effects.active
+    : [];
+
+  return activeEffects.filter(isActiveNegativeDigimonEffect);
+}
+
 function qualityHasChoice(choiceKeys = [], ...aliases) {
   const normalizedChoices = new Set(
     choiceKeys.map((choiceKey) => normalizeQualityChoiceKey(choiceKey))
@@ -158,6 +268,42 @@ function isNaturewalkQuality(item) {
     normalizedName === "passo natural" ||
     normalizedName === "naturewalk"
   );
+}
+
+function isInnateTalentQuality(item) {
+  const sourceId = normalizeQualityChoiceKey(
+    getQualitySourceId(item)
+  );
+
+  const name = normalizeQualityChoiceKey(
+    item?.name ?? ""
+  );
+
+  return [
+    "talentoinato",
+    "innatetalent"
+  ].includes(sourceId) || [
+    "talentoinato",
+    "innatetalent"
+  ].includes(name);
+}
+
+function isNaturalWeaknessQuality(item) {
+  const sourceId = normalizeQualityChoiceKey(
+    getQualitySourceId(item)
+  );
+
+  const name = normalizeQualityChoiceKey(
+    item?.name ?? ""
+  );
+
+  return [
+    "fraquezanatural",
+    "naturalweakness"
+  ].includes(sourceId) || [
+    "fraquezanatural",
+    "naturalweakness"
+  ].includes(name);
 }
 
 function getQualityChoiceOptionData(itemSystem = {}, choiceKey = "") {
@@ -457,11 +603,162 @@ this._prepareDigimonQualityBonuses(system);
 this._prepareDigimonEffectBonuses(system);
 this._prepareDigimonMainStats(system);
 this._prepareDigimonDerivedStats(system);
+this._prepareDigimonQualityResources(system);
 this._prepareDigimonMiscStats(system);
 this._prepareDigimonMovementTypes(system);
 this._prepareDigimonQualityRequirements(system);
 this._prepareDigimonDp(system);
   }
+
+_prepareDigimonQualityResources(system) {
+  system.resources ??= {};
+  system.qualityFeatures ??= {};
+
+  const rankBySourceId = (sourceIds = []) => {
+    const wanted = new Set(
+      sourceIds.map((value) => {
+        return normalizeQualityChoiceKey(value);
+      })
+    );
+
+    return this.items
+      .filter((item) => item.type === "quality")
+      .filter((item) => {
+        const sourceId = normalizeQualityChoiceKey(
+          getQualitySourceId(item)
+        );
+
+        return wanted.has(sourceId);
+      })
+      .reduce((total, item) => {
+        return total + getQualityRankValue(
+          item.system ?? {}
+        );
+      }, 0);
+  };
+
+  const hasQuality = (sourceIds = []) => {
+    const wanted = new Set(
+      sourceIds.map((value) => {
+        return normalizeQualityChoiceKey(value);
+      })
+    );
+
+    return this.items.some((item) => {
+      if (item.type !== "quality") return false;
+
+      const sourceId = normalizeQualityChoiceKey(
+        getQualitySourceId(item)
+      );
+
+      return wanted.has(sourceId);
+    });
+  };
+
+  const conjurerRanks = rankBySourceId([
+    "conjurador",
+    "conjurer"
+  ]);
+
+  const summonerRanks = rankBySourceId([
+    "invocador",
+    "summoner"
+  ]);
+
+  const enabled =
+    conjurerRanks > 0 ||
+    summonerRanks > 0;
+
+  const bit = Math.max(0, Number(
+    system.derivedStats?.bit?.total ??
+    system.derivedStats?.bit?.value ??
+    system.derivedStats?.bit?.base ??
+    0
+  ));
+
+  const max = enabled
+    ? Math.max(
+        0,
+        bit +
+        (2 * (conjurerRanks + summonerRanks))
+      )
+    : 0;
+
+  const legacyResource =
+    system.resources.creationLimit ?? {};
+
+  const currentResource =
+    system.resources.mastery ?? {};
+
+  const previousMax = Math.max(0, Number(
+    currentResource.max ??
+    legacyResource.max ??
+    0
+  ));
+
+  const previousValue = Math.max(0, Number(
+    currentResource.value ??
+    legacyResource.value ??
+    previousMax
+  ));
+
+  /*
+   * Se o máximo aumentar, preserva a quantidade já
+   * gasta em vez de simplesmente encher o recurso.
+   */
+  const previouslySpent = previousMax > 0
+    ? Math.max(
+        0,
+        previousMax - previousValue
+      )
+    : 0;
+
+  const value = enabled
+    ? Math.max(
+        0,
+        Math.min(
+          max,
+          previousMax > 0
+            ? max - previouslySpent
+            : max
+        )
+      )
+    : 0;
+
+  system.resources.mastery = {
+    ...currentResource,
+
+    enabled,
+    value,
+    max,
+
+    label: "Mastery",
+
+    formula:
+      "BIT + 2 × (Ranks de Conjurador + Ranks de Invocador)",
+
+    bitContribution: bit,
+    conjurerRanks,
+    summonerRanks
+  };
+
+  system.resources.creationLimit = {
+    ...legacyResource,
+    enabled: false,
+    legacy: true
+  };
+
+  system.qualityFeatures.omnievoker = {
+    enabled: hasQuality([
+      "evocador",
+      "evoker",
+      "omnievoker"
+    ]),
+
+    canConjureAndSummonTogether: true,
+    sharedActionSpend: true
+  };
+}
 
 _prepareDigimonEvolutionGraph(system) {
   if (!system.evolutionGraph) {
@@ -518,6 +815,21 @@ _prepareDigimonPersistentEvolutionState(system) {
 _prepareDigimonQualityBonuses(system) {
   const mainStats = system.mainStats ?? {};
   const miscStats = system.miscStats ?? {};
+
+  const activeNegativeEffects = getActiveNegativeDigimonEffects(system);
+  const isSufferingNegativeEffect = activeNegativeEffects.length > 0;
+
+  const adaptiveArmorState = system.combat?.adaptiveArmor ?? {};
+  const activeCombatId = String(game.combat?.id ?? "");
+  const activeCombatRound = Number(game.combat?.round ?? 0);
+
+  const adaptiveArmorStateIsCurrent = Boolean(
+    adaptiveArmorState.active &&
+    activeCombatId &&
+    String(adaptiveArmorState.combatId ?? "") === activeCombatId &&
+    Number(adaptiveArmorState.round ?? 0) === activeCombatRound
+  );
+
 for (const stat of Object.values(mainStats)) {
   stat.sharedBonus = 0;
   stat.sharedBonusSources = [];
@@ -544,6 +856,17 @@ system.qualityFeatures.treatsSurpriseRoundsAsNormal = false;
 system.qualityFeatures.readsDigicode = false;
 system.qualityFeatures.firewallApplications = false;
 system.qualityFeatures.trojanApplications = false;
+
+system.qualityFeatures.adaptiveArmor = {
+  active: false,
+  qualityId: "",
+  qualityName: "",
+  pointsPerRound: 0,
+  dodge: 0,
+  armor: 0,
+  combatId: "",
+  round: 0
+};
 
 system.qualityFeatures.dataOptimization = {
   choice: "",
@@ -594,6 +917,12 @@ system.qualityFeatures.naturewalk = {
     crash: 0
   },
 
+  sources: []
+};
+
+system.qualityFeatures.naturalWeakness = {
+  elements: [],
+  elementLabels: [],
   sources: []
 };
 
@@ -693,7 +1022,88 @@ system.skillBonuses = {};
     if (item.type !== "quality") continue;
 
     const itemSystem = item.system ?? {};
-const grants = itemSystem.grants ?? {};
+const grants = foundry.utils.deepClone(itemSystem.grants ?? {});
+
+grants.mainStats ??= {};
+grants.mainStatsPerRank ??= {};
+grants.miscStats ??= {};
+grants.derivedStats ??= {};
+grants.automaticSuccesses ??= {};
+
+/*
+ * Compatibilidade com Qualities antigas/importadas.
+ * Algumas Digizoid Armor/Weaponry ainda usam armorBonus, healthBonus,
+ * movementPenalty, cpuBonus etc. O ator, porém, calcula os bônus pelos
+ * caminhos canônicos abaixo.
+ */
+const legacyMainStatGrantMap = {
+  accuracyBonus: "accuracy",
+  damageBonus: "damage",
+  dodgeBonus: "dodge",
+  armorBonus: "armor",
+  healthBonus: "health"
+};
+
+for (const [legacyKey, statKey] of Object.entries(legacyMainStatGrantMap)) {
+  if (grants[legacyKey] === undefined) continue;
+
+  const legacyValue = Number(grants[legacyKey] ?? 0);
+  const canonicalValue = Number(grants.mainStats[statKey] ?? 0);
+
+  if (legacyValue === 0) continue;
+  if (canonicalValue !== 0) continue;
+
+  grants.mainStats[statKey] = legacyValue;
+}
+
+const legacyMiscStatGrantMap = {
+  movementBonus: "movement",
+  movementPenalty: "movement",
+  initiativeBonus: "initiative"
+};
+
+for (const [legacyKey, statKey] of Object.entries(legacyMiscStatGrantMap)) {
+  if (grants[legacyKey] === undefined) continue;
+
+  const legacyValue = Number(grants[legacyKey] ?? 0);
+  const canonicalValue = Number(grants.miscStats[statKey] ?? 0);
+
+  if (legacyValue === 0) continue;
+  if (canonicalValue !== 0) continue;
+
+  grants.miscStats[statKey] = legacyValue;
+}
+
+const legacyDerivedStatGrantMap = {
+  bitBonus: "bit",
+  dosBonus: "dos",
+  ramBonus: "ram",
+  cpuBonus: "cpu"
+};
+
+for (const [legacyKey, statKey] of Object.entries(legacyDerivedStatGrantMap)) {
+  if (grants[legacyKey] === undefined) continue;
+
+  const legacyValue = Number(grants[legacyKey] ?? 0);
+  const canonicalValue = Number(grants.derivedStats[statKey] ?? 0);
+
+  if (legacyValue === 0) continue;
+  if (canonicalValue !== 0) continue;
+
+  grants.derivedStats[statKey] = legacyValue;
+}
+
+if (
+  grants.automaticDodgeSuccesses !== undefined &&
+  grants.automaticSuccesses.dodge === undefined
+) {
+  const value = Number(grants.automaticDodgeSuccesses ?? 0);
+
+  if (value !== 0) {
+    grants.automaticSuccesses.dodge = value;
+  }
+}
+
 const mainStatGrants = grants.mainStats ?? {};
 const mainStatPerRankGrants = grants.mainStatsPerRank ?? {};
 const derivedStatGrants = grants.derivedStats ?? {};
@@ -703,6 +1113,234 @@ const derivedStatChoicePerRank = Number(grants.derivedStatChoicePerRank ?? 0);
 const rankValue = getQualityRankValue(itemSystem);
 const sourceId = getQualitySourceId(item);
 const choiceKeys = getQualityChoiceKeys(itemSystem);
+
+if (isInnateTalentQuality(item)) {
+  const allStatsPenalty = Number(
+    grants.allStatsPenalty ?? 0
+  );
+
+  if (allStatsPenalty !== 0) {
+    for (
+      const [statKey, stat] of
+      Object.entries(mainStats)
+    ) {
+      addQualitySourceBonus(stat, {
+        name: item.name,
+        value: allStatsPenalty,
+        type: "innateTalent",
+        stat: statKey
+      });
+    }
+  }
+
+  if (
+    grants.prodigiousSkillForChosenSkills
+  ) {
+    const selectedChoices =
+      getQualitySelectedChoices(itemSystem);
+
+    const chosenSkills =
+      selectedChoices.flatMap((choice) => {
+        return Array.isArray(choice.skills)
+          ? choice.skills
+          : [];
+      });
+
+    const seenSkillKeys = new Set();
+
+    for (const skill of chosenSkills) {
+      const skillKey = String(
+        skill?.key ??
+        skill?.id ??
+        ""
+      ).trim();
+
+      if (
+        !skillKey ||
+        seenSkillKeys.has(skillKey)
+      ) {
+        continue;
+      }
+
+      seenSkillKeys.add(skillKey);
+
+      addDigimonSkillBonus(
+        system,
+        skillKey,
+        {
+          name: item.name,
+
+          label: String(
+            skill.label ??
+            skill.originalLabel ??
+            skillKey
+          ),
+
+          derivedStat: String(
+            skill.derivedStat ?? ""
+          ),
+
+          value: 3
+        }
+      );
+    }
+  }
+}
+
+if (isNaturalWeaknessQuality(item)) {
+  const naturalWeakness =
+    system.qualityFeatures.naturalWeakness;
+
+  const selectedChoices =
+    getQualitySelectedChoices(itemSystem);
+
+  for (const choice of selectedChoices) {
+    const elements =
+      Array.isArray(choice.elements)
+        ? choice.elements
+        : [];
+
+    for (const element of elements) {
+      const elementKey =
+        normalizeQualityChoiceKey(
+          element?.key ??
+          element?.id ??
+          element?.label ??
+          ""
+        );
+
+      if (!elementKey) continue;
+
+      const elementLabel = String(
+        element?.label ??
+        element?.originalLabel ??
+        elementKey
+      ).trim();
+
+      if (
+        !naturalWeakness.elements.includes(
+          elementKey
+        )
+      ) {
+        naturalWeakness.elements.push(
+          elementKey
+        );
+      }
+
+      if (
+        elementLabel &&
+        !naturalWeakness.elementLabels.includes(
+          elementLabel
+        )
+      ) {
+        naturalWeakness.elementLabels.push(
+          elementLabel
+        );
+      }
+
+      naturalWeakness.sources.push({
+        name: item.name,
+        element: elementKey,
+        label: elementLabel,
+        rank: Number(choice.rank ?? 1)
+      });
+    }
+  }
+}
+
+const adaptiveArmorPoints =
+  getAdaptiveArmorPointsPerRound(item);
+
+const adaptiveStateMatchesQuality = (
+  !adaptiveArmorState.qualityId &&
+  !adaptiveArmorState.sourceId
+) || (
+  String(adaptiveArmorState.qualityId ?? "") ===
+  String(item.id ?? "")
+) || (
+  normalizeQualityChoiceKey(
+    adaptiveArmorState.sourceId ?? ""
+  ) === normalizeQualityChoiceKey(sourceId)
+);
+
+if (
+  adaptiveArmorPoints > 0 &&
+  adaptiveArmorStateIsCurrent &&
+  adaptiveStateMatchesQuality
+) {
+  const adaptiveDodgeBonus = Math.max(
+    0,
+    Math.min(
+      adaptiveArmorPoints,
+      Math.floor(Number(adaptiveArmorState.dodge ?? 0))
+    )
+  );
+
+  const adaptiveArmorBonus = Math.max(
+    0,
+    Math.min(
+      adaptiveArmorPoints - adaptiveDodgeBonus,
+      Math.floor(Number(adaptiveArmorState.armor ?? 0))
+    )
+  );
+
+  if (adaptiveDodgeBonus > 0 && mainStats.dodge) {
+    addQualitySourceBonus(mainStats.dodge, {
+      name: item.name,
+      value: adaptiveDodgeBonus,
+      type: "roundAllocation",
+      stat: "dodge",
+      combatId: activeCombatId,
+      round: activeCombatRound
+    });
+  }
+
+  if (adaptiveArmorBonus > 0 && mainStats.armor) {
+    addQualitySourceBonus(mainStats.armor, {
+      name: item.name,
+      value: adaptiveArmorBonus,
+      type: "roundAllocation",
+      stat: "armor",
+      combatId: activeCombatId,
+      round: activeCombatRound
+    });
+  }
+
+  system.qualityFeatures.adaptiveArmor = {
+    active: true,
+    qualityId: item.id,
+    qualityName: item.name,
+    pointsPerRound: adaptiveArmorPoints,
+    dodge: adaptiveDodgeBonus,
+    armor: adaptiveArmorBonus,
+    combatId: activeCombatId,
+    round: activeCombatRound
+  };
+}
+
+const conditionalArmorBonus = Number(
+  grants.armorBonusWhileSufferingNegativeEffect ?? 0
+);
+
+if (
+  conditionalArmorBonus !== 0 &&
+  isSufferingNegativeEffect &&
+  mainStats.armor
+) {
+  addQualitySourceBonus(mainStats.armor, {
+    name: item.name,
+    value: conditionalArmorBonus,
+    type: "conditional",
+    condition: "negativeEffect",
+    activeEffects: activeNegativeEffects.map((effect) => {
+      return String(
+        effect.label ??
+        effect.tag ??
+        ""
+      ).trim();
+    }).filter(Boolean)
+  });
+}
 
 if (miscStats.movement && grants.miscStats) {
   const movementFlat = Number(grants.miscStats.movement ?? 0);
@@ -801,56 +1439,81 @@ if (derivedStatChoicePerRank !== 0 && choiceKeys.length > 0) {
 }
 
 for (const [grantKey, value] of Object.entries(derivedStatGrants)) {
-  const perRankValue = Number(value ?? 0);
-  if (perRankValue === 0) continue;
+  const numericValue = Number(value ?? 0);
+  if (numericValue === 0) continue;
 
-  const match = String(grantKey).match(/^(accuracy|damage|dodge|armor|health|movement)PerRank$/);
-  if (!match) continue;
+  const rawGrantKey = String(grantKey ?? "").trim();
+  const perRankMatch = rawGrantKey.match(/^(accuracy|damage|dodge|armor|health|movement)PerRank$/);
 
-  const statKey = match[1];
+  if (perRankMatch) {
+    const statKey = perRankMatch[1];
 
-  // derivedStats é fallback/compatibilidade.
-  // Se o bônus já existe no caminho canônico, não soma de novo.
-  if (statKey === "movement") {
-    const alreadyHasCanonicalMovementGrant =
-      Number(grants.miscStats?.movementPerRank ?? 0) !== 0 ||
-      Number(grants.miscStats?.movement ?? 0) !== 0;
+    // derivedStats é fallback/compatibilidade.
+    // Se o bônus já existe no caminho canônico, não soma de novo.
+    if (statKey === "movement") {
+      const alreadyHasCanonicalMovementGrant =
+        Number(grants.miscStats?.movementPerRank ?? 0) !== 0 ||
+        Number(grants.miscStats?.movement ?? 0) !== 0;
 
-    if (alreadyHasCanonicalMovementGrant) continue;
+      if (alreadyHasCanonicalMovementGrant) continue;
 
-    if (miscStats.movement) {
-      const totalValue = perRankValue * rankValue;
+      if (miscStats.movement) {
+        const totalValue = numericValue * rankValue;
 
-      miscStats.movement.qualityBonus += totalValue;
-      miscStats.movement.qualityBonusSources.push({
+        miscStats.movement.qualityBonus += totalValue;
+        miscStats.movement.qualityBonusSources.push({
+          name: item.name,
+          value: totalValue,
+          type: "perRank",
+          rank: rankValue,
+          perRank: numericValue
+        });
+      }
+
+      continue;
+    }
+
+    const alreadyHasCanonicalMainStatGrant =
+      Number(mainStatPerRankGrants?.[statKey] ?? 0) !== 0 ||
+      Number(mainStatGrants?.[statKey] ?? 0) !== 0;
+
+    if (alreadyHasCanonicalMainStatGrant) continue;
+
+    if (mainStats[statKey]) {
+      const totalValue = numericValue * rankValue;
+
+      addQualitySourceBonus(mainStats[statKey], {
         name: item.name,
         value: totalValue,
         type: "perRank",
         rank: rankValue,
-        perRank: perRankValue
+        perRank: numericValue
       });
     }
 
     continue;
   }
 
-  const alreadyHasCanonicalMainStatGrant =
-    Number(mainStatPerRankGrants?.[statKey] ?? 0) !== 0 ||
-    Number(mainStatGrants?.[statKey] ?? 0) !== 0;
+  const normalizedDerivedKey = rawGrantKey.toLowerCase();
+  const allowedFlatDerivedStats = new Set(["bit", "dos", "ram", "cpu"]);
 
-  if (alreadyHasCanonicalMainStatGrant) continue;
+  if (!allowedFlatDerivedStats.has(normalizedDerivedKey)) continue;
 
-  if (mainStats[statKey]) {
-    const totalValue = perRankValue * rankValue;
+  const derivedStats = system.derivedStats ?? {};
+  const stat = derivedStats[normalizedDerivedKey];
 
-    addQualitySourceBonus(mainStats[statKey], {
-      name: item.name,
-      value: totalValue,
-      type: "perRank",
-      rank: rankValue,
-      perRank: perRankValue
-    });
-  }
+  if (!stat) continue;
+
+  stat.qualityBonus = Number(stat.qualityBonus ?? 0) + numericValue;
+  stat.qualityBonusSources = Array.isArray(stat.qualityBonusSources)
+    ? stat.qualityBonusSources
+    : [];
+
+  stat.qualityBonusSources.push({
+    name: item.name,
+    value: numericValue,
+    type: "flat"
+  });
 }
 
 if (isDataOptimizationQuality(item)) {
@@ -1197,19 +1860,33 @@ if (crashDamageReductionFrom) {
 }
 
 const automaticSuccessGrants = grants.automaticSuccesses ?? {};
+
 for (const [statKey, value] of Object.entries(automaticSuccessGrants)) {
-  const match = String(statKey).match(/^(accuracy|damage|dodge|armor|health)PerRank$/);
+  const match = String(statKey).match(/^(accuracy|damage|dodge|armor|health)(PerRank)?$/);
   if (!match) continue;
 
   const targetKey = match[1];
-  const totalValue = Number(value ?? 0) * rankValue;
+  const isPerRank = Boolean(match[2]);
+  const grantValue = Number(value ?? 0);
+  const totalValue = grantValue * (isPerRank ? rankValue : 1);
+
   if (totalValue === 0 || !mainStats[targetKey]) continue;
 
-  mainStats[targetKey].automaticSuccesses = Number(mainStats[targetKey].automaticSuccesses ?? 0) + totalValue;
-  mainStats[targetKey].automaticSuccessSources = Array.isArray(mainStats[targetKey].automaticSuccessSources)
-    ? mainStats[targetKey].automaticSuccessSources
-    : [];
-  mainStats[targetKey].automaticSuccessSources.push({ name: item.name, value: totalValue, type: "perRank", rank: rankValue, perRank: Number(value ?? 0) });
+  mainStats[targetKey].automaticSuccesses =
+    Number(mainStats[targetKey].automaticSuccesses ?? 0) + totalValue;
+
+  mainStats[targetKey].automaticSuccessSources =
+    Array.isArray(mainStats[targetKey].automaticSuccessSources)
+      ? mainStats[targetKey].automaticSuccessSources
+      : [];
+
+  mainStats[targetKey].automaticSuccessSources.push({
+    name: item.name,
+    value: totalValue,
+    type: isPerRank ? "perRank" : "flat",
+    rank: isPerRank ? rankValue : undefined,
+    perRank: isPerRank ? grantValue : undefined
+  });
 }
 
 
@@ -1263,15 +1940,25 @@ if (skillBonus > 0 && selectedRanks.length > 0) {
       ? stat.sharedBonusSources
       : [];
 
-    stat.sharedBonusTooltip = sources.length
-      ? sources.map((source) => {
-          if (source.type === "perRank") {
-            return `${source.name}: +${source.value} (${source.perRank}/Rank × ${source.rank})`;
-          }
+stat.sharedBonusTooltip = sources.length
+  ? sources.map((source) => {
+      if (source.type === "perRank") {
+        return `${source.name}: ${formatSignedQualityBonus(source.value)} (${formatSignedQualityBonus(source.perRank)}/Rank × ${source.rank})`;
+      }
 
-          return `${source.name}: +${source.value}`;
-        }).join("\n")
-      : game.i18n.localize("DDA.QualityBonus.None");
+      if (source.type === "conditional" && source.condition === "negativeEffect") {
+        const effectNames = Array.isArray(source.activeEffects)
+          ? source.activeEffects.filter(Boolean).join(", ")
+          : "";
+
+        return effectNames
+          ? `${source.name}: ${formatSignedQualityBonus(source.value)} — Efeito Negativo: ${effectNames}`
+          : `${source.name}: ${formatSignedQualityBonus(source.value)} — Efeito Negativo`;
+      }
+
+      return `${source.name}: ${formatSignedQualityBonus(source.value)}`;
+    }).join("\n")
+  : game.i18n.localize("DDA.QualityBonus.None");
   }
 
 if (miscStats.movement) {
@@ -1327,6 +2014,41 @@ _prepareDigimonEffectBonuses(system) {
     sharpen: { damage: 1 },
     sturdy: { armor: 1 },
 
+    nimble: {
+      accuracy: 1,
+      dodge: 1
+    },
+
+    daring: {
+      accuracy: 1,
+      armor: 1
+    },
+
+    fury: {
+      accuracy: 1,
+      damage: 1
+    },
+
+    steady: {
+      damage: 1,
+      dodge: 1
+    },
+
+    strength: {
+      damage: 1,
+      armor: 1
+    },
+
+    vigil: {
+      dodge: 1,
+      armor: 1
+    },
+
+    vigor: {
+      dodge: 1,
+      movement: 1
+    },
+
     root: { movement: -1 },
     tailwind: { movement: 1 }
   };
@@ -1370,8 +2092,19 @@ _prepareDigimonEffectBonuses(system) {
 
     if (!modifiers) continue;
 
-    for (const [statKey, value] of Object.entries(modifiers)) {
-      const numericValue = Number(value ?? 0);
+    const potencyMultiplier =
+      effect.usePotencyValue
+        ? potency
+        : 1;
+
+    for (
+      const [statKey, value] of
+      Object.entries(modifiers)
+    ) {
+      const numericValue =
+        Number(value ?? 0) *
+        potencyMultiplier;
+
       if (numericValue === 0) continue;
 
       if (statKey === "movement") {
@@ -1458,26 +2191,120 @@ _prepareDigimonStage(system) {
 }
 
 _prepareDigimonMainStats(system) {
-  const mainStats = system.mainStats ?? {};
+  const mainStats =
+    system.mainStats ?? {};
 
   const mainStatLabelKeys = {
-    accuracy: "DDA.MainStat.Accuracy",
-    damage: "DDA.MainStat.Damage",
-    dodge: "DDA.MainStat.Dodge",
-    armor: "DDA.MainStat.Armor",
-    health: "DDA.MainStat.Health"
+    accuracy:
+      "DDA.MainStat.Accuracy",
+
+    damage:
+      "DDA.MainStat.Damage",
+
+    dodge:
+      "DDA.MainStat.Dodge",
+
+    armor:
+      "DDA.MainStat.Armor",
+
+    health:
+      "DDA.MainStat.Health"
   };
 
-  for (const [statKey, stat] of Object.entries(mainStats)) {
-    const base = Number(stat.base ?? 0);
-    const bonus = Number(stat.bonus ?? 0);
-    const sharedBonus = Number(stat.sharedBonus ?? 0);
-    const effectBonus = Number(stat.effectBonus ?? 0);
+  for (
+    const [statKey, stat] of
+    Object.entries(mainStats)
+  ) {
+    const storedBase =
+      Number(
+        stat.base ?? 0
+      );
 
-    const labelKey = mainStatLabelKeys[statKey] ?? stat.label ?? statKey;
+    /*
+     * A Base também precisa ser normalizada.
+     * Os Atributos Derivados usam a Base para
+     * calcular BIT, DOS, RAM e CPU.
+     */
+    const base =
+      Math.min(
+        DDA_DIGIMON_MAIN_STAT_MAX,
 
-    stat.displayLabel = getLocalizedLabel(labelKey);
-    stat.total = Math.max(1, base + bonus + sharedBonus + effectBonus);
+        Math.max(
+          DDA_DIGIMON_MAIN_STAT_MIN,
+          storedBase
+        )
+      );
+
+    const bonus =
+      Number(
+        stat.bonus ?? 0
+      );
+
+    const sharedBonus =
+      Number(
+        stat.sharedBonus ?? 0
+      );
+
+    const effectBonus =
+      Number(
+        stat.effectBonus ?? 0
+      );
+
+    const uncappedTotal =
+      base +
+      bonus +
+      sharedBonus +
+      effectBonus;
+
+    const total =
+      Math.min(
+        DDA_DIGIMON_MAIN_STAT_MAX,
+
+        Math.max(
+          DDA_DIGIMON_MAIN_STAT_MIN,
+          uncappedTotal
+        )
+      );
+
+    const labelKey =
+      mainStatLabelKeys[statKey] ??
+      stat.label ??
+      statKey;
+
+    stat.displayLabel =
+      getLocalizedLabel(
+        labelKey
+      );
+
+    /*
+     * Mantém informações úteis para interface,
+     * tooltips e futura auditoria.
+     */
+    stat.storedBase =
+      storedBase;
+
+    stat.base =
+      base;
+
+    stat.uncappedTotal =
+      uncappedTotal;
+
+    stat.minimum =
+      DDA_DIGIMON_MAIN_STAT_MIN;
+
+    stat.maximum =
+      DDA_DIGIMON_MAIN_STAT_MAX;
+
+    stat.cappedAtMaximum =
+      uncappedTotal >
+      DDA_DIGIMON_MAIN_STAT_MAX;
+
+    stat.clampedAtMinimum =
+      uncappedTotal <
+      DDA_DIGIMON_MAIN_STAT_MIN;
+
+    stat.total =
+      total;
   }
 }
   _prepareDigimonDerivedStats(system) {
@@ -1526,6 +2353,23 @@ _prepareDigimonMainStats(system) {
       const baseValue = Math.floor(mainStatBase / 3);
       const sizeBonus = Number(sizeModifiers[derivedKey] ?? 0);
       const qualityBonus = Number(stat.qualityBonus ?? 0);
+
+      const qualityBonusSources = Array.isArray(stat.qualityBonusSources)
+        ? stat.qualityBonusSources
+        : [];
+
+      const qualitySourcesSummary = qualityBonusSources
+        .filter((source) => Number(source?.value ?? 0) !== 0)
+        .map((source) => {
+          const sourceName = String(source?.name ?? "").trim();
+          const sourceValue = formatSignedNumber(source?.value ?? 0);
+
+          return sourceName
+            ? `${sourceName} ${sourceValue}`
+            : sourceValue;
+        })
+        .join(" • ");
+
       const total = Math.max(0, baseValue + sizeBonus + qualityBonus);
       stat.base = baseValue;
       stat.sizeBonus = sizeBonus;
@@ -1547,6 +2391,8 @@ _prepareDigimonMainStats(system) {
         baseValue,
         sizeLabel,
         sizeBonus,
+        qualityBonus,
+        qualitySourcesSummary,
         totalLabel: localizeActorKey("DDA.Label.Total"),
         total
       };
@@ -1557,7 +2403,11 @@ _prepareDigimonMainStats(system) {
       ];
 
       if (qualityBonus !== 0) {
-        tooltipLines.push(`${localizeActorKey("DDA.TooltipQualityBonus")}: ${formatSignedNumber(qualityBonus)}`);
+        tooltipLines.push(
+          qualitySourcesSummary
+            ? `${localizeActorKey("DDA.TooltipQualityBonus")}: ${qualitySourcesSummary}`
+            : `${localizeActorKey("DDA.TooltipQualityBonus")}: ${formatSignedNumber(qualityBonus)}`
+        );
       }
 
       tooltipLines.push(`${stat.breakdown.totalLabel}: ${total}`);
@@ -2542,12 +3392,30 @@ for (const incompatibleName of incompatibleQualityNames) {
   }
 }
 function getQualityTotalCost(itemSystem) {
-  const isFree = Boolean(itemSystem.cost?.isFree || itemSystem.category?.free);
-  const isNegative = Boolean(itemSystem.category?.negative);
+  const isFree = Boolean(
+    itemSystem.cost?.isFree ||
+    itemSystem.category?.free
+  );
+
+  const isNegative = Boolean(
+    itemSystem.category?.negative
+  );
 
   if (isFree || isNegative) return 0;
 
-  const baseCost = Math.max(0, Number(itemSystem.cost?.dp ?? 0));
+  const attachedChoiceCost = Math.max(
+    0,
+    Number(
+      itemSystem.overclock?.effectDpCost ??
+      itemSystem.enemyBuilder?.attachedChoiceDp ??
+      0
+    )
+  );
+
+  const baseCost = Math.max(
+    0,
+    Number(itemSystem.cost?.dp ?? 0)
+  );
   const rank = Math.max(1, Number(itemSystem.rank?.value ?? 1));
   const limited = Boolean(itemSystem.rank?.limited);
 
@@ -2566,11 +3434,15 @@ function getQualityTotalCost(itemSystem) {
     effectiveRank = Math.min(rank, usableMax);
   }
 
-  if (itemSystem.cost?.perRank) {
-    return baseCost * effectiveRank;
-  }
+  const rankedBaseCost =
+    itemSystem.cost?.perRank
+      ? baseCost * effectiveRank
+      : baseCost;
 
-  return baseCost;
+  return (
+    rankedBaseCost +
+    attachedChoiceCost
+  );
 }
 
 function parseQualityNameList(value) {

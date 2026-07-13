@@ -142,7 +142,20 @@
 
     <section class="dda-gm-milestone-history">
       <header>
-        <h3>{{localize "DDA.Progression.Panel.HistoryTitle"}}</h3>
+        <h3>
+          {{localize "DDA.Progression.Panel.HistoryTitle"}}
+        </h3>
+
+        <button
+          type="button"
+          class="dda-gm-clear-history"
+          data-action="clearMilestoneHistory"
+          {{#unless campaign.history.length}}disabled{{/unless}}
+        >
+          <i class="fas fa-trash"></i>
+
+          {{localize "DDA.Progression.Button.ClearHistory"}}
+        </button>
       </header>
 
       {{#if campaign.history.length}}

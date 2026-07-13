@@ -171,6 +171,23 @@ export async function setCampaignMilestoneLedger(ledger) {
   return normalized;
 }
 
+export async function clearCampaignMilestoneHistory() {
+  const ledger = getCampaignMilestoneLedger();
+  const clearedRecords = ledger.records.length;
+
+  ledger.records = [];
+
+  const savedLedger =
+    await setCampaignMilestoneLedger(
+      ledger
+    );
+
+  return {
+    clearedRecords,
+    ledger: savedLedger
+  };
+}
+
 export async function resolveDdaActor(uuid = "") {
   const cleanUuid = String(uuid ?? "").trim();
   if (!cleanUuid) return null;
@@ -267,27 +284,57 @@ export function getTamerMilestoneBreakdown(tamer) {
 
 /**
  * Progressão padrão:
- * 0–2 Marcos Individuais: cap inicial.
- * 3–5 Marcos Individuais: +1 cap.
- * 6+ Marcos Individuais: +2 cap.
+ * 0–2 Marcos concluídos: cap inicial.
+ * 3–5 Marcos concluídos: +1 cap.
+ * 6+ Marcos concluídos: +2 cap,
+ * até o teto final da campanha.
  *
- * Marcos de Equipe concedem GP e Bonus DP, mas não aumentam o cap.
+ * Tanto Marcos de Equipe quanto Marcos
+ * Individuais contam para liberar o teto.
+ *
+ * O escopo determina quem recebe o Marco,
+ * não um tipo diferente de progressão.
  */
-export function getTamerAttributeCap(tamer) {
-  const { individualMilestones } = getTamerMilestoneBreakdown(tamer);
+export function getTamerAttributeCap(
+  tamer
+) {
+  const milestonesCompleted =
+    getTamerMilestoneCount(
+      tamer
+    );
 
-  const startingCap = integer(getAttributeStartingCap(), 5);
-  const finalCap = Math.max(
-    startingCap,
-    integer(getAttributeFinalCap(), 7)
+  const startingCap =
+    integer(
+      getAttributeStartingCap(),
+      5
+    );
+
+  const finalCap =
+    Math.max(
+      startingCap,
+
+      integer(
+        getAttributeFinalCap(),
+        7
+      )
+    );
+
+  const capIncrease =
+    Math.min(
+      Math.max(
+        0,
+        finalCap - startingCap
+      ),
+
+      Math.floor(
+        milestonesCompleted / 3
+      )
+    );
+
+  return (
+    startingCap +
+    capIncrease
   );
-
-  const capIncrease = Math.min(
-    Math.max(0, finalCap - startingCap),
-    Math.floor(individualMilestones / 3)
-  );
-
-  return startingCap + capIncrease;
 }
 
 

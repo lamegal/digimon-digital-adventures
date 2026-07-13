@@ -3210,6 +3210,83 @@ html body .app.window-app.dda-wizard .dda-wizard-quality-filter-panel[open] .dda
   box-shadow: none !important;
 }
 
+.dda-wizard-image-picker-button {
+  position: relative !important;
+}
+
+.dda-wizard-image-picker-overlay {
+  position: absolute !important;
+
+  right: 4px !important;
+  bottom: 4px !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  width: 24px !important;
+  height: 24px !important;
+
+  color: #ffffff !important;
+  font-size: 11px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(27, 135, 190, 0.98),
+      rgba(7, 62, 105, 0.98)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(205, 245, 255, 0.72) !important;
+
+  border-radius: 999px !important;
+
+  box-shadow:
+    0 2px 6px
+    rgba(0, 0, 0, 0.45) !important;
+
+  pointer-events: none !important;
+}
+
+.dda-wizard-image-path {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+
+  min-width: 0 !important;
+}
+
+.dda-wizard-image-card.is-image-missing {
+  border-color:
+    rgba(255, 104, 104, 0.72) !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(255, 110, 110, 0.12),
+    0 0 16px
+      rgba(190, 35, 50, 0.18) !important;
+}
+
+.dda-wizard-image-card.is-image-missing
+.dda-wizard-image-picker-button {
+  border-color:
+    rgba(255, 125, 125, 0.82) !important;
+
+  box-shadow:
+    0 0 0 1px
+      rgba(255, 255, 255, 0.06),
+    0 0 16px
+      rgba(255, 70, 80, 0.28) !important;
+}
+
+.dda-wizard-image-required {
+  color: #ffb7b7 !important;
+
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+}
+
 /* ===================================================== */
 /* DDA — Compatibility Questionnaire: Digitama clean edge */
 /* Remove outline/traço artificial nos Digitamas finais.  */
@@ -5731,8 +5808,743 @@ html body .app.window-app.dda-wizard .dda-line-attack-row select:focus {
     0 0 14px rgba(90, 210, 255, 0.20) !important;
 }
 
+
+
 html body .window-app.dda-wizard .dda-line-attack-row select option,
 html body .app.window-app.dda-wizard .dda-line-attack-row select option {
   color: #f5fcff !important;
   background: #08233b !important;
+}
+
+/* ===================================================== */
+/* DDA Wizard — Quality filters: enemy-browser layout    */
+/* ===================================================== */
+
+html body .dda-wizard-quality-browser
+.quality-browser-header.dda-wizard-quality-sticky-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0.65rem !important;
+}
+
+html body .dda-wizard-quality-browser
+.dda-wizard-quality-toolbar {
+  display: grid !important;
+  grid-template-columns:
+    minmax(220px, 1fr)
+    max-content !important;
+  gap: 0.65rem !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+html body .dda-wizard-quality-browser
+.dda-wizard-quality-toolbar input[type="search"] {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+html body .dda-wizard-quality-browser
+.dda-wizard-quality-toolbar
+.quality-available-toggle {
+  width: auto !important;
+  min-width: 150px !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+}
+
+html body .dda-wizard-quality-browser
+.dda-wizard-quality-filter-content {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0.5rem !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0.6rem 0 0 !important;
+  border-top:
+    1px solid
+    rgba(150, 220, 255, 0.16) !important;
+}
+
+html body .dda-wizard-quality-browser
+:is(
+  .quality-browser-category-filters,
+  .quality-browser-tier-filters
+) {
+  display: flex !important;
+  flex-flow: row wrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.4rem !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html body .dda-wizard-quality-browser
+button:is(
+  [data-tier-filter],
+  [data-category-filter]
+) {
+  --chip-top: rgba(50, 68, 94, 0.98);
+  --chip-bottom: rgba(21, 33, 50, 0.99);
+  --chip-border: rgba(159, 191, 219, 0.55);
+  --chip-glow: rgba(159, 191, 219, 0.25);
+
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: auto !important;
+  min-width: max-content !important;
+  height: 28px !important;
+  min-height: 28px !important;
+
+  margin: 0 !important;
+  padding: 0.18rem 0.68rem !important;
+
+  color: #edf8ff !important;
+
+  font-family:
+    "PixelOperatorBold",
+    "Trebuchet MS",
+    Arial,
+    sans-serif !important;
+
+  font-size: 0.64rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      var(--chip-top),
+      var(--chip-bottom)
+    ) !important;
+
+  border:
+    1px solid
+    var(--chip-border) !important;
+
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(255, 255, 255, 0.08),
+    inset 0 -4px 7px
+      rgba(0, 0, 0, 0.20) !important;
+}
+
+html body .dda-wizard-quality-browser
+button:is(
+  [data-tier-filter],
+  [data-category-filter]
+).active {
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(255, 255, 255, 0.30),
+    inset 0 -4px 7px
+      rgba(0, 0, 0, 0.20),
+    0 0 11px
+      var(--chip-glow) !important;
+}
+
+html body .dda-wizard-quality-browser
+button:is(
+  [data-tier-filter="all"],
+  [data-category-filter="all"]
+) {
+  --chip-top: rgba(72, 68, 120, 0.98);
+  --chip-bottom: rgba(31, 28, 67, 0.99);
+  --chip-border: rgba(183, 180, 255, 0.68);
+  --chip-glow: rgba(174, 169, 255, 0.30);
+}
+
+html body .dda-wizard-quality-browser
+button:is(
+  [data-tier-filter="starting"],
+  [data-category-filter="core"]
+) {
+  --chip-top: rgba(30, 103, 166, 0.98);
+  --chip-bottom: rgba(9, 51, 96, 0.99);
+  --chip-border: rgba(111, 205, 255, 0.72);
+  --chip-glow: rgba(94, 195, 255, 0.32);
+}
+
+html body .dda-wizard-quality-browser
+button:is(
+  [data-tier-filter="champion"],
+  [data-category-filter="clash"]
+) {
+  --chip-top: rgba(154, 89, 24, 0.98);
+  --chip-bottom: rgba(78, 40, 9, 0.99);
+  --chip-border: rgba(255, 184, 92, 0.76);
+  --chip-glow: rgba(255, 172, 69, 0.34);
+}
+
+html body .dda-wizard-quality-browser
+button:is(
+  [data-tier-filter="perfect"],
+  [data-category-filter="effect"]
+) {
+  --chip-top: rgba(101, 55, 164, 0.98);
+  --chip-bottom: rgba(48, 22, 94, 0.99);
+  --chip-border: rgba(200, 142, 255, 0.76);
+  --chip-glow: rgba(186, 120, 255, 0.35);
+}
+
+html body .dda-wizard-quality-browser
+button:is(
+  [data-tier-filter="mega"],
+  [data-category-filter="attack"]
+) {
+  --chip-top: rgba(151, 40, 75, 0.98);
+  --chip-bottom: rgba(76, 15, 43, 0.99);
+  --chip-border: rgba(255, 118, 155, 0.74);
+  --chip-glow: rgba(255, 86, 137, 0.34);
+}
+
+html body .dda-wizard-quality-browser
+button:is(
+  [data-tier-filter="free"],
+  [data-category-filter="defense"]
+) {
+  --chip-top: rgba(32, 119, 82, 0.98);
+  --chip-bottom: rgba(10, 59, 42, 0.99);
+  --chip-border: rgba(108, 230, 180, 0.74);
+  --chip-glow: rgba(87, 222, 162, 0.34);
+}
+
+html body .dda-wizard-quality-browser
+button[data-tier-filter="negative"] {
+  --chip-top: rgba(108, 57, 61, 0.98);
+  --chip-bottom: rgba(53, 24, 29, 0.99);
+  --chip-border: rgba(241, 151, 154, 0.72);
+  --chip-glow: rgba(237, 133, 139, 0.30);
+}
+
+html body .dda-wizard-quality-browser
+button[data-category-filter="utility"] {
+  --chip-top: rgba(23, 111, 137, 0.98);
+  --chip-bottom: rgba(6, 54, 72, 0.99);
+  --chip-border: rgba(114, 214, 239, 0.74);
+  --chip-glow: rgba(96, 207, 235, 0.32);
+}
+
+html body .dda-wizard-quality-browser
+button[data-category-filter="stanceMode"] {
+  --chip-top: rgba(128, 95, 29, 0.98);
+  --chip-bottom: rgba(65, 43, 8, 0.99);
+  --chip-border: rgba(255, 218, 109, 0.76);
+  --chip-glow: rgba(255, 210, 86, 0.34);
+}
+
+html body .dda-wizard-quality-browser
+button[data-category-filter="digizoid"] {
+  --chip-top: rgba(95, 108, 124, 0.98);
+  --chip-bottom: rgba(43, 53, 65, 0.99);
+  --chip-border: rgba(211, 228, 240, 0.74);
+  --chip-glow: rgba(200, 220, 235, 0.30);
+}
+
+@media (max-width: 640px) {
+  html body .dda-wizard-quality-browser
+  .dda-wizard-quality-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body .dda-wizard-quality-browser
+  .dda-wizard-quality-toolbar
+  .quality-available-toggle {
+    width: 100% !important;
+  }
+}
+/* ===================================================== */
+/* DDA Wizard — correção final dos filtros de Qualidades  */
+/* ===================================================== */
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.quality-browser-header.dda-wizard-quality-sticky-header {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.65rem !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-toolbar {
+  display: grid !important;
+  grid-template-columns:
+    minmax(220px, 1fr)
+    max-content !important;
+  grid-template-areas: none !important;
+  align-items: center !important;
+  gap: 0.65rem !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-toolbar
+input[type="search"] {
+  grid-area: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-toolbar
+.quality-available-toggle {
+  grid-area: auto !important;
+  justify-self: end !important;
+  width: auto !important;
+  min-width: 150px !important;
+  margin: 0 !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-filter-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.5rem !important;
+
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0.6rem 0 0 !important;
+
+  overflow: visible !important;
+
+  border-top:
+    1px solid
+    rgba(150, 220, 255, 0.16) !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+:is(
+  .quality-browser-category-filters,
+  .quality-browser-tier-filters
+) {
+  grid-area: auto !important;
+  position: static !important;
+
+  display: flex !important;
+  flex-flow: row wrap !important;
+  align-items: center !important;
+  align-content: flex-start !important;
+  justify-content: flex-start !important;
+
+  gap: 0.4rem !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 28px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: visible !important;
+  transform: none !important;
+
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.quality-browser-filters
+button[data-tier-filter],
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.quality-browser-filters
+button[data-category-filter] {
+  background:
+    linear-gradient(
+      180deg,
+      var(--chip-top),
+      var(--chip-bottom)
+    ) !important;
+
+  border-color:
+    var(--chip-border) !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.quality-browser-filters
+button:is(
+  [data-tier-filter],
+  [data-category-filter]
+).active {
+  background:
+    linear-gradient(
+      180deg,
+      var(--chip-top),
+      var(--chip-bottom)
+    ) !important;
+
+  border-color: #ffffff !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(255, 255, 255, 0.30),
+    inset 0 -4px 7px
+      rgba(0, 0, 0, 0.20),
+    0 0 11px
+      var(--chip-glow) !important;
+}
+
+@media (max-width: 640px) {
+  html body #dda-digimon-wizard
+  .dda-wizard-quality-browser
+  .dda-wizard-quality-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body #dda-digimon-wizard
+  .dda-wizard-quality-browser
+  .dda-wizard-quality-toolbar
+  .quality-available-toggle {
+    justify-self: stretch !important;
+    width: 100% !important;
+  }
+}
+/* ===================================================== */
+/* DDA Wizard — filtros colapsáveis e ordem definitiva   */
+/* ===================================================== */
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.quality-browser-header.dda-wizard-quality-sticky-header {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.6rem !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-toolbar {
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(220px, 1fr)
+    max-content !important;
+
+  grid-template-areas: none !important;
+
+  align-items: center !important;
+  gap: 0.65rem !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-toolbar
+input[type="search"] {
+  grid-area: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-toolbar
+.quality-available-toggle {
+  grid-area: auto !important;
+  justify-self: end !important;
+
+  width: auto !important;
+  min-width: 150px !important;
+  margin: 0 !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-filter-panel {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #e8f5ff !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-filter-panel
+summary {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: auto !important;
+  min-width: 176px !important;
+  min-height: 30px !important;
+
+  margin: 0 !important;
+  padding: 0.25rem 0.75rem !important;
+
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-filter-panel:not([open])
+.dda-wizard-quality-filter-content {
+  display: none !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.dda-wizard-quality-filter-panel[open]
+.dda-wizard-quality-filter-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+
+  gap: 0.5rem !important;
+
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+
+  height: auto !important;
+  min-height: 0 !important;
+
+  margin: 0.5rem 0 0 !important;
+  padding: 0.55rem 0 0 !important;
+
+  overflow: visible !important;
+
+  border-top:
+    1px solid
+    rgba(150, 220, 255, 0.16) !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+:is(
+  .quality-browser-tier-filters,
+  .quality-browser-category-filters
+) {
+  grid-area: auto !important;
+  position: static !important;
+
+  display: flex !important;
+  flex-flow: row wrap !important;
+
+  align-items: center !important;
+  align-content: flex-start !important;
+  justify-content: flex-start !important;
+
+  gap: 0.4rem !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  height: auto !important;
+  min-height: 28px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: visible !important;
+  transform: none !important;
+
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.quality-browser-filters
+button[data-tier-filter],
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.quality-browser-filters
+button[data-category-filter] {
+  background:
+    linear-gradient(
+      180deg,
+      var(--chip-top),
+      var(--chip-bottom)
+    ) !important;
+
+  border-color:
+    var(--chip-border) !important;
+}
+
+html body #dda-digimon-wizard
+.dda-wizard-quality-browser
+.quality-browser-filters
+button:is(
+  [data-tier-filter],
+  [data-category-filter]
+).active {
+  background:
+    linear-gradient(
+      180deg,
+      var(--chip-top),
+      var(--chip-bottom)
+    ) !important;
+
+  border-color: #ffffff !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(255, 255, 255, 0.30),
+    inset 0 -4px 7px
+      rgba(0, 0, 0, 0.20),
+    0 0 11px
+      var(--chip-glow) !important;
+}
+
+@media (max-width: 640px) {
+  html body #dda-digimon-wizard
+  .dda-wizard-quality-browser
+  .dda-wizard-quality-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body #dda-digimon-wizard
+  .dda-wizard-quality-browser
+  .dda-wizard-quality-toolbar
+  .quality-available-toggle {
+    justify-self: stretch !important;
+    width: 100% !important;
+  }
+
+  html body #dda-digimon-wizard
+  .dda-wizard-quality-browser
+  .dda-wizard-quality-filter-panel
+  summary {
+    width: 100% !important;
+  }
+}
+/* ===================================================== */
+/* DDA Wizard — rolagem das Qualidades selecionadas       */
+/* ===================================================== */
+
+html body .window-app.dda-wizard
+.dda-wizard-quality-browser
+.dda-selected-qualities,
+html body .app.window-app.dda-wizard
+.dda-wizard-quality-browser
+.dda-selected-qualities {
+  min-width: 0 !important;
+  min-height: 0 !important;
+
+  max-height:
+    clamp(
+      300px,
+      calc(100vh - 365px),
+      520px
+    ) !important;
+
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+
+  box-sizing: border-box !important;
+  padding-right: 0.45rem !important;
+
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+
+  scrollbar-width: thin !important;
+  scrollbar-color:
+    #31a7de
+    rgba(2, 12, 22, 0.72) !important;
+}
+
+html body .window-app.dda-wizard
+.dda-wizard-quality-browser
+.dda-selected-qualities::-webkit-scrollbar,
+html body .app.window-app.dda-wizard
+.dda-wizard-quality-browser
+.dda-selected-qualities::-webkit-scrollbar {
+  width: 10px !important;
+}
+
+html body .window-app.dda-wizard
+.dda-wizard-quality-browser
+.dda-selected-qualities::-webkit-scrollbar-track,
+html body .app.window-app.dda-wizard
+.dda-wizard-quality-browser
+.dda-selected-qualities::-webkit-scrollbar-track {
+  background:
+    rgba(
+      2,
+      12,
+      22,
+      0.72
+    ) !important;
+}
+
+html body .window-app.dda-wizard
+.dda-wizard-quality-browser
+.dda-selected-qualities::-webkit-scrollbar-thumb,
+html body .app.window-app.dda-wizard
+.dda-wizard-quality-browser
+.dda-selected-qualities::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(65, 185, 235, 0.95),
+      rgba(12, 78, 124, 0.95)
+    ) !important;
+
+  border:
+    2px solid
+    rgba(
+      2,
+      12,
+      22,
+      0.72
+    ) !important;
+
+  border-radius:
+    999px !important;
 }

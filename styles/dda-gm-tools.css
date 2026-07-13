@@ -149,3 +149,111 @@ button.control.ui-control.tool.icon.dda-gm-tools-control-icon::before,
   width: 24px !important;
   height: 24px !important;
 }
+
+/* ===================================================== */
+/* DDA — Ferramentas do Mestre: sessão de jogo           */
+/* ===================================================== */
+
+.dda-gm-tools-form .dda-gm-tools-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dda-gm-tools-session-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dda-gm-tools-session-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dda-gm-tools-session-header p {
+  margin: 0;
+  opacity: 0.82;
+}
+
+.dda-gm-tools-session-status {
+  flex: 0 0 auto;
+
+  padding: 4px 9px;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dda-gm-tools-session-status.active {
+  color: #eafff5;
+
+  background:
+    rgba(20, 120, 78, 0.82);
+
+  border:
+    1px solid
+    rgba(120, 255, 190, 0.48);
+}
+
+.dda-gm-tools-session-status.inactive {
+  color: #e8eef5;
+
+  background:
+    rgba(68, 78, 92, 0.78);
+
+  border:
+    1px solid
+    rgba(190, 205, 220, 0.28);
+}
+
+.dda-gm-tools-session-details {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 8px;
+  margin: 0;
+}
+
+.dda-gm-tools-session-details > div {
+  padding: 7px 8px;
+
+  border-radius: 8px;
+
+  background:
+    rgba(255, 255, 255, 0.07);
+}
+
+.dda-gm-tools-session-details dt {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+
+  opacity: 0.72;
+}
+
+.dda-gm-tools-session-details dd {
+  margin: 3px 0 0;
+
+  font-weight: 700;
+}
+
+.dda-gm-tools-session-actions {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 8px;
+}
+
+.dda-gm-tools-session-actions button {
+  margin: 0;
+}

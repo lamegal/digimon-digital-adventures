@@ -112,7 +112,7 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "always",
     uses: { enabled: false, value: 0, max: 0, recharge: "" },
     specialOrder: { name: "" },
-    effect: "O Digi-Escolhido ganha +1 Ponto de Perícia extra para gastar."
+    effect: "O Digi-Escolhido ganha +1 Ponto de Perícia extra para gastar. Se este Talento for obtido durante a Criação de Personagem, esse ponto pode aumentar uma segunda Perícia até 5, ignorando o limite de apenas uma Perícia em 5."
   },
 
   {
@@ -178,7 +178,13 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "always",
     uses: { enabled: false, value: 0, max: 0, recharge: "" },
     specialOrder: { name: "" },
-    effect: "Ao obter Falha Crítica em um Teste ou Teste de Tormento, se somar Evasão transformaria o resultado em Falha ou melhor, o resultado vira uma Falha comum."
+    effect: "Ao obter Falha Crítica em um Teste ou Teste de Tormento, se somar Evasão transformaria o resultado em Falha ou melhor, o resultado vira uma Falha comum.",
+    automation: {
+      enabled: true,
+      type: "triggeredInterceptor",
+      trigger: "criticalCheck",
+      triggeredOnly: true
+    }
   },
 
   {
@@ -187,12 +193,18 @@ const DDA_TAMER_TALENTS_PT = [
     requirement: { type: "skill", key: "evade", value: 5 },
     isAdvanced: false,
     isSpecialOrder: false,
-    useType: "active",
+    useType: "interrupt",
     actionCost: "special",
     frequency: "oncePerRest",
     uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
     specialOrder: { name: "" },
-    effect: "Quando o Digi-Escolhido falharia ao Evadir um Ataque em combate, pode escolher obter Sucesso em vez disso."
+    effect: "Quando o Digi-Escolhido falharia ao Evadir um Ataque em combate, pode escolher obter Sucesso em vez disso.",
+    automation: {
+      enabled: true,
+      type: "triggeredInterceptor",
+      trigger: "failedTamerDodge",
+      triggeredOnly: true
+    }
   },
 
   {
@@ -288,9 +300,26 @@ const DDA_TAMER_TALENTS_PT = [
     useType: "active",
     actionCost: "special",
     frequency: "limited",
-    uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
+    uses: {
+      enabled: true,
+      value: 1,
+      max: 1,
+      recharge: "rest",
+      maxFormula: {
+        type: "skillAbove",
+        key: "endurance",
+        threshold: 2,
+        minimum: 1
+      }
+    },
     specialOrder: { name: "" },
-    effect: "Quando falha em um Teste, exceto Testes de Tormento, pode refazer como um Teste de Resistência com o Atributo relevante. Usos por Descanso iguais à Resistência acima de 2."
+    effect: "Quando falha em um Teste, exceto Testes de Tormento, pode refazer como um Teste de Resistência com o Atributo relevante. Usos por Descanso iguais à Resistência acima de 2.",
+    automation: {
+      enabled: true,
+      type: "triggeredInterceptor",
+      trigger: "failedCheck",
+      triggeredOnly: true
+    }
   },
 
   {
@@ -299,12 +328,18 @@ const DDA_TAMER_TALENTS_PT = [
     requirement: { type: "skill", key: "endurance", value: 5 },
     isAdvanced: false,
     isSpecialOrder: false,
-    useType: "active",
+    useType: "interrupt",
     actionCost: "special",
     frequency: "oncePerRest",
     uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
     specialOrder: { name: "" },
-    effect: "Pode usar Resistência em vez de Evasão contra Ataques, mas sempre sofre no mínimo 1 dano. Uma vez por Descanso, ao cair a 0 Caixas de Ferimento, permanece com 1."
+    effect: "Pode usar Resistência em vez de Evasão contra Ataques, mas sempre sofre no mínimo 1 dano. Uma vez por Descanso, ao cair a 0 Caixas de Ferimento, permanece com 1.",
+    automation: {
+      enabled: true,
+      type: "triggeredInterceptor",
+      trigger: "tamerDefenseOrLethalDamage",
+      triggeredOnly: true
+    }
   },
 
   {
@@ -428,7 +463,18 @@ const DDA_TAMER_TALENTS_PT = [
     useType: "active",
     actionCost: "special",
     frequency: "limited",
-    uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
+    uses: {
+      enabled: true,
+      value: 1,
+      max: 1,
+      recharge: "rest",
+      maxFormula: {
+        type: "skillAbove",
+        key: "decipherIntent",
+        threshold: 2,
+        minimum: 1
+      }
+    },
     specialOrder: { name: "" },
     effect: "Pode perguntar ao Narrador se uma ação imediata terá bons resultados, maus resultados ou ambos. Usos por Descanso iguais a Decifrar Intenção acima de 2."
   },

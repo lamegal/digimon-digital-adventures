@@ -1,4 +1,5 @@
 import {
+  clearCampaignMilestoneHistory,
   createPendingCampaignMilestone,
   getCampaignMilestoneSummary,
   getDigimonBonusDpSummary,
@@ -208,14 +209,41 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
       resizable: true
     },
     actions: {
-      refresh: DDAGMPartnerProgressPanel._onActionRefresh,
-      createPartyMilestone: DDAGMPartnerProgressPanel._onActionCreatePartyMilestone,
-      createIndividualMilestone: DDAGMPartnerProgressPanel._onActionCreateIndividualMilestone,
-      releasePendingMilestones: DDAGMPartnerProgressPanel._onActionReleasePendingMilestones,
-      openTamer: DDAGMPartnerProgressPanel._onActionOpenActor,
-      openPartner: DDAGMPartnerProgressPanel._onActionOpenActor,
-      toggleStage: DDAGMPartnerProgressPanel._onActionToggleStage,
-      toggleCrestDigivice: DDAGMPartnerProgressPanel._onActionToggleCrestDigivice
+      refresh:
+        DDAGMPartnerProgressPanel
+          ._onActionRefresh,
+
+      clearMilestoneHistory:
+        DDAGMPartnerProgressPanel
+          ._onActionClearMilestoneHistory,
+
+      createPartyMilestone:
+        DDAGMPartnerProgressPanel
+          ._onActionCreatePartyMilestone,
+
+      createIndividualMilestone:
+        DDAGMPartnerProgressPanel
+          ._onActionCreateIndividualMilestone,
+
+      releasePendingMilestones:
+        DDAGMPartnerProgressPanel
+          ._onActionReleasePendingMilestones,
+
+      openTamer:
+        DDAGMPartnerProgressPanel
+          ._onActionOpenActor,
+
+      openPartner:
+        DDAGMPartnerProgressPanel
+          ._onActionOpenActor,
+
+      toggleStage:
+        DDAGMPartnerProgressPanel
+          ._onActionToggleStage,
+
+      toggleCrestDigivice:
+        DDAGMPartnerProgressPanel
+          ._onActionToggleCrestDigivice
     }
   };
 
@@ -236,7 +264,7 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
   get title() {
     return localize(
       "DDA.GMPartnerProgress.Title",
-      "Campaign Progress"
+      "Progress Panel"
     );
   }
 
@@ -526,11 +554,30 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
     await this.render();
   }
 
-  static async _onActionRefresh(event, target) {
-    return this._onRefresh(event, target);
+  static async _onActionRefresh(
+    event,
+    target
+  ) {
+    return this._onRefresh(
+      event,
+      target
+    );
   }
 
-  static async _onActionCreatePartyMilestone(event, target) {
+  static async _onActionClearMilestoneHistory(
+    event,
+    target
+  ) {
+    return this._onClearMilestoneHistory(
+      event,
+      target
+    );
+  }
+
+  static async _onActionCreatePartyMilestone(
+    event,
+    target
+  ) {
     return this._onCreatePartyMilestone(event, target);
   }
 
@@ -557,6 +604,74 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
   async _onRefresh(event) {
     event.preventDefault();
     await this.render();
+  }
+
+  async _onClearMilestoneHistory(event) {
+    event.preventDefault();
+
+    const summary =
+      getCampaignMilestoneSummary();
+
+    const recordCount =
+      summary.history.length;
+
+    if (!recordCount) {
+      ui.notifications.warn(localize(
+        "DDA.Progression.Warning.NoHistoryToClear",
+        "There is no Milestone history to clear."
+      ));
+
+      return;
+    }
+
+    const confirmed = await Dialog.confirm({
+      title: localize(
+        "DDA.Progression.Dialog.ClearHistoryTitle",
+        "Clear Milestone History"
+      ),
+
+      content: `<p>${formatI18n(
+        "DDA.Progression.Dialog.ClearHistoryContent",
+        {
+          count: recordCount
+        },
+        `Clear ${recordCount} Milestone record(s)? Already applied benefits will not be reverted, but pending records will also be removed.`
+      )}</p>`,
+
+      yes: () => true,
+      no: () => false,
+      defaultYes: false
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const result =
+        await clearCampaignMilestoneHistory();
+
+      ui.notifications.info(formatI18n(
+        "DDA.Progression.Info.HistoryCleared",
+        {
+          count: result.clearedRecords
+        },
+        `${result.clearedRecords} Milestone record(s) cleared.`
+      ));
+
+      await this.render();
+    } catch (error) {
+      console.error(
+        "DDA | Could not clear Milestone history.",
+        error
+      );
+
+      ui.notifications.error(
+        error?.message ??
+        localize(
+          "DDA.Progression.Warning.CouldNotClearHistory",
+          "Could not clear Milestone history."
+        )
+      );
+    }
   }
 
   _getMilestoneComposerData() {

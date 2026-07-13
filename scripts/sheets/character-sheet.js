@@ -21,9 +21,53 @@ import {
   getTamerSkillCap
 } from "../rules/tamer-progression.js";
 import { syncTamerAndPartnerOwnership } from "../utils/ownership.js";
-import { validateTamerTalentUse, useTamerTalent } from "../rules/tamer-talent-automation.js";
+import {
+  getTamerTalentUses,
+  validateTamerTalentUse,
+  useTamerTalent
+} from "../rules/tamer-talent-automation.js";
+import {
+  getTamerIpPool,
+  getTamerTemporaryIpTotal
+} from "../rules/tamer-resources.js";
+import {
+  openTamerActionMenu
+} from "../combat/tamer-actions.js";
+const ActorSheetV1 =
+  foundry.appv1.sheets.ActorSheet;
 
-const ActorSheetV1 = foundry.appv1.sheets.ActorSheet;
+function hasExperiencedCreationBenefit(
+  attributes = {}
+) {
+  const experienced =
+    DDA_TAMER_TALENTS.find(
+      (talent) =>
+        talent.id === "experienced"
+    );
+
+  const requirement =
+    experienced?.requirement ?? {};
+
+  if (
+    requirement.type !== "attribute" ||
+    !requirement.key
+  ) {
+    return false;
+  }
+
+  const currentValue = Number(
+    attributes[requirement.key]?.value ??
+    attributes[requirement.key]?.total ??
+    0
+  );
+
+  const requiredValue =
+    getScaledTalentRequirement(
+      requirement.value
+    );
+
+  return currentValue >= requiredValue;
+}
 
 function getDdaDocumentSheetConfigClass() {
   return globalThis.foundry?.applications?.apps?.DocumentSheetConfig ?? null;
@@ -55,6 +99,8 @@ export class DDACharacterSheet extends ActorSheetV1 {
     
 
 context.system = this.actor.system;
+context.temporaryIp = getTamerTemporaryIpTotal(this.actor);
+context.ipPool = getTamerIpPool(this.actor);
 context.sortedSkills = this._getSortedSkillViewData();
 context.isGM = Boolean(game.user?.isGM);
 context.campaignRules = this._getCampaignRuleViewData();
@@ -127,8 +173,17 @@ return context;
 
     const skillCap = Math.max(0, ...Object.values(skillCaps));
 
-    const startingAttributePoints = getStartingAttributePoints();
-    const startingSkillPoints = getStartingSkillPoints();
+    const startingAttributePoints =
+      getStartingAttributePoints();
+
+    const experiencedCreationBenefit =
+      hasExperiencedCreationBenefit(
+        attributes
+      );
+
+    const startingSkillPoints =
+      getStartingSkillPoints() +
+      (experiencedCreationBenefit ? 1 : 0);
 
     const milestonesCompleted = Number(
       this.actor.system?.advancement?.milestones?.completed ?? 0
@@ -278,6 +333,12 @@ html.find(".dda-device-button").on("dblclick", (event) => {
 );
 
     html.find(".open-tamer-talent-compendium").on("click", this._onOpenTamerTalentCompendium.bind(this));
+    html.find(
+      ".open-tamer-action-menu"
+    ).on(
+      "click",
+      this._onOpenTamerActionMenu.bind(this)
+    );
     html.find(".open-official-tamer-talent").on("click", this._onOpenOfficialTamerTalent.bind(this));
     html.find(".use-tamer-talent").on("click", this._onUseTamerTalent.bind(this));
     html.find(".inventory-use-item").on("click", this._onUseInventoryItem.bind(this));
@@ -1371,7 +1432,15 @@ async _onEndTurn(event) {
   await endTamerTurn(this.actor);
 }
 
-  async _onRecoveryMenu(event) {
+async _onOpenTamerActionMenu(event) {
+  event.preventDefault();
+
+  await openTamerActionMenu(
+    this.actor
+  );
+}
+
+async _onRecoveryMenu(event) {
     event.preventDefault();
 
     const choice = await new Promise((resolve) => {
@@ -2591,26 +2660,11 @@ function renderTamerTalentUseCard(talent, actor, options = {}) {
 }
 
 function getOfficialTamerTalentUses(actor, talent) {
-  const baseUses = talent.system?.uses ?? talent.uses ?? { enabled: false, value: 0, max: 0, recharge: "" };
-
-  if (!baseUses.enabled) {
-    return {
-      enabled: false,
-      value: 0,
-      max: 0,
-      recharge: ""
-    };
-  }
-
-  const max = Number(baseUses.max ?? 0);
-  const storedValue = actor.system.tamerTalentUses?.[talent.id]?.value;
-
-  return {
-    enabled: true,
-    value: Number(storedValue ?? max),
-    max,
-    recharge: baseUses.recharge ?? ""
-  };
+  return getTamerTalentUses(
+    actor,
+    talent,
+    { source: "official" }
+  );
 }
 
 

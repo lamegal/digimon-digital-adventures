@@ -245,12 +245,43 @@
             </button>
           </div>
 
-          <p class="dda-enemy-health-advice">
-            <i class="fa-solid fa-heart-pulse"></i>
-            {{labels.healthAdvice}}
-          </p>
+            <p class="dda-enemy-health-advice">
+              <i class="fa-solid fa-heart-pulse"></i>
+              {{labels.healthAdvice}}
+            </p>
 
-          <div class="dda-enemy-budget-card">
+            <div class="dda-enemy-token-size-card">
+              <div>
+                <strong>{{labels.tokenSize}}</strong>
+                <small>{{labels.tokenSizeHint}}</small>
+              </div>
+
+              <label>
+                <span>{{labels.tokenSize}}</span>
+
+                <select data-enemy-build-number="tokenSize">
+                  {{#each enemyBuild.tokenSizeOptions}}
+                  <option
+                    value="{{value}}"
+                    {{#if selected}}selected{{/if}}
+                  >
+                    {{label}}
+                  </option>
+                  {{/each}}
+                </select>
+
+                <small>
+                  {{labels.tokenSizeRange}}:
+                  {{enemyBuild.tokenSizeMin}} ×
+                  {{enemyBuild.tokenSizeMin}}
+                  —
+                  {{enemyBuild.tokenSizeMax}} ×
+                  {{enemyBuild.tokenSizeMax}}
+                </small>
+              </label>
+            </div>
+
+            <div class="dda-enemy-budget-card">
             <strong>{{labels.budget}}</strong>
 
             <div class="dda-enemy-budget-inputs">
@@ -527,11 +558,31 @@
           data-attack-key="{{key}}"
         >
           {{#each functionOptions}}
-          <option value="{{key}}" {{#if selected}}selected{{/if}}>
+          <option
+            value="{{key}}"
+            {{#if selected}}selected{{/if}}
+          >
             {{label}}
           </option>
           {{/each}}
         </select>
+      </label>
+
+      <label
+        class="dda-enemy-signature-toggle"
+        title="{{../labels.signatureMoveHint}}"
+      >
+        <input
+          type="checkbox"
+          data-enemy-attack-field="isSignature"
+          data-attack-key="{{key}}"
+          {{#if isSignature}}checked{{/if}}
+        />
+
+        <span>
+          <i class="fa-solid fa-bolt"></i>
+          {{../labels.signatureMove}}
+        </span>
       </label>
 
       <button
@@ -618,11 +669,157 @@
   </div>
 </section>
 
+{{#if enemyBuild.superiorMode.enabled}}
+<section class="dda-enemy-build-section dda-superior-mode-config">
+  <div class="dda-enemy-build-heading">
+    <div>
+      <span class="dda-enemy-section-kicker">Superior Mode Change</span>
+      <h3>{{labels.superiorModeTitle}}</h3>
+    </div>
+
+    <div class="dda-superior-mode-cost-summary">
+      <span>
+        {{labels.superiorModeSelectedCost}}
+        <strong>{{enemyBuild.superiorMode.defaultCost}} PD</strong>
+      </span>
+
+      <span>
+        {{labels.superiorModeModeCost}}
+        <strong>{{enemyBuild.superiorMode.modeCost}} PD</strong>
+      </span>
+
+      <span>
+        {{labels.superiorModeMaximumCost}}
+        <strong>{{enemyBuild.superiorMode.maxDefaultCost}} PD</strong>
+      </span>
+    </div>
+  </div>
+
+  <p class="dda-enemy-health-advice">
+    <i class="fa-solid fa-shuffle"></i>
+    {{labels.superiorModeDefaultQualitiesHint}}
+  </p>
+
+  <p class="dda-superior-mode-empty">
+    {{#if enemyBuild.superiorMode.configurationComplete}}
+      <i class="fa-solid fa-circle-check"></i>
+      {{labels.superiorModeConfigurationReady}}
+    {{else}}
+      <i class="fa-solid fa-circle-exclamation"></i>
+      {{labels.superiorModeConfigurationIncomplete}}
+    {{/if}}
+  </p>
+
+  {{#if enemyBuild.superiorMode.hasEligibleQualities}}
+    <div class="dda-superior-mode-quality-list">
+      <h4>{{labels.superiorModeDefaultQualities}}</h4>
+
+      {{#each enemyBuild.superiorMode.defaultQualityRows}}
+      <button
+        type="button"
+        class="dda-superior-mode-quality-choice {{#if selectedForSuperiorMode}}is-selected{{/if}}"
+        data-action="toggleSuperiorDefaultQuality"
+        data-quality-id="{{id}}"
+        aria-pressed="{{#if selectedForSuperiorMode}}true{{else}}false{{/if}}"
+      >
+        <span class="dda-superior-mode-quality-check">
+          {{#if selectedForSuperiorMode}}
+            <i class="fa-solid fa-check"></i>
+          {{else}}
+            <i class="fa-solid fa-plus"></i>
+          {{/if}}
+        </span>
+
+        <span class="dda-superior-mode-quality-name">
+          <strong>{{name}}</strong>
+
+          {{#if originalName}}
+            <small>{{originalName}}</small>
+          {{/if}}
+        </span>
+
+        <span class="dda-superior-mode-quality-cost">
+          {{qualityDp}} PD
+        </span>
+      </button>
+      {{/each}}
+    </div>
+
+    {{#unless enemyBuild.superiorMode.hasDefaultQualities}}
+      <p class="dda-superior-mode-empty">
+        {{labels.superiorModeNoDefaultQuality}}
+      </p>
+    {{/unless}}
+  {{else}}
+    <p class="dda-superior-mode-empty">
+      {{labels.superiorModeNoEligibleQualities}}
+    </p>
+  {{/if}}
+
+  <div class="dda-enemy-build-heading">
+    <div>
+      <h4>{{labels.superiorModeModeQualities}}</h4>
+
+      <small>
+        {{labels.superiorModeModeQualitiesHint}}
+      </small>
+    </div>
+
+    <button
+      type="button"
+      class="dda-enemy-reset-stats"
+      data-action="openSuperiorModeQualityBrowser"
+    >
+      <i class="fa-solid fa-book-open"></i>
+      {{labels.superiorModeOpenModeQualities}}
+    </button>
+  </div>
+
+  {{#if enemyBuild.superiorMode.modeQualityRows.length}}
+    <div class="dda-enemy-selected-qualities">
+      {{#each enemyBuild.superiorMode.modeQualityRows}}
+      <article class="dda-enemy-selected-quality">
+        <div>
+          <strong>{{name}}</strong>
+
+          {{#if originalName}}
+            <small>{{originalName}}</small>
+          {{/if}}
+
+          {{#if choiceLabel}}
+            <small>{{choiceLabel}}</small>
+          {{/if}}
+        </div>
+
+        <div class="dda-enemy-selected-quality-meta">
+          <span>Rank {{rank}}</span>
+          <span>{{qualityDp}} PD</span>
+
+          <button
+            type="button"
+            data-action="removeSuperiorModeQuality"
+            data-quality-id="{{id}}"
+            title="{{../../labels.superiorModeRemoveModeQuality}}"
+          >
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </article>
+      {{/each}}
+    </div>
+  {{else}}
+    <p class="dda-superior-mode-empty">
+      {{labels.superiorModeNoModeQualities}}
+    </p>
+  {{/if}}
+</section>
+{{/if}}
+
         <button
           type="button"
           class="dda-enemy-create-button"
           data-action="createEnemyNpc"
-          {{#if enemyBuild.hasBudgetOverrun}}disabled{{/if}}
+          {{#unless enemyBuild.canCreateEnemy}}disabled{{/unless}}
         >
           <i class="fa-solid fa-plus"></i>
           {{labels.createAndOpen}}

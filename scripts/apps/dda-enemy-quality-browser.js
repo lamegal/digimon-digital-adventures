@@ -23,10 +23,7 @@ const TIER_LABELS = {
   negative: { pt: "Negativas", en: "Negative" }
 };
 
-const BROWSER_ATTACK_CHOICE_TYPES = new Set([
-  "singleAttack",
-  "attackTag"
-]);
+
 
 const ENEMY_QUALITY_CATEGORY_FILTERS = [
   { key: "all", pt: "Todas as categorias", en: "All categories" },
@@ -34,7 +31,11 @@ const ENEMY_QUALITY_CATEGORY_FILTERS = [
   { key: "attack", pt: "Ataque", en: "Attack / Offensive" },
   { key: "defense", pt: "Defesa", en: "Defense" },
   { key: "clash", pt: "Clash", en: "Clash" },
-  { key: "effect", pt: "Efeito e Conjurador", en: "Effect & Caster" },
+  {
+    key: "effect",
+    pt: "Efeito e Conjuração",
+    en: "Effect & Conjuration"
+  },
   { key: "utility", pt: "Utilidade", en: "Utility" },
   { key: "stanceMode", pt: "Postura e Modo", en: "Stance & Mode" },
   { key: "digizoid", pt: "Digizoide", en: "Digizoid" }
@@ -61,8 +62,14 @@ const ENEMY_QUALITY_SECTION_GROUPS = {
   effect: [
     "Effect Qualities",
     "Qualidades de Efeito",
+
+    /*
+     * Chaves novas e legadas.
+     */
     "Evoker Qualities",
-    "Qualidades de Conjurador"
+    "Omnievoker Qualities",
+    "Qualidades de Conjurador",
+    "Qualidades de Conjuração"
   ],
 
   utility: [
@@ -133,12 +140,48 @@ function getSearchTerms(searchTerm = "") {
     .filter((term) => term.length >= 3 && !stopWords.has(term));
 }
 
-function matchesQualitySearch(quality = {}, searchTerm = "") {
+function getQualitySearchScore(
+  quality = {},
+  searchTerm = ""
+) {
   const query = normalizeSearchText(searchTerm);
 
-  if (!query) return true;
+  if (!query) return 0;
 
   const terms = getSearchTerms(query);
+
+  const displayName = normalizeSearchText(
+    quality.name
+  );
+
+  const originalName = normalizeSearchText(
+    quality.originalName
+  );
+
+  const displayNameWords = new Set(
+    displayName.split(/\s+/).filter(Boolean)
+  );
+
+  const originalNameWords = new Set(
+    originalName.split(/\s+/).filter(Boolean)
+  );
+
+  const nameText = normalizeSearchText([
+    quality.name,
+    quality.originalName
+  ]
+    .filter(Boolean)
+    .join(" "));
+
+  const metaText = normalizeSearchText([
+    quality.section,
+    quality.availability?.label,
+    quality.category?.label,
+    quality.requirements?.text,
+    quality.incompatible?.text
+  ]
+    .filter(Boolean)
+    .join(" "));
 
   const fullText = normalizeSearchText([
     quality.name,
@@ -154,10 +197,69 @@ function matchesQualitySearch(quality = {}, searchTerm = "") {
     .filter(Boolean)
     .join(" "));
 
-  if (fullText.includes(query)) return true;
-  if (!terms.length) return false;
+  if (displayName === query) return 1000;
+  if (originalName === query) return 950;
 
-  return terms.every((term) => fullText.includes(term));
+  if (displayName.startsWith(query)) return 900;
+  if (originalName.startsWith(query)) return 850;
+
+  if (
+    terms.length &&
+    terms.every((term) => {
+      return displayNameWords.has(term);
+    })
+  ) {
+    return 800;
+  }
+
+  if (
+    terms.length &&
+    terms.every((term) => {
+      return originalNameWords.has(term);
+    })
+  ) {
+    return 760;
+  }
+
+  if (displayName.includes(query)) return 700;
+  if (originalName.includes(query)) return 650;
+
+  if (metaText.includes(query)) return 400;
+  if (fullText.includes(query)) return 200;
+
+  if (!terms.length) return -1;
+
+  if (
+    terms.every((term) => {
+      return nameText.includes(term);
+    })
+  ) {
+    return 150;
+  }
+
+  if (
+    terms.every((term) => {
+      return fullText.includes(term);
+    })
+  ) {
+    return 50;
+  }
+
+  return -1;
+}
+
+function matchesQualitySearch(
+  quality = {},
+  searchTerm = ""
+) {
+  if (!normalizeSearchText(searchTerm)) {
+    return true;
+  }
+
+  return getQualitySearchScore(
+    quality,
+    searchTerm
+  ) >= 0;
 }
 
 function getMinimumStageOrder(quality = {}) {
@@ -226,59 +328,54 @@ function getBrowserQualityBaseRank(quality = {}) {
 }
 
 function getBrowserQualityMaxRank(quality = {}) {
+  const declaredMax = Number(
+    quality.rank?.max ?? 1
+  );
+
+  if (
+    Number.isFinite(declaredMax) &&
+    declaredMax > 0
+  ) {
+    return Math.max(
+      getBrowserQualityBaseRank(quality),
+      declaredMax
+    );
+  }
+
+  const optionCount = Array.isArray(
+    quality.choices?.options
+  )
+    ? quality.choices.options.length
+    : 0;
+
   return Math.max(
     getBrowserQualityBaseRank(quality),
-    Number(quality.rank?.max ?? 1)
+    optionCount
   );
 }
 
-function getBrowserQualityChoiceOptions(quality = {}, wizard = null) {
-  const choiceType = String(quality.choices?.type ?? "").trim();
-
+function getBrowserQualityChoiceOptions(
+  quality = {},
+  wizard = null
+) {
   if (!quality.choices?.required) {
     return [];
   }
 
-  if (choiceType === "single") {
-    const options = Array.isArray(quality.choices?.options)
-      ? quality.choices.options
-      : [];
-
-    return options.map((option) => ({
-      key: String(option.key ?? ""),
-      label: String(option.label ?? option.key ?? "")
-    })).filter((option) => option.key);
-  }
-
-  if (BROWSER_ATTACK_CHOICE_TYPES.has(choiceType)) {
-    return wizard?.getEnemyQualityBrowserChoiceOptions?.(quality) ?? [];
-  }
-
-  return [];
+  return wizard
+    ?.getEnemyQualityBrowserChoiceOptions?.(
+      quality
+    ) ?? [];
 }
-function getBrowserQualityUnsupportedChoiceLabel(
+
+function getBrowserQualityBlockedReason(
   quality = {},
-  choiceOptions = []
+  wizard = null
 ) {
-  if (!quality.choices?.required) return "";
-
-  const choiceType = String(quality.choices?.type ?? "").trim();
-
-  if (choiceType === "single") return "";
-
-  if (BROWSER_ATTACK_CHOICE_TYPES.has(choiceType)) {
-    return choiceOptions.length
-      ? ""
-      : text(
-        "Crie um Ataque primeiro",
-        "Create an Attack first"
-      );
-  }
-
-  return text(
-    "Escolha manual",
-    "Manual choice"
-  );
+  return wizard
+    ?.getEnemyQualityBrowserBlockedReason?.(
+      quality
+    ) ?? "";
 }
 
 export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
@@ -306,7 +403,15 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
       }
   };
   get title() {
-    return text("Qualidades do Inimigo", "Enemy Qualities");
+    return this.selectionMode === "superiorMode"
+      ? text(
+          "Qualidades do Modo",
+          "Mode Qualities"
+        )
+      : text(
+          "Qualidades do Inimigo",
+          "Enemy Qualities"
+        );
   }
   static PARTS = {
     main: {
@@ -316,9 +421,25 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
   };
 
   constructor(wizard, options = {}) {
-    super(options);
+    const {
+      selectionMode = "build",
+      ...applicationOptions
+    } = options;
+
+    if (selectionMode === "superiorMode") {
+      applicationOptions.id ??=
+        "dda-enemy-superior-mode-quality-browser";
+    }
+
+    super(applicationOptions);
 
     this.wizard = wizard;
+
+    this.selectionMode =
+      selectionMode === "superiorMode"
+        ? "superiorMode"
+        : "build";
+
     this.activeTier = "all";
     this.activeCategory = "all";
     this.searchTerm = "";
@@ -327,6 +448,9 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
   async _prepareContext() {
     const form = this.wizard?._getSelectedForm?.() ?? null;
     const stageOrder = getFormStageOrder(form ?? {});
+
+    const isSuperiorMode =
+      this.selectionMode === "superiorMode";
 
     const qualities = DDA_DIGIMON_QUALITIES
       .filter((quality) => {
@@ -345,30 +469,109 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
             return false;
             }
 
-            return matchesQualitySearch(quality, this.searchTerm);
+            return matchesQualitySearch(
+              quality,
+              this.searchTerm
+            );
       })
-.map((quality) => {
+      .sort((left, right) => {
+        if (!String(this.searchTerm ?? "").trim()) {
+          return 0;
+        }
+
+        const scoreDifference =
+          getQualitySearchScore(
+            right,
+            this.searchTerm
+          ) -
+          getQualitySearchScore(
+            left,
+            this.searchTerm
+          );
+
+        if (scoreDifference !== 0) {
+          return scoreDifference;
+        }
+
+        return String(left.name ?? "").localeCompare(
+          String(right.name ?? ""),
+          game.i18n.lang
+        );
+      })
+      .map((quality) => {
   const qualityId = String(quality.id ?? "");
-  const selectedRank = Math.max(
+
+  const targetSelectedRank = Math.max(
     0,
-    Number(this.wizard?.getEnemyQualitySelectionRank?.(qualityId) ?? 0)
+    Number(
+      isSuperiorMode
+        ? this.wizard
+            ?.getEnemySuperiorModeQualitySelectionRank?.(
+              qualityId
+            ) ?? 0
+        : this.wizard
+            ?.getEnemyQualitySelectionRank?.(
+              qualityId
+            ) ?? 0
+    )
   );
 
-  const maxRank = getBrowserQualityMaxRank(quality);
-const choiceOptions = getBrowserQualityChoiceOptions(
-  quality,
-  this.wizard
-);
+  const maxRank = Math.max(
+    0,
+    Number(
+      isSuperiorMode
+        ? this.wizard
+            ?.getEnemySuperiorModeQualityEffectiveMax?.(
+              quality
+            ) ?? getBrowserQualityMaxRank(quality)
+        : this.wizard
+            ?.getEnemyQualityEffectiveMax?.(
+              quality
+            ) ?? getBrowserQualityMaxRank(quality)
+    )
+  );
 
-const unsupportedChoiceLabel = getBrowserQualityUnsupportedChoiceLabel(
-  quality,
-  choiceOptions
-);
+  const choiceOptions = isSuperiorMode
+    ? this.wizard
+        ?.getEnemySuperiorModeQualityBrowserChoiceOptions?.(
+          quality
+        ) ?? []
+    : getBrowserQualityChoiceOptions(
+        quality,
+        this.wizard
+      );
 
-  const hasUnsupportedChoice = Boolean(unsupportedChoiceLabel);
-  const canAdd = selectedRank < maxRank && !hasUnsupportedChoice;
+  const blockedReason = isSuperiorMode
+    ? this.wizard
+        ?.getEnemySuperiorModeQualityBrowserBlockedReason?.(
+          quality
+        ) ?? ""
+    : getBrowserQualityBlockedReason(
+        quality,
+        this.wizard
+      );
+
+  const atMaxRank =
+    maxRank > 0 &&
+    targetSelectedRank >= maxRank;
+
+  const canAdd =
+    maxRank > 0 &&
+    !atMaxRank &&
+    !blockedReason;
+
+  const addLabel = targetSelectedRank > 0
+    ? text("+ Rank", "+ Rank")
+    : text("Adicionar", "Add");
+
+  const buttonLabel = atMaxRank
+    ? text("Máximo", "Max")
+    : blockedReason
+      ? text("Indisponível", "Unavailable")
+      : addLabel;
 
   return {
+
     ...quality,
     id: qualityId,
 
@@ -381,19 +584,18 @@ const unsupportedChoiceLabel = getBrowserQualityUnsupportedChoiceLabel(
     isFree: quality.tier === "free",
     isNegative: quality.tier === "negative",
 
-    selected: selectedRank > 0,
-    selectedRank,
+    selected: targetSelectedRank > 0,
+    selectedRank: targetSelectedRank,
     maxRank,
     canAdd,
+    atMaxRank,
 
     choiceOptions,
     hasChoiceOptions: choiceOptions.length > 0,
-    unsupportedChoiceLabel,
+    unsupportedChoiceLabel: blockedReason,
 
-    addLabel: selectedRank > 0
-      ? text("+ Rank", "+ Rank")
-      : text("Adicionar", "Add"),
-
+    addLabel,
+    buttonLabel,
     maxRankLabel: text("Máximo", "Max")
   };
 });
@@ -439,8 +641,13 @@ selected: text("Selecionada", "Selected"),
 choice: text("Escolha", "Choice"),
 close: text("Fechar", "Close"),
 catalogOnly: text(
-  "Escolha Qualidades para a build do inimigo. O wizard valida custo e limites.",
-  "Choose Qualities for the enemy build. The wizard validates cost and limits."
+  isSuperiorMode
+    ? "Escolha Qualidades para o Modo alternativo. O custo não pode ultrapassar o conjunto Padrão."
+    : "Escolha Qualidades para a build do inimigo. O wizard valida custo e limites.",
+
+  isSuperiorMode
+    ? "Choose Qualities for the alternate Mode. Their cost cannot exceed the Default set."
+    : "Choose Qualities for the enemy build. The wizard validates cost and limits."
 )
       }
     };
@@ -514,10 +721,17 @@ static async _onAddEnemyQuality(event, target) {
     card?.querySelector("[data-enemy-quality-choice]")?.value ?? ""
   );
 
-  const added = this.wizard?.addEnemyQualityById?.(
-    qualityId,
-    { choiceKey }
-  );
+  const added =
+    this.selectionMode === "superiorMode"
+      ? this.wizard
+          ?.addEnemySuperiorModeQualityById?.(
+            qualityId,
+            { choiceKey }
+          )
+      : this.wizard?.addEnemyQualityById?.(
+          qualityId,
+          { choiceKey }
+        );
 
   if (!added) return;
 

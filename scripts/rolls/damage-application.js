@@ -1,4 +1,14 @@
-import { hasQuality, getCombatId, areActorsAllies } from "../rules/quality-automation.js";
+import {
+  hasQuality,
+  getCombatId,
+  areActorsAllies,
+  getActorSv
+} from "../rules/quality-automation.js";
+
+import {
+  hasUnlockedOfficialTamerTalent,
+  maybeApplyGritSurvival
+} from "../rules/tamer-resources.js";
 const DAMAGE_TYPE_LABEL_KEYS = {
   crash: "DDA.Damage.Type.Crash",
   burn: "DDA.Damage.Type.Burn",
@@ -190,6 +200,349 @@ async function applyDamageToDigimon(actor, damage, options = {}) {
   });
 }
 
+function actorReferenceKeys(actor) {
+  return new Set(
+    [
+      actor?.uuid,
+      actor?.id,
+      actor?.parent?.uuid,
+      actor?.parent?.id,
+      actor?.id
+        ? `Actor.${actor.id}`
+        : ""
+    ]
+      .map((value) => {
+        return String(
+          value ?? ""
+        ).trim();
+      })
+      .filter(Boolean)
+  );
+}
+
+async function resolveTamerForPartner(
+  partner
+) {
+  const directUuid = String(
+    partner?.system?.tamer?.uuid ?? ""
+  ).trim();
+
+  if (directUuid) {
+    try {
+      const document =
+        await fromUuid(directUuid);
+
+      if (
+        document?.documentName === "Actor" &&
+        document.type === "character"
+      ) {
+        return document;
+      }
+    } catch (error) {
+      console.warn(
+        "DDA | Could not resolve Tamer for Undefeated Endurance.",
+        error
+      );
+    }
+  }
+
+  const keys =
+    actorReferenceKeys(partner);
+
+  return (
+    game?.actors?.contents ?? []
+  ).find((candidate) => {
+    if (candidate.type !== "character") {
+      return false;
+    }
+
+    const partnerData =
+      candidate.system?.partner ?? {};
+
+    return [
+      partnerData.currentFormUuid,
+      partnerData.uuid
+    ].some((reference) => {
+      return keys.has(
+        String(reference ?? "").trim()
+      );
+    });
+  }) ?? null;
+}
+
+function actorIsInActiveCombat(actor) {
+  if (
+    !game?.combat?.started ||
+    !actor
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    game.combat.combatants?.find(
+      (combatant) => {
+        return Boolean(
+          combatant?.actor &&
+          (
+            combatant.actor.uuid ===
+              actor.uuid ||
+            combatant.actor.id ===
+              actor.id
+          )
+        );
+      }
+    )
+  );
+}
+
+function combatTalentWasUsed(
+  tamer,
+  talentId
+) {
+  const usage =
+    tamer?.system?.combat
+      ?.tamerTalentUsage
+      ?.[talentId];
+
+  return Boolean(
+    usage &&
+    String(
+      usage.combatId ?? ""
+    ) === String(
+      game?.combat?.id ?? ""
+    )
+  );
+}
+
+async function markCombatTalentUsed(
+  tamer,
+  talentId
+) {
+  const usage =
+    foundry.utils.deepClone(
+      tamer.system?.combat
+        ?.tamerTalentUsage ??
+      {}
+    );
+
+  usage[talentId] = {
+    combatId:
+      game?.combat?.id ?? "",
+
+    round:
+      Number(
+        game?.combat?.round ?? 0
+      ),
+
+    turn:
+      Number(
+        game?.combat?.turn ?? -1
+      ),
+
+    usedAt:
+      new Date().toISOString()
+  };
+
+  await tamer.update({
+    "system.combat.tamerTalentUsage":
+      usage
+  });
+}
+
+export async function tryUndefeatedEndurance(
+  actor,
+  {
+    prospectiveWounds = 0,
+    maximumWounds = null
+  } = {}
+) {
+  if (
+    !actor ||
+    !["digimon", "npc"].includes(
+      actor.type
+    ) ||
+    Number(prospectiveWounds) > 0 ||
+    !actorIsInActiveCombat(actor)
+  ) {
+    return null;
+  }
+
+  const tamer =
+    await resolveTamerForPartner(
+      actor
+    );
+
+  if (
+    !tamer ||
+    !hasUnlockedOfficialTamerTalent(
+      tamer,
+      "undefeatedEndurance"
+    ) ||
+    combatTalentWasUsed(
+      tamer,
+      "undefeatedEndurance"
+    )
+  ) {
+    return null;
+  }
+
+  const body = Math.max(
+    0,
+    Math.floor(
+      Number(
+        tamer.system?.attributes
+          ?.body?.value ?? 0
+      )
+    )
+  );
+
+  const roll =
+    body > 0
+      ? await new Roll(
+          `${body}d6`
+        ).evaluate()
+      : null;
+
+  const diceResults =
+    (
+      roll?.dice?.[0]
+        ?.results ?? []
+    )
+      .filter((entry) => {
+        return entry.active !== false;
+      })
+      .map((entry) => {
+        return Number(
+          entry.result ?? 0
+        );
+      });
+
+  const successes =
+    diceResults.filter(
+      (result) => result >= 5
+    ).length;
+
+  const sv = Math.max(
+    0,
+    Number(
+      getActorSv(actor) ?? 0
+    )
+  );
+
+  const maximum = Math.max(
+    0,
+    Number(
+      maximumWounds ??
+      actor.system?.miscStats
+        ?.wounds?.max ??
+      0
+    )
+  );
+
+  const recovered = Math.min(
+    maximum,
+    successes + sv
+  );
+
+  if (recovered <= 0) {
+    return null;
+  }
+
+  await markCombatTalentUsed(
+    tamer,
+    "undefeatedEndurance"
+  );
+
+  await ChatMessage.create({
+    speaker:
+      ChatMessage.getSpeaker({
+        actor: tamer
+      }),
+
+    rolls:
+      roll
+        ? [roll]
+        : [],
+
+    content: `
+      <div class="dda-chat-card dda-effect-card effect-positive dda-undefeated-endurance-card">
+        <h2>
+          ${escapeHtml(
+            localizeWithFallback(
+              "DDA.TamerTalent.UndefeatedEndurance.Title",
+              "Undefeated Endurance"
+            )
+          )}
+        </h2>
+
+        <p>
+          ${escapeHtml(
+            localizeWithFallback(
+              "DDA.TamerTalent.UndefeatedEndurance.Trigger",
+              "{partner} seria Derrotado, mas continua lutando.",
+              {
+                partner:
+                  actor.name
+              }
+            )
+          )}
+        </p>
+
+        <ul class="dda-effect-list">
+          <li>
+            ${escapeHtml(
+              localizeWithFallback(
+                "DDA.TamerAttribute.Body",
+                "Corpo"
+              )
+            )}:
+            <strong>${body}</strong>.
+          </li>
+
+          <li>
+            ${escapeHtml(
+              localizeWithFallback(
+                "DDA.Pool.RolledSuccesses",
+                "Sucessos Rolados"
+              )
+            )}:
+            <strong>${successes}</strong>.
+          </li>
+
+          <li>
+            SV:
+            <strong>+${sv}</strong>.
+          </li>
+
+          <li>
+            ${escapeHtml(
+              localizeWithFallback(
+                "DDA.TamerTalent.UndefeatedEndurance.Recovered",
+                "Caixas de Ferimento recuperadas"
+              )
+            )}:
+            <strong>${recovered}</strong>.
+          </li>
+        </ul>
+      </div>
+    `
+  });
+
+  return {
+    used: true,
+    actor,
+    tamer,
+    roll,
+    body,
+    diceResults,
+    successes,
+    sv,
+    recovered,
+    wounds:
+      recovered
+  };
+}
+
 async function applyDamageToActor(actor, damage, options = {}, config = {}) {
   const wounds = foundry.utils.getProperty(actor, config.woundsDataPath);
 
@@ -204,13 +557,70 @@ async function applyDamageToActor(actor, damage, options = {}, config = {}) {
   const damageInfo = getDamageApplicationInfo(actor, damage, options);
   const effectiveDamage = damageInfo.effectiveDamage;
 
-  const result = calculateWoundLoss(currentWounds, currentTemp, effectiveDamage);
+const result = calculateWoundLoss(
+  currentWounds,
+  currentTemp,
+  effectiveDamage
+);
 
-  await actor.update({
-    [config.woundsValuePath]: result.wounds,
-    [config.tempValuePath]: result.temp,
-    "system.combat.defeated": result.wounds <= 0
-  });
+const gritSurvival =
+  await maybeApplyGritSurvival(
+    actor,
+    {
+      currentWounds,
+
+      nextWounds:
+        result.wounds,
+
+      sourceLabel:
+        damageInfo.damageTypeLabel ||
+        options.damageLabel ||
+        localizeWithFallback(
+          "DDA.Damage.Applied",
+          "Dano Aplicado"
+        )
+    }
+  );
+
+if (gritSurvival?.used) {
+  result.wounds =
+    gritSurvival.wounds;
+
+  result.healthDamage = Math.max(
+    0,
+    currentWounds - result.wounds
+  );
+}
+
+const undefeatedEndurance =
+  await tryUndefeatedEndurance(
+    actor,
+    {
+      prospectiveWounds:
+        result.wounds,
+
+      maximumWounds:
+        Number(
+          wounds.max ?? 0
+        )
+    }
+  );
+
+if (undefeatedEndurance?.used) {
+  result.wounds =
+    undefeatedEndurance.wounds;
+}
+
+await actor.update({
+  [config.woundsValuePath]:
+    result.wounds,
+
+  [config.tempValuePath]:
+    result.temp,
+
+  "system.combat.defeated":
+    result.wounds <= 0
+});
 
 let shieldBroken = false;
 
@@ -224,9 +634,11 @@ const applicationResult = {
   actor,
   damageInfo,
   result,
-  shieldBroken,
-  combatMonsterResolve,
-  before: {
+shieldBroken,
+combatMonsterResolve,
+gritSurvival,
+undefeatedEndurance,
+before: {
     wounds: currentWounds,
     temp: currentTemp
   },
@@ -250,6 +662,7 @@ content: buildDamageChatContent({
   result,
   shieldBroken,
   combatMonsterResolve,
+  gritSurvival,
   currentWounds,
   currentTemp,
   effectiveDamage
@@ -298,6 +711,7 @@ function buildDamageChatContent({
   result,
   shieldBroken,
   combatMonsterResolve,
+  gritSurvival,
   currentWounds,
   currentTemp,
   effectiveDamage
@@ -377,7 +791,29 @@ function buildDamageChatContent({
           ${escapeHtml(localizeWithFallback("DDA.Damage.Health", "Saúde"))}:
           <strong>${currentWounds} → ${result.wounds}</strong>.
         </li>
+        ${
+          gritSurvival?.used
+            ? `
+              <li class="damage-grit-survival">
+                <strong>
+                  ${escapeHtml(
+                    localizeWithFallback(
+                      "DDA.TamerTalent.Grit.Title",
+                      "Grit"
+                    )
+                  )}:
+                </strong>
 
+                ${escapeHtml(
+                  localizeWithFallback(
+                    "DDA.TamerTalent.Grit.SurvivalApplied",
+                    "O Digi-Escolhido permaneceu com 1 Caixa de Ferimento."
+                  )
+                )}
+              </li>
+            `
+            : ""
+        }
         ${
   combatMonsterResolve
     ? `

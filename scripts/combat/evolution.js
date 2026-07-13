@@ -10,6 +10,11 @@ import {
   synchronizePartnerBonusDpAcrossForms
 } from "../rules/tamer-progression.js";
 
+import {
+  getTamerIpPool,
+  spendTamerIp
+} from "../rules/tamer-resources.js";
+
 export const DDA_SYSTEM_ID = "digimon-digital-adventures";
 
 export async function evolvePartner(tamerActor) {
@@ -137,7 +142,30 @@ export async function evolvePartner(tamerActor) {
       }
     : null;
 
-const previousPersistentWounds = foundry.utils.deepClone(partnerActor.system.miscStats?.wounds ?? {});
+const previousPersistentWounds =
+  foundry.utils.deepClone(
+    partnerActor.system.miscStats
+      ?.wounds ?? {}
+  );
+
+/*
+ * O Actor parceiro é persistente e será
+ * transformado durante applyEvolutionFormTemplateToPartner.
+ *
+ * Portanto, a decisão de cura precisa ser tomada
+ * antes da mutação, usando somente valores primitivos.
+ */
+const shouldHealAfterEvolution =
+  shouldFullyHealOnEvolution({
+    previousStageKey,
+
+    nextStageKey:
+      formTemplateActor.system
+        ?.stage ?? "",
+
+    transitionType:
+      paymentData.transitionType
+  });
 
 await runDigimonTokenEvolutionTransition(
   partnerActor,
@@ -153,15 +181,25 @@ await runDigimonTokenEvolutionTransition(
       continuedHybridState
     });
 
-    if (paymentData.transitionType === "slide") {
+    if (
+      paymentData.transitionType ===
+      "slide"
+    ) {
       await applyPersistentSlideEvolutionWoundAdjustment({
         partnerActor,
         previousFormActor,
         formTemplateActor,
         previousPersistentWounds
       });
-    } else if (shouldFullyHealOnEvolution(previousFormActor, formTemplateActor, paymentData.transitionType)) {
-      await fullyRestoreWounds(partnerActor);
+    } else if (
+      shouldHealAfterEvolution
+    ) {
+      await fullyRestoreWounds(
+        partnerActor,
+        {
+          clearTemp: true
+        }
+      );
     }
 
     return partnerActor;
@@ -1565,17 +1603,44 @@ export async function executeJogressEvolution(tamerActor) {
     .join(" / ");
 
   await resultActor.update({
-    "system.tamer.name": jogressTamerNames || tamerActor.name,
-    "system.tamer.uuid": tamerActor.uuid,
-    "system.combat.actions.value": 2,
-    "system.combat.actions.max": 2,
-    "system.combat.initiative.value": sharedInitiative,
-    "system.specialEvolutions.jogress.active": true,
-    "system.specialEvolutions.jogress.state": jogressState,
-    "system.specialEvolutions.jogress.componentBonusDp": componentBonusDp
+    "system.tamer.name":
+      jogressTamerNames ||
+      tamerActor.name,
+
+    "system.tamer.uuid":
+      tamerActor.uuid,
+
+    "system.combat.actions.value":
+      2,
+
+    "system.combat.actions.max":
+      2,
+
+    "system.combat.initiative.value":
+      sharedInitiative,
+
+    "system.specialEvolutions.jogress.active":
+      true,
+
+    "system.specialEvolutions.jogress.state":
+      jogressState,
+
+    "system.specialEvolutions.jogress.componentBonusDp":
+      componentBonusDp
   });
 
-  await updateJogressSharedInitiative(participants, resultActor, sharedInitiative);
+  await fullyRestoreWounds(
+    resultActor,
+    {
+      clearTemp: true
+    }
+  );
+
+  await updateJogressSharedInitiative(
+    participants,
+    resultActor,
+    sharedInitiative
+  );
 
   const componentList = participants.map((participant) => {
     return `<li><strong>${escapeHtml(participant.digimon?.name ?? localize("DDA.Jogress.UnknownDigimon"))}</strong> — ${escapeHtml(participant.tamer?.name ?? localize("DDA.Jogress.UnknownTamer"))}</li>`;
@@ -1810,20 +1875,54 @@ async function executeHybridLikeEvolution(tamerActor, requestedMethod = "hybrid"
   await applyHybridResultOwnership(resultActor, tamerActor);
 
   await resultActor.update({
-    "system.tamer.name": tamerActor.name,
-    "system.tamer.uuid": tamerActor.uuid,
-    "system.combat.actions.value": 3,
-    "system.combat.actions.max": 3,
-    "system.specialEvolutions.hybrid.active": true,
-    "system.specialEvolutions.hybrid.method": method,
-    "system.specialEvolutions.hybrid.equivalentStage": equivalentStage,
-    "system.specialEvolutions.hybrid.state": hybridState,
-    "system.specialForm.kind": "hybrid",
-    "system.specialForm.method": method,
-    "system.specialForm.equivalentStage": equivalentStage,
-    "system.specialForm.sourceTamerUuid": tamerActor.uuid,
-    "system.specialForm.sourceDigimonUuid": currentFormActor?.uuid ?? partnerActor?.uuid ?? ""
+    "system.tamer.name":
+      tamerActor.name,
+
+    "system.tamer.uuid":
+      tamerActor.uuid,
+
+    "system.combat.actions.value":
+      3,
+
+    "system.combat.actions.max":
+      3,
+
+    "system.specialEvolutions.hybrid.active":
+      true,
+
+    "system.specialEvolutions.hybrid.method":
+      method,
+
+    "system.specialEvolutions.hybrid.equivalentStage":
+      equivalentStage,
+
+    "system.specialEvolutions.hybrid.state":
+      hybridState,
+
+    "system.specialForm.kind":
+      "hybrid",
+
+    "system.specialForm.method":
+      method,
+
+    "system.specialForm.equivalentStage":
+      equivalentStage,
+
+    "system.specialForm.sourceTamerUuid":
+      tamerActor.uuid,
+
+    "system.specialForm.sourceDigimonUuid":
+      currentFormActor?.uuid ??
+      partnerActor?.uuid ??
+      ""
   });
+
+  await fullyRestoreWounds(
+    resultActor,
+    {
+      clearTemp: true
+    }
+  );
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: tamerActor }),
@@ -2315,8 +2414,87 @@ function calculateEvolutionCost({ tamerActor, previousActor, newActor, edgeMetho
   const previousStage = previousActor?.system?.stage;
   const newStage = newActor?.system?.stage;
 
-  const previousIndex = getStageIndex(previousStage);
-  const newIndex = getStageIndex(newStage);
+  const previousIndex =
+    getStageIndex(previousStage);
+
+  const newIndex =
+    getStageIndex(newStage);
+
+  /*
+   * O parceiro persistente reutiliza o mesmo Actor
+   * e, portanto, o mesmo UUID em todas as formas.
+   *
+   * UUID igual não significa mais "mesma forma".
+   * A identidade precisa considerar também Estágio
+   * e espécie.
+   */
+  const previousIdentity =
+    normalizeName(
+      previousActor?.system?.species ||
+      previousActor?.name ||
+      ""
+    );
+
+  const newIdentity =
+    normalizeName(
+      newActor?.system?.species ||
+      newActor?.name ||
+      ""
+    );
+
+  const sameStage =
+    previousIndex !== -1 &&
+    newIndex !== -1 &&
+    previousIndex === newIndex;
+
+  const sameReference =
+    Boolean(
+      previousActor?.uuid &&
+      newActor?.uuid &&
+      previousActor.uuid ===
+        newActor.uuid
+    );
+
+  const sameIdentity =
+    Boolean(
+      previousIdentity &&
+      newIdentity &&
+      previousIdentity ===
+        newIdentity
+    );
+
+  const normalizedEdgeMethod =
+    String(
+      edgeMethod ?? "normal"
+    )
+      .trim()
+      .toLowerCase();
+
+  const usesSpecialMethod =
+    isJogressEvolutionMethod(
+      normalizedEdgeMethod
+    ) ||
+    isHybridEvolutionGraphMethod(
+      normalizedEdgeMethod
+    ) ||
+    [
+      "armor",
+      "dark"
+    ].includes(
+      normalizedEdgeMethod
+    );
+
+  const isSameForm =
+    !usesSpecialMethod &&
+    sameStage &&
+    (
+      sameIdentity ||
+      (
+        (!previousIdentity ||
+          !newIdentity) &&
+        sameReference
+      )
+    );
 
   let actionCost = 1;
 
@@ -2326,10 +2504,17 @@ function calculateEvolutionCost({ tamerActor, previousActor, newActor, edgeMetho
   let allowed = true;
   let blockedReason = "";
 
-  if (previousActor?.uuid === newActor?.uuid) {
-    transitionType = "sameForm";
-    peCost = 0;
-    reason = localize("DDA.Evolution.CostReason.SameForm");
+  if (isSameForm) {
+    transitionType =
+      "sameForm";
+
+    peCost =
+      0;
+
+    reason =
+      localize(
+        "DDA.Evolution.CostReason.SameForm"
+      );
   } else if (isJogressEvolutionMethod(edgeMethod)) {
     transitionType = "jogress";
     allowed = false;
@@ -2406,24 +2591,44 @@ function calculateEvolutionCost({ tamerActor, previousActor, newActor, edgeMetho
   const requireDirectLink = Boolean(getDDASettingSafe("requireDirectEvolutionLink", true));
   const allowRebranch = Boolean(getDDASettingSafe("allowEvolutionRebranch", false));
 
-  if (previousActor?.uuid !== newActor?.uuid && requireDirectLink && !directLink && transitionType !== "regression") {
+  if (
+    !isSameForm &&
+    requireDirectLink &&
+    !directLink &&
+    transitionType !== "regression"
+  ) {
     allowed = false;
     blockedReason = localize("DDA.Evolution.Blocked.DirectLinkRequired");
   }
 
   if (
-    previousActor?.uuid !== newActor?.uuid &&
+    !isSameForm &&
     !allowRebranch &&
     !directLink &&
-    ["standard", "slide", "warp"].includes(transitionType)
+    [
+      "standard",
+      "slide",
+      "warp"
+    ].includes(
+      transitionType
+    )
   ) {
     allowed = false;
     blockedReason = localize("DDA.Evolution.Blocked.RebranchDisabled");
   }
 
-  const availablePe = Number(tamerActor.system.resources?.evolutionPoints?.value ?? 0);
-  const availableIp = Number(tamerActor.system.resources?.ip?.value ?? 0);
-  const availableActions = Number(tamerActor.system.combat?.actions?.value ?? 0);
+const availablePe = Number(
+  tamerActor.system.resources
+    ?.evolutionPoints?.value ?? 0
+);
+
+const ipPool = getTamerIpPool(tamerActor);
+const availableIp = ipPool.total;
+
+const availableActions = Number(
+  tamerActor.system.combat
+    ?.actions?.value ?? 0
+);
 
   const peSpent = Math.min(availablePe, peCost);
   const remainingCost = Math.max(0, peCost - peSpent);
@@ -2438,6 +2643,8 @@ function calculateEvolutionCost({ tamerActor, previousActor, newActor, edgeMetho
     remainingCost: Math.max(0, peCost - peSpent - ipSpent),
     availablePe,
     availableIp,
+    availableNormalIp: ipPool.normal,
+    availableTemporaryIp: ipPool.temporary,
     availableActions,
     reason,
     transitionType,
@@ -2498,7 +2705,23 @@ async function validateAndConfirmCost({ tamerActor, partnerActor, previousFormNa
       <hr>
 
       <p><strong>${localize("DDA.Evolution.EPAvailable")}:</strong> ${costData.availablePe}</p>
-      <p><strong>${localize("DDA.Evolution.IPAvailable")}:</strong> ${costData.availableIp}</p>
+      <p>
+  <strong>
+    ${localize("DDA.Evolution.IPAvailable")}:
+  </strong>
+
+  ${costData.availableIp}
+
+  <small>
+    (
+      ${costData.availableNormalIp}
+      ${localize("DDA.Resource.IP.NormalShort")}
+      +
+      ${costData.availableTemporaryIp}
+      ${localize("DDA.Resource.IP.TemporaryShort")}
+    )
+  </small>
+</p>
 
       <div class="form-group">
         <label>${localize("DDA.Evolution.EPToSpend")}</label>
@@ -2567,16 +2790,59 @@ async function validateAndConfirmCost({ tamerActor, partnerActor, previousFormNa
   });
 }
 
-async function payEvolutionCost(tamerActor, costData) {
-  const currentActions = Number(tamerActor.system.combat?.actions?.value ?? 0);
-  const currentPe = Number(tamerActor.system.resources?.evolutionPoints?.value ?? 0);
-  const currentIp = Number(tamerActor.system.resources?.ip?.value ?? 0);
+async function payEvolutionCost(
+  tamerActor,
+  costData
+) {
+  const currentActions = Number(
+    tamerActor.system.combat
+      ?.actions?.value ?? 0
+  );
+
+  const currentPe = Number(
+    tamerActor.system.resources
+      ?.evolutionPoints?.value ?? 0
+  );
 
   await tamerActor.update({
-    "system.combat.actions.value": Math.max(0, currentActions - costData.actionCost),
-    "system.resources.evolutionPoints.value": Math.max(0, currentPe - costData.peSpent),
-    "system.resources.ip.value": Math.max(0, currentIp - costData.ipSpent)
+    "system.combat.actions.value":
+      Math.max(
+        0,
+        currentActions -
+          costData.actionCost
+      ),
+
+    "system.resources.evolutionPoints.value":
+      Math.max(
+        0,
+        currentPe -
+          costData.peSpent
+      )
   });
+
+  const ipPayment =
+    await spendTamerIp(
+      tamerActor,
+      costData.ipSpent,
+      {
+        allowTemporary: true,
+        temporaryFirst: true
+      }
+    );
+
+  if (!ipPayment.success) {
+    throw new Error(
+      localize(
+        "DDA.Warning.NotEnoughIP"
+      )
+    );
+  }
+
+  costData.ipSpentNormal =
+    ipPayment.spentNormal;
+
+  costData.ipSpentTemporary =
+    ipPayment.spentTemporary;
 }
 
 async function applySlideEvolutionWoundAdjustment(previousActor, evolvedActor) {
@@ -2601,33 +2867,165 @@ async function applySlideEvolutionWoundAdjustment(previousActor, evolvedActor) {
 
 
 
-function shouldFullyHealOnEvolution(previousActor, evolvedActor, transitionType = "") {
-  if (!previousActor || !evolvedActor || previousActor.uuid === evolvedActor.uuid) return false;
-  if (!["standard", "warp", "armor", "dark"].includes(String(transitionType ?? ""))) return false;
+function shouldFullyHealOnEvolution({
+  previousStageKey = "",
+  nextStageKey = "",
+  transitionType = ""
+} = {}) {
+  const previousIndex =
+    getStageIndex(
+      String(
+        previousStageKey ?? ""
+      ).trim()
+    );
 
-  const previousIndex = getStageIndex(previousActor.system?.stage);
-  const evolvedIndex = getStageIndex(evolvedActor.system?.stage);
+  const nextIndex =
+    getStageIndex(
+      String(
+        nextStageKey ?? ""
+      ).trim()
+    );
 
-  return previousIndex !== -1 && evolvedIndex !== -1 && evolvedIndex > previousIndex;
+  /*
+   * O critério central é subir de Estágio.
+   * Reutilização de UUID, snapshot ou Actor
+   * persistente não pode bloquear a cura.
+   */
+  if (
+    previousIndex !== -1 &&
+    nextIndex !== -1
+  ) {
+    return nextIndex >
+      previousIndex;
+  }
+
+  /*
+   * Armor e Dark podem utilizar categorias
+   * especiais fora da ordem normal de Estágios.
+   */
+  const normalizedTransition =
+    String(
+      transitionType ?? ""
+    )
+      .trim()
+      .toLowerCase();
+
+  return [
+    "armor",
+    "dark"
+  ].includes(
+    normalizedTransition
+  );
 }
 
-async function fullyRestoreWounds(actor, options = {}) {
-  if (!actor) return;
 
-  const woundPath = actor.type === "character" ? "system.derived.wounds" : "system.miscStats.wounds";
-  const wounds = foundry.utils.getProperty(actor, woundPath) ?? {};
-  const max = Number(wounds.max ?? wounds.value ?? 0);
+async function fullyRestoreWounds(
+  actor,
+  {
+    clearTemp = true
+  } = {}
+) {
+  if (!actor) {
+    return null;
+  }
 
-  if (max <= 0) return;
+  const woundPath =
+    actor.type === "character"
+      ? "system.derived.wounds"
+      : "system.miscStats.wounds";
+
+  const wounds =
+    foundry.utils.getProperty(
+      actor,
+      woundPath
+    ) ?? {};
+
+  let maximum =
+    Number(
+      wounds.max ?? 0
+    );
+
+  /*
+   * Para Digimon, calcula novamente usando a
+   * fórmula da forma atual. Isso impede que um
+   * máximo antigo seja usado logo depois da
+   * aplicação do snapshot.
+   *
+   * Máximo = SV + Saúde × 2
+   */
+  if (
+    ["digimon", "npc"].includes(
+      actor.type
+    )
+  ) {
+    const stageValue =
+      Math.max(
+        0,
+        Number(
+          actor.system?.stageValue ?? 0
+        )
+      );
+
+    const healthTotal =
+      Math.max(
+        1,
+        Number(
+          actor.system?.mainStats
+            ?.health?.total ??
+          actor.system?.mainStats
+            ?.health?.value ??
+          (
+            Number(
+              actor.system?.mainStats
+                ?.health?.base ?? 0
+            ) +
+            Number(
+              actor.system?.mainStats
+                ?.health?.bonus ?? 0
+            )
+          )
+        )
+      );
+
+    maximum =
+      Math.max(
+        1,
+        stageValue +
+        healthTotal * 2
+      );
+  }
+
+  if (
+    !Number.isFinite(maximum) ||
+    maximum <= 0
+  ) {
+    return null;
+  }
 
   const updates = {
-    [`${woundPath}.value`]: max
+    [`${woundPath}.value`]:
+      maximum,
+
+    "system.combat.defeated":
+      false
   };
 
-  if (options.clearTemp) updates[`${woundPath}.temp.value`] = 0;
-  if (actor.system?.combat) updates["system.combat.defeated"] = false;
+  if (clearTemp) {
+    updates[
+      `${woundPath}.temp.value`
+    ] = 0;
+  }
 
   await actor.update(updates);
+
+  actor.sheet?.render(false);
+
+  return {
+    actor,
+    maximum,
+    clearedTemporaryWounds:
+      Boolean(clearTemp)
+  };
 }
 
 function isEvolutionLockedForCombat(actor) {
@@ -4000,9 +4398,18 @@ async function resolveJogressResultActor(recipe) {
 function calculateJogressCost(tamerActor, recipe) {
   const actionCost = Math.max(0, Number(recipe?.cost?.actions ?? 1));
   const peCost = Math.max(0, Number(recipe?.cost?.pe ?? 0));
-  const availablePe = Number(tamerActor.system.resources?.evolutionPoints?.value ?? 0);
-  const availableIp = Number(tamerActor.system.resources?.ip?.value ?? 0);
-  const availableActions = Number(tamerActor.system.combat?.actions?.value ?? 0);
+  const availablePe = Number(
+    tamerActor.system.resources
+      ?.evolutionPoints?.value ?? 0
+  );
+
+  const ipPool = getTamerIpPool(tamerActor);
+  const availableIp = ipPool.total;
+
+  const availableActions = Number(
+    tamerActor.system.combat
+      ?.actions?.value ?? 0
+  );
   const peSpent = Math.min(availablePe, peCost);
   const remainingCost = Math.max(0, peCost - peSpent);
   const ipSpent = Math.min(availableIp, remainingCost);
@@ -4016,6 +4423,8 @@ function calculateJogressCost(tamerActor, recipe) {
     remainingCost: Math.max(0, peCost - peSpent - ipSpent),
     availablePe,
     availableIp,
+    availableNormalIp: ipPool.normal,
+    availableTemporaryIp: ipPool.temporary,
     availableActions,
     reason: localize("DDA.Evolution.CostReason.JogressEvolution"),
     transitionType: "jogress",
@@ -4371,7 +4780,12 @@ export async function executeForcedEvolution(tamerActor) {
     return null;
   }
 
-  await fullyRestoreWounds(resultActor);
+  await fullyRestoreWounds(
+    resultActor,
+    {
+      clearTemp: true
+    }
+  );
 
   const defaultStage = partnerActor.system?.evolution?.defaultStage || getDefaultStageFromRange(tamerActor);
   const belowDefaultStage = getStageDirectlyBelow(defaultStage) || defaultStage;
@@ -4544,13 +4958,29 @@ export async function executeBlastEvolution(tamerActor) {
   });
 
   await resultActor.update({
-    "system.tamer.name": tamerActor.name,
-    "system.tamer.uuid": tamerActor.uuid,
-    "system.resources.battery.value": 0,
-    "system.miscStats.wounds.value": resultWoundValue,
-    "system.combat.defeated": false,
-    "system.specialForm.kind": "blast",
-    "system.specialForm.method": "blast"
+    "system.tamer.name":
+      tamerActor.name,
+
+    "system.tamer.uuid":
+      tamerActor.uuid,
+
+    "system.resources.battery.value":
+      0,
+
+    "system.miscStats.wounds.value":
+      resultWoundValue,
+
+    "system.miscStats.wounds.temp.value":
+      0,
+
+    "system.combat.defeated":
+      false,
+
+    "system.specialForm.kind":
+      "blast",
+
+    "system.specialForm.method":
+      "blast"
   });
 
   const revertData = await resolveBlastReversion({ tamerActor, partnerActor, currentFormActor, resultActor, check });

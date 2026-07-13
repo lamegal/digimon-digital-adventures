@@ -1,4 +1,9 @@
 import { advanceDDACombatTurn } from "./initiative.js";
+import { maybeApplyGritSurvival } from "../rules/tamer-resources.js";
+
+import {
+  tryUndefeatedEndurance
+} from "../rolls/damage-application.js";
 
 export async function endDigimonTurn(actor) {
   if (!actor || (actor.type !== "digimon" && actor.type !== "npc")) {
@@ -56,9 +61,17 @@ export async function endDigimonTurn(actor) {
 
   const updateData = {};
 
-  if (effectConsequenceData.changed) {
-    updateData["system.miscStats.wounds.value"] = effectConsequenceData.newWounds;
-  }
+if (effectConsequenceData.changed) {
+  updateData[
+    "system.miscStats.wounds.value"
+  ] =
+    effectConsequenceData.newWounds;
+
+  updateData[
+    "system.combat.defeated"
+  ] =
+    effectConsequenceData.newWounds <= 0;
+}
 
   if (effectTurnData.changed) {
     updateData["system.effects.active"] = effectTurnData.remainingEffects;
@@ -359,10 +372,26 @@ async function applyEndTurnEffectConsequences(actor) {
     let amount = 1;
 
     if (tag === "ruin") {
-      amount = await getRuinDamageAmount(effect);
+      amount = await getRuinDamageAmount(
+        effect
+      );
     }
 
-    amount = Math.max(1, Number(amount ?? 1));
+    if (tag === "regen") {
+      amount = Math.max(
+        1,
+        Number(
+          effect.potency ??
+          effect.value ??
+          1
+        )
+      );
+    }
+
+    amount = Math.max(
+      1,
+      Number(amount ?? 1)
+    );
 
     if (isDamage) {
       woundDelta -= amount;
@@ -407,16 +436,47 @@ async function applyEndTurnEffectConsequences(actor) {
     };
   }
 
-  const unclampedWounds = oldWounds + woundDelta;
-  const newWounds = Math.min(maxWounds, Math.max(0, unclampedWounds));
+const unclampedWounds =
+  oldWounds + woundDelta;
 
-  return {
-    changed: entries.length > 0,
-    oldWounds,
-    newWounds,
-    woundDelta,
-    entries
-  };
+let newWounds = Math.min(
+  maxWounds,
+  Math.max(
+    0,
+    unclampedWounds
+  )
+);
+
+const undefeatedEndurance =
+  await tryUndefeatedEndurance(
+    actor,
+    {
+      prospectiveWounds:
+        newWounds,
+
+      maximumWounds:
+        maxWounds
+    }
+  );
+
+if (undefeatedEndurance?.used) {
+  newWounds =
+    undefeatedEndurance.wounds;
+}
+
+return {
+  changed:
+    entries.length > 0,
+
+  oldWounds,
+  newWounds,
+
+  woundDelta:
+    newWounds - oldWounds,
+
+  entries,
+  undefeatedEndurance
+};
 }
 
 async function getRuinDamageAmount(effect) {
@@ -508,6 +568,7 @@ async function endLinkedTamerTurn(digimonActor) {
     newWounds: tamerEffectConsequenceData.newWounds,
     woundDelta: tamerEffectConsequenceData.woundDelta,
     effectConsequences: tamerEffectConsequenceData.entries,
+    gritSurvival: tamerEffectConsequenceData.gritSurvival,
 
     effectsChanged: tamerEffectTurnData.changed,
     effectsBeforeCount: tamerEffectTurnData.beforeCount,
@@ -669,12 +730,42 @@ async function applyLinkedTamerEffectConsequences(tamer) {
     }
   }
 
+  const gritSurvival =
+    await maybeApplyGritSurvival(
+      tamer,
+      {
+        currentWounds,
+
+        nextWounds:
+          newWounds,
+
+        sourceLabel:
+          localize(
+            "DDA.EndTurn.EffectsResolved"
+          )
+      }
+    );
+
+  if (gritSurvival.used) {
+    newWounds =
+      gritSurvival.wounds;
+  }
+
   return {
-    changed: entries.length > 0 && newWounds !== currentWounds,
-    oldWounds: currentWounds,
+    changed:
+      entries.length > 0 &&
+      newWounds !== currentWounds,
+
+    oldWounds:
+      currentWounds,
+
     newWounds,
-    woundDelta: newWounds - currentWounds,
-    entries
+
+    woundDelta:
+      newWounds - currentWounds,
+
+    entries,
+    gritSurvival
   };
 }
 
@@ -885,6 +976,24 @@ export async function endTamerTurn(actor) {
     `
     : "";
 
+      const gritSurvivalMessage =
+    effectConsequenceData
+      .gritSurvival?.used
+      ? `
+        <li class="end-turn-grit-survival">
+          <strong>
+            ${localize(
+              "DDA.TamerTalent.Grit.Title"
+            )}:
+          </strong>
+
+          ${localize(
+            "DDA.TamerTalent.Grit.SurvivalApplied"
+          )}
+        </li>
+      `
+      : "";
+
   const effectsMessage = effectTurnData.changed
     ? `
       <li>
@@ -944,6 +1053,7 @@ export async function endTamerTurn(actor) {
           </li>
 
           ${healthMessage}
+          ${gritSurvivalMessage}
           ${effectsMessage}
           ${restrictionMessage}
         </ul>
@@ -958,6 +1068,7 @@ export async function endTamerTurn(actor) {
   return {
     actions: turnRestrictionData.restoredActions,
     healthChanged: effectConsequenceData.changed,
-    effectsChanged: effectTurnData.changed
+    effectsChanged: effectTurnData.changed,
+    gritSurvival: effectConsequenceData.gritSurvival
   };
 }

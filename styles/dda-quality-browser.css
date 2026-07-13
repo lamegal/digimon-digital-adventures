@@ -952,3 +952,302 @@ html body .app.window-app.dda.quality-browser-window .quality-card {
     grid-template-columns: 1fr !important;
   }
 }
+/* ===================================================== */
+/* DDA — Qualidades: pílulas compartilhadas              */
+/* ===================================================== */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) :is(
+  .quality-browser-category-filters,
+  .quality-browser-tier-filters,
+  .quality-browser-filters
+) {
+  display: flex !important;
+  flex-flow: row wrap !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+}
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button:is(
+  [data-tier-filter],
+  [data-category-filter]
+) {
+  --chip-top: rgba(50, 68, 94, 0.98);
+  --chip-bottom: rgba(21, 33, 50, 0.99);
+  --chip-border: rgba(159, 191, 219, 0.55);
+  --chip-glow: rgba(159, 191, 219, 0.25);
+
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: auto !important;
+  min-width: max-content !important;
+  min-height: 28px !important;
+
+  margin: 0 !important;
+  padding: 0.18rem 0.62rem !important;
+
+  color: #edf8ff !important;
+
+  font-family:
+    "PixelOperatorBold",
+    "Trebuchet MS",
+    Arial,
+    sans-serif !important;
+
+  font-size: 0.64rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+
+  border: 1px solid var(--chip-border) !important;
+  border-radius: 999px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      var(--chip-top),
+      var(--chip-bottom)
+    ) !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -4px 7px rgba(0, 0, 0, 0.20) !important;
+}
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button:is(
+  [data-tier-filter],
+  [data-category-filter]
+):hover {
+  filter: brightness(1.17) !important;
+}
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button:is(
+  [data-tier-filter],
+  [data-category-filter]
+).active {
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.30),
+    inset 0 -4px 7px rgba(0, 0, 0, 0.20),
+    0 0 11px var(--chip-glow) !important;
+}
+
+/* Todas */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button:is(
+  [data-tier-filter="all"],
+  [data-category-filter="all"]
+) {
+  --chip-top: rgba(72, 68, 120, 0.98);
+  --chip-bottom: rgba(31, 28, 67, 0.99);
+  --chip-border: rgba(183, 180, 255, 0.68);
+  --chip-glow: rgba(174, 169, 255, 0.30);
+}
+
+/* Inicial / Core */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button:is(
+  [data-tier-filter="starting"],
+  [data-category-filter="core"]
+) {
+  --chip-top: rgba(30, 103, 166, 0.98);
+  --chip-bottom: rgba(9, 51, 96, 0.99);
+  --chip-border: rgba(111, 205, 255, 0.72);
+  --chip-glow: rgba(94, 195, 255, 0.32);
+}
+
+/* Adulto / Clash */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button:is(
+  [data-tier-filter="champion"],
+  [data-category-filter="clash"]
+) {
+  --chip-top: rgba(154, 89, 24, 0.98);
+  --chip-bottom: rgba(78, 40, 9, 0.99);
+  --chip-border: rgba(255, 184, 92, 0.76);
+  --chip-glow: rgba(255, 172, 69, 0.34);
+}
+
+/* Perfeito / Efeito */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button:is(
+  [data-tier-filter="perfect"],
+  [data-category-filter="effect"]
+) {
+  --chip-top: rgba(101, 55, 164, 0.98);
+  --chip-bottom: rgba(48, 22, 94, 0.99);
+  --chip-border: rgba(200, 142, 255, 0.76);
+  --chip-glow: rgba(186, 120, 255, 0.35);
+}
+
+/* Mega / Ataque */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button:is(
+  [data-tier-filter="mega"],
+  [data-category-filter="attack"]
+) {
+  --chip-top: rgba(151, 40, 75, 0.98);
+  --chip-bottom: rgba(76, 15, 43, 0.99);
+  --chip-border: rgba(255, 118, 155, 0.74);
+  --chip-glow: rgba(255, 86, 137, 0.34);
+}
+
+/* Gratuita / Defesa */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button:is(
+  [data-tier-filter="free"],
+  [data-category-filter="defense"]
+) {
+  --chip-top: rgba(32, 119, 82, 0.98);
+  --chip-bottom: rgba(10, 59, 42, 0.99);
+  --chip-border: rgba(108, 230, 180, 0.74);
+  --chip-glow: rgba(87, 222, 162, 0.34);
+}
+
+/* Negativa */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button[data-tier-filter="negative"] {
+  --chip-top: rgba(108, 57, 61, 0.98);
+  --chip-bottom: rgba(53, 24, 29, 0.99);
+  --chip-border: rgba(241, 151, 154, 0.72);
+  --chip-glow: rgba(237, 133, 139, 0.30);
+}
+
+/* Utilidade */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button[data-category-filter="utility"] {
+  --chip-top: rgba(23, 111, 137, 0.98);
+  --chip-bottom: rgba(6, 54, 72, 0.99);
+  --chip-border: rgba(114, 214, 239, 0.74);
+  --chip-glow: rgba(96, 207, 235, 0.32);
+}
+
+/* Postura e Modo */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button[data-category-filter="stanceMode"] {
+  --chip-top: rgba(128, 95, 29, 0.98);
+  --chip-bottom: rgba(65, 43, 8, 0.99);
+  --chip-border: rgba(255, 218, 109, 0.76);
+  --chip-glow: rgba(255, 210, 86, 0.34);
+}
+
+/* Digizoide */
+
+html body :is(
+  .window-app.dda.quality-browser-window,
+  .window-app.dda-wizard .dda-wizard-quality-browser
+) button[data-category-filter="digizoid"] {
+  --chip-top: rgba(95, 108, 124, 0.98);
+  --chip-bottom: rgba(43, 53, 65, 0.99);
+  --chip-border: rgba(211, 228, 240, 0.74);
+  --chip-glow: rgba(200, 220, 235, 0.30);
+}
+
+/* ===================================================== */
+/* DDA Compendium — busca/estágios em cima, categorias   */
+/* embaixo ocupando a largura inteira.                    */
+/* ===================================================== */
+
+html body .window-app.dda.quality-browser-window
+.quality-browser-header {
+  grid-template-columns:
+    minmax(220px, 0.78fr)
+    minmax(0, 1.22fr) !important;
+
+  grid-template-areas:
+    "search tiers"
+    "categories categories" !important;
+
+  align-items: center !important;
+  gap: 0.55rem 0.75rem !important;
+}
+
+html body .window-app.dda.quality-browser-window
+.quality-browser-header input[type="search"] {
+  grid-area: search !important;
+  min-width: 0 !important;
+}
+
+html body .window-app.dda.quality-browser-window
+.quality-browser-tier-filters {
+  grid-area: tiers !important;
+  justify-content: flex-end !important;
+  min-width: 0 !important;
+}
+
+html body .window-app.dda.quality-browser-window
+.quality-browser-category-filters {
+  grid-area: categories !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  padding-top: 0.55rem !important;
+
+  border-top:
+    1px solid
+    rgba(45, 100, 135, 0.20) !important;
+}
+
+@media (max-width: 680px) {
+  html body .window-app.dda.quality-browser-window
+  .quality-browser-header {
+    grid-template-columns: 1fr !important;
+
+    grid-template-areas:
+      "search"
+      "tiers"
+      "categories" !important;
+  }
+
+  html body .window-app.dda.quality-browser-window
+  :is(
+    .quality-browser-tier-filters,
+    .quality-browser-category-filters
+  ) {
+    justify-content: flex-start !important;
+  }
+}

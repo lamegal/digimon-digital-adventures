@@ -302,17 +302,70 @@
         <h2>{{localize "DDA.TamerWizard.Summary.Title"}}</h2>
 
         <div class="dda-wizard-final-options">
-          <article class="dda-wizard-final-card dda-wizard-image-card">
-            <div>
-              <h3>Imagem do personagem</h3>
-              <p>{{localize "DDA.TamerWizard.Summary.ImageHint"}}</p>
-            </div>
+<article
+  class="
+    dda-wizard-final-card
+    dda-wizard-image-card
+    {{#if imageMissing}}is-image-missing{{/if}}
+  "
+>
+  <div>
+    <h3>
+      {{localize
+        "DDA.TamerWizard.Summary.ImageTitle"
+      }}
+    </h3>
 
-            <div class="dda-wizard-image-row">
-              <img src="{{data.identity.img}}" alt="{{data.identity.name}}">
-              <input type="text" data-path="identity.img" value="{{data.identity.img}}" placeholder="icons/svg/mystery-man.svg">
-            </div>
-          </article>
+    <p>
+      {{localize
+        "DDA.TamerWizard.Summary.ImageHint"
+      }}
+    </p>
+  </div>
+
+  <div
+    class="
+      dda-wizard-image-row
+      dda-wizard-image-picker-row
+    "
+  >
+    <button
+      type="button"
+      class="dda-wizard-image-picker-button"
+      data-action="select-tamer-image"
+      title="{{localize 'DDA.TamerWizard.Summary.SelectImage'}}"
+    >
+      <img
+        src="{{data.identity.img}}"
+        alt="{{data.identity.name}}"
+      >
+
+      <span
+        class="dda-wizard-image-picker-overlay"
+        aria-hidden="true"
+      >
+        <i class="fas fa-upload"></i>
+      </span>
+    </button>
+
+    <div class="dda-wizard-image-path">
+      <input
+        type="text"
+        data-path="identity.img"
+        value="{{data.identity.img}}"
+        placeholder="{{worldImageDirectory}}/personagem.webp"
+      >
+
+      {{#if imageMissing}}
+        <small class="dda-wizard-image-required">
+          {{localize
+            "DDA.TamerWizard.Validation.ImageRequired"
+          }}
+        </small>
+      {{/if}}
+    </div>
+  </div>
+</article>
 
           {{#unless data.postCreate.hidden}}
             <article class="dda-wizard-final-card">

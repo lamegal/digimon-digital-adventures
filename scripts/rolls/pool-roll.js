@@ -1,6 +1,128 @@
-import { getLowRerollDeclaration, spendQualityUse } from "../rules/quality-automation.js";
+import {
+  getLowRerollDeclaration,
+  spendQualityUse
+} from "../rules/quality-automation.js";
+
+import {
+  applyLuckyNumberReward
+} from "./lucky-number.js";
+import {
+  consumeTamerActionPoolEffects,
+  prepareTamerActionPoolOptions
+} from "../combat/tamer-actions.js";
+
+function getEvasiveManeuversReserve(
+  actor
+) {
+  const reserve =
+    foundry.utils.deepClone(
+      actor?.system?.combat
+        ?.tamerTalentReserves
+        ?.evasiveManeuvers ??
+      {}
+    );
+
+  const combat =
+    game?.combat;
+
+  if (!combat?.started) {
+    return null;
+  }
+
+  if (
+    String(
+      reserve.combatId ?? ""
+    ) !== String(combat.id)
+  ) {
+    return null;
+  }
+
+  const current = Math.max(
+    0,
+    Number(
+      reserve.current ?? 0
+    )
+  );
+
+  if (
+    !reserve.active ||
+    current <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    ...reserve,
+    current
+  };
+}
+
+async function consumeEvasiveManeuversReserve(
+  actor,
+  amount
+) {
+  const reserve =
+    getEvasiveManeuversReserve(
+      actor
+    );
+
+  if (!reserve) {
+    return null;
+  }
+
+  const spent = Math.min(
+    reserve.current,
+    Math.max(
+      0,
+      Math.floor(
+        Number(amount ?? 0)
+      )
+    )
+  );
+
+  if (spent <= 0) {
+    return reserve;
+  }
+
+  const nextCurrent =
+    Math.max(
+      0,
+      reserve.current - spent
+    );
+
+  const nextState = {
+    ...reserve,
+
+    current:
+      nextCurrent,
+
+    active:
+      nextCurrent > 0,
+
+    lastSpent:
+      spent,
+
+    updatedAt:
+      new Date().toISOString()
+  };
+
+  await actor.update({
+    "system.combat.tamerTalentReserves.evasiveManeuvers":
+      nextState
+  });
+
+  actor.sheet?.render(false);
+
+  return nextState;
+}
 
 export async function rollPool(actor, statKey, options = {}) {
+  options = prepareTamerActionPoolOptions(
+    actor,
+    statKey,
+    options
+  );
+
   const system = actor.system;
   const stat = system.mainStats?.[statKey];
 
@@ -9,7 +131,24 @@ export async function rollPool(actor, statKey, options = {}) {
     return;
   }
 
-  const preparedOptions = preparePoolQualityOptions(actor, statKey, stat, options);
+const evasiveManeuversReserve =
+  statKey === "dodge"
+    ? getEvasiveManeuversReserve(
+        actor
+      )
+    : null;
+
+const preparedOptions =
+  preparePoolQualityOptions(
+    actor,
+    statKey,
+    stat,
+    {
+      ...options,
+
+      evasiveManeuversReserve
+    }
+  );
 
   const lowRerollDeclaration = await getLowRerollDeclaration(actor, statKey);
 
@@ -19,8 +158,24 @@ export async function rollPool(actor, statKey, options = {}) {
   const baseDice = Math.max(0, Number(stat.total ?? 0));
   const manualDiceModifier = Number(dialogData.manualDiceModifier ?? 0);
 const externalDiceModifier = Number(dialogData.externalDiceModifier ?? 0);
-const stanceDiceModifier = Number(dialogData.stanceDiceModifier ?? 0);
-const dodgePenalty = Number(dialogData.dodgePenalty ?? 0);
+const stanceDiceModifier =
+  Number(
+    dialogData.stanceDiceModifier ?? 0
+  );
+
+const dodgePenalty =
+  Number(
+    dialogData.dodgePenalty ?? 0
+  );
+
+const evasiveManeuversDice =
+  Math.max(
+    0,
+    Number(
+      dialogData
+        .evasiveManeuversDice ?? 0
+    )
+  );
 
 const resultModifier = Number(dialogData.resultModifier ?? 0);
 const resultModifierSummary = String(
@@ -55,9 +210,16 @@ const qualityAutomaticSuccessesHtml = buildQualityAutomaticSuccessesHtml({
 });
 
 const dice = Math.max(
-    0,
-    baseDice - qualityBaseDicePenalty + manualDiceModifier + externalDiceModifier + stanceDiceModifier - dodgePenalty
-  );
+  0,
+
+  baseDice -
+  qualityBaseDicePenalty +
+  manualDiceModifier +
+  externalDiceModifier +
+  stanceDiceModifier +
+  evasiveManeuversDice -
+  dodgePenalty
+);
 
 if (dice <= 0 && automaticSuccesses <= 0) {
   if (options.allowZeroSuccesses) {
@@ -185,11 +347,12 @@ const content = `
       </li>
 
       ${
-        manualDiceModifier !== 0 ||
-        externalDiceModifier !== 0 ||
-        resultModifier !== 0 ||
-        stanceDiceModifier !== 0 ||
-        dodgePenalty !== 0
+manualDiceModifier !== 0 ||
+externalDiceModifier !== 0 ||
+resultModifier !== 0 ||
+stanceDiceModifier !== 0 ||
+evasiveManeuversDice !== 0 ||
+dodgePenalty !== 0
           ? `
             <li>
               ${localize("DDA.Pool.Modifiers")}:
@@ -212,11 +375,18 @@ const content = `
                     : ""
                 }
 
-                ${
-                  stanceDiceModifier !== 0
-                    ? `<span>${formatSigned(stanceDiceModifier)} ${localize("DDA.Pool.Modifier.Stance")}</span>`
-                    : ""
-                }
+${
+  evasiveManeuversDice > 0
+    ? `
+      <span class="dda-evasive-maneuvers-chip">
+        +${evasiveManeuversDice}
+        ${localize(
+          "DDA.TamerTalent.EvasiveManeuvers.Short"
+        )}
+      </span>
+    `
+    : ""
+}
 
                 ${
                   dodgePenalty !== 0
@@ -257,26 +427,77 @@ const content = `
 `;
 
 await ChatMessage.create({
-  speaker: ChatMessage.getSpeaker({ actor }),
+  speaker:
+    ChatMessage.getSpeaker({
+      actor
+    }),
+
   content,
-  rolls: roll ? [roll] : []
+
+  rolls:
+    roll
+      ? [roll]
+      : []
 });
 
-  if (lowRerollDeclaration?.quality) {
+const luckyNumberResult =
+  await applyLuckyNumberReward(
+    actor,
+
+    adjustedDiceResults.map(
+      (result) => {
+        return result.raw;
+      }
+    ),
+
+    {
+      source:
+        `mainStatPool:${statKey}`
+    }
+  );
+
+let evasiveManeuversAfter =
+  null;
+
+if (evasiveManeuversDice > 0) {
+  evasiveManeuversAfter =
+    await consumeEvasiveManeuversReserve(
+      actor,
+      evasiveManeuversDice
+    );
+}
+
+if (lowRerollDeclaration?.quality) {
     await spendQualityUse(actor, lowRerollDeclaration.quality, {
       bucket: lowRerollDeclaration.bucket,
       key: lowRerollDeclaration.quality.id
     });
   }
 
-  return {
-    roll,
-    rolledSuccesses,
-    automaticSuccesses,
-    totalSuccesses,
-    resultModifier,
-    adjustedDiceResults
-  };
+  await consumeTamerActionPoolEffects(
+    actor,
+    options
+  );
+
+return {
+  roll,
+
+  rolledSuccesses,
+  automaticSuccesses,
+  totalSuccesses,
+
+  resultModifier,
+  adjustedDiceResults,
+
+  evasiveManeuversDice,
+
+  evasiveManeuversRemaining:
+    evasiveManeuversAfter?.current ??
+    evasiveManeuversReserve?.current ??
+    0,
+
+  luckyNumberResult
+};
 }
 
 function getPoolDialogData(actor, statKey, stat, options = {}) {
@@ -293,8 +514,73 @@ function getPoolDialogData(actor, statKey, stat, options = {}) {
     options.resultModifierSummary ??
     formatSigned(resultModifier)
   ).trim();
-  const statLabel = localizeStatLabel(statKey, stat);
-  const content = `
+const statLabel =
+  localizeStatLabel(
+    statKey,
+    stat
+  );
+
+const evasiveManeuversReserve =
+  options.evasiveManeuversReserve ??
+  null;
+
+const evasiveManeuversCurrent =
+  Math.max(
+    0,
+    Number(
+      evasiveManeuversReserve
+        ?.current ?? 0
+    )
+  );
+
+const evasiveManeuversControl =
+  statKey === "dodge" &&
+  evasiveManeuversCurrent > 0
+    ? `
+      <section class="dda-evasive-maneuvers-control">
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerTalent.EvasiveManeuvers.Spend"
+            )}
+          </label>
+
+          <input
+            type="number"
+            name="evasiveManeuversDice"
+            value="0"
+            min="0"
+            max="${evasiveManeuversCurrent}"
+          />
+        </div>
+
+        <p class="hint">
+          ${game.i18n.format(
+            "DDA.TamerTalent.EvasiveManeuvers.Remaining",
+            {
+              current:
+                evasiveManeuversCurrent,
+
+              max:
+                Number(
+                  evasiveManeuversReserve
+                    ?.max ??
+                  evasiveManeuversCurrent
+                )
+            }
+          )}
+        </p>
+      </section>
+    `
+    : `
+      <input
+        type="hidden"
+        name="evasiveManeuversDice"
+        value="0"
+      />
+    `;
+
+const content = `
   <form class="dda-roll-dialog">
     <div class="form-group">
       <label>${localize("DDA.Pool.Stat")}</label>
@@ -364,7 +650,7 @@ ${
     : ""
 }
     </div>
-
+    ${evasiveManeuversControl}
     ${
       statKey === "dodge"
         ? `
@@ -412,8 +698,32 @@ resolve({
   resultModifier,
   resultModifierSummary,
   automaticSuccesses,
-  dodgePenalty: Number(form.dodgePenalty.value),
-  qualityBaseDicePenalty: Number(options.qualityBaseDicePenalty ?? 0),
+dodgePenalty:
+  Number(
+    form.dodgePenalty.value
+  ),
+
+evasiveManeuversDice:
+  Math.min(
+    evasiveManeuversCurrent,
+
+    Math.max(
+      0,
+      Math.floor(
+        Number(
+          form.elements
+            .evasiveManeuversDice
+            ?.value ?? 0
+        )
+      )
+    )
+  ),
+
+qualityBaseDicePenalty:
+  Number(
+    options
+      .qualityBaseDicePenalty ?? 0
+  ),
   qualityAutomaticSuccesses: Number(options.qualityAutomaticSuccesses ?? 0),
   qualityAutomaticSuccessesTotal: Number(options.qualityAutomaticSuccessesTotal ?? options.qualityAutomaticSuccesses ?? 0),
   qualityAutomaticSuccessesAbsorbed: Number(options.qualityAutomaticSuccessesAbsorbed ?? 0),

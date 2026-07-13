@@ -13,8 +13,14 @@ import { registerDDASettings } from "./settings.js";
 import { executeForcedEvolution, endForcedEvolution, executeBlastEvolution } from "./combat/evolution.js";
 import { initiateDigimonClash, endDigimonClash, openDigimonClashActionMenu, handleClashChatAction } from "./combat/clash.js";
 import { takeTamerBreak } from "./combat/rest.js";
+
+import {
+  bindTamerActionChatCard
+} from "./combat/tamer-actions.js";
+
 import { openEncounterCalculator } from "./apps/encounter-calculator.js";
 import { DDA_TAMER_TALENTS } from "./data/tamer-talents.js";
+import { getTamerTalentUsesMax } from "./rules/tamer-talent-automation.js";
 import { DDADigimonQualityBrowser } from "./apps/digimon-quality-browser.js";
 import { DDAGmTools, registerDdaGmToolsControls } from "./apps/dda-gm-tools.js";
 import { DDADigimonWizard } from "./wizard/dda-digimon-wizard.js";
@@ -383,11 +389,21 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         ? html.element
         : null;
 
-  normalizeTamerCheckChatMessage(root);
+normalizeTamerCheckChatMessage(root);
 
-  if (!root?.querySelectorAll) return;
+if (!root?.querySelectorAll) return;
 
-  void bindAttackDodgeChatCard(message, root).catch((error) => {
+void bindTamerActionChatCard(
+  message,
+  root
+).catch((error) => {
+  console.warn(
+    "DDA | Could not bind Tamer Action chat card.",
+    error
+  );
+});
+
+void bindAttackDodgeChatCard(message, root).catch((error) => {
     console.warn("DDA | Could not bind the pending Dodge chat card.", error);
   });
 
@@ -446,6 +462,411 @@ Hooks.once("ready", () => {
   registerDdaHealthPips();
   registerDdaDefaultTokenDispositions();
 });
+
+function adaptiveArmorText(pt, en) {
+  return String(game.i18n?.lang ?? "")
+    .toLowerCase()
+    .startsWith("en")
+      ? en
+      : pt;
+}
+
+function normalizeAdaptiveArmorKey(value = "") {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function isAdaptiveArmorQuality(item) {
+  if (!item || item.type !== "quality") return false;
+
+  const sourceId = normalizeAdaptiveArmorKey(
+    item.system?.sourceId ??
+    item.system?.id ??
+    item.flags?.[game.system.id]?.sourceId ??
+    ""
+  );
+
+  const name = normalizeAdaptiveArmorKey(item.name);
+  const originalName = normalizeAdaptiveArmorKey(
+    item.system?.originalName ?? ""
+  );
+
+  return (
+    sourceId === "armaduradedigizoideadaptavel" ||
+    sourceId === "adaptivedigizoidarmor" ||
+    name === "armaduradedigizoideadaptavel" ||
+    name === "adaptivedigizoidarmor" ||
+    originalName === "adaptivedigizoidarmor"
+  );
+}
+
+function getAdaptiveArmorPointsPerRound(item) {
+  if (!item || item.type !== "quality") return 0;
+
+  const configuredPoints = Number(
+    item.system?.adaptiveArmor?.pointsPerRound ??
+    item.system?.grants?.adaptiveArmorPointsPerRound ??
+    0
+  );
+
+  if (Number.isFinite(configuredPoints) && configuredPoints > 0) {
+    return Math.floor(configuredPoints);
+  }
+
+  /*
+   * Compatibilidade com Items já existentes cujo DataModel não
+   * preservou o bloco superior system.adaptiveArmor.
+   */
+  return isAdaptiveArmorQuality(item) ? 4 : 0;
+}
+
+function getAdaptiveArmorQuality(actor) {
+  return actor?.items?.find((item) => {
+    return getAdaptiveArmorPointsPerRound(item) > 0;
+  }) ?? null;
+}
+
+function getAdaptiveArmorResponsibleUser(actor) {
+  const activeUsers = Array.from(game.users ?? [])
+    .filter((user) => user.active);
+
+  const ownerLevel = CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
+
+  const playerOwners = activeUsers
+    .filter((user) => {
+      if (user.isGM) return false;
+
+      try {
+        return actor.testUserPermission(user, ownerLevel);
+      } catch (_error) {
+        return false;
+      }
+    })
+    .sort((left, right) => {
+      return String(left.id).localeCompare(String(right.id));
+    });
+
+  if (playerOwners.length) {
+    return playerOwners[0];
+  }
+
+  return activeUsers
+    .filter((user) => user.isGM)
+    .sort((left, right) => {
+      return String(left.id).localeCompare(String(right.id));
+    })[0] ?? null;
+}
+
+function getAdaptiveArmorDefaultAllocation(actor, pointsPerRound) {
+  const points = Math.max(
+    0,
+    Math.floor(Number(pointsPerRound ?? 0))
+  );
+
+  const previous = actor.system?.combat?.adaptiveArmor ?? {};
+
+  const previousDodge = Math.max(
+    0,
+    Math.floor(Number(previous.dodge ?? 0))
+  );
+
+  const previousArmor = Math.max(
+    0,
+    Math.floor(Number(previous.armor ?? 0))
+  );
+
+  if (previousDodge + previousArmor === points) {
+    return {
+      dodge: previousDodge,
+      armor: previousArmor
+    };
+  }
+
+  const dodge = Math.ceil(points / 2);
+
+  return {
+    dodge,
+    armor: Math.max(0, points - dodge)
+  };
+}
+
+async function promptAdaptiveArmorAllocation(
+  actor,
+  quality,
+  pointsPerRound
+) {
+  const points = Math.max(
+    0,
+    Math.floor(Number(pointsPerRound ?? 0))
+  );
+
+  const defaultAllocation = getAdaptiveArmorDefaultAllocation(
+    actor,
+    points
+  );
+
+  const allocationOptions = [];
+
+  for (let dodge = points; dodge >= 0; dodge -= 1) {
+    const armor = points - dodge;
+
+    const checked = (
+      dodge === defaultAllocation.dodge &&
+      armor === defaultAllocation.armor
+    );
+
+    allocationOptions.push(`
+      <label class="dda-adaptive-armor-option">
+        <input
+          type="radio"
+          name="allocation"
+          value="${dodge}:${armor}"
+          ${checked ? "checked" : ""}
+        />
+
+        <span>
+          <strong>
+            ${adaptiveArmorText("Esquiva", "Dodge")} +${dodge}
+          </strong>
+
+          <span>•</span>
+
+          <strong>
+            ${adaptiveArmorText("Armadura", "Armor")} +${armor}
+          </strong>
+        </span>
+      </label>
+    `);
+  }
+
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: {
+      title: `${quality.name} — ${actor.name}`
+    },
+
+    content: `
+      <div class="dda-adaptive-armor-dialog">
+        <p>
+          ${adaptiveArmorText(
+            `Distribua os ${points} pontos da Armadura de Digizóide Adaptável para esta rodada.`,
+            `Distribute the ${points} Adaptive Digizoid Armor points for this round.`
+          )}
+        </p>
+
+        <div class="dda-adaptive-armor-options">
+          ${allocationOptions.join("")}
+        </div>
+
+        <p class="hint">
+          ${adaptiveArmorText(
+            "Fechar a janela mantém a distribuição anterior. Na primeira rodada, o padrão é uma divisão equilibrada.",
+            "Closing the window keeps the previous allocation. On the first round, the default is an even split."
+          )}
+        </p>
+      </div>
+    `,
+
+    buttons: [
+      {
+        action: "confirm",
+        label: adaptiveArmorText("Confirmar", "Confirm"),
+        default: true,
+
+        callback: (_event, button) => {
+          const rawValue = String(
+            button.form?.elements?.allocation?.value ?? ""
+          );
+
+          const [rawDodge, rawArmor] = rawValue.split(":");
+
+          const dodge = Math.max(
+            0,
+            Math.floor(Number(rawDodge ?? 0))
+          );
+
+          const armor = Math.max(
+            0,
+            Math.floor(Number(rawArmor ?? 0))
+          );
+
+          if (dodge + armor !== points) {
+            return defaultAllocation;
+          }
+
+          return {
+            dodge,
+            armor
+          };
+        }
+      },
+      {
+        action: "keep",
+        label: adaptiveArmorText(
+          "Manter distribuição",
+          "Keep allocation"
+        ),
+        callback: () => defaultAllocation
+      }
+    ],
+
+    rejectClose: false,
+    modal: true
+  });
+
+  return result ?? defaultAllocation;
+}
+
+async function processAdaptiveArmorStartOfRound(combat) {
+  const currentRound = Number(combat?.round ?? 0);
+
+  if (!combat?.id || currentRound < 1) return;
+
+  const processedActors = new Set();
+
+  for (const combatant of combat.combatants ?? []) {
+    const actor = combatant.actor;
+
+    if (!actor) continue;
+    if (processedActors.has(actor.uuid)) continue;
+    if (actor.type !== "digimon" && actor.type !== "npc") continue;
+
+    processedActors.add(actor.uuid);
+
+    const quality = getAdaptiveArmorQuality(actor);
+
+    if (!quality) continue;
+
+    const currentState =
+      actor.system?.combat?.adaptiveArmor ?? {};
+
+    const alreadyAllocatedThisRound = (
+      String(currentState.combatId ?? "") ===
+        String(combat.id) &&
+      Number(currentState.round ?? 0) === currentRound
+    );
+
+    if (alreadyAllocatedThisRound) continue;
+
+    const responsibleUser =
+      getAdaptiveArmorResponsibleUser(actor);
+
+    if (
+      !responsibleUser ||
+      responsibleUser.id !== game.user.id
+    ) {
+      continue;
+    }
+
+    const pointsPerRound =
+      getAdaptiveArmorPointsPerRound(quality);
+
+    if (pointsPerRound <= 0) continue;
+
+    let allocation;
+
+    try {
+      allocation = await promptAdaptiveArmorAllocation(
+        actor,
+        quality,
+        pointsPerRound
+      );
+    } catch (error) {
+      console.warn(
+        "DDA | Could not choose Adaptive Digizoid Armor allocation.",
+        {
+          actor: actor.name,
+          quality: quality.name,
+          error
+        }
+      );
+
+      allocation = getAdaptiveArmorDefaultAllocation(
+        actor,
+        pointsPerRound
+      );
+    }
+
+    const dodge = Math.max(
+      0,
+      Math.min(
+        pointsPerRound,
+        Math.floor(Number(allocation?.dodge ?? 0))
+      )
+    );
+
+    const armor = Math.max(
+      0,
+      Math.min(
+        pointsPerRound - dodge,
+        Math.floor(Number(allocation?.armor ?? 0))
+      )
+    );
+
+    await actor.update({
+      "system.combat.adaptiveArmor": {
+        active: true,
+        qualityId: quality.id,
+        sourceId: String(
+          quality.system?.sourceId ??
+          quality.system?.id ??
+          ""
+        ),
+        qualityName: quality.name,
+        pointsPerRound,
+        dodge,
+        armor,
+        combatId: combat.id,
+        round: currentRound,
+        updatedBy: game.user.id,
+        updatedAt: new Date().toISOString()
+      }
+    });
+
+    actor.sheet?.render(false);
+
+    ui.notifications.info(
+      adaptiveArmorText(
+        `${actor.name}: Esquiva +${dodge}, Armadura +${armor}.`,
+        `${actor.name}: Dodge +${dodge}, Armor +${armor}.`
+      )
+    );
+  }
+}
+
+/*
+ * Adaptive Armor normalmente é processada quando a Rodada muda.
+ *
+ * Também verificamos mudanças de Turno/estado do Combate para recuperar
+ * casos em que o mundo foi recarregado no meio da Rodada, a Quality foi
+ * adicionada durante o Combate ou o evento inicial não foi processado.
+ *
+ * processAdaptiveArmorStartOfRound já impede uma segunda escolha na
+ * mesma Rodada por meio de combatId + round.
+ */
+Hooks.on("updateCombat", async (combat, changed) => {
+  const roundChanged = Object.hasOwn(changed, "round");
+  const turnChanged = Object.hasOwn(changed, "turn");
+  const activeChanged = Object.hasOwn(changed, "active");
+
+  if (!roundChanged && !turnChanged && !activeChanged) return;
+  if (!combat?.started) return;
+  if (!combat?.combatants?.size) return;
+  if (Number(combat.round ?? 0) < 1) return;
+
+  try {
+    await processAdaptiveArmorStartOfRound(combat);
+  } catch (error) {
+    console.error(
+      "DDA | Could not process Adaptive Digizoid Armor.",
+      error
+    );
+  }
+});
+
 Hooks.on("updateCombat", async (combat, changed) => {
   if (!("round" in changed)) return;
   if (!combat?.combatants?.size) return;
@@ -744,11 +1165,16 @@ async function rechargeOfficialTamerTalentsByType(actor, rechargeType) {
     if (!uses.enabled) continue;
     if (uses.recharge !== rechargeType) continue;
 
-    const max = Number(uses.max ?? 0);
+    const max = getTamerTalentUsesMax(
+      actor,
+      talent
+    );
 
     if (max <= 0) continue;
 
-    const oldValue = Number(actor.system.tamerTalentUses?.[talent.id]?.value ?? max);
+    const oldValue = Number(
+      actor.system.tamerTalentUses?.[talent.id]?.value ?? max
+    );
 
     if (oldValue >= max) continue;
 

@@ -42,6 +42,57 @@ const DIGIMON_TOKEN_SCALE_BY_HUMAN_SCALING = {
   }
 };
 
+function isDigimonLikeActor(actor) {
+  return Boolean(
+    actor &&
+    (
+      actor.type === "digimon" ||
+      (
+        actor.type === "npc" &&
+        actor.system?.isDigimon
+      )
+    )
+  );
+}
+
+function getDigimonTokenGridSizeOverride(actor) {
+  const override = Number(
+    actor?.flags?.[MODULE_ID]?.tokenGridSizeOverride ?? 0
+  );
+
+  if (
+    !Number.isFinite(override) ||
+    override <= 0
+  ) {
+    return null;
+  }
+
+  return Math.max(
+    0.5,
+    Math.round(override * 2) / 2
+  );
+}
+
+export function getDigimonTokenScaleForSize(
+  sizeKey = "medium",
+  humanScaling = null
+) {
+  const scaling =
+    humanScaling ??
+    game.settings.get(MODULE_ID, "humanScaling") ??
+    "medium";
+
+  const size = String(
+    sizeKey ?? "medium"
+  ).trim() || "medium";
+
+  return (
+    DIGIMON_TOKEN_SCALE_BY_HUMAN_SCALING
+      [scaling]?.[size] ??
+    1
+  );
+}
+
 function localize(key) {
   return game.i18n.localize(key);
 }
@@ -69,21 +120,31 @@ function getClampedSizeForStage(sizeKey, stageKey) {
   return getStageMaxSize(stageKey);
 }
 
-export function getDigimonTokenScale(actor, humanScaling = null) {
-  if (!actor || actor.type !== "digimon") return 1;
+export function getDigimonTokenScale(
+  actor,
+  humanScaling = null
+) {
+  if (!isDigimonLikeActor(actor)) return 1;
 
-  const scaling =
-    humanScaling ??
-    game.settings.get(MODULE_ID, "humanScaling") ??
-    "medium";
+  const override =
+    getDigimonTokenGridSizeOverride(actor);
 
-  const size = actor.system.size ?? "medium";
+  /*
+   * Uma ocupação escolhida manualmente no wizard
+   * tem prioridade sobre a escala automática.
+   */
+  if (override !== null) {
+    return override;
+  }
 
-  return DIGIMON_TOKEN_SCALE_BY_HUMAN_SCALING[scaling]?.[size] ?? 1;
+  return getDigimonTokenScaleForSize(
+    actor.system?.size ?? "medium",
+    humanScaling
+  );
 }
 
 export async function applyDigimonTokenScaleToActor(actor, humanScaling = null) {
-  if (!actor || actor.type !== "digimon") return false;
+  if (!isDigimonLikeActor(actor)) return false;
 
   const tokenSize = getDigimonTokenScale(actor, humanScaling);
 
@@ -96,7 +157,7 @@ export async function applyDigimonTokenScaleToActor(actor, humanScaling = null) 
 }
 
 export async function applyDigimonTokenScaleToActorAndPlacedTokens(actor, humanScaling = null) {
-  if (!actor || actor.type !== "digimon") return false;
+  if (!isDigimonLikeActor(actor)) return false;
 
   const scaling =
     humanScaling ??
@@ -118,7 +179,7 @@ export async function applyDigimonTokenScaleToActorAndPlacedTokens(actor, humanS
     for (const token of scene.tokens) {
       const tokenActor = token.actor;
 
-      if (!tokenActor || tokenActor.type !== "digimon") continue;
+      if (!isDigimonLikeActor(tokenActor)) continue;
 
       const isSameActor =
         token.actorId === actor.id ||
@@ -402,7 +463,7 @@ function applyDigivolutionStep(tokens = [], effects = new Map(), originalState =
 }
 
 export async function applyDigimonTokenAppearanceToActorAndPlacedTokens(actor, options = {}) {
-  if (!actor || actor.type !== "digimon") return false;
+  if (!isDigimonLikeActor(actor)) return false;
 
   const scaling =
     options.humanScaling ??
@@ -622,7 +683,9 @@ export async function applyHumanScalingToAllDigimonTokens(humanScaling = null) {
   let updatedActors = 0;
   let updatedSceneTokens = 0;
 
-  const digimonActors = game.actors.filter((actor) => actor.type === "digimon");
+  const digimonActors = game.actors.filter((actor) => {
+  return isDigimonLikeActor(actor);
+});
 
   for (const actor of digimonActors) {
     const changed = await applyDigimonTokenScaleToActor(actor, scaling);
@@ -635,7 +698,7 @@ export async function applyHumanScalingToAllDigimonTokens(humanScaling = null) {
     for (const token of scene.tokens) {
       const actor = token.actor;
 
-      if (!actor || actor.type !== "digimon") continue;
+      if (!isDigimonLikeActor(actor)) continue;
 
       const tokenSize = getDigimonTokenScale(actor, scaling);
 
@@ -685,7 +748,7 @@ export async function confirmApplyHumanScalingToAllDigimonTokens(humanScaling = 
 export function registerDigimonTokenScaleHooks() {
   Hooks.on("updateActor", async (actor, changed) => {
     if (!game.user.isGM) return;
-    if (!actor || actor.type !== "digimon") return;
+    if (!isDigimonLikeActor(actor)) return;
 
     const newSize =
       foundry.utils.getProperty(changed, "system.size") ??

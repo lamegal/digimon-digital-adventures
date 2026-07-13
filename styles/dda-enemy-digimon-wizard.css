@@ -618,6 +618,84 @@ form.dda-enemy-npc-sheet .dda-device-button:hover {
   background: rgba(70, 46, 117, 0.18);
 }
 
+/* ----------------------------------------------------- */
+/* Ocupação visual do token                              */
+/* ----------------------------------------------------- */
+
+.dda-enemy-token-size-card {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    132px;
+  align-items: end;
+
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 10px;
+
+  border:
+    1px solid
+    rgba(176, 139, 255, 0.28);
+  border-radius: 7px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(56, 31, 82, 0.64),
+      rgba(27, 20, 43, 0.76)
+    );
+}
+
+.dda-enemy-token-size-card > div {
+  display: grid;
+
+  min-width: 0;
+  gap: 4px;
+}
+
+.dda-enemy-token-size-card > div > strong,
+.dda-enemy-token-size-card label > span {
+  color: #f2dfff;
+
+  font:
+    700 0.68rem/1
+    "PixelOperatorBold",
+    sans-serif;
+
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.dda-enemy-token-size-card > div > small,
+.dda-enemy-token-size-card label > small {
+  color: #b8a9c5;
+
+  font-size: 0.64rem;
+  line-height: 1.25;
+}
+
+.dda-enemy-token-size-card label {
+  display: grid;
+  gap: 4px;
+}
+
+.dda-enemy-token-size-card select {
+  width: 100%;
+  min-height: 32px;
+
+  padding: 5px 7px;
+
+  color: #fff7fb;
+  color-scheme: dark;
+
+  border:
+    1px solid
+    rgba(189, 148, 255, 0.34);
+  border-radius: 5px;
+
+  background-color: #211522;
+}
+
 .dda-enemy-budget-card {
   padding: 10px;
   border: 1px solid rgba(255, 147, 189, 0.25);
@@ -859,9 +937,10 @@ form.dda-enemy-npc-sheet .dda-device-button:hover {
   }
 
   .dda-enemy-stat-grid,
-  .dda-enemy-budget-inputs {
-    grid-template-columns: 1fr;
-  }
+.dda-enemy-budget-inputs,
+.dda-enemy-token-size-card {
+  grid-template-columns: 1fr;
+}
 }
 /* Dropdowns nativos: fundo e texto legíveis no Windows/Chromium */
 .dda-digimon-enemy-wizard select {
@@ -1278,10 +1357,15 @@ form.dda-enemy-npc-sheet .dda-device-button:hover {
 }
 
 .dda-enemy-attack-row {
-  grid-template-columns: minmax(0, 1fr) minmax(88px, 0.72fr) 30px;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(88px, 0.72fr)
+    30px;
+
   grid-template-areas:
     "name name remove"
-    "range function remove";
+    "range function remove"
+    "signature signature remove";
 
   min-width: 0;
   overflow: hidden;
@@ -1303,6 +1387,90 @@ form.dda-enemy-npc-sheet .dda-device-button:hover {
   grid-area: function;
 }
 
+.dda-enemy-attack-row
+.dda-enemy-signature-toggle {
+  grid-area: signature;
+
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+
+  min-width: 0;
+  min-height: 28px;
+
+  padding: 0.3rem 0.55rem;
+
+  color: #f2d9ff;
+
+  border:
+    1px solid
+    rgba(190, 139, 255, 0.28);
+
+  border-radius: 6px;
+
+  background:
+    rgba(104, 48, 139, 0.18);
+
+  cursor: pointer;
+}
+
+.dda-enemy-attack-row
+.dda-enemy-signature-toggle:hover {
+  border-color:
+    rgba(218, 174, 255, 0.72);
+
+  background:
+    rgba(131, 63, 176, 0.28);
+}
+
+.dda-enemy-attack-row
+.dda-enemy-signature-toggle
+input[type="checkbox"] {
+  flex: 0 0 16px;
+
+  width: 16px;
+  min-width: 16px;
+
+  height: 16px;
+  min-height: 16px;
+
+  margin: 0;
+}
+
+.dda-enemy-attack-row
+.dda-enemy-signature-toggle
+span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+
+  min-width: 0;
+
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.dda-enemy-attack-row
+.dda-enemy-signature-toggle:has(
+  input:checked
+) {
+  color: #ffffff;
+
+  border-color:
+    rgba(229, 195, 255, 0.88);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(130, 63, 183, 0.72),
+      rgba(76, 35, 120, 0.78)
+    );
+
+  box-shadow:
+    0 0 10px
+    rgba(181, 103, 255, 0.24);
+}
+
 .dda-enemy-attack-row > button {
   grid-area: remove;
   align-self: stretch;
@@ -1321,10 +1489,236 @@ form.dda-enemy-npc-sheet .dda-device-button:hover {
 
 @media (max-width: 1100px) {
   .dda-enemy-attack-row {
-    grid-template-columns: minmax(0, 1fr) 30px;
+    grid-template-columns:
+      minmax(0, 1fr)
+      30px;
+
     grid-template-areas:
       "name remove"
       "range remove"
-      "function remove";
+      "function remove"
+      "signature remove";
+  }
+}
+
+@media (max-width: 520px) {
+  .dda-enemy-attack-row {
+    grid-template-columns: 1fr;
+
+    grid-template-areas:
+      "name"
+      "range"
+      "function"
+      "signature"
+      "remove";
+  }
+
+  .dda-enemy-attack-row > button {
+    width: 100%;
+  }
+}
+/* ===================================================== */
+/* DDA — Enemy Wizard: Superior Mode Change              */
+/* ===================================================== */
+
+.dda-superior-mode-config {
+  display: grid;
+  gap: 0.65rem;
+
+  border-color: rgba(188, 139, 255, 0.34);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(48, 27, 76, 0.82),
+      rgba(30, 22, 51, 0.82)
+    );
+}
+
+.dda-superior-mode-config
+.dda-enemy-build-heading {
+  align-items: flex-start;
+}
+
+.dda-superior-mode-config
+.dda-enemy-build-heading > div:first-child {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.dda-superior-mode-config
+.dda-enemy-section-kicker {
+  color: rgba(218, 190, 255, 0.72);
+
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.dda-superior-mode-cost-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.dda-superior-mode-cost-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  min-height: 24px;
+  padding: 0.2rem 0.48rem;
+
+  color: #efe4ff;
+
+  border: 1px solid rgba(191, 146, 255, 0.32);
+  border-radius: 999px;
+
+  background: rgba(98, 61, 151, 0.42);
+
+  font-size: 0.62rem;
+}
+
+.dda-superior-mode-cost-summary strong {
+  color: #ffffff;
+}
+
+.dda-superior-mode-quality-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.dda-superior-mode-quality-list h4 {
+  margin: 0;
+
+  color: #ead9ff;
+
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dda-superior-mode-quality-choice {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 0.5rem;
+
+  width: 100%;
+  min-height: 42px;
+  padding: 0.42rem 0.52rem;
+
+  color: #f2e9ff;
+  text-align: left;
+
+  border: 1px solid rgba(194, 151, 255, 0.24);
+  border-radius: 7px;
+
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.dda-superior-mode-quality-choice:hover {
+  border-color: rgba(212, 178, 255, 0.62);
+  background: rgba(114, 71, 171, 0.24);
+}
+
+.dda-superior-mode-quality-choice.is-selected {
+  border-color: rgba(218, 184, 255, 0.78);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(112, 67, 169, 0.70),
+      rgba(72, 44, 116, 0.72)
+    );
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 0 12px rgba(177, 114, 255, 0.16);
+}
+
+.dda-superior-mode-quality-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 24px;
+  height: 24px;
+
+  border: 1px solid rgba(216, 184, 255, 0.42);
+  border-radius: 6px;
+
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dda-superior-mode-quality-name {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.dda-superior-mode-quality-name strong,
+.dda-superior-mode-quality-name small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-superior-mode-quality-name strong {
+  color: #fffaff;
+  font-size: 0.76rem;
+}
+
+.dda-superior-mode-quality-name small {
+  color: rgba(231, 214, 255, 0.72);
+  font-size: 0.64rem;
+}
+
+.dda-superior-mode-quality-cost {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 22px;
+  padding: 0.14rem 0.42rem;
+
+  color: #ffffff;
+
+  border: 1px solid rgba(204, 167, 255, 0.34);
+  border-radius: 999px;
+
+  background: rgba(92, 55, 144, 0.54);
+
+  font-size: 0.6rem;
+  font-weight: 900;
+}
+
+.dda-superior-mode-empty {
+  margin: 0;
+  padding: 0.55rem;
+
+  color: rgba(233, 220, 247, 0.72);
+
+  border: 1px dashed rgba(203, 164, 255, 0.28);
+  border-radius: 7px;
+
+  background: rgba(0, 0, 0, 0.14);
+
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .dda-superior-mode-config
+  .dda-enemy-build-heading {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .dda-superior-mode-cost-summary {
+    justify-content: flex-start;
   }
 }

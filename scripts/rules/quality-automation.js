@@ -1,3 +1,7 @@
+import {
+  applyLuckyNumberReward
+} from "../rolls/lucky-number.js";
+
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 
 export const QUALITY_ALIASES = {
@@ -55,8 +59,30 @@ export const QUALITY_ALIASES = {
   basicEffect: ["efeitobasico", "basiceffect", "basic effect"],
   advancedEffect: ["efeitoavancado", "advancedeffect", "advanced effect"],
   inspiringGuidance: ["orientacaoinspiradora", "inspiringguidance", "inspiring guidance"],
-  overclock: ["overclock"],
-  protectingShield: ["escudoprotetor", "protectingshield", "protecting shield"]
+
+  overclock: [
+    "overclock"
+  ],
+
+  modeChange: [
+    "mudancademodo",
+    "mudanca de modo",
+    "modechange",
+    "mode change"
+  ],
+
+  superiorModeChange: [
+    "mudancademodosuperior",
+    "mudanca de modo superior",
+    "superiormodechange",
+    "superior mode change"
+  ],
+
+  protectingShield: [
+    "escudoprotetor",
+    "protectingshield",
+    "protecting shield"
+  ]
 };
 
 export const EFFECT_TAGS = {
@@ -296,41 +322,253 @@ export function getElementTagsFromAttack(attackItem) {
   return [...tags];
 }
 
-export async function rollDerivedCheck(actor, statKey, { skillKey = "", tn = null, title = "", manualModifier = 0, createChat = true } = {}) {
-  const stat = actor?.system?.derivedStats?.[statKey];
-  if (!actor || !stat) return null;
-  const statValue = getActorDerivedStat(actor, statKey);
-  const skillBonusData = skillKey ? actor.system?.skillBonuses?.[skillKey] : null;
-  const skillBonus = Number(skillBonusData?.value ?? 0);
-  const modifier = statValue + skillBonus + Number(manualModifier ?? 0);
-  const roll = await new Roll("3d6 + @modifier", { modifier }).evaluate();
-  const total = Number(roll.total ?? 0);
-  const hasTN = Number.isFinite(Number(tn));
-  const tnValue = hasTN ? Number(tn) : null;
-  const success = hasTN ? total >= tnValue : null;
-  const criticalSuccess = hasTN ? total >= tnValue + 5 : false;
-  const criticalFailure = hasTN ? total <= tnValue - 5 : false;
-  const outcome = !hasTN ? "none" : criticalSuccess ? "criticalSuccess" : success ? "success" : criticalFailure ? "criticalFailure" : "failure";
-  const statLabel = localizeQ(`DDA.DerivedStat.${String(statKey).toUpperCase()}`, String(statKey).toUpperCase());
-  const skillLine = skillKey ? `<li>${localizeQ("DDA.Label.Skill", "Skill")}: <strong>${skillBonusData?.label ?? skillKey} ${skillBonus >= 0 ? "+" : ""}${skillBonus}</strong>.</li>` : "";
+export async function rollDerivedCheck(
+  actor,
+  statKey,
+  {
+    skillKey = "",
+    tn = null,
+    title = "",
+    manualModifier = 0,
+    createChat = true
+  } = {}
+) {
+  const stat =
+    actor?.system?.derivedStats
+      ?.[statKey];
+
+  if (!actor || !stat) {
+    return null;
+  }
+
+  const statValue =
+    getActorDerivedStat(
+      actor,
+      statKey
+    );
+
+  const skillBonusData =
+    skillKey
+      ? actor.system?.skillBonuses
+          ?.[skillKey]
+      : null;
+
+  const skillBonus =
+    Number(
+      skillBonusData?.value ?? 0
+    );
+
+  const modifier =
+    statValue +
+    skillBonus +
+    Number(
+      manualModifier ?? 0
+    );
+
+  const roll =
+    await new Roll(
+      "3d6 + @modifier",
+      {
+        modifier
+      }
+    ).evaluate();
+
+  const diceResults =
+    (
+      roll.dice?.[0]
+        ?.results ?? []
+    )
+      .filter((result) => {
+        return result.active !== false;
+      })
+      .map((result) => {
+        return Number(
+          result.result ?? 0
+        );
+      });
+
+  const total =
+    Number(
+      roll.total ?? 0
+    );
+
+  const hasTN =
+    Number.isFinite(
+      Number(tn)
+    );
+
+  const tnValue =
+    hasTN
+      ? Number(tn)
+      : null;
+
+  const success =
+    hasTN
+      ? total >= tnValue
+      : null;
+
+  const criticalSuccess =
+    hasTN
+      ? total >= tnValue + 5
+      : false;
+
+  const criticalFailure =
+    hasTN
+      ? total <= tnValue - 5
+      : false;
+
+  const outcome =
+    !hasTN
+      ? "none"
+      : criticalSuccess
+        ? "criticalSuccess"
+        : success
+          ? "success"
+          : criticalFailure
+            ? "criticalFailure"
+            : "failure";
+
+  const statLabel =
+    localizeQ(
+      `DDA.DerivedStat.${String(
+        statKey
+      ).toUpperCase()}`,
+
+      String(
+        statKey
+      ).toUpperCase()
+    );
+
+  const skillLine =
+    skillKey
+      ? `
+        <li>
+          ${localizeQ(
+            "DDA.Label.Skill",
+            "Skill"
+          )}:
+
+          <strong>
+            ${skillBonusData?.label ?? skillKey}
+            ${skillBonus >= 0 ? "+" : ""}
+            ${skillBonus}
+          </strong>.
+        </li>
+      `
+      : "";
+
   if (createChat) {
     await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
+      speaker:
+        ChatMessage.getSpeaker({
+          actor
+        }),
+
       rolls: [roll],
+
       content: `
         <div class="dda-chat-card dda-effect-card effect-special dda-derived-check-card ${outcome}">
-          <h2>${title || localizeQ("DDA.QualityAutomation.Check", "Quality Check")}</h2>
+          <h2>
+            ${
+              title ||
+              localizeQ(
+                "DDA.QualityAutomation.Check",
+                "Quality Check"
+              )
+            }
+          </h2>
+
           <ul class="dda-effect-list">
-            <li>${localizeQ("DDA.Label.DerivedStat", "Derived Stat")}: <strong>${statLabel} ${statValue}</strong>.</li>
+            <li>
+              ${localizeQ(
+                "DDA.Label.DerivedStat",
+                "Derived Stat"
+              )}:
+
+              <strong>
+                ${statLabel}
+                ${statValue}
+              </strong>.
+            </li>
+
             ${skillLine}
-            <li>${localizeQ("DDA.Roll.TN", "TN")}: <strong>${hasTN ? tnValue : "—"}</strong>.</li>
-            <li>${localizeQ("DDA.Roll.Total", "Total")}: <strong>${total}</strong>.</li>
-            <li>${localizeQ("DDA.Roll.Result", "Result")}: <strong>${localizeQ(`DDA.Check.${outcome[0]?.toUpperCase?.() ?? "N"}${outcome.slice(1)}`, outcome)}</strong>.</li>
+
+            <li>
+              ${localizeQ(
+                "DDA.Roll.TN",
+                "TN"
+              )}:
+
+              <strong>
+                ${hasTN ? tnValue : "—"}
+              </strong>.
+            </li>
+
+            <li>
+              ${localizeQ(
+                "DDA.Roll.Total",
+                "Total"
+              )}:
+
+              <strong>
+                ${total}
+              </strong>.
+            </li>
+
+            <li>
+              ${localizeQ(
+                "DDA.Roll.Result",
+                "Result"
+              )}:
+
+              <strong>
+                ${localizeQ(
+                  `DDA.Check.${
+                    outcome[0]
+                      ?.toUpperCase?.() ??
+                    "N"
+                  }${outcome.slice(1)}`,
+
+                  outcome
+                )}
+              </strong>.
+            </li>
           </ul>
-        </div>`
+        </div>
+      `
     });
   }
-  return { roll, total, tn: tnValue, outcome, success: Boolean(success), criticalSuccess, criticalFailure };
+
+  const luckyNumberResult =
+    await applyLuckyNumberReward(
+      actor,
+      diceResults,
+      {
+        source:
+          `derivedCheck:${statKey}`,
+
+        createChat
+      }
+    );
+
+  return {
+    roll,
+    total,
+
+    tn:
+      tnValue,
+
+    outcome,
+
+    success:
+      Boolean(success),
+
+    criticalSuccess,
+    criticalFailure,
+
+    diceResults,
+    luckyNumberResult
+  };
 }
 
 export function getLowRerollQualityForPool(actor, statKey) {

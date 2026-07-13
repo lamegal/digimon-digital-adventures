@@ -7,7 +7,7 @@
       data-quality-search
     />
 
-    <nav class="quality-browser-filters">
+    <nav class="quality-browser-filters quality-browser-tier-filters">
       {{#each tiers}}
         <button
           type="button"
@@ -15,6 +15,18 @@
           data-tier-filter="{{key}}"
         >
           {{localize label}}
+        </button>
+      {{/each}}
+    </nav>
+
+    <nav class="quality-browser-category-filters">
+      {{#each categories}}
+        <button
+          type="button"
+          class="{{#if (eq ../activeCategory key)}}active{{/if}}"
+          data-category-filter="{{key}}"
+        >
+          {{label}}
         </button>
       {{/each}}
     </nav>

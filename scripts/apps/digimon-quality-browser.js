@@ -1,5 +1,104 @@
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+const QUALITY_BROWSER_CATEGORY_FILTERS = [
+  { key: "all", pt: "Todas as categorias", en: "All categories" },
+  { key: "core", pt: "Centrais", en: "Core" },
+  { key: "attack", pt: "Ataque", en: "Attack / Offensive" },
+  { key: "defense", pt: "Defesa", en: "Defense" },
+  { key: "clash", pt: "Clash", en: "Clash" },
+  {
+    key: "effect",
+    pt: "Efeito e Conjuração",
+    en: "Effect & Conjuration"
+  },
+  { key: "utility", pt: "Utilidade", en: "Utility" },
+  {
+    key: "stanceMode",
+    pt: "Postura e Modo",
+    en: "Stance & Mode"
+  },
+  { key: "digizoid", pt: "Digizoide", en: "Digizoid" }
+];
 
+const QUALITY_BROWSER_SECTION_GROUPS = {
+  attack: [
+    "Offensive Qualities",
+    "Qualidades Ofensivas"
+  ],
+
+  defense: [
+    "Defensive Qualities",
+    "Qualidades Defensivas",
+    "Preservation Qualities",
+    "Qualidades de Preservação"
+  ],
+
+  clash: [
+    "Clash Qualities",
+    "Qualidades de Clash"
+  ],
+
+  effect: [
+    "Effect Qualities",
+    "Qualidades de Efeito",
+    "Evoker Qualities",
+    "Omnievoker Qualities",
+    "Qualidades de Conjurador",
+    "Qualidades de Conjuração"
+  ],
+
+  utility: [
+    "Utility Qualities",
+    "Qualidades Utilitárias"
+  ],
+
+  stanceMode: [
+    "Stance Qualities",
+    "Qualidades de Postura",
+    "Mode Change Qualities",
+    "Qualidades de Mudança de Modo"
+  ],
+
+  digizoid: [
+    "Digizoid Armor",
+    "Armaduras de Digizoide",
+    "Digizoid Weaponry",
+    "Armamentos de Digizoide"
+  ]
+};
+
+function isQualityBrowserEnglish() {
+  const language = String(
+    game?.i18n?.lang ??
+    game?.i18n?.language ??
+    ""
+  );
+
+  return language.toLowerCase().startsWith("en");
+}
+
+function matchesQualityBrowserCategory(
+  quality = {},
+  categoryKey = "all"
+) {
+  if (categoryKey === "all") return true;
+
+  const category = quality.category ?? {};
+  const section = String(quality.section ?? "");
+
+  if (categoryKey === "core") {
+    return Boolean(category.core);
+  }
+
+  if (categoryKey === "attack") {
+    return Boolean(category.attack) ||
+      QUALITY_BROWSER_SECTION_GROUPS.attack
+        .includes(section);
+  }
+
+  return QUALITY_BROWSER_SECTION_GROUPS[
+    categoryKey
+  ]?.includes(section) ?? false;
+}
 export function buildQualityItemData(quality) {
     return {
     name: quality.name,
@@ -26,6 +125,34 @@ export function buildQualityItemData(quality) {
       grants: quality.grants ?? {},
       activation: quality.activation ?? {},
       uses: quality.uses ?? {},
+
+      superiorModeChange: {
+        ...(quality.superiorModeChange ?? {}),
+
+        enabled: Boolean(
+          quality.superiorModeChange
+        ),
+
+        activeMode: "default",
+
+        configuration: {
+          complete: false,
+          defaultCost: 0,
+          modeCost: 0,
+          defaultQualityIds: [],
+          modeQualities: [],
+          defaultAttackKeys: [],
+          modeAttacks: [],
+
+          ...(
+            quality.superiorModeChange
+              ?.configuration ?? {}
+          )
+        }
+      },
+
+      creation: quality.creation ?? {},
+
       effect: quality.effect ?? "",
       description: quality.description ?? ""
     }
@@ -37,6 +164,7 @@ export class DDADigimonQualityBrowser extends Application {
     super(options);
     this.actor = actor;
     this.activeTier = "all";
+    this.activeCategory = "all";
     this.searchTerm = "";
   }
 
@@ -79,62 +207,127 @@ static get defaultOptions() {
       .filter((term) => term.length >= 3 && !stopWords.has(term));
   }
 
-  _matchesQualitySearch(quality, searchTerm) {
-    const query = this._normalizeSearchText(searchTerm);
+_getQualitySearchScore(quality, searchTerm) {
+  const query = this._normalizeSearchText(
+    searchTerm
+  );
 
-    if (!query) return true;
+  if (!query) return 0;
 
-    const terms = this._getSearchTerms(query);
+  const terms = this._getSearchTerms(query);
 
-    const nameHaystack = this._normalizeSearchText([
-      quality.name,
-      quality.originalName
-    ]
-      .filter(Boolean)
-      .join(" "));
+  const displayName = this._normalizeSearchText(
+    quality.name
+  );
 
-    const metaHaystack = this._normalizeSearchText([
-      quality.section,
-      quality.availability?.label,
-      quality.category?.label,
-      quality.requirements?.text,
-      quality.incompatible?.text
-    ]
-      .filter(Boolean)
-      .join(" "));
+  const originalName = this._normalizeSearchText(
+    quality.originalName
+  );
 
-    const fullHaystack = this._normalizeSearchText([
-      quality.name,
-      quality.originalName,
-      quality.section,
-      quality.availability?.label,
-      quality.category?.label,
-      quality.requirements?.text,
-      quality.incompatible?.text,
-      quality.effect,
-      quality.description
-    ]
-      .filter(Boolean)
-      .join(" "));
+  const displayNameWords = new Set(
+    displayName.split(/\s+/).filter(Boolean)
+  );
 
-    // 1. Exact phrase in name/original name.
-    if (nameHaystack.includes(query)) return true;
+  const originalNameWords = new Set(
+    originalName.split(/\s+/).filter(Boolean)
+  );
 
-    // 2. Exact phrase in important metadata.
-    if (metaHaystack.includes(query)) return true;
+  const nameHaystack = this._normalizeSearchText([
+    quality.name,
+    quality.originalName
+  ]
+    .filter(Boolean)
+    .join(" "));
 
-    // 3. Exact phrase in full text.
-    if (fullHaystack.includes(query)) return true;
+  const metaHaystack = this._normalizeSearchText([
+    quality.section,
+    quality.availability?.label,
+    quality.category?.label,
+    quality.requirements?.text,
+    quality.incompatible?.text
+  ]
+    .filter(Boolean)
+    .join(" "));
 
-    // 4. If the search only had irrelevant words, do not force a result.
-    if (!terms.length) return false;
+  const fullHaystack = this._normalizeSearchText([
+    quality.name,
+    quality.originalName,
+    quality.section,
+    quality.availability?.label,
+    quality.category?.label,
+    quality.requirements?.text,
+    quality.incompatible?.text,
+    quality.effect,
+    quality.description
+  ]
+    .filter(Boolean)
+    .join(" "));
 
-    // 5. Name/original: all relevant words must appear.
-    if (terms.every((term) => nameHaystack.includes(term))) return true;
+  /*
+   * Quanto maior a pontuação, mais cedo a
+   * Qualidade aparece nos resultados.
+   */
+  if (displayName === query) return 1000;
+  if (originalName === query) return 950;
 
-    // 6. Full text: all relevant words must appear.
-    return terms.every((term) => fullHaystack.includes(term));
+  if (displayName.startsWith(query)) return 900;
+  if (originalName.startsWith(query)) return 850;
+
+  if (
+    terms.length &&
+    terms.every((term) => {
+      return displayNameWords.has(term);
+    })
+  ) {
+    return 800;
   }
+
+  if (
+    terms.length &&
+    terms.every((term) => {
+      return originalNameWords.has(term);
+    })
+  ) {
+    return 760;
+  }
+
+  if (displayName.includes(query)) return 700;
+  if (originalName.includes(query)) return 650;
+
+  if (metaHaystack.includes(query)) return 400;
+  if (fullHaystack.includes(query)) return 200;
+
+  if (!terms.length) return -1;
+
+  if (
+    terms.every((term) => {
+      return nameHaystack.includes(term);
+    })
+  ) {
+    return 150;
+  }
+
+  if (
+    terms.every((term) => {
+      return fullHaystack.includes(term);
+    })
+  ) {
+    return 50;
+  }
+
+  return -1;
+}
+
+_matchesQualitySearch(quality, searchTerm) {
+  if (!this._normalizeSearchText(searchTerm)) {
+    return true;
+  }
+
+  return this._getQualitySearchScore(
+    quality,
+    searchTerm
+  ) >= 0;
+}
 
   getData() {
     const tiers = [
@@ -147,15 +340,66 @@ static get defaultOptions() {
       { key: "negative", label: "DDA.QualityBrowser.Filter.Negative" }
     ];
 
+        const categories =
+      QUALITY_BROWSER_CATEGORY_FILTERS.map(
+        (category) => ({
+          key: category.key,
+
+          label: isQualityBrowserEnglish()
+            ? category.en
+            : category.pt
+        })
+      );
+
     const term = this.searchTerm;
 
     const qualities = DDA_DIGIMON_QUALITIES
       .filter((quality) => {
-        if (this.activeTier !== "all" && quality.tier !== this.activeTier) return false;
+        if (
+          this.activeTier !== "all" &&
+          quality.tier !== this.activeTier
+        ) {
+          return false;
+        }
 
-        return this._matchesQualitySearch(quality, term);
+        if (
+          !matchesQualityBrowserCategory(
+            quality,
+            this.activeCategory
+          )
+        ) {
+          return false;
+        }
+
+        return this._matchesQualitySearch(
+          quality,
+          term
+        );
       })
+      .sort((left, right) => {
+        if (!String(term ?? "").trim()) {
+          return 0;
+        }
 
+        const scoreDifference =
+          this._getQualitySearchScore(
+            right,
+            term
+          ) -
+          this._getQualitySearchScore(
+            left,
+            term
+          );
+
+        if (scoreDifference !== 0) {
+          return scoreDifference;
+        }
+
+        return String(left.name ?? "").localeCompare(
+          String(right.name ?? ""),
+          game.i18n.lang
+        );
+      })
       .map((quality) => {
         const ownedItem = this.actor?.items?.find((item) => {
           return item.type === "quality" && item.system?.sourceId === quality.id;
@@ -217,7 +461,9 @@ static get defaultOptions() {
     return {
       actor: this.actor,
       tiers,
+      categories,
       activeTier: this.activeTier,
+      activeCategory: this.activeCategory,
       searchTerm: this.searchTerm,
       qualities
     };
@@ -232,7 +478,20 @@ static get defaultOptions() {
       this.render();
       });
 
-    html.find("[data-quality-search]").on("keydown", (event) => {
+    html.find("[data-category-filter]").on(
+      "click",
+      (event) => {
+        event.preventDefault();
+
+        this.activeCategory =
+          event.currentTarget
+            .dataset
+            .categoryFilter ?? "all";
+
+        this.render();
+      }
+    );
+      html.find("[data-quality-search]").on("keydown", (event) => {
   if (event.key !== "Enter") return;
 
   event.preventDefault();
@@ -305,16 +564,51 @@ static get defaultOptions() {
       };
     }
 
-    const [createdQuality] = await this.actor.createEmbeddedDocuments("Item", [itemData]);
-    if (quality.choices?.type !== "attackTag") {
-  await this._applyAttackChoiceToAttack(createdQuality, itemData.system?.choices?.selectedRanks?.[0]);
-}
+const [createdQuality] =
+  await this.actor.createEmbeddedDocuments(
+    "Item",
+    [itemData]
+  );
+
+await this._applyAttackChoiceToAttack(
+  createdQuality,
+  itemData.system?.choices?.selectedRanks?.[0]
+);
 
     ui.notifications.info(game.i18n.format("DDA.QualityBrowser.AddedToSheet", {
       quality: quality.name
     }));
 
     this.render();
+  }
+
+    _actorMeetsChoiceOptionRequirements(option = {}) {
+    const raw = String(
+      option.requirements?.qualityNames ?? ""
+    ).trim();
+
+    if (!raw) return true;
+
+    const requiredNames = raw
+      .split(/[,;|]/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    const actorQualityNames = new Set(
+      this._getActorQualityNames().map((name) => {
+        return this._normalizeSearchText(name);
+      })
+    );
+
+    const matches = requiredNames.map((requiredName) => {
+      return actorQualityNames.has(
+        this._normalizeSearchText(requiredName)
+      );
+    });
+
+    return option.requirements?.mode === "any"
+      ? matches.some(Boolean)
+      : matches.every(Boolean);
   }
 
 async _promptQualityChoice(quality, rankNumber, existingChoices = []) {
@@ -324,10 +618,58 @@ async _promptQualityChoice(quality, rankNumber, existingChoices = []) {
     return null;
   }
 
-  const isAttackChoice = ["singleAttack", "attackTag"].includes(choices.type);
-  const options = isAttackChoice
-    ? this._getAttackChoiceOptionsForQuality(quality, existingChoices)
-    : Array.isArray(choices.options) ? choices.options : [];
+const modifier =
+  quality.attackModifier ?? {};
+
+const grantsTags =
+  Array.isArray(
+    modifier.grantsTags
+  )
+    ? modifier.grantsTags
+    : [];
+
+const isAreaAttackChoice =
+  quality.id === "areaDeAtaque" ||
+  Boolean(
+    modifier.areaAttack
+  ) ||
+  (
+    String(
+      modifier.appliesTo ?? ""
+    ) === "differentAttackPerRank" &&
+
+    grantsTags.some((tag) => {
+      return String(tag)
+        .trim()
+        .toLowerCase()
+        .startsWith("t:");
+    })
+  );
+
+const isAttackChoice =
+  isAreaAttackChoice ||
+  [
+    "singleAttack",
+    "attackTag",
+    "effectTagPerRank"
+  ].includes(
+    choices.type
+  );
+
+  const options = (
+    isAttackChoice
+      ? this._getAttackChoiceOptionsForQuality(
+          quality,
+          existingChoices
+        )
+      : Array.isArray(choices.options)
+        ? choices.options
+        : []
+  ).filter((option) => {
+    return this._actorMeetsChoiceOptionRequirements(
+      option
+    );
+  });
 
   if (!options.length) {
     ui.notifications.warn(game.i18n.format(isAttackChoice ? "DDA.Warning.QualityChoiceHasNoAttacks" : "DDA.Warning.QualityChoiceHasNoOptions", {
@@ -336,17 +678,26 @@ async _promptQualityChoice(quality, rankNumber, existingChoices = []) {
     return null;
   }
 
-  const usedKeys = new Set(
-    existingChoices
-      .map((choice) => isAttackChoice ? choice.attackId : choice.key)
-      .filter(Boolean)
-  );
+const usedKeys = new Set(
+  existingChoices
+    .map((choice) => {
+      return choice.key;
+    })
+    .filter(Boolean)
+);
 
-  const availableOptions = options.filter((option) => {
-    if (!choices.cannotRepeat && !isAttackChoice) return true;
-    const key = isAttackChoice ? option.attackId : option.key;
-    return !usedKeys.has(key);
-  });
+const availableOptions =
+  isAttackChoice
+    ? options
+    : options.filter((option) => {
+        if (!choices.cannotRepeat) {
+          return true;
+        }
+
+        return !usedKeys.has(
+          option.key
+        );
+      });
 
     if (!availableOptions.length) {
       ui.notifications.warn(game.i18n.format("DDA.Warning.QualityNoAvailableOptions", {
@@ -415,15 +766,72 @@ async _promptQualityChoice(quality, rankNumber, existingChoices = []) {
     if (!selectedOption) return null;
 
 return {
-  rank: rankNumber,
-  key: selectedOption.key,
-  label: selectedOption.label ?? selectedOption.key,
-  originalLabel: selectedOption.originalLabel ?? "",
-  derivedStat: selectedOption.derivedStat ?? "",
-  attackId: selectedOption.attackId ?? "",
-  attackName: selectedOption.attackName ?? "",
-  attackTag: selectedOption.attackTag ?? "",
-  effect: selectedOption.effect ?? ""
+  rank:
+    rankNumber,
+
+  key:
+    selectedOption.key,
+
+  label:
+    selectedOption.label ??
+    selectedOption.key,
+
+  originalLabel:
+    selectedOption.originalLabel ??
+    "",
+
+  derivedStat:
+    selectedOption.derivedStat ??
+    "",
+
+  attackId:
+    selectedOption.attackId ??
+    "",
+
+  attackName:
+    selectedOption.attackName ??
+    "",
+
+  attackTag:
+    selectedOption.attackTag ??
+    "",
+
+  effectTag:
+    selectedOption.effectTag ??
+    "",
+
+  effectType:
+    selectedOption.effectType ??
+    selectedOption.type ??
+    "",
+
+  potencyStat:
+    selectedOption.potencyStat ??
+    selectedOption.potency ??
+    "",
+
+  duration:
+    selectedOption.duration ??
+    true,
+
+  extraActionRequired:
+    Boolean(
+      selectedOption.extraActionRequired
+    ),
+
+  requiresDamageTag:
+    Boolean(
+      selectedOption.requiresDamageTag
+    ),
+
+  onlyAffectsAllies:
+    Boolean(
+      selectedOption.onlyAffectsAllies
+    ),
+
+  effect:
+    selectedOption.effect ??
+    ""
 };
   }
 
@@ -446,78 +854,494 @@ return {
     }
   }
 
-_getAttackChoiceOptionsForQuality(quality, existingChoices = []) {
-  const attacks = this.actor?.items?.filter((item) => item.type === "attack") ?? [];
-  const modifier = quality.attackModifier ?? {};
-  const grantsTags = Array.isArray(modifier.grantsTags) ? modifier.grantsTags : [];
-  const primaryTag = grantsTags[0] ?? quality.id ?? "quality";
-  const normalizedPrimaryTag = String(primaryTag).toLowerCase();
-  const appliesTo = String(modifier.appliesTo ?? "oneAttack");
+_getAttackChoiceOptionsForQuality(
+  quality,
+  existingChoices = []
+) {
+  const attacks =
+    this.actor?.items?.filter(
+      (item) => {
+        return item.type === "attack";
+      }
+    ) ?? [];
 
-  const usedAttackIds = new Set(
-    existingChoices
-      .map((choice) => choice.attackId)
-      .filter(Boolean)
-  );
+  const modifier =
+    quality.attackModifier ?? {};
 
-  const areaOptions = Array.isArray(quality.choices?.options)
-    ? quality.choices.options.filter((option) => String(option.key ?? "").trim())
-    : [];
+  const choices =
+    quality.choices ?? {};
 
-  if (modifier.areaAttack || grantsTags.some((tag) => String(tag).toLowerCase().startsWith("t:"))) {
-    return areaOptions.flatMap((option) => {
-      const areaTag = `t:${String(option.key ?? "").replace(/^t:/i, "").toLowerCase()}`;
-      const appliesToOption = String(option.appliesTo ?? "");
+  const choiceType =
+    String(
+      choices.type ?? ""
+    );
 
-      return attacks
-        .filter((attack) => this._attackMatchesAreaOption(attack, appliesToOption))
-        .filter((attack) => !usedAttackIds.has(attack.id))
-        .filter((attack) => {
-          const tags = [
-            ...(Array.isArray(attack.system?.qualityTags) ? attack.system.qualityTags : []),
-            ...(Array.isArray(attack.system?.tags) ? attack.system.tags : [])
-          ].map((tag) => String(tag).toLowerCase());
+  const grantsTags =
+    Array.isArray(
+      modifier.grantsTags
+    )
+      ? modifier.grantsTags
+      : [];
 
-          return !tags.includes(areaTag);
+  const normalizeTag = (value) => {
+    return String(value ?? "")
+      .trim()
+      .replace(/^\[|\]$/g, "")
+      .toLowerCase();
+  };
+
+  const getChoiceTag = (
+    choice = {}
+  ) => {
+    const directTag =
+      normalizeTag(
+        choice.effectTag ??
+        choice.attackTag ??
+        ""
+      );
+
+    if (directTag) {
+      return directTag;
+    }
+
+    const keyText =
+      String(
+        choice.key ?? ""
+      ).trim();
+
+    const separatorIndex =
+      keyText.indexOf(":");
+
+    return separatorIndex >= 0
+      ? normalizeTag(
+          keyText.slice(
+            separatorIndex + 1
+          )
+        )
+      : normalizeTag(keyText);
+  };
+
+  const usedAttackIds =
+    new Set(
+      existingChoices
+        .map((choice) => {
+          return String(
+            choice.attackId ?? ""
+          ).trim();
         })
-        .map((attack) => ({
-          key: `${attack.id}:${areaTag}`,
-          label: `${attack.name} — [${areaTag.toUpperCase()}]`,
-          originalLabel: attack.name,
-          attackId: attack.id,
-          attackName: attack.name,
-          attackTag: areaTag,
-          derivedStat: option.derivedStat ?? "",
-          effect: option.effect ?? game.i18n.format("DDA.QualityBrowser.AttackChoiceEffect", {
-            attack: attack.name,
-            tag: `[${areaTag.toUpperCase()}]`
+        .filter(Boolean)
+    );
+
+  const usedTags =
+    new Set(
+      existingChoices
+        .map((choice) => {
+          return getChoiceTag(
+            choice
+          );
+        })
+        .filter(Boolean)
+    );
+
+  const getAttackTags = (
+    attack
+  ) => {
+    return [
+      ...(
+        Array.isArray(
+          attack.system?.qualityTags
+        )
+          ? attack.system.qualityTags
+          : []
+      ),
+
+      ...(
+        Array.isArray(
+          attack.system?.tags
+        )
+          ? attack.system.tags
+          : []
+      )
+    ].map(normalizeTag);
+  };
+
+  /*
+   * Reúne todas as Tags de Efeito das
+   * Qualidades Básica e Avançada.
+   */
+  const allEffectTags =
+    new Set(
+      DDA_DIGIMON_QUALITIES
+        .filter((entry) => {
+          return (
+            entry.choices?.type ===
+            "effectTagPerRank"
+          );
+        })
+        .flatMap((entry) => {
+          return Array.isArray(
+            entry.choices?.options
+          )
+            ? entry.choices.options.map(
+                (option) => {
+                  return normalizeTag(
+                    option.key
+                  );
+                }
+              )
+            : [];
+        })
+        .filter(Boolean)
+    );
+
+  const attackHasEffectTag = (
+    attack
+  ) => {
+    const directEffectTag =
+      attack.system
+        ?.effectTag
+        ?.enabled
+        ? normalizeTag(
+            attack.system
+              .effectTag
+              .tag
+          )
+        : "";
+
+    if (directEffectTag) {
+      return true;
+    }
+
+    return getAttackTags(attack)
+      .some((tag) => {
+        return allEffectTags.has(tag);
+      });
+  };
+
+  const isAreaAttackChoice =
+    quality.id ===
+      "areaDeAtaque" ||
+    Boolean(
+      modifier.areaAttack
+    ) ||
+    (
+      String(
+        modifier.appliesTo ?? ""
+      ) ===
+        "differentAttackPerRank" &&
+
+      grantsTags.some((tag) => {
+        return normalizeTag(tag)
+          .startsWith("t:");
+      })
+    );
+
+  /*
+   * ÁREA DE ATAQUE
+   */
+  if (isAreaAttackChoice) {
+    const areaOptions =
+      Array.isArray(
+        choices.options
+      )
+        ? choices.options
+        : [];
+
+    return areaOptions
+      .filter((option) => {
+        const areaTag =
+          `t:${normalizeTag(
+            option.key
+          ).replace(/^t:/, "")}`;
+
+        /*
+         * Cada Tag de Área só pode
+         * ser adquirida uma vez.
+         */
+        return !usedTags.has(
+          areaTag
+        );
+      })
+      .flatMap((option) => {
+        const areaTag =
+          `t:${normalizeTag(
+            option.key
+          ).replace(/^t:/, "")}`;
+
+        return attacks
+          .filter((attack) => {
+            return this
+              ._attackMatchesAreaOption(
+                attack,
+                option.appliesTo ?? ""
+              );
           })
-        }));
-    });
+          .filter((attack) => {
+            /*
+             * Cada Rank precisa ser aplicado
+             * a um Ataque diferente.
+             */
+            return !usedAttackIds.has(
+              attack.id
+            );
+          })
+          .filter((attack) => {
+            /*
+             * Impede duas Tags de Área
+             * no mesmo Ataque.
+             */
+            return !getAttackTags(attack)
+              .some((tag) => {
+                return tag.startsWith(
+                  "t:"
+                );
+              });
+          })
+          .map((attack) => ({
+            key:
+              `${attack.id}:${areaTag}`,
+
+            label:
+              `${attack.name} — [${areaTag.toUpperCase()}]`,
+
+            /*
+             * Não repetir o nome do Ataque
+             * entre parênteses em outros
+             * renderizadores.
+             */
+            originalLabel:
+              "",
+
+            attackId:
+              attack.id,
+
+            attackName:
+              attack.name,
+
+            attackTag:
+              areaTag,
+
+            derivedStat:
+              option.derivedStat ??
+              "",
+
+            appliesTo:
+              option.appliesTo ??
+              "",
+
+            effect:
+              option.effect ??
+              game.i18n.format(
+                "DDA.QualityBrowser.AttackChoiceEffect",
+                {
+                  attack:
+                    attack.name,
+
+                  tag:
+                    `[${areaTag.toUpperCase()}]`
+                }
+              )
+          }));
+      });
   }
 
-  return attacks
-    .filter((attack) => this._attackMatchesQualityAppliesTo(attack, appliesTo))
-    .filter((attack) => !usedAttackIds.has(attack.id))
-    .filter((attack) => {
-      const tags = [
-        ...(Array.isArray(attack.system?.qualityTags) ? attack.system.qualityTags : []),
-        ...(Array.isArray(attack.system?.tags) ? attack.system.tags : [])
-      ].map((tag) => String(tag).toLowerCase());
+  /*
+   * EFEITO BÁSICO / AVANÇADO
+   */
+  if (
+    choiceType ===
+    "effectTagPerRank"
+  ) {
+    const effectOptions =
+      Array.isArray(
+        choices.options
+      )
+        ? choices.options
+        : [];
 
-      return !tags.includes(normalizedPrimaryTag);
+    return effectOptions
+      .filter((option) => {
+        const effectTag =
+          normalizeTag(
+            option.key
+          );
+
+        /*
+         * O mesmo Efeito não pode
+         * ser adquirido novamente.
+         */
+        return (
+          effectTag &&
+          !usedTags.has(effectTag)
+        );
+      })
+      .flatMap((option) => {
+        const effectTag =
+          normalizeTag(
+            option.key
+          );
+
+        return attacks
+          .filter((attack) => {
+            return !usedAttackIds.has(
+              attack.id
+            );
+          })
+          .filter((attack) => {
+            if (
+              !option.requiresDamageTag
+            ) {
+              return true;
+            }
+
+            return (
+              String(
+                attack.system
+                  ?.baseTags
+                  ?.functionType ??
+                ""
+              )
+                .trim()
+                .toLowerCase() ===
+              "damage"
+            );
+          })
+          .filter((attack) => {
+            if (
+              !modifier
+                .onlyOneEffectTagPerAttack
+            ) {
+              return true;
+            }
+
+            return !attackHasEffectTag(
+              attack
+            );
+          })
+          .map((attack) => ({
+            key:
+              `${attack.id}:${effectTag}`,
+
+            label:
+              `${attack.name} — [${effectTag.toUpperCase()}]`,
+
+            originalLabel:
+              "",
+
+            attackId:
+              attack.id,
+
+            attackName:
+              attack.name,
+
+            /*
+             * _applyAttackChoiceToAttack
+             * utiliza attackTag para gravar
+             * em system.qualityTags.
+             */
+            attackTag:
+              effectTag,
+
+            effectTag,
+
+            effectType:
+              option.type ??
+              "",
+
+            potencyStat:
+              option.potency ??
+              "",
+
+            duration:
+              option.duration ??
+              true,
+
+            extraActionRequired:
+              Boolean(
+                option.extraActionRequired
+              ),
+
+            requiresDamageTag:
+              Boolean(
+                option.requiresDamageTag
+              ),
+
+            onlyAffectsAllies:
+              Boolean(
+                option.onlyAffectsAllies
+              ),
+
+            effect:
+              option.effect ??
+              ""
+          }));
+      });
+  }
+
+  /*
+   * OUTRAS QUALIDADES VINCULADAS
+   * A UM ATAQUE
+   */
+  const primaryTag =
+    normalizeTag(
+      grantsTags[0] ??
+      quality.id ??
+      "quality"
+    );
+
+  const appliesTo =
+    String(
+      modifier.appliesTo ??
+      "oneAttack"
+    );
+
+  return attacks
+    .filter((attack) => {
+      return this
+        ._attackMatchesQualityAppliesTo(
+          attack,
+          appliesTo
+        );
+    })
+    .filter((attack) => {
+      return !usedAttackIds.has(
+        attack.id
+      );
+    })
+    .filter((attack) => {
+      return !getAttackTags(attack)
+        .includes(primaryTag);
     })
     .map((attack) => ({
-      key: `${attack.id}:${normalizedPrimaryTag}`,
-      label: `${attack.name} — [${String(normalizedPrimaryTag).toUpperCase()}]`,
-      originalLabel: attack.name,
-      attackId: attack.id,
-      attackName: attack.name,
-      attackTag: normalizedPrimaryTag,
-      effect: game.i18n.format("DDA.QualityBrowser.AttackChoiceEffect", {
-        attack: attack.name,
-        tag: `[${String(normalizedPrimaryTag).toUpperCase()}]`
-      })
+      key:
+        `${attack.id}:${primaryTag}`,
+
+      label:
+        `${attack.name} — [${primaryTag.toUpperCase()}]`,
+
+      originalLabel:
+        "",
+
+      attackId:
+        attack.id,
+
+      attackName:
+        attack.name,
+
+      attackTag:
+        primaryTag,
+
+      effect:
+        game.i18n.format(
+          "DDA.QualityBrowser.AttackChoiceEffect",
+          {
+            attack:
+              attack.name,
+
+            tag:
+              `[${primaryTag.toUpperCase()}]`
+          }
+        )
     }));
 }
 
@@ -601,8 +1425,15 @@ _getAttackChoiceOptionsForQuality(quality, existingChoices = []) {
       "system.rank.value": nextRank
     };
 
-    if (quality?.choices?.required) {
-      const choice = await this._promptQualityChoice(quality, nextRank, existingChoices);
+    if (
+      quality?.choices?.required &&
+      quality.choices.repeatOnRankIncrease !== false
+    ) {
+      const choice = await this._promptQualityChoice(
+        quality,
+        nextRank,
+        existingChoices
+      );
 
       if (!choice) return;
 
@@ -610,10 +1441,16 @@ _getAttackChoiceOptionsForQuality(quality, existingChoices = []) {
       updateData["system.choices.selectedRanks"] = existingChoices;
     }
 
-    await item.update(updateData);
-    if (quality?.choices?.type !== "attackTag") {
-  await this._applyAttackChoiceToAttack(item, updateData["system.choices.selectedRanks"]?.at?.(-1));
-}
+await item.update(
+  updateData
+);
+
+await this._applyAttackChoiceToAttack(
+  item,
+  updateData[
+    "system.choices.selectedRanks"
+  ]?.at?.(-1)
+);
 
     ui.notifications.info(game.i18n.format("DDA.QualityBrowser.RankIncreased", {
       quality: item.name,
@@ -712,7 +1549,11 @@ _isAccelerateQuality(quality, ownedItem = null) {
 
     return this.actor.items
       .filter((item) => item.type === "quality")
-      .map((item) => item.name)
+      .flatMap((item) => [
+        item.name,
+        item.system?.originalName,
+        item.system?.sourceId
+      ])
       .filter(Boolean);
   }
 
@@ -728,27 +1569,53 @@ _isAccelerateQuality(quality, ownedItem = null) {
   }
 
   _actorHasRequiredQualities(quality) {
-    const requiredNames = this._parseRequiredQualityNames(quality);
+    const requiredNames =
+      this._parseRequiredQualityNames(quality);
 
     if (!requiredNames.length) return true;
 
-    const actorQualityNames = this._getActorQualityNames();
+    const actorQualityNames = new Set(
+      this._getActorQualityNames().map((name) => {
+        return this._normalizeSearchText(name);
+      })
+    );
 
-    return requiredNames.every((requiredName) => {
-      return actorQualityNames.includes(requiredName);
+    const matches = requiredNames.map((requiredName) => {
+      return actorQualityNames.has(
+        this._normalizeSearchText(requiredName)
+      );
     });
+
+    return quality.requirements?.mode === "any"
+      ? matches.some(Boolean)
+      : matches.every(Boolean);
   }
 
   _getMissingRequiredQualities(quality) {
-    const requiredNames = this._parseRequiredQualityNames(quality);
+    const requiredNames =
+      this._parseRequiredQualityNames(quality);
 
     if (!requiredNames.length) return [];
 
-    const actorQualityNames = this._getActorQualityNames();
+    const actorQualityNames = new Set(
+      this._getActorQualityNames().map((name) => {
+        return this._normalizeSearchText(name);
+      })
+    );
 
-    return requiredNames.filter((requiredName) => {
-      return !actorQualityNames.includes(requiredName);
+    const missing = requiredNames.filter((requiredName) => {
+      return !actorQualityNames.has(
+        this._normalizeSearchText(requiredName)
+      );
     });
+
+    if (quality.requirements?.mode === "any") {
+      return missing.length === requiredNames.length
+        ? requiredNames
+        : [];
+    }
+
+    return missing;
   }
 
   _parseIncompatibleQualityNames(quality) {

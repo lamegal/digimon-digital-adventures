@@ -86,66 +86,121 @@
   </div>
 
   <div class="dda-tamer-header-resources">
-    <div class="form-group compact resource-row pi-block">
-      <label>{{localize "DDA.Resource.IP.Short"}}</label>
-      <div class="inline-inputs small-resource">
-        <input type="number" name="system.resources.ip.value" value="{{system.resources.ip.value}}" />
-        <span>/</span>
-        <input type="number" name="system.resources.ip.max" value="{{system.resources.ip.max}}" readonly />
-      </div>
-    </div>
-
     <div class="form-group compact resource-row pe-block">
       <label>{{localize "DDA.Resource.EvolutionPoints.Short"}}</label>
+
       <div class="inline-inputs small-resource">
-        <input type="number" name="system.resources.evolutionPoints.value" value="{{system.resources.evolutionPoints.value}}" />
+        <input
+          type="number"
+          name="system.resources.evolutionPoints.value"
+          value="{{system.resources.evolutionPoints.value}}"
+        />
+
         <span>/</span>
-        <input type="number" name="system.resources.evolutionPoints.max" value="{{system.resources.evolutionPoints.max}}" readonly />
+
+        <input
+          type="number"
+          name="system.resources.evolutionPoints.max"
+          value="{{system.resources.evolutionPoints.max}}"
+          readonly
+        />
+      </div>
+    </div>
+
+    <div class="form-group compact resource-row pi-block">
+      <label>{{localize "DDA.Resource.IP.Short"}}</label>
+
+      <div class="dda-ip-resource-control">
+        <div class="inline-inputs small-resource">
+          <input
+            type="number"
+            name="system.resources.ip.value"
+            value="{{system.resources.ip.value}}"
+          />
+
+          <span>/</span>
+
+          <input
+            type="number"
+            name="system.resources.ip.max"
+            value="{{system.resources.ip.max}}"
+            readonly
+          />
+        </div>
+
+        <span
+          class="dda-temporary-ip-chip {{#unless temporaryIp}}empty{{/unless}}"
+          title="{{localize 'DDA.Resource.IP.TemporaryHint'}}"
+        >
+          +{{temporaryIp}} {{localize "DDA.Resource.IP.TemporaryShort"}}
+        </span>
       </div>
     </div>
   </div>
 
-  <div class="form-group compact partner-block">
-    <label>{{localize "DDA.TamerSheet.Partner"}}</label>
-    <input type="text" value="{{partnerIdentityName}}" readonly />
-  </div>
+  <section class="dda-header-column dda-header-partner-column">
+    <div class="form-group compact partner-block">
+      <label>{{localize "DDA.TamerSheet.Partner"}}</label>
+      <input type="text" value="{{partnerIdentityName}}" readonly />
+    </div>
 
-  <div class="partner-actions">
-    <button type="button" class="open-partner-sheet" title="{{localize "DDA.TamerSheet.Tooltip.OpenPartnerSheet"}}">
-      {{localize "DDA.Button.Open"}}
-    </button>
+    <div class="partner-actions">
+      <button
+        type="button"
+        class="open-partner-sheet"
+        title="{{localize "DDA.TamerSheet.Tooltip.OpenPartnerSheet"}}"
+      >
+        {{localize "DDA.Button.Open"}}
+      </button>
 
-    {{#if specialEvolutionSettings.enableHybridEvolution}}
-    <button type="button" class="hybrid-partner" title="{{localize "DDA.TamerSheet.Tooltip.HybridPartner"}}">
-      {{localize "DDA.Button.Hybrid"}}
-    </button>
-    {{/if}}
+      {{#if specialEvolutionSettings.enableHybridEvolution}}
+      <button
+        type="button"
+        class="hybrid-partner"
+        title="{{localize "DDA.TamerSheet.Tooltip.HybridPartner"}}"
+      >
+        {{localize "DDA.Button.Hybrid"}}
+      </button>
+      {{/if}}
 
-    {{#if specialEvolutionSettings.enableBioMergeEvolution}}
-    <button type="button" class="biomerge-partner" title="{{localize "DDA.TamerSheet.Tooltip.BioMergePartner"}}">
-      {{localize "DDA.Button.BioMerge"}}
-    </button>
-    {{/if}}
-  </div>
+      {{#if specialEvolutionSettings.enableBioMergeEvolution}}
+      <button
+        type="button"
+        class="biomerge-partner"
+        title="{{localize "DDA.TamerSheet.Tooltip.BioMergePartner"}}"
+      >
+        {{localize "DDA.Button.BioMerge"}}
+      </button>
+      {{/if}}
+    </div>
+  </section>
 
-  <div class="dda-header-separator" aria-hidden="true"></div>
+  <section class="dda-header-column dda-header-form-column">
+    <div class="form-group compact current-form-block">
+      <label>{{localize "DDA.TamerSheet.CurrentForm"}}</label>
+      <input type="text" value="{{partnerCurrentSpecies}}" readonly />
+    </div>
 
-  <div class="form-group compact current-form-block">
-    <label>{{localize "DDA.TamerSheet.CurrentForm"}}</label>
-    <input type="text" value="{{partnerCurrentSpecies}}" readonly />
-  </div>
+    <div class="current-form-actions evolution-form-actions">
+      <button
+        type="button"
+        class="evolution-options-partner"
+        title="{{localize "DDA.TamerSheet.Tooltip.DigivolvePartner"}}"
+      >
+        {{localize "DDA.Button.Digivolve"}}
+      </button>
 
-  <div class="current-form-actions evolution-form-actions">
-    <button type="button" class="evolution-options-partner" title="{{localize "DDA.TamerSheet.Tooltip.DigivolvePartner"}}">
-      {{localize "DDA.Button.Digivolve"}}
-    </button>
-
-    {{#if specialEvolutionSettings.enableJogressEvolution}}
-    <button type="button" class="jogress-partner" title="{{localize "DDA.TamerSheet.Tooltip.JogressPartner"}}">
-      {{localize "DDA.Button.Jogress"}}
-    </button>
-    {{/if}}
-  </div>
+      {{#if specialEvolutionSettings.enableJogressEvolution}}
+      <button
+        type="button"
+        class="jogress-partner"
+        title="{{localize "DDA.TamerSheet.Tooltip.JogressPartner"}}"
+      >
+        {{localize "DDA.Button.Jogress"}}
+      </button>
+      {{/if}}
+    </div>
+  </section>
 
 </div>
     </header>
@@ -332,12 +387,31 @@
     <section class="tab dda-tamer-combat-tab" data-group="primary" data-tab="combat">
       <h2>{{localize "DDA.TamerSheet.Combat"}}</h2>
 
-      <div class="combat-actions">
-        <button type="button" class="recovery-menu">{{localize "DDA.Button.RecoveryOptions"}}</button>
-        {{#if specialEvolutionSettings.enableForcedEvolution}}
-        <button type="button" class="end-forced-evolution-partner">{{localize "DDA.Button.EndForcedEvolution"}}</button>
-        {{/if}}
-      </div>
+<div class="combat-actions">
+  <button
+    type="button"
+    class="open-tamer-action-menu"
+  >
+    <i class="fa-solid fa-bullhorn"></i>
+    {{localize "DDA.TamerAction.Menu.Title"}}
+  </button>
+
+  <button
+    type="button"
+    class="recovery-menu"
+  >
+    {{localize "DDA.Button.RecoveryOptions"}}
+  </button>
+
+  {{#if specialEvolutionSettings.enableForcedEvolution}}
+  <button
+    type="button"
+    class="end-forced-evolution-partner"
+  >
+    {{localize "DDA.Button.EndForcedEvolution"}}
+  </button>
+  {{/if}}
+</div>
 
       <div class="resource-grid character-combat-main-resources">
         <div class="resource-box">
@@ -584,30 +658,45 @@
       {{localize "DDA.Button.Open"}}
     </button>
 
-    {{#unless (eq item.system.useType "passive")}}
-      <button
-        type="button"
-        class="use-tamer-talent"
-        data-talent-id="{{item.id}}"
-        data-talent-source="official"
-      >
-        {{localize "DDA.Button.Use"}}
-      </button>
-    {{/unless}}
-  {{else}}
-    <button type="button" class="item-edit">{{localize "DDA.Button.Edit"}}</button>
-    <button type="button" class="item-delete">{{localize "DDA.Button.Delete"}}</button>
-
-    {{#if item.requirementMet}}
+    {{#unless item.system.automation.triggeredOnly}}
       {{#unless (eq item.system.useType "passive")}}
         <button
           type="button"
           class="use-tamer-talent"
           data-talent-id="{{item.id}}"
-          data-talent-source="item"
+          data-talent-source="official"
         >
           {{localize "DDA.Button.Use"}}
         </button>
+      {{/unless}}
+    {{/unless}}
+  {{else}}
+    <button
+      type="button"
+      class="item-edit"
+    >
+      {{localize "DDA.Button.Edit"}}
+    </button>
+
+    <button
+      type="button"
+      class="item-delete"
+    >
+      {{localize "DDA.Button.Delete"}}
+    </button>
+
+    {{#if item.requirementMet}}
+      {{#unless item.system.automation.triggeredOnly}}
+        {{#unless (eq item.system.useType "passive")}}
+          <button
+            type="button"
+            class="use-tamer-talent"
+            data-talent-id="{{item.id}}"
+            data-talent-source="item"
+          >
+            {{localize "DDA.Button.Use"}}
+          </button>
+        {{/unless}}
       {{/unless}}
     {{/if}}
   {{/if}}

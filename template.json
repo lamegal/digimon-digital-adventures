@@ -23,8 +23,9 @@
           },
           "hasAttackedThisRound": false,
           "surprised": false,
-          "defeated": false
-        },
+          "defeated": false,
+          "tamerActionUses": {}   
+       },
         "effects": {
           "active": []
         }
@@ -323,7 +324,8 @@
           "label": "DDA.Resource.IP.Short",
           "value": 1,
           "temp": 0,
-          "max": 3
+          "max": 3,
+          "temporarySources": []
         },
         "evolutionPoints": {
           "label": "DDA.Resource.EvolutionPoints.Short",
@@ -1290,6 +1292,31 @@
         "active": false,
         "mode": "toggle",
         "chatMessage": ""
+      },
+      "superiorModeChange": {
+        "enabled": false,
+        "activeMode": "default",
+        "defaultQualitiesMaxDpFormula": "stage * 3",
+        "modeQualitiesTotalDpMustEqualDefaultQualities": true,
+        "swapsQualitiesAndAttacks": true,
+        "losesBenefitsFromRemovedQualities": true,
+        "statBonusesRemovedWhenQualityRemoved": true,
+        "maxWoundBoxChangesAffectCurrentWoundBoxes": true,
+        "cannotLoseMaxWoundsUnlessCanLoseEqualCurrentWounds": true,
+        "doesNotAffectResolve": true,
+        "mustMeetRequirementsForSelectedQualities": true,
+        "cannotRemoveQualitiesRequiredByKeptQualities": true,
+        "attacksWithTagsFromDefaultQualitiesMustBeSelected": true,
+        "createSameNumberOfNewAttacks": true,
+        "configuration": {
+          "complete": false,
+          "defaultCost": 0,
+          "modeCost": 0,
+          "defaultQualityIds": [],
+          "modeQualities": [],
+          "defaultAttackKeys": [],
+          "modeAttacks": []
+        }
       },
       "effect": ""
     },

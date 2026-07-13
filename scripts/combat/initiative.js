@@ -1,3 +1,15 @@
+import {
+  expireStartOfTurnQualityEffects
+} from "../rules/overclock.js";
+
+import {
+  hasUnlockedOfficialTamerTalent
+} from "../rules/tamer-resources.js";
+
+import {
+  getActorSv
+} from "../rules/quality-automation.js";
+
 const SYSTEM_ID = "digimon-digital-adventures";
 const FLAG = "initiative";
 
@@ -103,6 +115,211 @@ function tamerInitiativeBase(actor) {
     + number(actor?.system?.skills?.awareness?.value, 0);
 }
 
+function getUnitPairActors(unit) {
+  const tamer =
+    unit?.members?.find(
+      (member) => member.role === "tamer"
+    )?.combatant?.actor ?? null;
+
+  const digimon =
+    unit?.members?.find(
+      (member) => member.role === "digimon"
+    )?.combatant?.actor ?? null;
+
+  return {
+    tamer,
+    digimon
+  };
+}
+
+function getHyperAlertInitiativeBonus(unit) {
+  const {
+    tamer,
+    digimon
+  } = getUnitPairActors(unit);
+
+  if (!tamer || !digimon) {
+    return 0;
+  }
+
+  if (
+    !hasUnlockedOfficialTamerTalent(
+      tamer,
+      "hyperAlert"
+    )
+  ) {
+    return 0;
+  }
+
+  const awareness = number(
+    tamer.system?.skills
+      ?.awareness?.value,
+    0
+  );
+
+  return Math.max(
+    0,
+    awareness - 2
+  );
+}
+
+function getEvasiveManeuversReserveMaximum(
+  tamer,
+  digimon
+) {
+  const agility = Math.max(
+    0,
+    number(
+      tamer?.system
+        ?.attributes?.agility
+        ?.value,
+      0
+    )
+  );
+
+  const sv = Math.max(
+    0,
+    number(
+      getActorSv(digimon),
+      number(
+        digimon?.system?.stageValue,
+        0
+      )
+    )
+  );
+
+  return Math.max(
+    0,
+    sv + agility
+  );
+}
+
+async function initializeEvasiveManeuversReserve(
+  unit,
+  combat
+) {
+  const {
+    tamer,
+    digimon
+  } = getUnitPairActors(unit);
+
+  if (!tamer || !digimon || !combat) {
+    return null;
+  }
+
+  if (
+    !hasUnlockedOfficialTamerTalent(
+      tamer,
+      "evasiveManeuvers"
+    )
+  ) {
+    return null;
+  }
+
+  const previousState =
+    foundry.utils.deepClone(
+      digimon.system?.combat
+        ?.tamerTalentReserves
+        ?.evasiveManeuvers ??
+      {}
+    );
+
+  /*
+   * Rolar novamente a Iniciativa dentro do
+   * mesmo Combate não recria a reserva.
+   */
+  if (
+    String(
+      previousState.combatId ?? ""
+    ) === String(combat.id)
+  ) {
+    unit.evasiveManeuvers =
+      previousState;
+
+    return previousState;
+  }
+
+  const maximum =
+    getEvasiveManeuversReserveMaximum(
+      tamer,
+      digimon
+    );
+
+  if (maximum <= 0) {
+    return null;
+  }
+
+  const state = {
+    active: true,
+
+    combatId:
+      combat.id,
+
+    sourceTamerUuid:
+      tamer.uuid,
+
+    sourceTamerName:
+      tamer.name,
+
+    current:
+      maximum,
+
+    max:
+      maximum,
+
+    createdAt:
+      new Date().toISOString()
+  };
+
+  const talentUsage =
+    foundry.utils.deepClone(
+      tamer.system?.combat
+        ?.tamerTalentUsage ??
+      {}
+    );
+
+  talentUsage.evasiveManeuvers = {
+    combatId:
+      combat.id,
+
+    round:
+      number(
+        combat.round,
+        1
+      ),
+
+    turn:
+      number(
+        combat.turn,
+        0
+      ),
+
+    frequency:
+      "oncePerCombat",
+
+    usedAt:
+      new Date().toISOString()
+  };
+
+  await digimon.update({
+    "system.combat.tamerTalentReserves.evasiveManeuvers":
+      state
+  });
+
+  await tamer.update({
+    "system.combat.tamerTalentUsage":
+      talentUsage
+  });
+
+  unit.evasiveManeuvers =
+    state;
+
+  digimon.sheet?.render(false);
+  tamer.sheet?.render(false);
+
+  return state;
+}
+
 function findPartnerCombatant(tamerCombatant, combatants) {
   const partnerUuid = tamerCombatant.actor?.system?.partner?.uuid;
 
@@ -203,16 +420,25 @@ function unitName(unit) {
 }
 
 async function rollUnitInitiative(unit) {
-  const digimonMember = unit.members.find(
-    (member) => member.role === "digimon"
-  );
+  const digimonMember =
+    unit.members.find(
+      (member) =>
+        member.role === "digimon"
+    );
 
   const primaryActor =
     digimonMember?.combatant.actor ??
     unit.members[0]?.combatant.actor;
 
-  const roll = await new Roll("3d6").evaluate();
-  const dice = number(roll.total, 0);
+  const roll =
+    await new Roll(
+      "3d6"
+    ).evaluate();
+
+  const dice = number(
+    roll.total,
+    0
+  );
 
   const isDigimon =
     unit.kind === "pair" ||
@@ -221,18 +447,44 @@ async function rollUnitInitiative(unit) {
 
   const base = isDigimon
     ? ramOf(primaryActor)
-    : tamerInitiativeBase(primaryActor);
+    : tamerInitiativeBase(
+        primaryActor
+      );
 
-  const bonus = isDigimon
-    ? digimonInitiativeBonus(primaryActor)
+  const systemBonus = isDigimon
+    ? digimonInitiativeBonus(
+        primaryActor
+      )
     : 0;
+
+  const hyperAlertBonus = isDigimon
+    ? getHyperAlertInitiativeBonus(
+        unit
+      )
+    : 0;
+
+  const bonus =
+    systemBonus +
+    hyperAlertBonus;
 
   unit.initiative = {
     dice,
     base,
+
+    systemBonus,
+    hyperAlertBonus,
+
     bonus,
-    raw: dice + base + bonus,
-    ram: isDigimon ? ramOf(primaryActor) : 0
+
+    raw:
+      dice +
+      base +
+      bonus,
+
+    ram:
+      isDigimon
+        ? ramOf(primaryActor)
+        : 0
   };
 }
 
@@ -362,26 +614,92 @@ function initiativeCard(units) {
     const {
       dice,
       base,
+      systemBonus = 0,
+      hyperAlertBonus = 0,
       bonus,
       raw
     } = unit.initiative;
 
-    const bonusText = bonus
-      ? ` ${bonus >= 0 ? "+" : "-"} ${Math.abs(bonus)}`
-      : "";
+
+    const talentNotes = [];
+
+    if (hyperAlertBonus > 0) {
+      talentNotes.push(`
+        <span class="dda-initiative-talent-note">
+          <strong>Hyper Alert:</strong>
+          +${hyperAlertBonus}
+        </span>
+      `);
+    }
+
+    const evasiveReserve = number(
+      unit.evasiveManeuvers?.current,
+      0
+    );
+
+    if (evasiveReserve > 0) {
+      talentNotes.push(`
+        <span class="dda-initiative-talent-note">
+          <strong>Evasive Maneuvers:</strong>
+          ${evasiveReserve}
+          ${label(
+            "dados de Esquiva",
+            "Dodge dice"
+          )}
+        </span>
+      `);
+    }
+
+    const technicalParts = [
+      `3d6 (${dice})`,
+      `${base}`
+    ];
+
+    if (systemBonus !== 0) {
+      technicalParts.push(
+        `${systemBonus >= 0 ? "+" : "-"} ${Math.abs(systemBonus)}`
+      );
+    }
+
+    if (hyperAlertBonus !== 0) {
+      technicalParts.push(
+        `${hyperAlertBonus >= 0 ? "+" : "-"} ${Math.abs(hyperAlertBonus)}`
+      );
+    }
 
     return `
       <li>
-        <strong>${html(unitName(unit))}</strong>
-        <span>3d6 (${dice}) + ${base}${bonusText}</span>
+        <strong>
+          ${html(unitName(unit))}
+        </strong>
+
+        <span>
+          ${technicalParts.join(" ")}
+        </span>
+
         <b>${raw}</b>
+
+        ${
+          talentNotes.length
+            ? `
+              <div class="dda-initiative-talent-notes">
+                ${talentNotes.join("")}
+              </div>
+            `
+            : ""
+        }
       </li>
     `;
   }).join("");
 
   return `
     <div class="dda-chat-card dda-effect-card effect-special dda-initiative-card">
-      <h2>${label("Iniciativa", "Initiative")}</h2>
+      <h2>
+        ${label(
+          "Iniciativa",
+          "Initiative"
+        )}
+      </h2>
 
       <p>
         ${label(
@@ -417,11 +735,25 @@ export async function rollDDACombatInitiative(
 
     const ordered = orderUnits(units);
 
-  if (!combat.started) {
-    await combat.startCombat();
-  }
+if (!combat.started) {
+  await combat.startCombat();
+}
 
-  const updates = [];
+/*
+ * Hyper Alert já foi incluído durante
+ * rollUnitInitiative.
+ *
+ * Evasive Maneuvers nasce agora, depois
+ * que o Combate possui um ID e está ativo.
+ */
+for (const unit of ordered) {
+  await initializeEvasiveManeuversReserve(
+    unit,
+    combat
+  );
+}
+
+const updates = [];
 
   ordered.forEach((unit, unitIndex) => {
     unit.members.forEach((member, memberIndex) => {
@@ -444,10 +776,26 @@ export async function rollDDACombatInitiative(
         [combatantFlag("role")]: member.role,
         [combatantFlag("side")]: unit.side,
 
-        [combatantFlag("raw")]: unit.initiative.raw,
-        [combatantFlag("dice")]: unit.initiative.dice,
-        [combatantFlag("base")]: unit.initiative.base,
-        [combatantFlag("bonus")]: unit.initiative.bonus,
+[combatantFlag("raw")]:
+  unit.initiative.raw,
+
+[combatantFlag("dice")]:
+  unit.initiative.dice,
+
+[combatantFlag("base")]:
+  unit.initiative.base,
+
+[combatantFlag("bonus")]:
+  unit.initiative.bonus,
+
+[combatantFlag("systemBonus")]:
+  unit.initiative.systemBonus ?? 0,
+
+[combatantFlag("hyperAlertBonus")]:
+  unit.initiative.hyperAlertBonus ?? 0,
+
+[combatantFlag("evasiveManeuversMax")]:
+  unit.evasiveManeuvers?.max ?? 0,
 
         [combatantFlag("orderIndex")]: unitIndex,
         [combatantFlag("lastEndedRound")]: 0,
@@ -574,7 +922,18 @@ async function setActiveCombatant(combat, combatantId) {
   if (turnIndex < 0) return false;
   if (Number(combat.turn ?? -1) === turnIndex) return true;
 
-  await combat.update({ turn: turnIndex });
+  await combat.update({
+    turn: turnIndex
+  });
+
+  const activeActor =
+    combat.turns?.[turnIndex]?.actor ??
+    combat.combatant?.actor;
+
+  await expireStartOfTurnQualityEffects(
+    activeActor
+  );
+
   return true;
 }
 
@@ -600,6 +959,11 @@ async function advanceToNextUnit(combat, sourceCombatant) {
     }
 
     await combat.update(updateData);
+
+    await expireStartOfTurnQualityEffects(
+      candidate.actor
+    );
+
     return true;
   }
 
@@ -632,6 +996,10 @@ export async function advanceDDACombatTurn(
   if (!unitId) {
     if (combat.combatant?.id === combatant.id) {
       await combat.nextTurn();
+
+      await expireStartOfTurnQualityEffects(
+        combat.combatant?.actor
+      );
 
       return {
         advanced: true,

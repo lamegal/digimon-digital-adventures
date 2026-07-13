@@ -408,6 +408,8 @@
       type="number"
       name="system.mainStats.{{key}}.base"
       value="{{stat.base}}"
+      min="1"
+      max="20"
     />
 
     <input
@@ -459,6 +461,24 @@
       <span>{{localize "DDA.Label.Size"}}: {{stat.breakdown.sizeLabel}}</span>
       <strong>{{stat.breakdown.sizeBonus}}</strong>
     </div>
+
+    {{#if stat.breakdown.qualityBonus}}
+      <div class="dda-tooltip-quality-block">
+        <span class="dda-tooltip-quality-label">
+          {{localize "DDA.TooltipQualityBonus"}}
+        </span>
+
+        {{#if stat.breakdown.qualitySourcesSummary}}
+          <strong class="dda-tooltip-quality-sources">
+            {{stat.breakdown.qualitySourcesSummary}}
+          </strong>
+        {{else}}
+          <strong class="dda-tooltip-quality-sources">
+            {{stat.breakdown.qualityBonus}}
+          </strong>
+        {{/if}}
+      </div>
+    {{/if}}
 
     <div class="dda-tooltip-total">
       <span>{{stat.breakdown.totalLabel}}</span>
@@ -667,20 +687,25 @@
   </div>
   {{/if}}
 
-  {{#if hasCreationLimitResource}}
+  {{#if hasMasteryResource}}
   <div class="resource-box">
-    <label>{{localize "DDA.Resource.CreationLimit"}}</label>
+    <label>Mastery</label>
+
     <div class="inline-inputs">
       <input
         type="number"
-        name="system.resources.creationLimit.value"
-        value="{{system.resources.creationLimit.value}}"
+        min="0"
+        max="{{system.resources.mastery.max}}"
+        name="system.resources.mastery.value"
+        value="{{system.resources.mastery.value}}"
       />
+
       <span>/</span>
+
       <input
         type="number"
-        name="system.resources.creationLimit.max"
-        value="{{system.resources.creationLimit.max}}"
+        name="system.resources.mastery.max"
+        value="{{system.resources.mastery.max}}"
         readonly
       />
     </div>

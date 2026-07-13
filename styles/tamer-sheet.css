@@ -2690,398 +2690,433 @@ form.dda-tamer-window-sheet .grid-2 {
   overflow: visible !important;
 }
 /* ===================================================== */
-/* DDA — Tamer Header sem Ações                          */
+/* DDA — Tamer Header consolidado                        */
 /* ===================================================== */
 
 form.dda-tamer-window-sheet .actions-block {
   display: none !important;
 }
 
-form.dda-tamer-window-sheet .dda-tamer-header-layout {
-  grid-template-columns: 150px minmax(0, 1fr) !important;
-  grid-template-areas:
-    "resources partner"
-    "resources actions"
-    "resources form" !important;
-
-  gap: 6px 14px !important;
-}
-
-form.dda-tamer-window-sheet .dda-resource-stack {
-  justify-content: center !important;
-  gap: 8px !important;
-}
-
-/* Como agora só ficam PI e PE, eles podem respirar melhor */
-form.dda-tamer-window-sheet .resource-row {
-  grid-template-columns: 24px minmax(0, 130px) !important;
-}
-
-form.dda-tamer-window-sheet .small-resource {
-  grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr) !important;
-}
-
-form.dda-tamer-window-sheet .partner-actions {
-  grid-template-columns: 1fr 1.25fr 42px !important;
-}
-
-/* Forma atual agora é a espécie, então deixa visualmente mais “informativo” */
-form.dda-tamer-window-sheet .current-form-block input {
-  font-weight: 900 !important;
-  letter-spacing: 0.035em !important;
-  text-transform: none !important;
-}
-/* ===================================================== */
-/* DDA — Tamer Header: Número da Sorte estilo SV         */
-/* ===================================================== */
-
-/* A linha do nome volta a ser só o nome */
-form.dda-tamer-window-sheet .dda-tamer-top-row {
-  display: block !important;
+form.dda-tamer-window-sheet .sheet-header {
   position: relative !important;
+  flex: 0 0 auto !important;
+
+  min-height: 164px !important;
+  height: auto !important;
+
+  margin: 0 0 10px 0 !important;
+  padding: 14px 18px 12px 175px !important;
+
+  overflow: visible !important;
 }
 
-/* Badge do Número da Sorte */
-form.dda-tamer-window-sheet .dda-luck-badge {
-  position: absolute !important;
+form.dda-tamer-window-sheet .sheet-header .header-fields {
+  position: relative !important;
+  z-index: 4 !important;
 
-  right: 2px !important;
-  top: -2px !important;
-
-  width: 58px !important;
-  height: 58px !important;
-
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  z-index: 8 !important;
-
-  background:
-    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.95), rgba(200, 236, 214, 0.94) 48%, rgba(82, 162, 104, 0.96) 100%) !important;
-
-  border: 3px solid rgba(7, 58, 42, 0.95) !important;
-  border-radius: 999px !important;
-
-  box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, 0.55),
-    inset 0 -8px 14px rgba(0, 70, 35, 0.18),
-    0 3px 9px rgba(0, 0, 0, 0.22),
-    0 0 8px rgba(80, 210, 120, 0.18) !important;
-}
-
-/* Trevinho decorativo */
-form.dda-tamer-window-sheet .dda-luck-clover {
-  position: absolute !important;
-
-  left: 5px !important;
-  top: 3px !important;
-
-  color: #0f7d42 !important;
-  font-size: 1rem !important;
-  line-height: 1 !important;
-
-  text-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.85),
-    0 0 5px rgba(65, 190, 100, 0.35) !important;
-
-  pointer-events: none !important;
-}
-
-/* Número editável */
-form.dda-tamer-window-sheet .dda-luck-badge input {
-  width: 34px !important;
-  height: 34px !important;
-
+  width: 100% !important;
+  margin: 0 !important;
   padding: 0 !important;
-  margin: 8px 0 0 6px !important;
 
-  color: #07341f !important;
+  display: block !important;
+}
 
-  font-family: "Reactor7", "Arial Black", Impact, sans-serif !important;
-  font-size: 1.35rem !important;
-  font-weight: 900 !important;
+form.dda-tamer-window-sheet .dda-tamer-header-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 1.35fr)
+    minmax(230px, 1fr) !important;
+
+  grid-template-areas:
+    "name resources"
+    "partner form" !important;
+
+  column-gap: 16px !important;
+  row-gap: 10px !important;
+
+  align-items: start !important;
+
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+/* ---------- linha superior ---------- */
+
+form.dda-tamer-window-sheet .dda-name-block {
+  grid-area: name !important;
+
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+
+  align-self: center !important;
+}
+
+form.dda-tamer-window-sheet .dda-name-block h1 {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+form.dda-tamer-window-sheet .dda-name-block input[name="name"] {
+  width: 100% !important;
+  max-width: 360px !important;
+
+  height: 32px !important;
+  min-height: 32px !important;
+
+  padding: 0 0.4rem !important;
+
+  color: #0c2035 !important;
+
+  font-family:
+    "PixelOperatorBold",
+    "Reactor7",
+    Arial,
+    sans-serif !important;
+
+  font-size: 1.55rem !important;
+  font-weight: 700 !important;
   line-height: 1 !important;
-  text-align: center !important;
+  letter-spacing: 0.02em !important;
 
   background: transparent !important;
   background-image: none !important;
 
   border: none !important;
+  border-bottom:
+    1px solid
+    rgba(45, 105, 150, 0.35) !important;
+
   border-radius: 0 !important;
-
   box-shadow: none !important;
-  outline: none !important;
-
-  pointer-events: auto !important;
 }
 
-/* Remove setinhas do input number */
-form.dda-tamer-window-sheet .dda-luck-badge input::-webkit-outer-spin-button,
-form.dda-tamer-window-sheet .dda-luck-badge input::-webkit-inner-spin-button {
-  -webkit-appearance: none !important;
+form.dda-tamer-window-sheet .dda-tamer-header-resources {
+  grid-area: resources !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: nowrap !important;
+  gap: 14px !important;
+
+  min-width: 0 !important;
+  width: 100% !important;
+
+  overflow: visible !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-header-resources .resource-row {
+  display: flex !important;
+  align-items: center !important;
+  flex: 0 0 auto !important;
+  gap: 5px !important;
+
+  min-width: 0 !important;
+
   margin: 0 !important;
+  padding: 0 !important;
 }
 
-form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
-  -moz-appearance: textfield !important;
-  appearance: textfield !important;
-}
-/* ===================================================== */
-/* DDA — Tamer Header: recursos sem Ações                */
-/* ===================================================== */
+form.dda-tamer-window-sheet .dda-tamer-header-resources .resource-row label {
+  flex: 0 0 auto !important;
 
-form.dda-tamer-window-sheet .actions-block {
+  min-width: auto !important;
+  width: auto !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #1d2e3a !important;
+
+  font-family:
+    "PixelOperatorBold",
+    "Trebuchet MS",
+    Arial,
+    sans-serif !important;
+
+  font-size: 0.90rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-header-resources .small-resource {
+  display: grid !important;
+  grid-template-columns: 40px 8px 40px !important;
+  align-items: center !important;
+  gap: 4px !important;
+
+  min-width: 0 !important;
+
+  transform: none !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-header-resources .small-resource input {
+  width: 40px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+
+  padding: 0 !important;
+
+  color: #17384f !important;
+
+  font-family:
+    "PixelOperatorBold",
+    Arial,
+    sans-serif !important;
+
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  line-height: 28px !important;
+  text-align: center !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(250, 253, 255, 0.96),
+      rgba(222, 238, 248, 0.92)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(45, 100, 135, 0.34) !important;
+
+  border-radius: 5px !important;
+
+  box-shadow:
+    inset 0 0 6px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-header-resources .small-resource span {
+  color: #1d2e3a !important;
+
+  font-family:
+    "PixelOperatorBold",
+    Arial,
+    sans-serif !important;
+
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  line-height: 28px !important;
+  text-align: center !important;
+}
+
+/* ---------- parceiro e forma atual ---------- */
+
+form.dda-tamer-window-sheet .dda-header-column {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+form.dda-tamer-window-sheet .dda-header-partner-column {
+  grid-area: partner !important;
+}
+
+form.dda-tamer-window-sheet .dda-header-form-column {
+  grid-area: form !important;
+
+  padding-left: 16px !important;
+
+  border-left:
+    1px solid
+    rgba(35, 80, 110, 0.24) !important;
+}
+
+form.dda-tamer-window-sheet .partner-block,
+form.dda-tamer-window-sheet .current-form-block {
+  margin: 0 !important;
+  padding: 0 !important;
+
+  min-width: 0 !important;
+}
+
+form.dda-tamer-window-sheet .partner-block label,
+form.dda-tamer-window-sheet .current-form-block label {
+  display: block !important;
+
+  min-width: 0 !important;
+  width: auto !important;
+
+  margin: 0 0 3px 0 !important;
+
+  color: #1d2e3a !important;
+
+  font-family:
+    "PixelOperatorBold",
+    "Trebuchet MS",
+    Arial,
+    sans-serif !important;
+
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+form.dda-tamer-window-sheet .partner-block input,
+form.dda-tamer-window-sheet .current-form-block input {
+  width: 100% !important;
+
+  height: 30px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+
+  padding: 0 0.45rem !important;
+
+  color: #17384f !important;
+
+  font-family:
+    "PixelOperatorBold",
+    Arial,
+    sans-serif !important;
+
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  line-height: 30px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(250, 253, 255, 0.96),
+      rgba(222, 238, 248, 0.92)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(45, 100, 135, 0.34) !important;
+
+  border-radius: 5px !important;
+
+  box-shadow:
+    inset 0 0 6px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
+}
+
+form.dda-tamer-window-sheet .partner-actions,
+form.dda-tamer-window-sheet .current-form-actions {
+  display: grid !important;
+  align-items: stretch !important;
+  gap: 6px !important;
+
+  min-width: 0 !important;
+  width: 100% !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+form.dda-tamer-window-sheet .partner-actions {
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr)) !important;
+}
+
+form.dda-tamer-window-sheet .current-form-actions {
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr)) !important;
+}
+
+form.dda-tamer-window-sheet .partner-actions button,
+form.dda-tamer-window-sheet .current-form-actions button {
+  width: 100% !important;
+
+  height: 30px !important;
+  min-height: 30px !important;
+
+  margin: 0 !important;
+  padding: 0 0.45rem !important;
+
+  color: #f3fbff !important;
+
+  font-family:
+    "PixelOperatorBold",
+    "Chronotype",
+    Arial,
+    sans-serif !important;
+
+  font-size: 0.84rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(8, 42, 75, 0.96),
+      rgba(4, 25, 48, 0.96)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(115, 205, 255, 0.35) !important;
+
+  border-radius: 6px !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(210, 245, 255, 0.08),
+    inset 0 -8px 14px
+      rgba(0, 120, 210, 0.08),
+    0 2px 6px
+      rgba(0, 0, 0, 0.16) !important;
+}
+
+form.dda-tamer-window-sheet .partner-actions button:hover,
+form.dda-tamer-window-sheet .current-form-actions button:hover {
+  color: #ffffff !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(15, 75, 125, 0.98),
+      rgba(5, 38, 72, 0.98)
+    ) !important;
+
+  border-color:
+    rgba(160, 230, 255, 0.58) !important;
+
+  text-shadow:
+    0 0 5px
+    rgba(120, 220, 255, 0.45) !important;
+}
+
+form.dda-tamer-window-sheet .partner-actions .unlink-partner {
   display: none !important;
 }
 
-form.dda-tamer-window-sheet .dda-resource-stack {
-  justify-content: center !important;
-  gap: 8px !important;
-}
-
-form.dda-tamer-window-sheet .resource-row {
-  grid-template-columns: 24px minmax(0, 130px) !important;
-}
-
-form.dda-tamer-window-sheet .dda-tamer-header-layout {
-  grid-template-columns: 150px minmax(0, 1fr) !important;
-  grid-template-areas:
-    "resources partner"
-    "resources actions"
-    "resources form" !important;
+form.dda-tamer-window-sheet .dda-header-separator {
+  display: none !important;
 }
 
 /* ===================================================== */
-/* DDA — Número da Sorte flutuando igual ao SV           */
-/* ===================================================== */
-
-/* importante: permitir que o badge "vaze" pra fora */
-form.dda-tamer-window-sheet .dda-window-shell,
-form.dda-tamer-window-sheet .dda-window-frame,
-form.dda-tamer-window-sheet .dda-window-paper,
-form.dda-tamer-window-sheet .sheet-header,
-form.dda-tamer-window-sheet .header-fields,
-form.dda-tamer-window-sheet .dda-tamer-top-row {
-  overflow: visible !important;
-}
-
-/* o header precisa ser a referência */
-form.dda-tamer-window-sheet .sheet-header {
-  position: relative !important;
-}
-
-/* a linha de cima fica só pro nome */
-form.dda-tamer-window-sheet .dda-tamer-top-row {
-  display: block !important;
-  position: relative !important;
-}
-
-/* badge do número da sorte */
-form.dda-tamer-window-sheet .dda-luck-badge {
-  position: absolute !important;
-
-  /* ajuste principal */
-  top: -26px !important;
-  right: -34px !important;
-
-  width: 62px !important;
-  height: 62px !important;
-
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  z-index: 30 !important;
-
-  background:
-    radial-gradient(circle at 35% 25%,
-      rgba(255,255,255,0.98),
-      rgba(223,247,228,0.98) 45%,
-      rgba(151,216,169,0.98) 72%,
-      rgba(64,145,89,1) 100%) !important;
-
-  border: 3px solid #0e5d3b !important;
-  border-radius: 999px !important;
-
-  box-shadow:
-    inset 0 0 0 2px rgba(255,255,255,0.55),
-    inset 0 -8px 14px rgba(0, 70, 35, 0.18),
-    0 4px 12px rgba(0,0,0,0.28),
-    0 0 10px rgba(67, 205, 110, 0.18) !important;
-}
-
-/* trevinho */
-form.dda-tamer-window-sheet .dda-luck-badge .dda-luck-clover {
-  position: absolute !important;
-  top: 5px !important;
-  right: 8px !important;
-
-  font-size: 0.95rem !important;
-  line-height: 1 !important;
-  color: #167c42 !important;
-
-  text-shadow:
-    0 1px 0 rgba(255,255,255,0.8),
-    0 0 4px rgba(70, 200, 110, 0.35) !important;
-
-  pointer-events: none !important;
-}
-
-/* input do número */
-form.dda-tamer-window-sheet .dda-luck-badge input {
-  width: 28px !important;
-  height: 28px !important;
-
-  margin: 2px 0 0 2px !important;
-  padding: 0 !important;
-
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
-
-  color: #0a4f2e !important;
-  text-align: center !important;
-  line-height: 1 !important;
-
-  font-family: "Reactor7", "Pixel Operator", "Arial Black", sans-serif !important;
-  font-size: 1.2rem !important;
-  font-weight: 900 !important;
-}
-
-/* tira as setinhas do input number */
-form.dda-tamer-window-sheet .dda-luck-badge input::-webkit-outer-spin-button,
-form.dda-tamer-window-sheet .dda-luck-badge input::-webkit-inner-spin-button {
-  -webkit-appearance: none !important;
-  margin: 0 !important;
-}
-
-form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
-  appearance: textfield !important;
-  -moz-appearance: textfield !important;
-}
-/* ===================================================== */
-/* DDA — Número da Sorte flutuando igual ao SV           */
-/* ===================================================== */
-
-/* importante: permitir que o badge "vaze" pra fora */
-form.dda-tamer-window-sheet .dda-window-shell,
-form.dda-tamer-window-sheet .dda-window-frame,
-form.dda-tamer-window-sheet .dda-window-paper,
-form.dda-tamer-window-sheet .sheet-header,
-form.dda-tamer-window-sheet .header-fields,
-form.dda-tamer-window-sheet .dda-tamer-top-row {
-  overflow: visible !important;
-}
-
-/* o header precisa ser a referência */
-form.dda-tamer-window-sheet .sheet-header {
-  position: relative !important;
-}
-
-/* a linha de cima fica só pro nome */
-form.dda-tamer-window-sheet .dda-tamer-top-row {
-  display: block !important;
-  position: relative !important;
-}
-
-/* badge do número da sorte */
-form.dda-tamer-window-sheet .dda-luck-badge {
-  position: absolute !important;
-
-  /* ajuste principal */
-  top: -26px !important;
-  right: -34px !important;
-
-  width: 62px !important;
-  height: 62px !important;
-
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  z-index: 30 !important;
-
-  background:
-    radial-gradient(circle at 35% 25%,
-      rgba(255,255,255,0.98),
-      rgba(223,247,228,0.98) 45%,
-      rgba(151,216,169,0.98) 72%,
-      rgba(64,145,89,1) 100%) !important;
-
-  border: 3px solid #0e5d3b !important;
-  border-radius: 999px !important;
-
-  box-shadow:
-    inset 0 0 0 2px rgba(255,255,255,0.55),
-    inset 0 -8px 14px rgba(0, 70, 35, 0.18),
-    0 4px 12px rgba(0,0,0,0.28),
-    0 0 10px rgba(67, 205, 110, 0.18) !important;
-}
-
-/* trevinho */
-form.dda-tamer-window-sheet .dda-luck-badge .dda-luck-clover {
-  position: absolute !important;
-  top: 5px !important;
-  right: 8px !important;
-
-  font-size: 0.95rem !important;
-  line-height: 1 !important;
-  color: #167c42 !important;
-
-  text-shadow:
-    0 1px 0 rgba(255,255,255,0.8),
-    0 0 4px rgba(70, 200, 110, 0.35) !important;
-
-  pointer-events: none !important;
-}
-
-/* input do número */
-form.dda-tamer-window-sheet .dda-luck-badge input {
-  width: 28px !important;
-  height: 28px !important;
-
-  margin: 2px 0 0 2px !important;
-  padding: 0 !important;
-
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
-
-  color: #0a4f2e !important;
-  text-align: center !important;
-  line-height: 1 !important;
-
-  font-family: "Reactor7", "Pixel Operator", "Arial Black", sans-serif !important;
-  font-size: 1.2rem !important;
-  font-weight: 900 !important;
-}
-
-/* tira as setinhas do input number */
-form.dda-tamer-window-sheet .dda-luck-badge input::-webkit-outer-spin-button,
-form.dda-tamer-window-sheet .dda-luck-badge input::-webkit-inner-spin-button {
-  -webkit-appearance: none !important;
-  margin: 0 !important;
-}
-
-form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
-  appearance: textfield !important;
-  -moz-appearance: textfield !important;
-}
-/* ===================================================== */
-/* DDA — Tamer: Orbe do Número da Sorte estilo SV        */
-/* Holográfico / CRT / Pixel UI                          */
+/* DDA — Número da Sorte                                 */
 /* ===================================================== */
 
 .dda-tamer-window-shell {
   overflow: visible !important;
 }
 
-/* Orbe fora do header, ancorado na shell da janela */
 .dda-tamer-window-shell .dda-luck-orb {
   position: absolute !important;
 
-  /* Ajuste fino de posição, igual o SV do Digimon */
   top: -30px !important;
   right: -12px !important;
 
@@ -3100,7 +3135,7 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
   background:
     repeating-linear-gradient(
       0deg,
-      rgba(255, 255, 255, 0.08) 0px,
+      rgba(255, 255, 255, 0.08) 0,
       rgba(255, 255, 255, 0.08) 1px,
       transparent 1px,
       transparent 4px
@@ -3113,7 +3148,9 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
       rgba(5, 54, 38, 0.78) 100%
     ) !important;
 
-  border: 2px solid rgba(64, 255, 154, 0.62) !important;
+  border:
+    2px solid
+    rgba(64, 255, 154, 0.62) !important;
 
   box-shadow:
     inset 0 0 0 1px rgba(230, 255, 240, 0.42),
@@ -3127,9 +3164,9 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
   backdrop-filter: blur(1px) saturate(1.15);
 }
 
-/* Aro pixelado / serrilhado falso */
 .dda-tamer-window-shell .dda-luck-orb::before {
   content: "";
+
   position: absolute !important;
   inset: -3px !important;
 
@@ -3144,9 +3181,9 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
      0    0   8px rgba(90, 255, 150, 0.26) !important;
 }
 
-/* Brilho superior holográfico */
 .dda-tamer-window-shell .dda-luck-orb::after {
   content: "";
+
   position: absolute !important;
 
   top: 7px !important;
@@ -3165,12 +3202,12 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
     ) !important;
 
   transform: rotate(-18deg);
+
   pointer-events: none !important;
   z-index: 5 !important;
 }
 
-/* Vinheta/scanline extra para dar cara de tela CRT */
-.dda-tamer-window-shell .dda-luck-orb .dda-luck-crt {
+.dda-tamer-window-shell .dda-luck-crt {
   position: absolute !important;
   inset: 5px !important;
 
@@ -3179,7 +3216,7 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
   background:
     repeating-linear-gradient(
       0deg,
-      rgba(255, 255, 255, 0.09) 0px,
+      rgba(255, 255, 255, 0.09) 0,
       rgba(255, 255, 255, 0.09) 1px,
       rgba(0, 40, 24, 0.05) 1px,
       rgba(0, 40, 24, 0.05) 3px
@@ -3191,10 +3228,6 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
   pointer-events: none !important;
   z-index: 6 !important;
 }
-
-/* ===================================================== */
-/* Trevo em PNG pixelado                                 */
-/* ===================================================== */
 
 .dda-tamer-window-shell .dda-luck-orb-label {
   position: absolute !important;
@@ -3211,21 +3244,18 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
 
   pointer-events: none !important;
   z-index: 8 !important;
-
   overflow: visible !important;
 }
 
-/* Desliga qualquer trevo antigo em texto */
 .dda-tamer-window-shell .dda-luck-clover,
 .dda-tamer-window-shell .dda-luck-orb-label::before {
   content: none !important;
   display: none !important;
 }
 
-/* Imagem do trevo */
 .dda-tamer-window-shell .dda-luck-clover-img {
-  width: 44px !important;
-  height: 44px !important;
+  width: 45px !important;
+  height: 45px !important;
 
   max-width: none !important;
   max-height: none !important;
@@ -3234,10 +3264,13 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
   object-position: center !important;
 
   image-rendering: pixelated !important;
-
-  opacity: 0.62 !important;
-
+  opacity: 0.50 !important;
   mix-blend-mode: screen;
+
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 
   filter:
     brightness(1.25)
@@ -3247,11 +3280,6 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
 
   pointer-events: none !important;
 }
-
-/* ===================================================== */
-/* Número do orbe                                        */
-/* Mesma família visual do SV do Digimon                 */
-/* ===================================================== */
 
 .dda-tamer-window-shell .dda-luck-orb-value {
   position: relative !important;
@@ -3265,18 +3293,21 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
 
   color: rgba(220, 255, 232, 0.96) !important;
 
-  font-family: "PixelOperatorBold", "Reactor7", "Arial Black", Impact, sans-serif !important;
+  font-family:
+    "PixelOperatorBold",
+    "Reactor7",
+    "Arial Black",
+    Impact,
+    sans-serif !important;
+
   font-size: 1.22rem !important;
   font-weight: 900 !important;
   line-height: 30px !important;
   text-align: center !important;
 
   background: transparent !important;
-  background-image: none !important;
-
   border: none !important;
   border-radius: 0 !important;
-
   box-shadow: none !important;
   outline: none !important;
 
@@ -3295,639 +3326,31 @@ form.dda-tamer-window-sheet .dda-luck-badge input[type="number"] {
   margin: 0 !important;
 }
 
-/* Pequeno flicker opcional, bem sutil */
-.dda-tamer-window-shell .dda-luck-orb:hover {
-  box-shadow:
-    inset 0 0 0 1px rgba(230, 255, 240, 0.50),
-    inset 0 -8px 14px rgba(0, 55, 34, 0.24),
-    inset 0 0 18px rgba(100, 255, 170, 0.18),
-    0 0 0 1px rgba(160, 255, 205, 0.34),
-    0 0 11px rgba(82, 255, 154, 0.42),
-    0 0 22px rgba(40, 210, 110, 0.28),
-    3px 3px 0 rgba(0, 0, 0, 0.16) !important;
-}
-.dda-tamer-window-shell .dda-luck-clover-img {
-  width: 45px !important;
-  height: 45px !important;
-
-  max-width: none !important;
-  max-height: none !important;
-
-  object-fit: contain !important;
-  object-position: center !important;
-
-  image-rendering: pixelated !important;
-
-  opacity: 0.50 !important;
-
-  background: transparent !important;
-  background-color: transparent !important;
-  background-image: none !important;
-
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-
-  mix-blend-mode: screen;
-
-  filter:
-    brightness(1.25)
-    saturate(1.25)
-    drop-shadow(0 0 3px rgba(110, 255, 165, 0.48))
-    drop-shadow(0 0 7px rgba(40, 220, 110, 0.22)) !important;
-
-  pointer-events: none !important;
-}
-/* ===================================================== */
-/* DDA — Tamer Header: layout compacto estilo Digimon    */
-/* ===================================================== */
-
-form.dda-tamer-window-sheet .sheet-header {
-  min-height: 118px !important;
-  height: auto !important;
-
-  padding: 14px 18px 12px 150px !important;
-}
-
-/* Campo geral do header */
-form.dda-tamer-window-sheet .sheet-header .header-fields {
-  width: 100% !important;
-  margin-left: 0 !important;
-  padding: 0 !important;
-
-  display: block !important;
-}
-
-/* Grid principal do header */
-form.dda-tamer-window-sheet .dda-tamer-header-grid {
-  display: grid !important;
-
-  grid-template-columns:
-    minmax(260px, 1fr)
-    82px
-    82px;
-
-  grid-template-areas:
-    "name resources resources"
-    "partner separator form"
-    "open separator evolve";
-
-  column-gap: 12px !important;
-  row-gap: 7px !important;
-
-  align-items: center !important;
-
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-/* Nome */
-form.dda-tamer-window-sheet .dda-name-block {
-  grid-area: name;
-
-  min-width: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-form.dda-tamer-window-sheet .dda-name-block h1 {
-  margin: 0 !important;
-  padding: 0 !important;
-
-  border: none !important;
-}
-
-form.dda-tamer-window-sheet .dda-name-block input[name="name"] {
-  width: 100% !important;
-  max-width: 360px !important;
-
-  height: 32px !important;
-  min-height: 32px !important;
-
-  padding: 0 0.4rem !important;
-
-  color: #0c2035 !important;
-
-  font-family: "PixelOperatorBold", "Reactor7", Arial, sans-serif !important;
-  font-size: 1.55rem !important;
-  font-weight: 700 !important;
-  line-height: 1 !important;
-  letter-spacing: 0.01em !important;
-
-  background: transparent !important;
-  background-image: none !important;
-
-  border: none !important;
-  border-bottom: 1px solid rgba(45, 105, 150, 0.35) !important;
-  border-radius: 0 !important;
-
-  box-shadow: none !important;
-}
-
-/* PI / PE lado a lado */
-form.dda-tamer-window-sheet .dda-tamer-header-resources {
-  grid-area: resources;
-
-  display: flex !important;
-  justify-content: flex-end !important;
-  align-items: center !important;
-  gap: 12px !important;
-
-  min-width: 0 !important;
-}
-
-form.dda-tamer-window-sheet .resource-row {
-  display: flex !important;
-  align-items: center !important;
-  gap: 5px !important;
-
-  margin: 0 !important;
-  padding: 0 !important;
-
-  min-width: 0 !important;
-}
-
-form.dda-tamer-window-sheet .resource-row label {
-  margin: 0 !important;
-
-  color: #1d2e3a !important;
-
-  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
-  font-size: 1rem !important;
-  font-weight: 900 !important;
-  line-height: 1 !important;
-  letter-spacing: 0.04em !important;
-  text-transform: uppercase !important;
-}
-
-form.dda-tamer-window-sheet .small-resource {
-  display: grid !important;
-  grid-template-columns: 44px 8px 44px !important;
-  align-items: center !important;
-  gap: 4px !important;
-
-  min-width: 0 !important;
-}
-
-form.dda-tamer-window-sheet .small-resource input {
-  width: 44px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-
-  padding: 0 !important;
-
-  color: #17384f !important;
-
-  font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 1rem !important;
-  font-weight: 700 !important;
-  text-align: center !important;
-  line-height: 28px !important;
-
-  background:
-    linear-gradient(180deg, rgba(250, 253, 255, 0.96), rgba(222, 238, 248, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.34) !important;
-  border-radius: 5px !important;
-
-  box-shadow:
-    inset 0 0 6px rgba(0, 0, 0, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
-}
-
-form.dda-tamer-window-sheet .small-resource span {
-  color: #1d2e3a !important;
-
-  font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 1rem !important;
-  font-weight: 900 !important;
-  text-align: center !important;
-  line-height: 28px !important;
-}
-
-/* Parceiro e Forma Atual */
-form.dda-tamer-window-sheet .partner-block {
-  grid-area: partner;
-}
-
-form.dda-tamer-window-sheet .current-form-block {
-  grid-area: form;
-}
-
-form.dda-tamer-window-sheet .partner-block,
-form.dda-tamer-window-sheet .current-form-block {
-  margin: 0 !important;
-  padding: 0 !important;
-
-  min-width: 0 !important;
-}
-
-form.dda-tamer-window-sheet .partner-block label,
-form.dda-tamer-window-sheet .current-form-block label {
-  display: block !important;
-
-  margin: 0 0 2px 0 !important;
-
-  color: #1d2e3a !important;
-
-  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
-  font-size: 0.82rem !important;
-  font-weight: 900 !important;
-  line-height: 1 !important;
-  letter-spacing: 0.04em !important;
-  text-transform: uppercase !important;
-}
-
-form.dda-tamer-window-sheet .partner-block input,
-form.dda-tamer-window-sheet .current-form-block input {
-  width: 100% !important;
-  height: 30px !important;
-  min-height: 30px !important;
-
-  padding: 0 0.45rem !important;
-
-  color: #17384f !important;
-
-  font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 1rem !important;
-  font-weight: 700 !important;
-  line-height: 30px !important;
-
-  background:
-    linear-gradient(180deg, rgba(250, 253, 255, 0.96), rgba(222, 238, 248, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.34) !important;
-  border-radius: 5px !important;
-
-  box-shadow:
-    inset 0 0 6px rgba(0, 0, 0, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
-}
-
-/* Separador vertical entre parceiro e forma atual */
-form.dda-tamer-window-sheet .dda-header-separator {
-  grid-area: separator;
-
-  justify-self: center !important;
-  align-self: stretch !important;
-
-  width: 1px !important;
-  min-height: 42px !important;
-
-  background:
-    linear-gradient(
-      180deg,
-      transparent,
-      rgba(35, 80, 110, 0.40),
-      transparent
-    ) !important;
-
-  box-shadow: 0 0 4px rgba(100, 190, 255, 0.12) !important;
-}
-
-/* Botões */
-form.dda-tamer-window-sheet .partner-actions {
-  display: contents !important;
-}
-
-form.dda-tamer-window-sheet .partner-actions .open-partner-sheet {
-  grid-area: open;
-}
-
-form.dda-tamer-window-sheet .partner-actions .evolve-partner {
-  grid-area: evolve;
-}
-
-form.dda-tamer-window-sheet .partner-actions .unlink-partner {
-  display: none !important;
-}
-
-form.dda-tamer-window-sheet .partner-actions button {
-  height: 30px !important;
-  min-height: 30px !important;
-
-  margin: 0 !important;
-  padding: 0 0.75rem !important;
-
-  color: #f3fbff !important;
-
-  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
-  font-size: 0.95rem !important;
-  font-weight: 900 !important;
-  line-height: 30px !important;
-  letter-spacing: 0.045em !important;
-  text-transform: uppercase !important;
-
-  background:
-    linear-gradient(180deg, rgba(8, 42, 75, 0.96), rgba(4, 25, 48, 0.96)) !important;
-
-  border: 1px solid rgba(115, 205, 255, 0.35) !important;
-  border-radius: 6px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(210, 245, 255, 0.08),
-    inset 0 -8px 14px rgba(0, 120, 210, 0.08),
-    0 2px 6px rgba(0, 0, 0, 0.16) !important;
-}
-
-form.dda-tamer-window-sheet .partner-actions button:hover {
-  color: #ffffff !important;
-
-  background:
-    linear-gradient(180deg, rgba(15, 75, 125, 0.98), rgba(5, 38, 72, 0.98)) !important;
-
-  border-color: rgba(160, 230, 255, 0.58) !important;
-
-  text-shadow: 0 0 5px rgba(120, 220, 255, 0.45) !important;
-}
-/* ===================================================== */
-/* DDA — Tamer Header: grid corrigido                    */
-/* ===================================================== */
-
-form.dda-tamer-window-sheet .sheet-header {
-  min-height: 122px !important;
-  height: auto !important;
-
-  padding: 14px 18px 12px 175px !important;
-}
-
-form.dda-tamer-window-sheet .sheet-header .header-fields {
-  width: 100% !important;
-  margin-left: 0 !important;
-  padding: 0 !important;
-  display: block !important;
-}
-
-/* Layout principal */
-form.dda-tamer-window-sheet .dda-tamer-header-grid {
-  display: grid !important;
-
-  grid-template-columns: minmax(260px, 1fr) 25px 240px !important;
-  grid-template-areas:
-    "name resources resources"
-    "partner separator form"
-    "open separator evolve" !important;
-
-  column-gap: 14px !important;
-  row-gap: 7px !important;
-
-  align-items: center !important;
-
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-/* Nome */
-form.dda-tamer-window-sheet .dda-name-block {
-  grid-area: name !important;
-  min-width: 0 !important;
-}
-
-form.dda-tamer-window-sheet .dda-name-block h1 {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-}
-
-form.dda-tamer-window-sheet .dda-name-block input[name="name"] {
-  width: 100% !important;
-  max-width: 350px !important;
-
-  height: 32px !important;
-  min-height: 32px !important;
-
-  padding: 0 0.35rem !important;
-
-  color: #0c2035 !important;
-
-  font-family: "PixelOperatorBold", "Reactor7", Arial, sans-serif !important;
-  font-size: 1.55rem !important;
-  font-weight: 700 !important;
-  line-height: 1 !important;
-  letter-spacing: 0.03em !important;
-
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 1px solid rgba(45, 105, 150, 0.35) !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-/* PI e PE */
-form.dda-tamer-window-sheet .dda-tamer-header-resources {
-  grid-area: resources !important;
-
-  display: flex !important;
-  justify-content: flex-start !important;
-  align-items: center !important;
-  gap: 8px !important;
-
-  min-width: 0 !important;
-  max-width: 100% !important;
-  overflow: hidden !important;
-}
-
-form.dda-tamer-window-sheet .resource-row {
-  display: flex !important;
-  align-items: center !important;
-  gap: 0px !important;
-
-  margin: 0 !important;
-  padding: 0 !important;
-
-  min-width: 0 !important;
-  flex: 0 0 auto !important;
-}
-
-form.dda-tamer-window-sheet .resource-row label {
-  margin: 0 !important;
-    padding: 0 !important;
-    min-width: auto !important;
-    width: auto !important;
-
-    color: #1d2e3a !important;
-
-  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
-  font-size: 0.95rem !important;
-  font-weight: 900 !important;
-  line-height: 1 !important;
-  letter-spacing: 0.04em !important;
-  text-transform: uppercase !important;
-}
-
-form.dda-tamer-window-sheet .small-resource {
-  display: grid !important;
-  grid-template-columns: 40px 8px 40px !important;
-  gap: 4px !important;
-  align-items: center !important;
-    transform: translateX(-7px) !important;
-}
-
-form.dda-tamer-window-sheet .small-resource input {
-  width: 40px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-
-  padding: 0 !important;
-
-  color: #17384f !important;
-
-  font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 1rem !important;
-  font-weight: 700 !important;
-  text-align: center !important;
-  line-height: 28px !important;
-
-  background:
-    linear-gradient(180deg, rgba(250, 253, 255, 0.96), rgba(222, 238, 248, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.34) !important;
-  border-radius: 5px !important;
-
-  box-shadow:
-    inset 0 0 6px rgba(0, 0, 0, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
-}
-
-form.dda-tamer-window-sheet .small-resource span {
-  color: #1d2e3a !important;
-
-  font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 1rem !important;
-  font-weight: 900 !important;
-  text-align: center !important;
-  line-height: 28px !important;
-}
-
-/* Parceiro / Forma Atual */
-form.dda-tamer-window-sheet .partner-block {
-  grid-area: partner !important;
-}
-
-form.dda-tamer-window-sheet .current-form-block {
-  grid-area: form !important;
-}
-
-form.dda-tamer-window-sheet .partner-block,
-form.dda-tamer-window-sheet .current-form-block {
-  margin: 0 !important;
-  padding: 0 !important;
-  min-width: 0 !important;
-}
-
-form.dda-tamer-window-sheet .partner-block label,
-form.dda-tamer-window-sheet .current-form-block label {
-  display: block !important;
-
-  margin: 0 0 2px 0 !important;
-
-  color: #1d2e3a !important;
-
-  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
-  font-size: 0.82rem !important;
-  font-weight: 900 !important;
-  line-height: 1 !important;
-  letter-spacing: 0.04em !important;
-  text-transform: uppercase !important;
-}
-
-form.dda-tamer-window-sheet .partner-block input,
-form.dda-tamer-window-sheet .current-form-block input {
-  width: 100% !important;
-  height: 30px !important;
-  min-height: 30px !important;
-
-  padding: 0 0.45rem !important;
-
-  color: #17384f !important;
-
-  font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 1rem !important;
-  font-weight: 700 !important;
-  line-height: 30px !important;
-
-  background:
-    linear-gradient(180deg, rgba(250, 253, 255, 0.96), rgba(222, 238, 248, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.34) !important;
-  border-radius: 5px !important;
-
-  box-shadow:
-    inset 0 0 6px rgba(0, 0, 0, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
-}
-
-/* Separador */
-form.dda-tamer-window-sheet .dda-header-separator {
-  grid-area: separator !important;
-
-  justify-self: center !important;
-  align-self: stretch !important;
-
-  width: 1px !important;
-  min-height: 42px !important;
-
-  background:
-    linear-gradient(
-      180deg,
-      transparent,
-      rgba(35, 80, 110, 0.40),
-      transparent
-    ) !important;
-}
-
-/* Botões */
-form.dda-tamer-window-sheet .partner-actions {
-  display: contents !important;
-}
-
-form.dda-tamer-window-sheet .partner-actions .open-partner-sheet {
-  grid-area: open !important;
-}
-
-form.dda-tamer-window-sheet .partner-actions .evolve-partner {
-  grid-area: evolve !important;
-}
-
-form.dda-tamer-window-sheet .partner-actions .unlink-partner {
-  display: none !important;
-}
-
-form.dda-tamer-window-sheet .partner-actions button {
-  width: 100% !important;
-  height: 30px !important;
-  min-height: 30px !important;
-
-  margin: 0 !important;
-  padding: 0 0.75rem !important;
-
-  color: #f3fbff !important;
-
-  font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
-  font-size: 0.95rem !important;
-  font-weight: 900 !important;
-  line-height: 30px !important;
-  letter-spacing: 0.045em !important;
-  text-transform: uppercase !important;
-
-  background:
-    linear-gradient(180deg, rgba(8, 42, 75, 0.96), rgba(4, 25, 48, 0.96)) !important;
-
-  border: 1px solid rgba(115, 205, 255, 0.35) !important;
-  border-radius: 6px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(210, 245, 255, 0.08),
-    inset 0 -8px 14px rgba(0, 120, 210, 0.08),
-    0 2px 6px rgba(0, 0, 0, 0.16) !important;
-}
-form.dda-tamer-window-sheet .dda-tamer-header-resources {
-  overflow: visible !important;
-}
-
-form.dda-tamer-window-sheet .pe-block {
-  margin-left: 28px !important;
+/* ---------- responsividade ---------- */
+
+@media (max-width: 760px) {
+  form.dda-tamer-window-sheet .sheet-header {
+    min-height: 218px !important;
+    padding-left: 150px !important;
+  }
+
+  form.dda-tamer-window-sheet .dda-tamer-header-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "name"
+      "resources"
+      "partner"
+      "form" !important;
+  }
+
+  form.dda-tamer-window-sheet .dda-tamer-header-resources {
+    justify-content: flex-start !important;
+  }
+
+  form.dda-tamer-window-sheet .dda-header-form-column {
+    padding-left: 0 !important;
+    border-left: none !important;
+  }
 }
 /* ===================================================== */
 /* DDA — Tamer: Atributos em cards horizontais           */
@@ -8009,156 +7432,279 @@ form.dda-tamer-window-sheet button.clash-partner:hover {
 }
 
 /* ===================================================== */
-/* DDA — HOTFIX v20: Header do Tamer não vaza            */
-/* PI / PE / Ações + botões de evolução dentro da casca  */
+/* DDA — Header do Tamer: layout adaptável               */
 /* ===================================================== */
 
 form.dda-tamer-window-sheet .sheet-header {
   min-height: 138px !important;
   height: auto !important;
+
   padding: 14px 18px 12px 175px !important;
+
   overflow: visible !important;
   box-sizing: border-box !important;
 }
 
-form.dda-tamer-window-sheet .sheet-header .header-fields,
-form.dda-tamer-window-sheet .dda-tamer-header-grid {
+form.dda-tamer-window-sheet .sheet-header .header-fields {
+  width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
   box-sizing: border-box !important;
 }
 
 form.dda-tamer-window-sheet .dda-tamer-header-grid {
   display: grid !important;
-  grid-template-columns: minmax(190px, 1fr) minmax(0, 330px) !important;
+
+  grid-template-columns:
+    minmax(210px, 0.9fr)
+    minmax(280px, 1.1fr) !important;
+
   grid-template-areas:
     "name resources"
-    "partner form"
-    "open evolve" !important;
+    "partner form" !important;
+
   column-gap: 12px !important;
   row-gap: 7px !important;
-  align-items: center !important;
+
+  align-items: start !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
   overflow: visible !important;
+  box-sizing: border-box !important;
 }
 
-form.dda-tamer-window-sheet .dda-header-separator {
-  display: none !important;
-}
+/* ---------- primeira linha ---------- */
 
 form.dda-tamer-window-sheet .dda-name-block {
   grid-area: name !important;
+
   min-width: 0 !important;
+
+  align-self: center !important;
 }
 
 form.dda-tamer-window-sheet .dda-tamer-header-resources {
   grid-area: resources !important;
+
   display: flex !important;
-  flex-wrap: wrap !important;
-  justify-content: flex-end !important;
+  flex-wrap: nowrap !important;
   align-items: center !important;
-  gap: 5px 9px !important;
+  justify-content: flex-end !important;
+
+  gap: 8px !important;
+
+  width: 100% !important;
   min-width: 0 !important;
-  max-width: 100% !important;
+  max-width: none !important;
+
   overflow: visible !important;
   transform: none !important;
 }
 
-form.dda-tamer-window-sheet .dda-tamer-header-resources .resource-row {
+form.dda-tamer-window-sheet
+.dda-tamer-header-resources
+.resource-row {
   display: flex !important;
   align-items: center !important;
-  gap: 3px !important;
+
   flex: 0 0 auto !important;
+
+  gap: 4px !important;
+
+  width: auto !important;
   min-width: 0 !important;
-  max-width: 104px !important;
+  max-width: none !important;
+
   margin: 0 !important;
   padding: 0 !important;
+
+  overflow: visible !important;
   transform: none !important;
 }
 
-form.dda-tamer-window-sheet .dda-tamer-header-resources .resource-row label {
+form.dda-tamer-window-sheet
+.dda-tamer-header-resources
+.resource-row label {
   flex: 0 0 auto !important;
+
   width: auto !important;
   min-width: 0 !important;
+
   margin: 0 !important;
   padding: 0 !important;
-  font-size: 0.86rem !important;
+
+  font-size: 0.78rem !important;
   line-height: 1 !important;
+
   white-space: nowrap !important;
 }
 
-form.dda-tamer-window-sheet .dda-tamer-header-resources .small-resource {
+form.dda-tamer-window-sheet
+.dda-tamer-header-resources
+.small-resource {
   display: grid !important;
-  grid-template-columns: 34px 6px 34px !important;
+
+  grid-template-columns:
+    32px
+    6px
+    32px !important;
+
   gap: 2px !important;
   align-items: center !important;
-  width: 76px !important;
-  min-width: 76px !important;
-  max-width: 76px !important;
+
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+
   transform: none !important;
 }
 
-form.dda-tamer-window-sheet .dda-tamer-header-resources .small-resource input {
-  width: 34px !important;
-  min-width: 34px !important;
-  max-width: 34px !important;
+form.dda-tamer-window-sheet
+.dda-tamer-header-resources
+.small-resource input {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+
   height: 26px !important;
   min-height: 26px !important;
-  line-height: 26px !important;
+  max-height: 26px !important;
+
   padding: 0 !important;
-  font-size: 0.92rem !important;
+
+  font-size: 0.88rem !important;
+  line-height: 26px !important;
 }
 
-form.dda-tamer-window-sheet .dda-tamer-header-resources .small-resource span {
+form.dda-tamer-window-sheet
+.dda-tamer-header-resources
+.small-resource span {
   width: 6px !important;
   min-width: 6px !important;
   max-width: 6px !important;
-  font-size: 0.86rem !important;
+
+  font-size: 0.82rem !important;
   line-height: 26px !important;
 }
 
-form.dda-tamer-window-sheet .actions-block {
-  display: flex !important;
+/* O PI precisa comportar também o chip temporário. */
+form.dda-tamer-window-sheet
+.dda-tamer-header-resources
+.pi-block {
+  flex: 0 0 auto !important;
+
+  width: auto !important;
+  min-width: 142px !important;
+  max-width: none !important;
+
+  overflow: visible !important;
 }
 
-form.dda-tamer-window-sheet .pe-block {
-  margin-left: 0 !important;
-}
+/* ---------- parceiro e forma atual ---------- */
 
-form.dda-tamer-window-sheet .partner-block {
+form.dda-tamer-window-sheet .dda-header-partner-column {
   grid-area: partner !important;
 }
 
-form.dda-tamer-window-sheet .current-form-block {
+form.dda-tamer-window-sheet .dda-header-form-column {
   grid-area: form !important;
 }
 
-form.dda-tamer-window-sheet .partner-actions {
-  display: contents !important;
-}
+form.dda-tamer-window-sheet .dda-header-column {
+  display: flex !important;
+  flex-direction: column !important;
 
-form.dda-tamer-window-sheet .partner-actions .open-partner-sheet {
-  grid-area: open !important;
-}
+  gap: 5px !important;
 
-form.dda-tamer-window-sheet .current-form-actions,
-form.dda-tamer-window-sheet .current-form-actions.evolution-form-actions {
-  grid-area: evolve !important;
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) !important;
-  gap: 0.45rem !important;
-  min-width: 0 !important;
-  width: 100% !important;
-}
-
-form.dda-tamer-window-sheet .partner-actions button,
-form.dda-tamer-window-sheet .current-form-actions > button {
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
-  box-sizing: border-box !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+form.dda-tamer-window-sheet .dda-header-form-column {
+  padding-left: 12px !important;
+
+  border-left:
+    1px solid
+    rgba(35, 80, 110, 0.24) !important;
+}
+
+/* ---------- ações do parceiro ---------- */
+
+form.dda-tamer-window-sheet .partner-actions,
+form.dda-tamer-window-sheet .current-form-actions,
+form.dda-tamer-window-sheet
+.current-form-actions.evolution-form-actions {
+  display: grid !important;
+
+  grid-auto-flow: column !important;
+  grid-auto-columns: minmax(0, 1fr) !important;
+
+  gap: 6px !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+form.dda-tamer-window-sheet .partner-actions > button,
+form.dda-tamer-window-sheet .current-form-actions > button {
+  grid-area: auto !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  height: 28px !important;
+  min-height: 28px !important;
+
+  margin: 0 !important;
+  padding: 0 0.35rem !important;
+
+  font-size: 0.72rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0.03em !important;
+
+  white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  white-space: nowrap !important;
+
+  box-sizing: border-box !important;
+}
+
+/* Três ações no lado do parceiro: Open, Hybrid e Bio-Merge. */
+form.dda-tamer-window-sheet
+.partner-actions:has(> :nth-child(3))
+> button {
+  padding-left: 0.18rem !important;
+  padding-right: 0.18rem !important;
+
+  font-size: 0.64rem !important;
+  letter-spacing: 0.015em !important;
+}
+
+/* Duas ações na Forma Atual: Digivolve e Jogress. */
+form.dda-tamer-window-sheet
+.current-form-actions:has(> :nth-child(2))
+> button {
+  font-size: 0.72rem !important;
+}
+
+form.dda-tamer-window-sheet .dda-header-separator {
+  display: none !important;
 }
 
 /* Combate: impede Ações/Saúde/Temp./Movimento de estourarem a aba. */
@@ -8842,4 +8388,800 @@ form.dda-tamer-window-sheet .dda-skill-card .dda-skill-untrained-pill::before {
   height: 28px !important;
 
   border-radius: 999px !important;
+}
+
+/* ===================================================== */
+/* DDA — Tamer: PI Temporário compacto                   */
+/* ===================================================== */
+
+form.dda-tamer-window-sheet .dda-ip-resource-control {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+
+  gap: 4px !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  overflow: visible !important;
+}
+
+form.dda-tamer-window-sheet .dda-temporary-ip-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  flex: 0 0 auto !important;
+
+  width: auto !important;
+  min-width: 42px !important;
+  max-width: none !important;
+
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+
+  margin: 0 !important;
+  padding: 0 5px !important;
+
+  color: #effcff !important;
+
+  font-family:
+    "PixelOperatorBold",
+    "Trebuchet MS",
+    Arial,
+    sans-serif !important;
+
+  font-size: 0.52rem !important;
+  font-weight: 900 !important;
+  line-height: 18px !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+
+  white-space: nowrap !important;
+  overflow: visible !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(40, 148, 180, 0.96),
+      rgba(8, 72, 104, 0.98)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(160, 238, 255, 0.62) !important;
+
+  border-radius: 999px !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(255, 255, 255, 0.10),
+    0 0 6px
+      rgba(70, 205, 255, 0.18) !important;
+}
+
+form.dda-tamer-window-sheet .dda-temporary-ip-chip.empty {
+  color:
+    rgba(225, 238, 245, 0.74) !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(88, 106, 120, 0.82),
+      rgba(45, 58, 70, 0.90)
+    ) !important;
+
+  border-color:
+    rgba(190, 210, 220, 0.24) !important;
+
+  box-shadow: none !important;
+}
+/* ===================================================== */
+/* DDA — Ações do Tamer                                  */
+/* ===================================================== */
+
+form.dda-tamer-window-sheet
+.dda-tamer-combat-tab
+.open-tamer-action-menu {
+  color: #f4fbff !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(25, 105, 152, 0.98),
+      rgba(6, 48, 82, 0.98)
+    ) !important;
+
+  border-color:
+    rgba(155, 230, 255, 0.58) !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(255, 255, 255, 0.08),
+    0 0 12px
+      rgba(65, 190, 255, 0.14),
+    0 2px 6px
+      rgba(0, 0, 0, 0.22) !important;
+}
+
+form.dda-tamer-window-sheet
+.dda-tamer-combat-tab
+.open-tamer-action-menu:hover {
+  color: #ffffff !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(42, 137, 185, 1),
+      rgba(9, 67, 106, 1)
+    ) !important;
+
+  border-color:
+    rgba(205, 245, 255, 0.76) !important;
+
+  text-shadow:
+    0 0 7px
+      rgba(145, 235, 255, 0.62) !important;
+}
+
+/* ---------- janela do menu ---------- */
+
+.window-app.dda-tamer-action-dialog {
+  border:
+    1px solid
+    rgba(115, 205, 255, 0.42) !important;
+
+  border-radius: 9px !important;
+
+  box-shadow:
+    0 12px 30px
+      rgba(0, 0, 0, 0.48),
+    0 0 18px
+      rgba(50, 175, 255, 0.14) !important;
+}
+
+.window-app.dda-tamer-action-dialog
+.window-header {
+  color: #eefaff !important;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(5, 24, 43, 1),
+      rgba(16, 70, 105, 0.98)
+    ) !important;
+
+  border-bottom:
+    1px solid
+    rgba(130, 215, 255, 0.28) !important;
+}
+
+.window-app.dda-tamer-action-dialog
+.window-content {
+  padding: 0.85rem !important;
+
+  color: #e8f8ff !important;
+
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(70, 190, 255, 0.11),
+      transparent 42%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(8, 31, 50, 0.99),
+      rgba(4, 17, 30, 1)
+    ) !important;
+}
+
+.dda-tamer-action-menu > p {
+  margin: 0 0 0.7rem !important;
+
+  color: #cceeff !important;
+}
+
+.dda-tamer-action-menu-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    ) !important;
+
+  gap: 0.65rem !important;
+}
+
+.dda-tamer-action-menu-grid button {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+
+  min-height: 82px !important;
+
+  margin: 0 !important;
+  padding: 0.7rem !important;
+
+  color: #eaf9ff !important;
+  text-align: left !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(17, 69, 103, 0.96),
+      rgba(6, 34, 59, 0.98)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(125, 215, 255, 0.28) !important;
+
+  border-radius: 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(255, 255, 255, 0.04),
+    0 3px 8px
+      rgba(0, 0, 0, 0.22) !important;
+}
+
+.dda-tamer-action-menu-grid button:hover {
+  color: #ffffff !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(30, 109, 151, 0.98),
+      rgba(8, 50, 82, 0.98)
+    ) !important;
+
+  border-color:
+    rgba(175, 235, 255, 0.58) !important;
+}
+
+.dda-tamer-action-menu-grid strong {
+  display: block !important;
+
+  margin-bottom: 0.3rem !important;
+
+  font-size: 0.88rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-tamer-action-menu-grid small {
+  color: #bfe8fa !important;
+
+  font-size: 0.74rem !important;
+  line-height: 1.3 !important;
+}
+
+.dda-tamer-action-bolster-note {
+  margin:
+    0.75rem 0 0 !important;
+
+  padding: 0.55rem 0.65rem !important;
+
+  color: #dff6ff !important;
+
+  background:
+    rgba(25, 82, 112, 0.48) !important;
+
+  border:
+    1px solid
+    rgba(135, 215, 255, 0.18) !important;
+
+  border-radius: 7px !important;
+}
+
+/* ---------- opções das ações ---------- */
+
+.dda-tamer-action-check {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 0.55rem !important;
+
+  margin-top: 0.55rem !important;
+  padding: 0.55rem 0.65rem !important;
+
+  color: #dff6ff !important;
+
+  background:
+    rgba(12, 55, 82, 0.72) !important;
+
+  border:
+    1px solid
+    rgba(125, 210, 255, 0.22) !important;
+
+  border-radius: 7px !important;
+}
+
+.dda-tamer-action-check input {
+  flex: 0 0 auto !important;
+
+  margin-top: 2px !important;
+}
+
+.dda-tamer-action-check span {
+  line-height: 1.3 !important;
+}
+
+.dda-tamer-action-check:has(
+  input:disabled
+) {
+  opacity: 0.48 !important;
+}
+
+.dda-tamer-action-calculated {
+  color: #fff1bf !important;
+
+  background:
+    rgba(105, 74, 18, 0.54) !important;
+
+  border-color:
+    rgba(255, 215, 125, 0.27) !important;
+}
+
+/* ---------- cards de chat ---------- */
+
+.dda-chat-card.dda-tamer-action-card h2 {
+  text-align: center !important;
+  letter-spacing: 0.065em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-tamer-action-card
+.dda-dice-results {
+  display: inline-flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.2rem !important;
+}
+
+.dda-tamer-action-card
+.dda-die {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 22px !important;
+  height: 22px !important;
+
+  color: #ecf9ff !important;
+  font-weight: 900 !important;
+
+  background:
+    rgba(35, 70, 92, 0.94) !important;
+
+  border:
+    1px solid
+    rgba(150, 210, 240, 0.34) !important;
+
+  border-radius: 4px !important;
+}
+
+.dda-tamer-action-card
+.dda-die.success {
+  color: #effff7 !important;
+
+  background:
+    rgba(25, 118, 83, 0.95) !important;
+
+  border-color:
+    rgba(145, 255, 205, 0.46) !important;
+}
+
+@media (max-width: 720px) {
+  .dda-tamer-action-menu-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+}
+/* ===================================================== */
+/* DDA — Segurar / controles no chat                     */
+/* ===================================================== */
+
+.dda-tamer-action-talent-hint {
+  margin-top: 0.55rem !important;
+  padding: 0.55rem 0.65rem !important;
+
+  color: #fff2bf !important;
+
+  background:
+    rgba(105, 74, 18, 0.50) !important;
+
+  border:
+    1px solid
+    rgba(255, 215, 125, 0.28) !important;
+
+  border-radius: 7px !important;
+}
+
+.dda-hold-card
+.dda-tamer-action-chat-controls {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr)) !important;
+
+  gap: 0.45rem !important;
+
+  margin-top: 0.7rem !important;
+}
+
+.dda-hold-card
+.dda-tamer-action-chat-controls button {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 30px !important;
+
+  margin: 0 !important;
+  padding: 0 0.6rem !important;
+
+  color: #eefaff !important;
+
+  font-family:
+    "PixelOperatorBold",
+    "Trebuchet MS",
+    Arial,
+    sans-serif !important;
+
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(24, 105, 150, 0.98),
+      rgba(7, 50, 82, 0.98)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(145, 225, 255, 0.48) !important;
+
+  border-radius: 6px !important;
+}
+
+.dda-hold-card
+.dda-tamer-action-chat-controls
+button.secondary {
+  color: #ffe9e9 !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(125, 55, 65, 0.96),
+      rgba(68, 25, 35, 0.98)
+    ) !important;
+
+  border-color:
+    rgba(245, 155, 165, 0.38) !important;
+}
+
+.dda-hold-card
+.dda-tamer-action-chat-controls
+button:disabled {
+  opacity: 0.48 !important;
+  cursor: default !important;
+  filter: grayscale(0.45) !important;
+}
+/* ===================================================== */
+/* DDA — Trabalho em Equipe                              */
+/* ===================================================== */
+
+.dda-teamwork-setup-dialog textarea {
+  min-height: 70px !important;
+  resize: vertical !important;
+}
+
+.dda-teamwork-controls {
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr)) !important;
+}
+
+.dda-teamwork-help-card,
+.dda-teamwork-result-card {
+  overflow: hidden !important;
+}
+
+.dda-teamwork-help-card h2,
+.dda-teamwork-result-card h2 {
+  text-align: center !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-teamwork-helper-list {
+  margin-top: 0.55rem !important;
+}
+
+.dda-teamwork-helper-list li {
+  margin-bottom: 0.3rem !important;
+  padding: 0.35rem 0.45rem !important;
+
+  background:
+    rgba(20, 70, 100, 0.36) !important;
+
+  border:
+    1px solid
+    rgba(130, 210, 255, 0.16) !important;
+
+  border-radius: 5px !important;
+}
+
+.dda-teamwork-talent-note {
+  margin: 0.65rem 0 0 !important;
+  padding: 0.55rem 0.65rem !important;
+
+  color: #fff3c6 !important;
+
+  background:
+    rgba(100, 72, 20, 0.48) !important;
+
+  border:
+    1px solid
+    rgba(255, 215, 125, 0.26) !important;
+
+  border-radius: 7px !important;
+}
+
+@media (max-width: 560px) {
+  .dda-teamwork-controls {
+    grid-template-columns:
+      1fr !important;
+  }
+}
+/* ===================================================== */
+/* DDA — Joint Effort / With the Will                    */
+/* ===================================================== */
+
+.dda-teamwork-talent-option,
+.dda-torment-teamwork-option {
+  margin: 0.7rem 0 !important;
+  padding: 0.7rem 0.8rem !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(225, 244, 255, 0.96),
+      rgba(195, 224, 242, 0.94)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(40, 105, 150, 0.38) !important;
+
+  border-radius: 8px !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+    rgba(255, 255, 255, 0.58) !important;
+}
+
+.dda-teamwork-talent-option > label,
+.dda-torment-talent-toggle,
+.dda-torment-condition {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 0.55rem !important;
+
+  cursor: pointer !important;
+}
+
+.dda-teamwork-talent-option input,
+.dda-torment-teamwork-option input[type="checkbox"] {
+  flex: 0 0 auto !important;
+  margin-top: 0.15rem !important;
+}
+
+.dda-teamwork-talent-option .hint,
+.dda-torment-teamwork-option .notes {
+  margin: 0.45rem 0 0 !important;
+}
+
+.dda-torment-condition {
+  margin-top: 0.45rem !important;
+}
+
+.dda-torment-teamwork-result {
+  margin: 0.6rem 0 !important;
+  padding: 0.6rem 0.7rem !important;
+
+  background:
+    rgba(35, 105, 145, 0.18) !important;
+
+  border:
+    1px solid
+    rgba(90, 175, 220, 0.34) !important;
+
+  border-radius: 7px !important;
+}
+
+.dda-torment-teamwork-result p {
+  margin:
+    0.22rem 0 !important;
+}
+/* ===================================================== */
+/* DDA — Break the Chain / Calming Influence             */
+/* ===================================================== */
+
+.dda-torment-talent-summary {
+  margin: 0.65rem 0 !important;
+  padding: 0.6rem 0.7rem !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.2rem !important;
+
+  color: #17384f !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(228, 245, 255, 0.98),
+      rgba(200, 228, 244, 0.96)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(45, 115, 158, 0.34) !important;
+
+  border-radius: 7px !important;
+}
+
+.dda-torment-talent-summary strong {
+  color: #0b4269 !important;
+
+  font-size: 0.78rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-torment-talent-result {
+  margin: 0.65rem 0 !important;
+  padding: 0.65rem 0.75rem !important;
+
+  background:
+    rgba(25, 92, 130, 0.14) !important;
+
+  border:
+    1px solid
+    rgba(75, 165, 215, 0.30) !important;
+
+  border-radius: 7px !important;
+}
+
+.dda-torment-talent-result h3 {
+  margin:
+    0 0 0.45rem !important;
+
+  color: #174d70 !important;
+
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-torment-talent-result p {
+  margin:
+    0.25rem 0 !important;
+}
+
+.dda-calming-influence-result {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(225, 248, 240, 0.96),
+      rgba(195, 230, 218, 0.94)
+    ) !important;
+
+  border-color:
+    rgba(42, 145, 110, 0.38) !important;
+}
+
+.dda-calming-influence-result h3 {
+  color: #176b53 !important;
+}
+
+.dda-calming-influence-dialog .notes {
+  margin-top: 0.6rem !important;
+  padding: 0.55rem 0.65rem !important;
+
+  background:
+    rgba(215, 237, 249, 0.82) !important;
+
+  border:
+    1px solid
+    rgba(45, 110, 150, 0.24) !important;
+
+  border-radius: 6px !important;
+}
+/* ===================================================== */
+/* DDA — Hyper Alert / Evasive Maneuvers                 */
+/* ===================================================== */
+
+.dda-initiative-talent-notes {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.3rem !important;
+
+  margin-top: 0.3rem !important;
+}
+
+.dda-initiative-talent-note {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.2rem !important;
+
+  padding: 0.18rem 0.4rem !important;
+
+  color: #e9faff !important;
+
+  font-size: 0.68rem !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(25, 105, 150, 0.92),
+      rgba(8, 52, 85, 0.96)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(135, 220, 255, 0.34) !important;
+
+  border-radius: 999px !important;
+}
+
+.dda-evasive-maneuvers-control {
+  margin: 0.65rem 0 !important;
+  padding: 0.65rem 0.75rem !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(222, 244, 255, 0.98),
+      rgba(190, 222, 240, 0.96)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(35, 110, 155, 0.34) !important;
+
+  border-radius: 7px !important;
+}
+
+.dda-evasive-maneuvers-control .form-group {
+  margin: 0 !important;
+}
+
+.dda-evasive-maneuvers-control .hint {
+  margin: 0.4rem 0 0 !important;
+
+  color: #28516a !important;
+}
+
+.dda-evasive-maneuvers-chip {
+  color: #effcff !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(24, 125, 170, 0.96),
+      rgba(7, 64, 100, 0.98)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(145, 230, 255, 0.34) !important;
 }

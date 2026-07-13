@@ -1,7 +1,17 @@
 import { applyDamage } from "../rolls/damage-application.js";
+import {
+  endDdaSession,
+  getDdaSessionState,
+  startDdaSession
+} from "../rules/tamer-resources.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const GM_TOOLS_TEMPLATE = `systems/${SYSTEM_ID}/templates/apps/dda-gm-tools.hbs`;
+
+const {
+  ApplicationV2,
+  HandlebarsApplicationMixin
+} = foundry.applications.api;
 
 let activeGmToolsApp = null;
 
@@ -32,7 +42,7 @@ export function registerDdaGmToolsControls() {
 
     const tool = {
       name: "dda-gm-tools",
-      title: "Ferramentas do Mestre DDA",
+      title: "DDA.GmTools.Title",
       icon: "dda-gm-tools-control-icon",
       order: 999,
       button: true,
@@ -62,96 +72,180 @@ export function registerDdaGmToolsControls() {
   });
 }
 
-export class DDAGmTools extends FormApplication {
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: "dda-gm-tools",
-      title: game.i18n.localize("DDA.GmTools.Title"),
-      template: GM_TOOLS_TEMPLATE,
-      classes: ["dda", "dda-gm-tools"],
+export class DDAGmTools extends HandlebarsApplicationMixin(ApplicationV2) {
+  static DEFAULT_OPTIONS = {
+    id: "dda-gm-tools",
+    classes: ["dda", "dda-gm-tools", "dda-gm-tools-form"],
+    tag: "form",
+    position: {
       width: 430,
-      height: "auto",
+      height: "auto"
+    },
+    window: {
+      title: "DDA.GmTools.Title",
+      resizable: true
+    },
+    form: {
       closeOnSubmit: false,
       submitOnChange: false,
-      submitOnClose: false,
-      resizable: true
-    });
-  }
+      handler: DDAGmTools.#onSubmit
+    },
+    actions: {
+      "refresh-targets": DDAGmTools.#onRefreshTargets,
+      "apply-damage": DDAGmTools.#onApplyDamage,
+      "start-session": DDAGmTools.#onStartSession,
+      "end-session": DDAGmTools.#onEndSession
+    }
+  };
+
+  static PARTS = {
+    form: {
+      template: GM_TOOLS_TEMPLATE
+    }
+  };
 
   static open() {
     if (activeGmToolsApp?.rendered) {
-      activeGmToolsApp.bringToTop();
+      activeGmToolsApp.bringToFront();
       return activeGmToolsApp;
     }
 
     activeGmToolsApp = new DDAGmTools();
-    activeGmToolsApp.render(true);
+    activeGmToolsApp.render({ force: true });
     return activeGmToolsApp;
   }
 
-  async getData(options = {}) {
+  async _prepareContext(options) {
+    const context = await super._prepareContext(options);
     const targets = getNarrativeTargets("auto");
+    const session = getDdaSessionState();
 
     return {
+      ...context,
       targets: targets.map(({ actor, token }) => getTargetViewData(actor, token)),
       hasTargets: targets.length > 0,
-        damageTypes: [
+      session: {
+        ...session,
+        statusLabel: game.i18n.localize(
+          session.active
+            ? "DDA.GmTools.Session.Active"
+            : "DDA.GmTools.Session.Inactive"
+        ),
+        startedAtLabel: session.startedAt
+          ? new Date(session.startedAt).toLocaleString()
+          : "—"
+      },
+      damageTypes: [
         {
-            key: "normal",
-            label: game.i18n.localize("DDA.GmTools.DamageType.Normal")
+          key: "normal",
+          label: game.i18n.localize("DDA.GmTools.DamageType.Normal")
         },
         {
-            key: "crash",
-            label: game.i18n.localize("DDA.GmTools.DamageType.Crash")
+          key: "crash",
+          label: game.i18n.localize("DDA.GmTools.DamageType.Crash")
         },
         {
-            key: "fall",
-            label: game.i18n.localize("DDA.GmTools.DamageType.Fall")
+          key: "fall",
+          label: game.i18n.localize("DDA.GmTools.DamageType.Fall")
         },
         {
-            key: "thrown",
-            label: game.i18n.localize("DDA.GmTools.DamageType.Thrown")
+          key: "thrown",
+          label: game.i18n.localize("DDA.GmTools.DamageType.Thrown")
         }
-        ],
-        targetModes: [
+      ],
+      targetModes: [
         {
-            key: "auto",
-            label: game.i18n.localize("DDA.GmTools.TargetMode.Auto")
+          key: "auto",
+          label: game.i18n.localize("DDA.GmTools.TargetMode.Auto")
         },
         {
-            key: "selected",
-            label: game.i18n.localize("DDA.GmTools.TargetMode.Selected")
+          key: "selected",
+          label: game.i18n.localize("DDA.GmTools.TargetMode.Selected")
         },
         {
-            key: "targeted",
-            label: game.i18n.localize("DDA.GmTools.TargetMode.Targeted")
+          key: "targeted",
+          label: game.i18n.localize("DDA.GmTools.TargetMode.Targeted")
         },
         {
-            key: "both",
-            label: game.i18n.localize("DDA.GmTools.TargetMode.Both")
+          key: "both",
+          label: game.i18n.localize("DDA.GmTools.TargetMode.Both")
         }
-        ]
+      ]
     };
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
+  static async #onSubmit(_event, _form, _formData) {}
 
-    html.find("[data-action='refresh-targets']").on("click", (event) => {
-      event.preventDefault();
-      this.render(false);
-    });
-
-    html.find("[data-action='apply-damage']").on("click", this._onApplyDamage.bind(this));
+  static async #onRefreshTargets(event) {
+    event.preventDefault();
+    await this.render();
   }
 
-
-  async _onApplyDamage(event) {
+  static async #onStartSession(event, target) {
     event.preventDefault();
 
-    const button = event.currentTarget;
-    const form = button.closest("form");
+    const currentSession = getDdaSessionState();
 
+    if (currentSession.active) {
+      const confirmed = await Dialog.confirm({
+        title: game.i18n.localize("DDA.GmTools.Session.RestartTitle"),
+        content: `<p>${game.i18n.localize("DDA.GmTools.Session.RestartContent")}</p>`,
+        yes: () => true,
+        no: () => false,
+        defaultYes: false
+      });
+
+      if (!confirmed) return;
+    }
+
+    target.disabled = true;
+
+    try {
+      const result = await startDdaSession();
+      await postSessionStartCard(result);
+      await this.render();
+    } finally {
+      target.disabled = false;
+    }
+  }
+
+  static async #onEndSession(event, target) {
+    event.preventDefault();
+
+    const currentSession = getDdaSessionState();
+
+    if (!currentSession.active) {
+      ui.notifications.info(
+        game.i18n.localize("DDA.GmTools.Session.AlreadyInactive")
+      );
+      return;
+    }
+
+    const confirmed = await Dialog.confirm({
+      title: game.i18n.localize("DDA.GmTools.Session.EndTitle"),
+      content: `<p>${game.i18n.localize("DDA.GmTools.Session.EndContent")}</p>`,
+      yes: () => true,
+      no: () => false,
+      defaultYes: false
+    });
+
+    if (!confirmed) return;
+
+    target.disabled = true;
+
+    try {
+      const result = await endDdaSession();
+      await postSessionEndCard(result);
+      await this.render();
+    } finally {
+      target.disabled = false;
+    }
+  }
+
+  static async #onApplyDamage(event, target) {
+    event.preventDefault();
+
+    const form = target.closest("form");
     if (!form) return;
 
     const formData = new FormData(form);
@@ -161,35 +255,41 @@ export class DDAGmTools extends FormApplication {
     const createChat = formData.get("createChat") === "on";
 
     if (!Number.isFinite(rawDamage) || rawDamage <= 0) {
-      ui.notifications.warn(game.i18n.localize("DDA.Warning.GmToolsInvalidDamage"));
+      ui.notifications.warn(
+        game.i18n.localize("DDA.Warning.GmToolsInvalidDamage")
+      );
       return;
     }
 
     const targets = getNarrativeTargets(targetMode);
 
     if (!targets.length) {
-      ui.notifications.warn(game.i18n.localize("DDA.Warning.GmToolsNoValidTargets"));
+      ui.notifications.warn(
+        game.i18n.localize("DDA.Warning.GmToolsNoValidTargets")
+      );
       return;
     }
 
-    const damageConfig = DAMAGE_TYPE_CONFIG[damageTypeKey] ?? DAMAGE_TYPE_CONFIG.normal;
-    const localizedDamageConfig = {
-  ...damageConfig,
-  damageLabel: damageConfig.damageLabelKey
-    ? game.i18n.localize(damageConfig.damageLabelKey)
-    : damageConfig.damageLabel
-};
-    const results = [];
+    const damageConfig = DAMAGE_TYPE_CONFIG[damageTypeKey]
+      ?? DAMAGE_TYPE_CONFIG.normal;
 
-    button.disabled = true;
+    const localizedDamageConfig = {
+      ...damageConfig,
+      damageLabel: damageConfig.damageLabelKey
+        ? game.i18n.localize(damageConfig.damageLabelKey)
+        : damageConfig.damageLabel
+    };
+
+    const results = [];
+    target.disabled = true;
 
     try {
       for (const { actor, token } of targets) {
         const before = getActorWoundState(actor);
 
         const result = await applyDamage(actor, rawDamage, {
-        ...localizedDamageConfig,
-        createChat
+          ...localizedDamageConfig,
+          createChat
         });
 
         const after = getActorWoundState(actor);
@@ -203,34 +303,80 @@ export class DDAGmTools extends FormApplication {
         });
       }
 
-      await this._postSummary(results, {
-        rawDamage,
-        damageConfig,
-        createChat
-      });
+      if (!createChat) {
+        console.group(game.i18n.localize("DDA.GmTools.Title"));
 
-      this.render(false);
+        for (const entry of results) {
+          console.log(entry.actor.name, {
+            before: entry.before,
+            after: entry.after,
+            result: entry.result
+          });
+        }
+
+        console.groupEnd();
+      }
+
+      await this.render();
     } finally {
-      button.disabled = false;
+      target.disabled = false;
     }
   }
+}
 
-  async _postSummary(results, context = {}) {
-    if (!results.length) return;
-    if (context.createChat) return;
+async function postSessionStartCard(result) {
+  const granted = result.potentialGrants.filter((entry) => entry.granted > 0);
+  const blocked = result.potentialGrants.filter((entry) => entry.granted <= 0);
 
-    console.group(game.i18n.localize("DDA.GmTools.Title"));
+  await ChatMessage.create({
+    content: `
+      <div class="dda-chat-card dda-effect-card effect-positive dda-session-card">
+        <h2>${game.i18n.localize("DDA.GmTools.Session.Started")}</h2>
 
-    for (const entry of results) {
-      console.log(entry.actor.name, {
-        antes: entry.before,
-        depois: entry.after,
-        resultado: entry.result
-      });
-    }
+        <ul class="dda-effect-list">
+          <li>
+            ${game.i18n.localize("DDA.GmTools.Session.PotentialGranted")}:
+            <strong>${granted.length}</strong>.
+          </li>
 
-    console.groupEnd();
-  }
+          ${
+            granted.length
+              ? `<li>${granted.map((entry) => entry.tamer.name).join(", ")}</li>`
+              : ""
+          }
+
+          ${
+            blocked.length
+              ? `<li>${game.i18n.format("DDA.GmTools.Session.PotentialBlocked", {
+                  actors: blocked.map((entry) => entry.tamer.name).join(", ")
+                })}</li>`
+              : ""
+          }
+        </ul>
+      </div>
+    `
+  });
+}
+
+async function postSessionEndCard(result) {
+  const totalCleared = result.cleared.reduce(
+    (sum, entry) => sum + entry.cleared,
+    0
+  );
+
+  await ChatMessage.create({
+    content: `
+      <div class="dda-chat-card dda-effect-card effect-special dda-session-card">
+        <h2>${game.i18n.localize("DDA.GmTools.Session.Ended")}</h2>
+
+        <p>
+          ${game.i18n.format("DDA.GmTools.Session.TemporaryIpRemoved", {
+            amount: totalCleared
+          })}
+        </p>
+      </div>
+    `
+  });
 }
 
 function getNarrativeTargets(mode = "auto") {
@@ -253,10 +399,12 @@ function getNarrativeTargets(mode = "auto") {
 
   for (const token of tokens) {
     if (!token?.actor) continue;
-
     if (!["character", "digimon", "npc"].includes(token.actor.type)) continue;
 
-    unique.set(token.id ?? token.document?.uuid ?? token.actor.uuid, token);
+    unique.set(
+      token.id ?? token.document?.uuid ?? token.actor.uuid,
+      token
+    );
   }
 
   return Array.from(unique.values()).map((token) => ({
@@ -268,7 +416,9 @@ function getNarrativeTargets(mode = "auto") {
 function getTargetViewData(actor, token) {
   const woundState = getActorWoundState(actor);
   const crashReduction = actor.system?.utilityBonuses?.crashDamageReduction ?? {};
-  const crashReductionValue = Number(crashReduction.total ?? crashReduction.value ?? 0);
+  const crashReductionValue = Number(
+    crashReduction.total ?? crashReduction.value ?? 0
+  );
 
   return {
     name: actor.name,

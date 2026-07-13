@@ -1,4 +1,8 @@
 import { DDA_TAMER_TALENTS } from "../data/tamer-talents.js";
+import { getTamerTalentUsesMax } from "../rules/tamer-talent-automation.js";
+import {
+  clearTamerTemporaryIp
+} from "../rules/tamer-resources.js";
 
 export async function takeTamerBreak(actor) {
   if (!actor || actor.type !== "character") {
@@ -126,6 +130,11 @@ export async function takeTamerRest(actor) {
 
   await actor.update(actorUpdates);
 
+  const clearedTemporaryIp =
+    await clearTamerTemporaryIp(actor, {
+      expiresOn: "rest"
+    });
+
   if (tormentUpdates.length > 0) {
     await actor.updateEmbeddedDocuments("Item", tormentUpdates);
   }
@@ -133,6 +142,37 @@ export async function takeTamerRest(actor) {
   if (digimentalUpdates.length > 0) {
     await actor.updateEmbeddedDocuments("Item", digimentalUpdates);
   }
+
+  const restedPartners =
+    await restLinkedPartnerActors(actor);
+
+  const linkedPartnerRows =
+    restedPartners.length > 0
+      ? `
+          <li>
+            ${localize("DDA.Rest.LinkedPartner")}:
+            <strong>${restedPartners[0].name}</strong>.
+          </li>
+
+          <li>
+            ${localize(
+              "DDA.Rest.PartnerWoundsRestored"
+            )}
+          </li>
+
+          <li>
+            ${localize(
+              "DDA.Rest.PartnerActionsRestored"
+            )}
+          </li>
+
+          <li>
+            ${localize(
+              "DDA.Rest.PartnerQualityUsesRestored"
+            )}
+          </li>
+        `
+      : "";
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
@@ -187,14 +227,160 @@ export async function takeTamerRest(actor) {
             <strong>${maxActions}</strong>.
           </li>
 
-          <li>
-            ${localize("DDA.TamerSheet.BlastEvolution")}:
-            <strong>${blastUsesMax}</strong>.
-          </li>
+<li>
+  ${localize("DDA.TamerSheet.BlastEvolution")}:
+  <strong>${blastUsesMax}</strong>.
+</li>
+
+${
+  clearedTemporaryIp.cleared > 0
+    ? `
+      <li>
+        ${formatI18n(
+          "DDA.Rest.TemporaryIpCleared",
+          {
+            amount:
+              clearedTemporaryIp.cleared
+          }
+        )}
+      </li>
+    `
+    : ""
+}
+
+${linkedPartnerRows}
         </ul>
       </div>
     `
   });
+}
+
+async function restLinkedPartnerActors(tamer) {
+  const partnerData =
+    tamer.system?.partner ?? {};
+
+  const partnerUuids = Array.from(
+    new Set(
+      [
+        String(
+          partnerData.currentFormUuid ?? ""
+        ).trim(),
+
+        String(
+          partnerData.uuid ?? ""
+        ).trim()
+      ].filter(Boolean)
+    )
+  );
+
+  const restedPartners = [];
+
+  for (const uuid of partnerUuids) {
+    let partner = null;
+
+    try {
+      const document = await fromUuid(uuid);
+
+      partner =
+        document?.documentName === "Actor"
+          ? document
+          : null;
+    } catch (error) {
+      console.warn(
+        "DDA | Could not resolve linked partner for Rest:",
+        uuid,
+        error
+      );
+    }
+
+    if (
+      !partner ||
+      !["digimon", "npc"].includes(partner.type)
+    ) {
+      continue;
+    }
+
+    const woundMax = Number(
+      partner.system.miscStats?.wounds?.max ??
+      partner.system.miscStats?.wounds?.value ??
+      0
+    );
+
+    const actionMax = Number(
+      partner.system.combat?.actions?.max ??
+      partner.system.combat?.actions?.value ??
+      0
+    );
+
+    const partnerUpdates = {
+      "system.combat.defeated": false
+    };
+
+    if (woundMax > 0) {
+      partnerUpdates[
+        "system.miscStats.wounds.value"
+      ] = woundMax;
+    }
+
+    if (actionMax > 0) {
+      partnerUpdates[
+        "system.combat.actions.value"
+      ] = actionMax;
+    }
+
+    await partner.update(partnerUpdates);
+    await rechargePartnerQualityUses(partner);
+
+    restedPartners.push(partner);
+  }
+
+  return restedPartners;
+}
+
+async function rechargePartnerQualityUses(
+  partner
+) {
+  const qualityUpdates = [];
+
+  for (const item of partner.items) {
+    if (item.type !== "quality") continue;
+    if (!item.system?.uses?.enabled) continue;
+
+    const rechargeType = String(
+      item.system.uses.recharge ?? ""
+    ).trim().toLowerCase();
+
+    if (rechargeType !== "rest") continue;
+
+    const maxUses = Math.max(
+      0,
+      Number(item.system.uses.max ?? 0)
+    );
+
+    const currentUses = Math.max(
+      0,
+      Number(item.system.uses.value ?? 0)
+    );
+
+    if (
+      maxUses <= 0 ||
+      currentUses >= maxUses
+    ) {
+      continue;
+    }
+
+    qualityUpdates.push({
+      _id: item.id,
+      "system.uses.value": maxUses
+    });
+  }
+
+  if (qualityUpdates.length > 0) {
+    await partner.updateEmbeddedDocuments(
+      "Item",
+      qualityUpdates
+    );
+  }
 }
 
 function getTamerTalentUsesRestUpdates(actor) {
@@ -206,7 +392,10 @@ function getTamerTalentUsesRestUpdates(actor) {
     if (!uses.enabled) continue;
     if (uses.recharge !== "rest") continue;
 
-    const max = Number(uses.max ?? 0);
+    const max = getTamerTalentUsesMax(
+  actor,
+  talent
+);
 
     if (max <= 0) continue;
 
@@ -220,4 +409,8 @@ function getTamerTalentUsesRestUpdates(actor) {
 
 function localize(key) {
   return game.i18n.localize(key);
+}
+
+function formatI18n(key, data = {}) {
+  return game.i18n.format(key, data);
 }

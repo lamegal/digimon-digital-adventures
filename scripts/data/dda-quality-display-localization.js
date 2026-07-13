@@ -35,9 +35,18 @@ const DDA_QUALITY_SECTION_LABELS = {
     "pt-BR": "Qualidades de Efeito",
     "en": "Effect Qualities"
   },
+  /*
+   * Mantém a chave antiga para Items e compêndios
+   * que ainda tenham "Evoker Qualities".
+   */
   "Evoker Qualities": {
-    "pt-BR": "Qualidades de Conjurador",
-    "en": "Evoker Qualities"
+    "pt-BR": "Qualidades de Conjuração",
+    "en": "Omnievoker Qualities"
+  },
+
+  "Omnievoker Qualities": {
+    "pt-BR": "Qualidades de Conjuração",
+    "en": "Omnievoker Qualities"
   },
   "Free Qualities": {
     "pt-BR": "Qualidades Gratuitas",
@@ -113,13 +122,19 @@ const DDA_QUALITY_EN_DISPLAY_OVERRIDES = {
   "perfuracaoDeArmadura": {
     "fields": {
       "requirements.text": "Requires Total Damage 4 for Rank 1, 8 for Rank 2, and 12 for Rank 3.",
-      "incompatible.text": "[PIERCING] and [CERTAIN] cannot be applied to the same Attack unless both are applied to the Signature Move."
+      "incompatible.text": "[PIERCING] and [CERTAIN] cannot be applied to the same Attack unless both are applied to the Signature Move.",
+      "choices.label": "Attack with [PIERCING]",
+      "effect": "On first purchase, apply the [PIERCING] Tag to one [DAMAGE] Attack. An Attack with [PIERCING] deals Unalterable Damage on a hit equal to twice this Quality's Ranks, or equal to this Quality's Ranks on an Area Attack. [PIERCING] may only be applied to one Attack per Digimon. If [PIERCING] is applied to a Signature Move, Battery added to the Attack's Damage may become Unalterable Damage instead, up to this Quality's Ranks, chosen when the Tag is applied to the Attack.",
+      "description": "Armor Piercing allows one specific [DAMAGE] Attack to bypass defenses and deal fixed Unalterable Damage on a hit."
     }
   },
   "golpeCerteiro": {
     "fields": {
       "requirements.text": "Requires Total Accuracy 4 for Rank 1, 8 for Rank 2, and 12 for Rank 3.",
-      "incompatible.text": "[CERTAIN] and [PIERCING] cannot be applied to the same Attack unless both are applied to the Signature Move."
+      "incompatible.text": "[CERTAIN] and [PIERCING] cannot be applied to the same Attack unless both are applied to the Signature Move.",
+      "choices.label": "Attack with [CERTAIN]",
+      "effect": "On first purchase, apply the [CERTAIN] Tag to one [DAMAGE] Attack. An Attack with [CERTAIN] gains automatic Successes equal to this Quality's Ranks. [CERTAIN] may only be applied to one Attack per Digimon. If [CERTAIN] is applied to a Signature Move and the Digimon has 2 Battery or more, the Attack gains +1 additional automatic Success.",
+      "description": "Certain Strike makes one specific [DAMAGE] Attack more reliable by granting automatic Accuracy Successes."
     }
   },
   "ataqueDeInvestida": {
@@ -316,10 +331,11 @@ const DDA_QUALITY_EN_DISPLAY_OVERRIDES = {
   "invocador": {
     "choiceOptions": {
       "recon": {
-        "uniqueBenefit": "The minions may now make [RANGE] Attacks, using the Summoner's Range and Effective Limit."
+        "effect": "Costs 2 Mastery, is Medium, and gains Accuracy equal to Stage. It may make [RANGE] Attacks using the Summoner's Range and Effective Limit, and the Summoner can see through its eyes."
       },
+
       "volatile": {
-        "uniqueBenefit": "A minion explodes when destroyed, making a [MELEE][DAMAGE][T:BURST] Attack against all targets in the area."
+        "effect": "Requires Element Master. Costs 1 Mastery, is Large, and gains Damage equal to Stage. Choose one owned Naturewalk Element when summoned. At 0 Wound Boxes it makes a free minimum-range [RANGE][DAMAGE][T:BURST] Attack."
       }
     }
   },

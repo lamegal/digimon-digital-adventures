@@ -1032,9 +1032,7 @@
 
     <section class="dda-quality-browser dda-wizard-quality-browser">
       <header class="quality-browser-header dda-wizard-quality-sticky-header">
-        <details class="dda-wizard-quality-filter-panel">
-          <summary>{{localize "DDA.DigimonWizard.Qualities.Filters"}}</summary>
-
+        <div class="dda-wizard-quality-toolbar">
           <input
             type="search"
             value="{{qualityBrowser.searchTerm}}"
@@ -1053,31 +1051,43 @@
               {{localize "DDA.QualityBrowser.Filter.All"}}
             {{/if}}
           </button>
+        </div>
+
+        <details class="dda-wizard-quality-filter-panel">
+          <summary>
+            {{localize "DDA.DigimonWizard.Qualities.Filters"}}
+          </summary>
 
           <div class="dda-wizard-quality-filter-content">
-              <nav class="quality-browser-filters quality-browser-tier-filters" aria-label="{{localize "DDA.DigimonWizard.Qualities.Filters"}}">
-                {{#each qualityTiers as |tier|}}
-                  <button
-                    type="button"
-                    class="{{#if (eq ../qualityBrowser.activeTier tier.key)}}active{{/if}}"
-                    data-tier-filter="{{tier.key}}"
-                  >
-                    {{tier.label}}
-                  </button>
-                {{/each}}
-              </nav>
+            <nav
+              class="quality-browser-filters quality-browser-tier-filters"
+              aria-label="{{localize "DDA.DigimonWizard.Qualities.Filters"}}"
+            >
+              {{#each qualityTiers as |tier|}}
+                <button
+                  type="button"
+                  class="{{#if (eq ../qualityBrowser.activeTier tier.key)}}active{{/if}}"
+                  data-tier-filter="{{tier.key}}"
+                >
+                  {{tier.label}}
+                </button>
+              {{/each}}
+            </nav>
 
-              <nav class="quality-browser-filters quality-browser-category-filters" aria-label="{{localize "DDA.DigimonWizard.Qualities.Filters"}}">
-                {{#each qualityCategories as |category|}}
-                  <button
-                    type="button"
-                    class="{{#if (eq ../qualityBrowser.activeCategory category.key)}}active{{/if}}"
-                    data-category-filter="{{category.key}}"
-                  >
-                    {{category.label}}
-                  </button>
-                {{/each}}
-              </nav>
+            <nav
+              class="quality-browser-filters quality-browser-category-filters"
+              aria-label="{{localize "DDA.DigimonWizard.Qualities.Filters"}}"
+            >
+              {{#each qualityCategories as |category|}}
+                <button
+                  type="button"
+                  class="{{#if (eq ../qualityBrowser.activeCategory category.key)}}active{{/if}}"
+                  data-category-filter="{{category.key}}"
+                >
+                  {{category.label}}
+                </button>
+              {{/each}}
+            </nav>
           </div>
         </details>
       </header>

@@ -6,9 +6,18 @@ import {
   getSkillFinalCap,
   getStartingAttributePoints,
   getStartingSkillPoints,
-  getStartingMarkedTormentBoxes
+  getStartingMarkedTormentBoxes,
+  getScaledTalentRequirement
 } from "../rules/campaign-rules.js";
-import { ensureActorOwner, syncTamerAndPartnerOwnership } from "../utils/ownership.js";
+
+import {
+  DDA_TAMER_TALENTS
+} from "../data/tamer-talents.js";
+
+import {
+  ensureActorOwner,
+  syncTamerAndPartnerOwnership
+} from "../utils/ownership.js";
 
 
 function isEnglishLanguage() {
@@ -20,7 +29,54 @@ function text(pt, en) {
   return isEnglishLanguage() ? en : pt;
 }
 
-const DDA_SYSTEM_ID = "digimon-digital-adventures";
+const DDA_TAMER_DEFAULT_IMAGE =
+  "icons/svg/mystery-man.svg";
+
+function getDdaFilePickerClass() {
+  return (
+    globalThis.foundry
+      ?.applications
+      ?.apps
+      ?.FilePicker
+      ?.implementation ??
+    globalThis.FilePicker ??
+    null
+  );
+}
+
+function getTamerWorldImageDirectory() {
+  const worldId = String(
+    game?.world?.id ?? ""
+  ).trim();
+
+  return worldId
+    ? `worlds/${worldId}`
+    : "worlds";
+}
+
+function isMissingTamerImage(path = "") {
+  const normalized = String(
+    path ?? ""
+  )
+    .trim()
+    .replaceAll("\\", "/")
+    .toLowerCase();
+
+  if (!normalized) {
+    return true;
+  }
+
+  return (
+    normalized ===
+      DDA_TAMER_DEFAULT_IMAGE.toLowerCase() ||
+    normalized.endsWith(
+      "/mystery-man.svg"
+    )
+  );
+}
+
+const DDA_SYSTEM_ID =
+  "digimon-digital-adventures";
 
 function getWorldSetting(key, fallback = false) {
   try {
@@ -41,6 +97,39 @@ function localizeFallback(key, fallback = "") {
 
 function formatI18n(key, data = {}) {
   return game.i18n.format(key, data);
+}
+
+function hasExperiencedCreationBenefit(
+  attributes = {}
+) {
+  const experienced =
+    DDA_TAMER_TALENTS.find(
+      (talent) =>
+        talent.id === "experienced"
+    );
+
+  const requirement =
+    experienced?.requirement ?? {};
+
+  if (
+    requirement.type !== "attribute" ||
+    !requirement.key
+  ) {
+    return false;
+  }
+
+  const currentValue = Number(
+    attributes[requirement.key]?.total ??
+    attributes[requirement.key]?.value ??
+    0
+  );
+
+  const requiredValue =
+    getScaledTalentRequirement(
+      requirement.value
+    );
+
+  return currentValue >= requiredValue;
 }
 
 
@@ -215,7 +304,7 @@ export class DDATamerWizard extends Application {
         concept: "",
         pronouns: "",
         description: "",
-        img: "icons/svg/mystery-man.svg"
+        img: DDA_TAMER_DEFAULT_IMAGE
       },
 
       aspects: {
@@ -322,21 +411,45 @@ export class DDATamerWizard extends Application {
     this._recalculate();
     this._validate();
 
-    return {
-      step: this.currentStep,
-      stepIndex: this.stepIndex + 1,
-      totalSteps: this.steps.length,
+return {
+  step:
+    this.currentStep,
 
-      isFirstStep: this.isFirstStep,
-      isLastStep: this.isLastStep,
+  stepIndex:
+    this.stepIndex + 1,
 
-      data: this.data,
-      campaignRules: this.data.campaignRules,
+  totalSteps:
+    this.steps.length,
 
-      progressLabel: this._getProgressLabel(),
-      progressSteps: this._getProgressSteps(),
-      guide: this._getGuideData()
-    };
+  isFirstStep:
+    this.isFirstStep,
+
+  isLastStep:
+    this.isLastStep,
+
+  data:
+    this.data,
+
+  campaignRules:
+    this.data.campaignRules,
+
+  imageMissing:
+    isMissingTamerImage(
+      this.data.identity.img
+    ),
+
+  worldImageDirectory:
+    getTamerWorldImageDirectory(),
+
+  progressLabel:
+    this._getProgressLabel(),
+
+  progressSteps:
+    this._getProgressSteps(),
+
+  guide:
+    this._getGuideData()
+};
   }
 
   activateListeners(html) {
@@ -355,9 +468,30 @@ export class DDATamerWizard extends Application {
     html.find("[data-torment-increase]").on("click", this._onIncreaseTorment.bind(this));
     html.find("[data-torment-decrease]").on("click", this._onDecreaseTorment.bind(this));
 
-    html.find("[data-lucky-number]").on("click", this._onSelectLuckyNumber.bind(this));
+html
+  .find("[data-lucky-number]")
+  .on(
+    "click",
+    this._onSelectLuckyNumber.bind(this)
+  );
 
-    html.find("input[data-path], textarea[data-path]").on("blur", this._onInputChange.bind(this));
+html
+  .find(
+    "[data-action='select-tamer-image']"
+  )
+  .on(
+    "click",
+    this._onSelectTamerImage.bind(this)
+  );
+
+html
+  .find(
+    "input[data-path], textarea[data-path]"
+  )
+  .on(
+    "blur",
+    this._onInputChange.bind(this)
+  );
     html.find("select[data-path]").on("change", this._onInputChange.bind(this));
 
     this._restoreScrollPosition(html);
@@ -451,6 +585,95 @@ export class DDATamerWizard extends Application {
 
     foundry.utils.setProperty(this.data, path, input.value);
   }
+
+  async _onSelectTamerImage(event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  this._syncInputsFromHtml();
+
+  const FilePickerClass =
+    getDdaFilePickerClass();
+
+  if (!FilePickerClass) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerWizard.Warning.FilePickerUnavailable"
+      )
+    );
+
+    return;
+  }
+
+  const currentImage = String(
+    this.data.identity.img ?? ""
+  ).trim();
+
+  /*
+   * Enquanto estiver usando o mystery-man,
+   * o FilePicker abre diretamente dentro da
+   * pasta do mundo.
+   *
+   * Depois de escolher uma imagem, ele abre
+   * novamente no caminho atualmente usado.
+   */
+  const currentPath =
+    isMissingTamerImage(currentImage)
+      ? getTamerWorldImageDirectory()
+      : currentImage;
+
+  const picker =
+    new FilePickerClass({
+      type: "image",
+
+      current:
+        currentPath,
+
+      callback: (selectedPath) => {
+        const path = String(
+          selectedPath ?? ""
+        ).trim();
+
+        if (!path) {
+          return;
+        }
+
+        this.data.identity.img =
+          path;
+
+        this._recalculate();
+        this._validate();
+        this._renderPreservingScroll();
+      },
+
+      top:
+        (
+          this.position?.top ??
+          100
+        ) + 40,
+
+      left:
+        (
+          this.position?.left ??
+          100
+        ) + 40
+    });
+
+  /*
+   * O FilePicker continuará servindo para
+   * selecionar arquivos existentes, mesmo
+   * quando o cargo não puder enviar arquivos.
+   */
+  if (picker.canUpload === false) {
+    ui.notifications.info(
+      localize(
+        "DDA.TamerWizard.Warning.UploadPermission"
+      )
+    );
+  }
+
+  picker.render(true);
+}
 
 async _onNext(event) {
   event.preventDefault();
@@ -663,6 +886,9 @@ if (shouldOpenDigimonWizard) {
   _recalculate() {
     this._refreshCampaignRules();
     this._recalculateAttributes();
+
+    this._recalculateExperiencedCreationBenefits();
+
     this._recalculateSkills();
     this._recalculateInspiration();
     this._recalculateTorments();
@@ -683,8 +909,24 @@ if (shouldOpenDigimonWizard) {
     }
 
     this.data.ap.spent = spent;
-    this.data.ap.remaining = this.data.ap.base - spent;
+    this.data.ap.remaining =
+      this.data.ap.base - spent;
+
     this.data.ap.capUsed = capUsed;
+  }
+
+  _recalculateExperiencedCreationBenefits() {
+    const experiencedActive =
+      hasExperiencedCreationBenefit(
+        this.data.attributes
+      );
+
+    this.data.sp.base =
+      getStartingSkillPoints() +
+      (experiencedActive ? 1 : 0);
+
+    this.data.sp.capLimit =
+      experiencedActive ? 2 : 1;
   }
 
   _recalculateSkills() {
@@ -747,11 +989,34 @@ if (shouldOpenDigimonWizard) {
     const errors = [];
     const warnings = [];
 
-    if (this.currentStep === "identity" || this.currentStep === "summary") {
-      if (!this.data.identity.name?.trim()) {
-        errors.push(localize("DDA.TamerWizard.Validation.NameRequired"));
-      }
-    }
+if (
+  this.currentStep === "identity" ||
+  this.currentStep === "summary"
+) {
+  if (
+    !this.data.identity.name
+      ?.trim()
+  ) {
+    errors.push(
+      localize(
+        "DDA.TamerWizard.Validation.NameRequired"
+      )
+    );
+  }
+}
+
+if (
+  this.currentStep === "summary" &&
+  isMissingTamerImage(
+    this.data.identity.img
+  )
+) {
+  errors.push(
+    localize(
+      "DDA.TamerWizard.Validation.ImageRequired"
+    )
+  );
+}
 
     if (this.currentStep === "aspects" || this.currentStep === "summary") {
       if (!this.data.aspects.major.name?.trim()) {
@@ -832,7 +1097,9 @@ if (shouldOpenDigimonWizard) {
     return {
       name,
       type: "character",
-      img: this.data.identity.img || "icons/svg/mystery-man.svg",
+img: String(
+  this.data.identity.img ?? ""
+).trim(),
 
       system: {
         luckyNumber,
@@ -876,7 +1143,8 @@ if (shouldOpenDigimonWizard) {
             label: "DDA.Resource.IP.Short",
             value: ipValue,
             temp: ipTemp,
-            max: ipMax
+            max: ipMax,
+            temporarySources: []
           },
           evolutionPoints: {
             label: "DDA.Resource.EvolutionPoints.Short",
