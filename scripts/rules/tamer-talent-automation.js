@@ -1,5 +1,14 @@
 import { applyDamage } from "../rolls/damage-application.js";
 
+import {
+  requestBusyHandsSkillItem,
+  requestEndlessDreamDistribution
+} from "./tamer-talent-socket.js";
+
+import {
+  getEndlessDreamTemporaryIpCapacity
+} from "./tamer-resources.js";
+
 /**
  * Shared runtime for official and homebrew Tamer Talents.
  *
@@ -437,6 +446,20 @@ export async function executeTamerTalentAutomation(tamer, talent) {
     case "grantActions":
       return applyGrantActionsAutomation(tamer, talent, automation);
 
+    case "busyHandsCraft":
+      return applyBusyHandsCraftAutomation(
+        tamer,
+        talent,
+        automation
+      );
+
+    case "endlessDreamDistribution":
+      return applyEndlessDreamDistributionAutomation(
+        tamer,
+        talent,
+        automation
+      );
+
     case "healWounds":
     case "heal":
       return applyHealWoundsAutomation(tamer, talent, automation);
@@ -468,6 +491,901 @@ export async function executeTamerTalentAutomation(tamer, talent) {
         )
       };
   }
+}
+
+async function applyBusyHandsCraftAutomation(
+  tamer,
+  talent,
+  _automation
+) {
+  const precision = Math.max(
+    0,
+    Number(
+      tamer.system
+        ?.skills
+        ?.precision
+        ?.value ??
+      0
+    )
+  );
+
+  const bonus = Math.max(
+    0,
+    Math.floor(
+      precision - 2
+    )
+  );
+
+  if (bonus <= 0) {
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        localize(
+          "DDA.TamerTalent.BusyHands.NoBonus",
+          "Busy Hands does not currently grant a Skill bonus."
+        )
+    };
+  }
+
+  const recipients =
+    Array.from(
+      game.actors?.contents ?? []
+    )
+      .filter((actor) => {
+        return (
+          actor.type ===
+          "character"
+        );
+      })
+      .sort((left, right) => {
+        return String(
+          left.name
+        ).localeCompare(
+          String(
+            right.name
+          ),
+          game.i18n.lang
+        );
+      });
+
+  if (!recipients.length) {
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        localize(
+          "DDA.TamerTalent.BusyHands.NoRecipients",
+          "No eligible Character was found."
+        )
+    };
+  }
+
+  const skills =
+    Object.entries(
+      tamer.system?.skills ?? {}
+    )
+      .map(([key, skill]) => {
+        return {
+          key,
+
+          label:
+            localize(
+              skill?.label ?? key,
+              key
+            )
+        };
+      })
+      .sort((left, right) => {
+        return left.label.localeCompare(
+          right.label,
+          game.i18n.lang
+        );
+      });
+
+  if (!skills.length) {
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        localize(
+          "DDA.TamerTalent.BusyHands.NoSkills",
+          "No eligible Skill was found."
+        )
+    };
+  }
+
+  const targetedTamer =
+    Array.from(
+      game.user?.targets ?? []
+    )
+      .map((token) => {
+        return token.actor;
+      })
+      .find((actor) => {
+        return (
+          actor?.type ===
+          "character"
+        );
+      });
+
+  const defaultRecipientUuid =
+    targetedTamer?.uuid ??
+    tamer.uuid;
+
+  let choice =
+    null;
+
+  try {
+    choice =
+      await foundry
+        .applications
+        .api
+        .DialogV2
+        .prompt({
+          window: {
+            title:
+              localize(
+                "DDA.TamerTalent.BusyHands.DialogTitle",
+                "Craft Busy Hands Item"
+              )
+          },
+
+          content: `
+           <div class="dda-roll-dialog dda-busy-hands-dialog">
+              <p>
+                ${formatI18n(
+                  "DDA.TamerTalent.BusyHands.DialogHint",
+                  {
+                    actor:
+                      `<strong>${escapeHtml(
+                        tamer.name
+                      )}</strong>`,
+
+                    bonus:
+                      `<strong>+${bonus}</strong>`
+                  },
+
+                  `${escapeHtml(
+                    tamer.name
+                  )} crafts an item that grants +${bonus} to one Skill Check.`
+                )}
+              </p>
+
+              <div class="form-group">
+                <label>
+                  ${localize(
+                    "DDA.TamerTalent.BusyHands.Recipient",
+                    "Recipient"
+                  )}
+                </label>
+
+                <select name="recipientUuid">
+                  ${recipients.map((recipient) => `
+                    <option
+                      value="${escapeHtml(
+                        recipient.uuid
+                      )}"
+
+                      ${
+                        recipient.uuid ===
+                        defaultRecipientUuid
+                          ? "selected"
+                          : ""
+                      }
+                    >
+                      ${escapeHtml(
+                        recipient.name
+                      )}
+                    </option>
+                  `).join("")}
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>
+                  ${localize(
+                    "DDA.TamerTalent.BusyHands.Skill",
+                    "Skill"
+                  )}
+                </label>
+
+                <select name="skillKey">
+                  ${skills.map((skill) => `
+                    <option value="${escapeHtml(
+                      skill.key
+                    )}">
+                      ${escapeHtml(
+                        skill.label
+                      )}
+                    </option>
+                  `).join("")}
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>
+                  ${localize(
+                    "DDA.TamerTalent.BusyHands.ItemName",
+                    "Item Name"
+                  )}
+                </label>
+
+                <input
+                  type="text"
+                  name="itemName"
+                  maxlength="80"
+
+                  placeholder="${escapeHtml(
+                    localize(
+                      "DDA.TamerTalent.BusyHands.ItemPlaceholder",
+                      "Example: reinforced shoelaces"
+                    )
+                  )}"
+                >
+              </div>
+            </div>
+          `,
+
+          ok: {
+            label:
+              localize(
+                "DDA.TamerTalent.BusyHands.Craft",
+                "Craft Item"
+              ),
+
+            callback:
+              (_event, button) => {
+                return {
+                  recipientUuid:
+                    String(
+                      button
+                        .form
+                        .elements
+                        .recipientUuid
+                        ?.value ??
+                      ""
+                    ).trim(),
+
+                  skillKey:
+                    String(
+                      button
+                        .form
+                        .elements
+                        .skillKey
+                        ?.value ??
+                      ""
+                    ).trim(),
+
+                  itemName:
+                    String(
+                      button
+                        .form
+                        .elements
+                        .itemName
+                        ?.value ??
+                      ""
+                    ).trim()
+                };
+              }
+          },
+
+          rejectClose:
+            false,
+
+          modal:
+            true
+        });
+  } catch (_error) {
+    choice =
+      null;
+  }
+
+  if (
+    !choice?.recipientUuid ||
+    !choice?.skillKey
+  ) {
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        localize(
+          "DDA.TamerTalent.BusyHands.Cancelled",
+          "No item was crafted."
+        )
+    };
+  }
+
+  let recipient =
+    null;
+
+  try {
+    const document =
+      await fromUuid(
+        choice.recipientUuid
+      );
+
+    recipient =
+      document?.documentName ===
+        "Actor"
+        ? document
+        : null;
+  } catch (_error) {
+    recipient =
+      null;
+  }
+
+  if (
+    !recipient ||
+    recipient.type !== "character"
+  ) {
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        localize(
+          "DDA.TamerTalent.BusyHands.InvalidRecipient",
+          "The selected recipient is not valid."
+        )
+    };
+  }
+
+  const result =
+    await requestBusyHandsSkillItem(
+      tamer,
+      recipient,
+      {
+        skillKey:
+          choice.skillKey,
+
+        itemName:
+          choice.itemName,
+
+        bonus
+      }
+    );
+
+  if (!result?.ok) {
+    const failureKeys = {
+      noActiveGm:
+        "DDA.TamerTalent.BusyHands.NoActiveGm",
+
+      timeout:
+        "DDA.TamerTalent.BusyHands.GmTimeout",
+
+      noUses:
+        "DDA.TamerTalent.BusyHands.NoUses",
+
+      invalidSkill:
+        "DDA.TamerTalent.BusyHands.InvalidSkill"
+    };
+
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        localize(
+          failureKeys[
+            result?.reason
+          ] ??
+          "DDA.TamerTalent.BusyHands.Failed",
+
+          "The Busy Hands item could not be created."
+        )
+    };
+  }
+
+  const item =
+    result.item ?? {};
+
+  return {
+    success: true,
+    applied: true,
+
+    targetName:
+      result.recipientName,
+
+    message:
+      formatI18n(
+        "DDA.TamerTalent.BusyHands.Crafted",
+        {
+          actor:
+            tamer.name,
+
+          recipient:
+            result.recipientName,
+
+          item:
+            item.itemName,
+
+          skill:
+            result.skillLabel,
+
+          bonus:
+            result.bonus
+        },
+
+        `${tamer.name} crafted ${item.itemName} for ${result.recipientName}: +${result.bonus} to ${result.skillLabel}.`
+      ),
+
+    details:
+      formatI18n(
+        "DDA.TamerTalent.BusyHands.Expires",
+        {
+          actor:
+            tamer.name
+        },
+
+        `The item is consumed when used or when ${tamer.name} finishes another Rest.`
+      )
+  };
+}
+
+async function applyEndlessDreamDistributionAutomation(
+  tamer,
+  talent,
+  _automation
+) {
+  const performance =
+    Math.max(
+      0,
+      Math.floor(
+        Number(
+          tamer.system
+            ?.skills
+            ?.performance
+            ?.value ??
+          0
+        )
+      )
+    );
+
+  const pointPool =
+    Math.max(
+      0,
+      performance - 2
+    );
+
+  if (
+    pointPool <= 0
+  ) {
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        localize(
+          "DDA.TamerTalent.EndlessDream.NoPoints",
+          "Endless Dream does not currently grant any Temporary IP."
+        )
+    };
+  }
+
+  const candidates =
+    Array.from(
+      game.actors?.contents ?? []
+    )
+      .filter((actor) => {
+        return (
+          actor.type ===
+            "character" &&
+          actor.uuid !==
+            tamer.uuid
+        );
+      })
+      .map((actor) => {
+        return {
+          actor,
+
+          capacity:
+            getEndlessDreamTemporaryIpCapacity(
+              actor
+            )
+        };
+      })
+      .filter((candidate) => {
+        return (
+          candidate.capacity
+            .capacity > 0
+        );
+      })
+      .sort((left, right) => {
+        return String(
+          left.actor.name
+        ).localeCompare(
+          String(
+            right.actor.name
+          ),
+          game.i18n.lang
+        );
+      });
+
+  if (!candidates.length) {
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        localize(
+          "DDA.TamerTalent.EndlessDream.NoRecipients",
+          "No Ally can currently receive Temporary IP from Endless Dream."
+        )
+    };
+  }
+
+  const totalCapacity =
+    candidates.reduce(
+      (total, candidate) => {
+        return (
+          total +
+          candidate.capacity
+            .capacity
+        );
+      },
+      0
+    );
+
+  if (
+    totalCapacity <
+    pointPool
+  ) {
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        formatI18n(
+          "DDA.TamerTalent.EndlessDream.InsufficientCapacity",
+          {
+            points:
+              pointPool,
+
+            capacity:
+              totalCapacity
+          },
+
+          `Endless Dream grants ${pointPool} points, but the available Allies can only receive ${totalCapacity}.`
+        )
+    };
+  }
+
+  let allocations =
+    null;
+
+  while (!allocations) {
+    let choice =
+      null;
+
+    try {
+      choice =
+        await foundry
+          .applications
+          .api
+          .DialogV2
+          .prompt({
+            window: {
+              title:
+                localize(
+                  "DDA.TamerTalent.EndlessDream.DialogTitle",
+                  "Distribute Endless Dream"
+                )
+            },
+
+            content: `
+              <div class="dda-roll-dialog dda-endless-dream-dialog">
+                <p>
+                  ${formatI18n(
+                    "DDA.TamerTalent.EndlessDream.DialogHint",
+                    {
+                      actor:
+                        `<strong>${escapeHtml(
+                          tamer.name
+                        )}</strong>`,
+
+                      points:
+                        `<strong>${pointPool}</strong>`
+                    },
+
+                    `${escapeHtml(
+                      tamer.name
+                    )} may distribute ${pointPool} Temporary IP among Allies.`
+                  )}
+                </p>
+
+                <div class="dda-endless-dream-pool">
+                  <span>
+                    ${localize(
+                      "DDA.TamerTalent.EndlessDream.PointPool",
+                      "Points to distribute"
+                    )}
+                  </span>
+
+                  <strong>
+                    ${pointPool}
+                  </strong>
+                </div>
+
+                <div class="dda-endless-dream-allocations">
+                  ${candidates.map(
+                    (candidate) => {
+                      const actor =
+                        candidate.actor;
+
+                      const capacity =
+                        candidate.capacity;
+
+                      return `
+                        <label class="dda-endless-dream-recipient">
+                          <span class="dda-endless-dream-recipient-name">
+                            ${escapeHtml(
+                              actor.name
+                            )}
+
+                            <small>
+                              ${formatI18n(
+                                "DDA.TamerTalent.EndlessDream.RecipientStatus",
+                                {
+                                  current:
+                                    capacity.totalIp,
+
+                                  maximum:
+                                    capacity.maximumTotal,
+
+                                  capacity:
+                                    capacity.capacity
+                                },
+
+                                `Current IP: ${capacity.totalIp}/${capacity.maximumTotal}; can receive ${capacity.capacity}.`
+                              )}
+                            </small>
+                          </span>
+
+                          <input
+                            type="number"
+
+                            name="allocation.${escapeHtml(
+                              actor.id
+                            )}"
+
+                            min="0"
+
+                            max="${capacity.capacity}"
+
+                            step="1"
+                            value="0"
+                          >
+                        </label>
+                      `;
+                    }
+                  ).join("")}
+                </div>
+
+                <p class="notes">
+                  ${localize(
+                    "DDA.TamerTalent.EndlessDream.DistributionHint",
+                    "The complete pool must be distributed. Each Ally can receive at most 2 Temporary IP from Endless Dream and cannot exceed 7 total IP."
+                  )}
+                </p>
+              </div>
+            `,
+
+            ok: {
+              label:
+                localize(
+                  "DDA.TamerTalent.EndlessDream.Distribute",
+                  "Distribute IP"
+                ),
+
+              callback:
+                (_event, button) => {
+                  const formData =
+                    new FormData(
+                      button.form
+                    );
+
+                  const selected =
+                    candidates.map(
+                      (candidate) => {
+                        const rawAmount =
+                          formData.get(
+                            `allocation.${candidate.actor.id}`
+                          );
+
+                        const amount =
+                          Math.max(
+                            0,
+                            Math.floor(
+                              Number(
+                                rawAmount ??
+                                0
+                              )
+                            )
+                          );
+
+                        return {
+                          recipientUuid:
+                            candidate.actor.uuid,
+
+                          amount
+                        };
+                      }
+                    )
+                      .filter(
+                        (allocation) => {
+                          return (
+                            allocation.amount >
+                            0
+                          );
+                        }
+                      );
+
+                  return {
+                    allocations:
+                      selected,
+
+                    total:
+                      selected.reduce(
+                        (
+                          total,
+                          allocation
+                        ) => {
+                          return (
+                            total +
+                            allocation.amount
+                          );
+                        },
+                        0
+                      )
+                  };
+                }
+            },
+
+            rejectClose:
+              false,
+
+            modal:
+              true
+          });
+    } catch (_error) {
+      choice =
+        null;
+    }
+
+    if (!choice) {
+      return {
+        success: false,
+        applied: false,
+
+        message:
+          localize(
+            "DDA.TamerTalent.EndlessDream.Cancelled",
+            "No Temporary IP was distributed."
+          )
+      };
+    }
+
+    if (
+      choice.total !==
+      pointPool
+    ) {
+      ui.notifications.warn(
+        formatI18n(
+          "DDA.TamerTalent.EndlessDream.InvalidDistribution",
+          {
+            expected:
+              pointPool,
+
+            received:
+              choice.total
+          },
+
+          `Distribute exactly ${pointPool} points. Currently selected: ${choice.total}.`
+        )
+      );
+
+      continue;
+    }
+
+    allocations =
+      choice.allocations;
+  }
+
+  const result =
+    await requestEndlessDreamDistribution(
+      tamer,
+      allocations
+    );
+
+  if (!result?.ok) {
+    const failureKeys = {
+      noActiveGm:
+        "DDA.TamerTalent.EndlessDream.NoActiveGm",
+
+      timeout:
+        "DDA.TamerTalent.EndlessDream.GmTimeout",
+
+      noUses:
+        "DDA.TamerTalent.EndlessDream.NoUses",
+
+      noPoints:
+        "DDA.TamerTalent.EndlessDream.NoPoints",
+
+      invalidTotal:
+        "DDA.TamerTalent.EndlessDream.InvalidServerTotal",
+
+      invalidRecipient:
+        "DDA.TamerTalent.EndlessDream.InvalidRecipient",
+
+      capacityChanged:
+        "DDA.TamerTalent.EndlessDream.CapacityChanged",
+
+      invalidRequest:
+        "DDA.TamerTalent.EndlessDream.InvalidRequest",
+
+      grantFailed:
+        "DDA.TamerTalent.EndlessDream.Failed"
+    };
+
+    return {
+      success: false,
+      applied: false,
+
+      message:
+        localize(
+          failureKeys[
+            result?.reason
+          ] ??
+          "DDA.TamerTalent.EndlessDream.Failed",
+
+          "The Endless Dream distribution could not be completed."
+        )
+    };
+  }
+
+  const summary =
+    result.allocations
+      .map((allocation) => {
+        return (
+          `${allocation.recipientName}: +${allocation.amount}`
+        );
+      })
+      .join("; ");
+
+  return {
+    success: true,
+    applied: true,
+
+    targetName:
+      result.allocations
+        .map((allocation) => {
+          return allocation
+            .recipientName;
+        })
+        .join(", "),
+
+    message:
+      formatI18n(
+        "DDA.TamerTalent.EndlessDream.Granted",
+        {
+          actor:
+            tamer.name,
+
+          total:
+            result.total
+        },
+
+        `${tamer.name} distributed ${result.total} Temporary IP with Endless Dream.`
+      ),
+
+    details:
+      summary
+  };
 }
 
 async function getTamerTalentPrimaryTarget(tamer, automation) {

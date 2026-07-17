@@ -1,6 +1,8 @@
 import {
   getAttributeFinalCap,
-  getAttributeStartingCap
+  getAttributeStartingCap,
+  getScaledTalentRequirement,
+  getStartingSkillPoints
 } from "./campaign-rules.js";
 
 function localize(key, fallback = key) {
@@ -215,6 +217,18 @@ export function getTamerMilestoneCount(tamer) {
   );
 }
 
+/**
+ * O máximo de Pontos de Evolução é igual à quantidade
+ * de Marcos concluídos e efetivamente liberados.
+ */
+export function getTamerEvolutionPointMaximum(
+  tamer
+) {
+  return getTamerMilestoneCount(
+    tamer
+  );
+}
+
 export function getTamerMilestoneBreakdown(tamer) {
   const total = getTamerMilestoneCount(tamer);
   const seenMilestoneIds = new Set();
@@ -363,6 +377,322 @@ export function getTamerSkillCap(
     }),
     0
   );
+}
+
+const EXPERIENCED_REWARD_FLAG = "experiencedReward";
+
+function getExperiencedStoredReward(tamer) {
+  return clone(
+    tamer?.getFlag?.(
+      DDA_SYSTEM_ID,
+      EXPERIENCED_REWARD_FLAG
+    ) ?? {}
+  );
+}
+
+function getTamerCurrentSkillTotal(tamer) {
+  return Object.values(
+    tamer?.system?.skills ?? {}
+  ).reduce((total, skill) => {
+    return total + integer(
+      skill?.value,
+      0
+    );
+  }, 0);
+}
+
+export function getExperiencedRewardState(tamer) {
+  const requiredIntelligence =
+    getScaledTalentRequirement(3);
+
+  const currentIntelligence = integer(
+    tamer?.system?.attributes
+      ?.intelligence?.value,
+    0
+  );
+
+  const unlocked =
+    Boolean(
+      tamer?.type === "character" &&
+      currentIntelligence >=
+        requiredIntelligence
+    );
+
+  const stored =
+    getExperiencedStoredReward(
+      tamer
+    );
+
+  const explicitlyClaimed =
+    Boolean(
+      stored.claimed
+    );
+
+  const milestonesCompleted =
+    getTamerMilestoneCount(
+      tamer
+    );
+
+  /*
+   * Personagens que já começaram com Experienced podiam gastar
+   * o ponto extra no Wizard antes deste registro existir.
+   *
+   * Quando ainda não há Marcos e o total de Perícias já excede
+   * o orçamento inicial normal, consideramos o benefício aplicado.
+   */
+  const inferredFromCreation =
+    unlocked &&
+    !explicitlyClaimed &&
+    milestonesCompleted <= 0 &&
+    getTamerCurrentSkillTotal(tamer) >
+      getStartingSkillPoints();
+
+  return {
+    unlocked,
+
+    claimed:
+      explicitlyClaimed ||
+      inferredFromCreation,
+
+    explicitlyClaimed,
+    inferredFromCreation,
+
+    pending:
+      unlocked &&
+      !explicitlyClaimed &&
+      !inferredFromCreation,
+
+    requiredIntelligence,
+    currentIntelligence,
+
+    claimedSkillKey:
+      String(
+        stored.skillKey ?? ""
+      ).trim(),
+
+    claimedMode:
+      String(
+        stored.mode ?? ""
+      ).trim(),
+
+    claimedAt:
+      String(
+        stored.claimedAt ?? ""
+      ).trim(),
+
+    claimedBy:
+      clone(
+        stored.claimedBy ?? {}
+      )
+  };
+}
+
+function buildExperiencedRewardRecord({
+  skillKey = "",
+  mode = "granted"
+} = {}) {
+  return {
+    claimed: true,
+
+    skillKey:
+      String(
+        skillKey ?? ""
+      ).trim(),
+
+    mode:
+      String(
+        mode ?? "granted"
+      ).trim() || "granted",
+
+    claimedAt:
+      nowIso(),
+
+    claimedBy: {
+      id:
+        String(
+          game.user?.id ?? ""
+        ).trim(),
+
+      name:
+        String(
+          game.user?.name ?? ""
+        ).trim()
+    }
+  };
+}
+
+export async function claimExperiencedSkillPoint(
+  tamer,
+  skillKey = ""
+) {
+  const state =
+    getExperiencedRewardState(
+      tamer
+    );
+
+  if (!state.unlocked) {
+    return {
+      ok: false,
+      reason: "locked",
+
+      message: localize(
+        "DDA.TamerTalent.Experienced.Locked",
+        "Experienced is not unlocked."
+      )
+    };
+  }
+
+  if (state.claimed) {
+    return {
+      ok: false,
+      reason: "alreadyClaimed",
+
+      message: localize(
+        "DDA.TamerTalent.Experienced.AlreadyClaimed",
+        "The extra Skill Point from Experienced has already been applied."
+      )
+    };
+  }
+
+  const cleanSkillKey =
+    String(
+      skillKey ?? ""
+    ).trim();
+
+  const skill =
+    tamer.system?.skills
+      ?.[cleanSkillKey];
+
+  if (!skill) {
+    return {
+      ok: false,
+      reason: "invalidSkill",
+
+      message: localize(
+        "DDA.TamerTalent.Experienced.InvalidSkill",
+        "Choose a valid Skill."
+      )
+    };
+  }
+
+  const current = integer(
+    skill.value,
+    0
+  );
+
+  const cap =
+    getTamerSkillCap(
+      tamer,
+      cleanSkillKey
+    );
+
+  if (current >= cap) {
+    return {
+      ok: false,
+      reason: "skillAtCap",
+
+      message: formatI18n(
+        "DDA.TamerTalent.Experienced.SkillAtCap",
+        {
+          skill:
+            localize(
+              skill.label ??
+              cleanSkillKey,
+              cleanSkillKey
+            ),
+
+          cap
+        },
+        "This Skill is already at its current cap."
+      )
+    };
+  }
+
+  await tamer.update({
+    [`system.skills.${cleanSkillKey}.value`]:
+      current + 1,
+
+    [`flags.${DDA_SYSTEM_ID}.${EXPERIENCED_REWARD_FLAG}`]:
+      buildExperiencedRewardRecord({
+        skillKey:
+          cleanSkillKey,
+
+        mode:
+          "granted"
+      })
+  });
+
+  tamer.sheet?.render(false);
+
+  return {
+    ok: true,
+
+    skillKey:
+      cleanSkillKey,
+
+    skillLabel:
+      localize(
+        skill.label ??
+        cleanSkillKey,
+        cleanSkillKey
+      ),
+
+    before:
+      current,
+
+    after:
+      current + 1,
+
+    cap
+  };
+}
+
+export async function markExperiencedRewardClaimed(
+  tamer
+) {
+  const state =
+    getExperiencedRewardState(
+      tamer
+    );
+
+  if (!state.unlocked) {
+    return {
+      ok: false,
+      reason: "locked",
+
+      message: localize(
+        "DDA.TamerTalent.Experienced.Locked",
+        "Experienced is not unlocked."
+      )
+    };
+  }
+
+  if (state.claimed) {
+    return {
+      ok: false,
+      reason: "alreadyClaimed",
+
+      message: localize(
+        "DDA.TamerTalent.Experienced.AlreadyClaimed",
+        "The extra Skill Point from Experienced has already been applied."
+      )
+    };
+  }
+
+  await tamer.update({
+    [`flags.${DDA_SYSTEM_ID}.${EXPERIENCED_REWARD_FLAG}`]:
+      buildExperiencedRewardRecord({
+        mode:
+          "manual"
+      })
+  });
+
+  tamer.sheet?.render(false);
+
+  return {
+    ok: true,
+    mode: "manual"
+  };
 }
 
 function getGrowthPackages(actor) {
@@ -546,14 +876,62 @@ async function releaseMilestoneToTarget(record, target) {
     (entry) => entry?.milestoneId === record.id
   );
 
-  const currentCompleted = getTamerMilestoneCount(tamer);
+  const currentCompleted =
+    getTamerMilestoneCount(
+      tamer
+    );
 
-  const currentGrowth = integer(
-    tamer.system?.advancement?.growthPoints?.available,
-    0
-  );
+  const currentGrowth =
+    integer(
+      tamer.system
+        ?.advancement
+        ?.growthPoints
+        ?.available,
+      0
+    );
 
-  const growthPackages = appendGrowthPackage(tamer, record);
+  const currentEvolutionPoints =
+    integer(
+      tamer.system
+        ?.resources
+        ?.evolutionPoints
+        ?.value,
+      0
+    );
+
+  const nextCompletedMilestones =
+    alreadyReceived
+      ? currentCompleted
+      : currentCompleted + 1;
+
+  const nextEvolutionPointsMax =
+    nextCompletedMilestones;
+
+  /*
+   * Cada Marco novo concede exatamente 1 novo EP.
+   *
+   * Não restaura EP que já foi gasto:
+   *
+   * 0/2 + Marco = 1/3
+   * 1/2 + Marco = 2/3
+   * 2/2 + Marco = 3/3
+   */
+  const nextEvolutionPointsValue =
+    alreadyReceived
+      ? Math.min(
+          currentEvolutionPoints,
+          nextEvolutionPointsMax
+        )
+      : Math.min(
+          nextEvolutionPointsMax,
+          currentEvolutionPoints + 1
+        );
+
+  const growthPackages =
+    appendGrowthPackage(
+      tamer,
+      record
+    );
 
   if (!alreadyReceived) {
     history.push({
@@ -573,17 +951,26 @@ async function releaseMilestoneToTarget(record, target) {
   );
 
   const tamerUpdates = {
-    "system.advancement.milestones.completed": alreadyReceived
-      ? currentCompleted
-      : currentCompleted + 1,
+    "system.advancement.milestones.completed":
+      nextCompletedMilestones,
 
-    "system.advancement.milestones.history": history,
+    "system.advancement.milestones.history":
+      history,
 
-    "system.advancement.growthPoints.available": alreadyReceived
-      ? currentGrowth
-      : currentGrowth + DDA_GROWTH_POINTS_PER_MILESTONE,
+    "system.advancement.growthPoints.available":
+      alreadyReceived
+        ? currentGrowth
+        : currentGrowth +
+          DDA_GROWTH_POINTS_PER_MILESTONE,
 
-    "system.advancement.growthPoints.packages": growthPackages
+    "system.advancement.growthPoints.packages":
+      growthPackages,
+
+    "system.resources.evolutionPoints.max":
+      nextEvolutionPointsMax,
+
+    "system.resources.evolutionPoints.value":
+      nextEvolutionPointsValue
   };
 
   let partnerStatus = "missingPartner";

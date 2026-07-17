@@ -23,6 +23,28 @@ const TIER_LABELS = {
   negative: { pt: "Negativas", en: "Negative" }
 };
 
+const ENEMY_NATUREWALK_MAIN_STATS = [
+  {
+    key: "accuracy",
+    labelKey: "DDA.MainStat.Accuracy"
+  },
+  {
+    key: "damage",
+    labelKey: "DDA.MainStat.Damage"
+  },
+  {
+    key: "dodge",
+    labelKey: "DDA.MainStat.Dodge"
+  },
+  {
+    key: "armor",
+    labelKey: "DDA.MainStat.Armor"
+  },
+  {
+    key: "health",
+    labelKey: "DDA.MainStat.Health"
+  }
+];
 
 
 const ENEMY_QUALITY_CATEGORY_FILTERS = [
@@ -115,6 +137,30 @@ function isEnglishLanguage() {
 
 function text(pt, en) {
   return isEnglishLanguage() ? en : pt;
+}
+
+function normalizeEnemyQualityIdentity(value = "") {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function isEnemyNaturewalkQuality(quality = {}) {
+  return [
+    quality.id,
+    quality.name,
+    quality.originalName
+  ].some((value) => {
+    return [
+      "passonatural",
+      "naturewalk"
+    ].includes(
+      normalizeEnemyQualityIdentity(value)
+    );
+  });
 }
 
 function normalizeSearchText(value = "") {
@@ -560,6 +606,19 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
     !atMaxRank &&
     !blockedReason;
 
+  const isNaturewalk =
+    isEnemyNaturewalkQuality(quality);
+
+  const mainStatOptions =
+    isNaturewalk && choiceOptions.length
+      ? ENEMY_NATUREWALK_MAIN_STATS.map((stat) => ({
+          key: stat.key,
+          label: game.i18n.localize(
+            stat.labelKey
+          )
+        }))
+      : [];
+
   const addLabel = targetSelectedRank > 0
     ? text("+ Rank", "+ Rank")
     : text("Adicionar", "Add");
@@ -592,6 +651,17 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
 
     choiceOptions,
     hasChoiceOptions: choiceOptions.length > 0,
+
+    choiceFieldLabel: isNaturewalk
+      ? text("Elemento", "Element")
+      : text("Escolha", "Choice"),
+
+    isNaturewalk,
+    mainStatOptions,
+
+    hasMainStatOptions:
+      mainStatOptions.length > 0,
+
     unsupportedChoiceLabel: blockedReason,
 
     addLabel,
@@ -639,6 +709,10 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
 rank: text("Rank", "Rank"),
 selected: text("Selecionada", "Selected"),
 choice: text("Escolha", "Choice"),
+mainStat: text(
+  "Estatística Principal",
+  "Core Stat"
+),
 close: text("Fechar", "Close"),
 catalogOnly: text(
   isSuperiorMode
@@ -718,7 +792,19 @@ static async _onAddEnemyQuality(event, target) {
   const card = target?.closest?.("[data-enemy-quality-card]");
 
   const choiceKey = String(
-    card?.querySelector("[data-enemy-quality-choice]")?.value ?? ""
+    card
+      ?.querySelector(
+        "[data-enemy-quality-choice]"
+      )
+      ?.value ?? ""
+  );
+
+  const mainStat = String(
+    card
+      ?.querySelector(
+        "[data-enemy-quality-main-stat]"
+      )
+      ?.value ?? ""
   );
 
   const added =
@@ -726,11 +812,17 @@ static async _onAddEnemyQuality(event, target) {
       ? this.wizard
           ?.addEnemySuperiorModeQualityById?.(
             qualityId,
-            { choiceKey }
+            {
+              choiceKey,
+              mainStat
+            }
           )
       : this.wizard?.addEnemyQualityById?.(
           qualityId,
-          { choiceKey }
+          {
+            choiceKey,
+            mainStat
+          }
         );
 
   if (!added) return;

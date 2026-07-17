@@ -1,4 +1,74 @@
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+const NATUREWALK_MAIN_STATS = [
+  {
+    key: "accuracy",
+    labelKey: "DDA.MainStat.Accuracy"
+  },
+  {
+    key: "damage",
+    labelKey: "DDA.MainStat.Damage"
+  },
+  {
+    key: "dodge",
+    labelKey: "DDA.MainStat.Dodge"
+  },
+  {
+    key: "armor",
+    labelKey: "DDA.MainStat.Armor"
+  },
+  {
+    key: "health",
+    labelKey: "DDA.MainStat.Health"
+  }
+];
+
+function normalizeNaturewalkIdentity(
+  value = ""
+) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function isNaturewalkQualityData(
+  quality = {},
+  ownedItem = null
+) {
+  const candidates = [
+    quality?.id,
+    quality?.name,
+    quality?.originalName,
+
+    ownedItem?.system?.sourceId,
+    ownedItem?.system?.originalName,
+    ownedItem?.name
+  ];
+
+  return candidates.some((candidate) => {
+    return [
+      "passonatural",
+      "naturewalk"
+    ].includes(
+      normalizeNaturewalkIdentity(
+        candidate
+      )
+    );
+  });
+}
+
+function escapeNaturewalkHtml(
+  value = ""
+) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 const QUALITY_BROWSER_CATEGORY_FILTERS = [
   { key: "all", pt: "Todas as categorias", en: "All categories" },
   { key: "core", pt: "Centrais", en: "Core" },
@@ -700,10 +770,245 @@ const availableOptions =
       });
 
     if (!availableOptions.length) {
-      ui.notifications.warn(game.i18n.format("DDA.Warning.QualityNoAvailableOptions", {
-        quality: quality.name
-      }));
+      ui.notifications.warn(
+        game.i18n.format(
+          "DDA.Warning.QualityNoAvailableOptions",
+          {
+            quality:
+              quality.name
+          }
+        )
+      );
+
       return null;
+    }
+
+    /*
+     * Naturewalk exige duas escolhas por Rank:
+     *
+     * 1. Um Elemento ainda não escolhido.
+     * 2. Um Core Stat que receberá +1.
+     */
+    if (
+      isNaturewalkQualityData(
+        quality
+      )
+    ) {
+      const elementOptionsHtml =
+        availableOptions
+          .map((option) => {
+            const label =
+              option.label ??
+              option.originalLabel ??
+              option.key;
+
+            return `
+              <option value="${escapeNaturewalkHtml(
+                option.key
+              )}">
+                ${escapeNaturewalkHtml(
+                  label
+                )}
+              </option>
+            `;
+          })
+          .join("");
+
+      const mainStatOptionsHtml =
+        NATUREWALK_MAIN_STATS
+          .map((stat) => {
+            return `
+              <option value="${stat.key}">
+                ${escapeNaturewalkHtml(
+                  game.i18n.localize(
+                    stat.labelKey
+                  )
+                )}
+              </option>
+            `;
+          })
+          .join("");
+
+      let selection =
+        null;
+
+      try {
+        selection =
+          await foundry
+            .applications
+            .api
+            .DialogV2
+            .prompt({
+              window: {
+                title:
+                  game.i18n.format(
+                    "DDA.QualityBrowser.ChoiceDialogTitle",
+                    {
+                      quality:
+                        quality.name,
+
+                      rank:
+                        rankNumber
+                    }
+                  )
+              },
+
+              content: `
+                <div class="dda-quality-choice-form dda-naturewalk-choice-dialog">
+                  <p>
+                    ${game.i18n.format(
+                      "DDA.Naturewalk.ChoiceHint",
+                      {
+                        rank:
+                          rankNumber
+                      }
+                    )}
+                  </p>
+
+                  <div class="form-group">
+                    <label>
+                      ${game.i18n.localize(
+                        "DDA.Naturewalk.Element"
+                      )}
+                    </label>
+
+                    <select name="elementKey">
+                      ${elementOptionsHtml}
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label>
+                      ${game.i18n.localize(
+                        "DDA.Naturewalk.CoreStat"
+                      )}
+                    </label>
+
+                    <select name="mainStat">
+                      ${mainStatOptionsHtml}
+                    </select>
+                  </div>
+
+                  <p class="notes">
+                    ${game.i18n.localize(
+                      "DDA.Naturewalk.CoreStatHint"
+                    )}
+                  </p>
+                </div>
+              `,
+
+              ok: {
+                label:
+                  game.i18n.localize(
+                    "DDA.Button.Confirm"
+                  ),
+
+                callback:
+                  (_event, button) => {
+                    return {
+                      elementKey:
+                        String(
+                          button.form
+                            .elements
+                            .elementKey
+                            ?.value ??
+                          ""
+                        ).trim(),
+
+                      mainStat:
+                        String(
+                          button.form
+                            .elements
+                            .mainStat
+                            ?.value ??
+                          ""
+                        ).trim()
+                    };
+                  }
+              },
+
+              rejectClose:
+                false,
+
+              modal:
+                true
+            });
+      } catch (_error) {
+        selection =
+          null;
+      }
+
+      if (
+        !selection?.elementKey ||
+        !selection?.mainStat
+      ) {
+        return null;
+      }
+
+      const selectedOption =
+        availableOptions.find(
+          (option) => {
+            return (
+              String(
+                option.key ?? ""
+              ) ===
+              selection.elementKey
+            );
+          }
+        );
+
+      const selectedStat =
+        NATUREWALK_MAIN_STATS.find(
+          (stat) => {
+            return (
+              stat.key ===
+              selection.mainStat
+            );
+          }
+        );
+
+      if (
+        !selectedOption ||
+        !selectedStat
+      ) {
+        return null;
+      }
+
+      return {
+        rank:
+          rankNumber,
+
+        key:
+          selectedOption.key,
+
+        label:
+          selectedOption.label ??
+          selectedOption.key,
+
+        originalLabel:
+          selectedOption.originalLabel ??
+          "",
+
+        mainStat:
+          selectedStat.key,
+
+        mainStatLabel:
+          game.i18n.localize(
+            selectedStat.labelKey
+          ),
+
+        terrain:
+          selectedOption.terrain ??
+          "",
+
+        recommendedFor:
+          selectedOption.recommendedFor ??
+          "",
+
+        effect:
+          selectedOption.effect ??
+          ""
+      };
     }
 
     const optionHtml = availableOptions
@@ -1474,8 +1779,30 @@ await this._applyAttackChoiceToAttack(
     );
   }
 
-_getQualityEffectiveMax(quality, ownedItem = null) {
-  const actorComputedEffectiveMax = Number(ownedItem?.system?.rank?.effectiveMax ?? Number.NaN);
+_getQualityEffectiveMax(
+  quality,
+  ownedItem = null
+) {
+  /*
+   * Algumas Naturewalks antigas foram salvas com
+   * rank.max = 1. A definição oficial é sempre 2.
+   */
+  if (
+    isNaturewalkQualityData(
+      quality,
+      ownedItem
+    )
+  ) {
+    return 2;
+  }
+
+  const actorComputedEffectiveMax =
+    Number(
+      ownedItem?.system
+        ?.rank
+        ?.effectiveMax ??
+      Number.NaN
+    );
 
   if (Number.isFinite(actorComputedEffectiveMax) && actorComputedEffectiveMax >= 0) {
     return actorComputedEffectiveMax;

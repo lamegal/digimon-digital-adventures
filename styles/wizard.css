@@ -6548,3 +6548,37 @@ html body .app.window-app.dda-wizard
   border-radius:
     999px !important;
 }
+/* ===================================================== */
+/* Naturewalk — configuração no Partner/Form Wizard       */
+/* ===================================================== */
+
+.dda-selected-quality-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.dda-selected-quality-actions button {
+  width: auto;
+  white-space: nowrap;
+}
+
+.dda-naturewalk-choice-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.dda-naturewalk-choice-form .form-group {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, auto)
+    minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.dda-naturewalk-choice-form select {
+  width: 100%;
+}

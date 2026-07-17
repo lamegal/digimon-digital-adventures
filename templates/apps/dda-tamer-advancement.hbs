@@ -17,6 +17,78 @@
   </header>
 
   <div class="dda-tamer-advancement-body">
+    {{#if hasExperiencedReward}}
+      <section class="dda-tamer-advancement-experienced">
+        <header>
+          <div>
+            <span>Experienced</span>
+            <h3>{{labels.experiencedTitle}}</h3>
+          </div>
+
+          <i
+            class="fa-solid fa-star"
+            aria-hidden="true"
+          ></i>
+        </header>
+
+        <p>{{labels.experiencedHint}}</p>
+
+        {{#if canSpend}}
+          {{#if experiencedReward.hasEligibleSkills}}
+            <label class="dda-tamer-advancement-experienced-skill">
+              <span>{{labels.experiencedSkill}}</span>
+
+              <select data-experienced-skill>
+                {{#each experiencedReward.skills as |skill|}}
+                  <option value="{{skill.key}}">
+                    {{skill.label}} — {{skill.value}} / {{skill.cap}}
+                  </option>
+                {{/each}}
+              </select>
+            </label>
+          {{else}}
+            <p class="notification warning">
+              {{labels.experiencedNoSkills}}
+            </p>
+          {{/if}}
+
+          <div class="dda-tamer-advancement-experienced-actions">
+            <button
+              type="button"
+              data-action="claimExperienced"
+              {{#unless experiencedReward.hasEligibleSkills}}
+                disabled
+              {{/unless}}
+            >
+              <i
+                class="fa-solid fa-plus"
+                aria-hidden="true"
+              ></i>
+
+              {{labels.experiencedClaim}}
+            </button>
+
+            <button
+              type="button"
+              data-action="markExperiencedClaimed"
+              class="is-secondary"
+            >
+              <i
+                class="fa-solid fa-check"
+                aria-hidden="true"
+              ></i>
+
+              {{labels.experiencedMarkApplied}}
+            </button>
+          </div>
+        {{else}}
+          <p class="notification warning">
+            {{labels.readOnly}}
+          </p>
+        {{/if}}
+      </section>
+    {{/if}}
+
     {{#if hasPackage}}
       {{#if canSpend}}
         <section class="dda-tamer-advancement-package">
@@ -135,7 +207,11 @@
         <p class="notification warning">{{labels.readOnly}}</p>
       {{/if}}
     {{else}}
-      <p class="notification info">{{labels.noPackage}}</p>
+      {{#unless hasExperiencedReward}}
+        <p class="notification info">
+          {{labels.noPackage}}
+        </p>
+      {{/unless}}
     {{/if}}
   </div>
 </section>

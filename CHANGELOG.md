@@ -1,3 +1,379 @@
+# v2.0.5-beta
+# English
+
+## Highlights
+
+Version `2.0.5-beta` significantly expands GM-controlled Digimon creation and management, strengthens independent evolution, and completes another major stage of Tamer Action and Tamer Talent automation.
+
+## Digimon NPC Builder
+
+- The former **Create Enemy Digimon** button has been renamed to **Create Digimon NPC**.
+- Added an **Ally ↔ Enemy** selector to the Digimon NPC Builder.
+- Ally Digimon NPCs use:
+  - friendly token disposition;
+  - player-side initiative;
+  - the standard Digivice appearance;
+  - green Wound indicators.
+- Enemy Digimon NPCs keep:
+  - hostile disposition;
+  - enemy-side initiative;
+  - the dark Digivice appearance;
+  - red Wound indicators.
+- Allies and enemies created by the Wizard are now identified as autonomous Digimon NPCs.
+- Fixed persistence of NPC alignment and presentation metadata.
+- Maintained compatibility with enemies created in earlier versions.
+
+## Autonomous NPC Evolution
+
+- Ally Digimon NPCs can now choose and apply their own evolutions.
+- Enemy Digimon NPCs can also evolve directly from their own sheet.
+- GM-controlled autonomous evolutions spend no:
+  - EP;
+  - IP;
+  - Actions.
+- Added separate buttons:
+  - **Evolve Ally NPC**;
+  - **Evolve Enemy Digimon**.
+- Free NPC evolution still respects:
+  - registered paths;
+  - direct links;
+  - Slide Evolution;
+  - Warp Evolution;
+  - combat locks;
+  - global evolution-method settings.
+- Special methods with dedicated flows remain protected from incorrect use through autonomous evolution.
+
+## Current Form Wizard and Choose Evolution
+
+- The **Current Form Wizard** can now be opened directly from:
+  - partner Digimon sheets;
+  - ally Digimon NPC sheets;
+  - enemy Digimon NPC sheets.
+- The Current Form Wizard no longer requires an empty Tamer to edit an independent Digimon.
+- Fixed the validation that rejected `npc` Actors with “The chosen form is not a Digimon”.
+- **Choose Evolution** now works directly on Digimon without a Tamer.
+- Stages are no longer artificially locked when no Tamer is linked.
+- Evolution choices can be saved, restored, and cleared directly from the Digimon's `evolutionLine`.
+- Fixed the missing listener that caused Choose Evolution to appear but not react to clicks.
+- Improved error reporting when opening the Evolution Browser.
+
+## Hybrid Forms as Digimon Evolutions
+
+- Hybrid forms may now appear as possible evolutions for regular Digimon.
+- Hybrids may be found through:
+  - curated direct relations;
+  - uncommon-path exploration.
+- Virtual Hybrid database entries are now indexed for name and reference lookup.
+- Special-category metadata is preserved through:
+  - selection;
+  - saving;
+  - graph node creation;
+  - snapshots;
+  - form changes.
+- Evolving into a Hybrid preserves its identity and equivalent stage instead of reducing it to a visual-only normal form.
+
+## Evolution Browser and Graph
+
+- Canonical direct database relations can no longer disappear because of stale exclusion lists or duplicate-cleanup exclusions.
+- Explicit hide overrides remain supported.
+- Fixed valid evolutions such as **Monodramon → Strikedramon** disappearing from the Browser.
+- The selected evolution is placed first in its stage without deleting other registered forms.
+- Fixed restoring the saved selection when reopening the Browser.
+- Fixed clearing choices on Digimon without Tamers.
+- The graph now marks only the truly active form.
+- Fixed both the original and evolved forms appearing as active at the same time.
+- The evolution map is correctly recentered after autonomous evolution.
+- Fixed graph connection and persistence for ally NPCs.
+
+## Identity After Evolution
+
+- Fixed NPCs evolving mechanically while keeping the previous form's displayed name and species.
+- Form changes now correctly update:
+  - Actor name;
+  - custom name;
+  - species;
+  - `sourceId`;
+  - `databaseId`;
+  - canonical, original, and DUB names;
+  - aliases;
+  - current form name;
+  - source form name.
+- Ally and enemy NPCs are no longer treated as persistent Tamer partners.
+- Actual Tamer partners still preserve their nickname between forms.
+- Fixed **Motimon → Kokabuterimon** still displaying Motimon after evolution.
+- Old and new snapshots now carry complete form identity data.
+
+## NPC Builder and Qualities
+
+- Added full **Naturewalk** configuration support to the Digimon NPC Builder.
+- The NPC Quality Browser now supports selecting:
+  - element/terrain;
+  - associated Main Stat.
+- Naturewalk choices are correctly preserved in the created Quality.
+- Fixed configurable Quality integration with the NPC DP budget.
+- Improved rank-based Quality selection and persistence in the Creator.
+
+## Wizard, Filters, and Catalogs
+
+- Reordered filter rows to match the intended visual flow.
+- Wizard filters can now be collapsed.
+- Fixed card ordering in catalogs/compendia.
+- Fixed opening the Quality catalog while configuring **Superior Mode Change**.
+- Scroll position is preserved while updating Creator filters and options.
+- Fixed integration points between the Current Form Wizard, Quality Browser, and persistent snapshots.
+
+## Rest and Partner Linking
+
+- Tamer Rest now also applies the corresponding rest to the linked partner Digimon.
+- Rest-related resources, uses, and states are synchronized between Tamer and partner.
+- Independent Digimon NPCs remain supported without requiring a Tamer.
+
+## Tamer Actions and Talents
+
+- Expanded the Tamer Action foundation.
+- Implemented **Hold**:
+  - preparation from the sheet;
+  - trigger and response through chat;
+  - out-of-turn attack window;
+  - support for prepared 1-Action attacks;
+  - Intelligence bonus integration;
+  - **Best Laid Plans** integration.
+- Implemented **Teamwork**:
+  - cooperative check support;
+  - related Talent integration;
+  - normalized chat results.
+- Added or expanded Tamer Talent automation, including:
+  - Quick Step;
+  - Bulk Up;
+  - Direct Team;
+  - Experienced;
+  - Calculated;
+  - Potential;
+  - Aim Assist;
+  - Experienced Step;
+  - Joint Effort;
+  - Academic Advice;
+  - Danger Sense;
+  - Calming Influence;
+  - Team Player;
+  - Break the Chain;
+  - With the Will;
+  - Evasive Maneuvers;
+  - Undefeated Endurance;
+  - Best Laid Plans.
+- Improved temporary-effect, next-check bonus, granted-Action, healing, and multi-target effect infrastructure.
+
+## Overclock and Mode Changes
+
+- Implemented **Overclock** automation.
+- Overclock now lets the Digimon apply a purchased Positive Effect to itself.
+- Added rule support for success, critical success, and critical failure.
+- Implemented the standard **Mode Change** flow.
+- Expanded **Superior Mode Change** configuration in the NPC Builder:
+  - Default Quality selection;
+  - Mode Quality selection;
+  - cost tracking;
+  - stage-limit validation;
+  - Attack and special configuration integration.
+- Fixed opening the Mode Quality Browser.
+
+## Interface and Stability
+
+- Added Portuguese and English localization for the new flows.
+- Improved ally and enemy visual presentation.
+- Fixed imports, listeners, and validations that prevented applications from opening.
+- Preserved form-specific portraits and tokens through form changes and snapshots.
+- Maintained Foundry VTT v13 compatibility.
+
+---
+# Português (Brasil)
+
+## Destaques
+
+A versão `2.0.5-beta` amplia significativamente as ferramentas de criação e controle de Digimon do Narrador, fortalece o sistema de evolução independente e conclui uma nova etapa das automações de Talentos e Ações do Tamer.
+
+## Criador de Digimon NPC
+
+- O antigo botão **Criar Digimon Inimigo / Create Enemy Digimon** foi renomeado para **Criar Digimon NPC / Create Digimon NPC**.
+- Adicionado um seletor **Aliado ↔ Inimigo** ao Criador de Digimon NPC.
+- Digimon NPCs aliados usam:
+  - disposição amigável no token;
+  - iniciativa no lado dos jogadores;
+  - Digivice com aparência normal;
+  - indicadores de Ferimentos em verde.
+- Digimon NPCs inimigos continuam usando:
+  - disposição hostil;
+  - iniciativa no lado dos inimigos;
+  - Digivice escuro;
+  - indicadores de Ferimentos em vermelho.
+- Aliados e inimigos criados pelo Wizard agora são identificados como Digimon NPCs autônomos.
+- Corrigida a persistência dos metadados de alinhamento e apresentação dos NPCs.
+- Mantida compatibilidade com inimigos criados em versões anteriores.
+
+## Evolução autônoma de NPCs
+
+- Digimon NPCs aliados agora podem escolher e aplicar suas próprias evoluções.
+- Digimon NPCs inimigos também podem evoluir diretamente pela própria ficha.
+- Evoluções autônomas do Narrador não gastam:
+  - PE;
+  - PI;
+  - Ações.
+- Adicionados botões distintos:
+  - **Evoluir NPC Aliado**;
+  - **Evoluir Digimon Inimigo**.
+- O seletor de evolução gratuita continua respeitando:
+  - caminhos registrados;
+  - ligações diretas;
+  - Slide Evolution;
+  - Warp Evolution;
+  - bloqueios de combate;
+  - configurações globais de métodos de evolução.
+- Métodos especiais que possuem fluxo próprio continuam protegidos contra uso incorreto pelo fluxo autônomo.
+
+## Current Form Wizard e Choose Evolution
+
+- O **Current Form Wizard** agora pode ser aberto diretamente pela ficha de:
+  - Digimon parceiros;
+  - Digimon NPCs aliados;
+  - Digimon NPCs inimigos.
+- O Current Form Wizard não exige mais a criação de um Tamer vazio para editar um Digimon independente.
+- Corrigida a validação que rejeitava Actors `npc` com a mensagem “The chosen form is not a Digimon”.
+- O **Choose Evolution** agora funciona diretamente em Digimon sem Tamer.
+- Estágios deixam de ser bloqueados artificialmente quando não existe Tamer vinculado.
+- Escolhas de evolução podem ser salvas, recuperadas e removidas diretamente no `evolutionLine` do Digimon.
+- Corrigido o listener ausente que fazia o botão Choose Evolution aparecer sem responder ao clique.
+- Melhorado o tratamento de erros ao abrir o Browser de Evolução.
+
+## Híbridos como evoluções de Digimon
+
+- Formas Híbridas agora podem aparecer como evoluções possíveis para Digimon comuns.
+- Híbridos podem ser encontrados tanto:
+  - em relações diretas curadas;
+  - quanto na exploração de caminhos incomuns.
+- Formas Híbridas virtuais da database agora são indexadas para buscas por nome e referência.
+- Metadados de categoria especial são preservados durante:
+  - seleção;
+  - salvamento;
+  - criação de nós;
+  - snapshots;
+  - troca de forma.
+- Uma evolução para uma forma Híbrida mantém corretamente sua identidade e estágio equivalente, em vez de ser reduzida a uma forma normal apenas visual.
+
+## Browser e grafo de evolução
+
+- Relações diretas canônicas da database não podem mais desaparecer por causa de listas de exclusão antigas ou geradas pela limpeza de duplicatas.
+- Overrides explícitos de ocultação continuam sendo respeitados.
+- Corrigido o caso em que evoluções válidas, como **Monodramon → Strikedramon**, podiam desaparecer do Browser.
+- A evolução selecionada passa a ocupar a posição principal do estágio sem apagar outras formas registradas.
+- Corrigida a recuperação da forma selecionada ao reabrir o Browser.
+- Corrigida a remoção de escolhas em Digimon sem Tamer.
+- O grafo agora marca apenas a forma realmente ativa.
+- Corrigido o caso em que a forma original e a forma evoluída apareciam simultaneamente como forma atual.
+- O mapa de evolução é recentralizado corretamente após uma evolução autônoma.
+- Corrigida a ligação e a persistência do grafo em NPCs aliados.
+
+## Identidade após evolução
+
+- Corrigido o problema em que um NPC evoluía mecanicamente, mas mantinha o nome e a espécie da forma anterior.
+- A troca de forma agora atualiza corretamente:
+  - nome do Actor;
+  - nome customizado;
+  - espécie;
+  - `sourceId`;
+  - `databaseId`;
+  - nomes canônico, original e DUB;
+  - aliases;
+  - nome da forma atual;
+  - nome da forma-fonte.
+- NPCs aliados e inimigos deixam de ser tratados como parceiros persistentes de Tamer.
+- Parceiros reais de Tamer continuam preservando seu apelido entre formas.
+- Corrigido o caso **Motimon → Kokabuterimon**, em que a ficha continuava exibindo Motimon após a evolução.
+- Snapshots antigos e novos passam a carregar os dados completos de identidade da forma.
+
+## Criador de NPC e Qualidades
+
+- Adicionado suporte completo à configuração de **Naturewalk / Passo Natural** no Criador de Digimon NPC.
+- O Browser de Qualidades do NPC agora permite selecionar:
+  - o elemento/terreno;
+  - o Main Stat associado.
+- As escolhas de Naturewalk são preservadas corretamente na Qualidade criada.
+- Corrigida a integração de Qualidades configuráveis com o orçamento de PD do NPC.
+- Melhorada a seleção e a persistência de Qualidades por rank no Creator.
+
+## Wizard, filtros e catálogos
+
+- Reorganizada a ordem das linhas de filtros para corresponder ao fluxo visual planejado.
+- O menu de filtros do Wizard agora pode ser recolhido.
+- Corrigida a ordem de apresentação dos cards no catálogo/compêndio.
+- Corrigido o fluxo de abertura do catálogo de Qualidades durante a configuração de **Superior Mode Change**.
+- Mantida a rolagem dos painéis ao atualizar filtros e opções do Creator.
+- Corrigidos pontos de integração entre o Wizard de forma atual, Browser de Qualidades e snapshots persistentes.
+
+## Descanso e vínculo
+
+- O descanso do Tamer agora também aplica o descanso correspondente ao Digimon parceiro vinculado.
+- Recursos, usos e estados associados ao descanso passam a ser sincronizados corretamente entre Tamer e parceiro.
+- Mantido o fluxo independente para Digimon NPCs sem Tamer.
+
+## Ações do Tamer e Talentos
+
+- Expandida a fundação das Ações do Tamer.
+- Implementado **Segurar / Hold**:
+  - criação de preparação pela ficha;
+  - gatilho e resposta por chat;
+  - janela de ataque fora do turno;
+  - suporte a ataques preparados de 1 Ação;
+  - integração com bônus de Inteligência;
+  - integração com **Best Laid Plans**.
+- Implementado **Trabalho em Equipe / Teamwork**:
+  - suporte a testes cooperativos;
+  - integração com Talentos relacionados;
+  - normalização dos resultados no chat.
+- Adicionadas ou ampliadas automações de Talentos do Tamer, incluindo:
+  - Quick Step;
+  - Bulk Up;
+  - Direct Team;
+  - Experienced;
+  - Calculated;
+  - Potential;
+  - Aim Assist;
+  - Experienced Step;
+  - Joint Effort;
+  - Academic Advice;
+  - Danger Sense;
+  - Calming Influence;
+  - Team Player;
+  - Break the Chain;
+  - With the Will;
+  - Evasive Maneuvers;
+  - Undefeated Endurance;
+  - Best Laid Plans.
+- Melhorada a infraestrutura de efeitos temporários, próximos testes, concessão de Ações, cura e efeitos aplicados a múltiplos alvos.
+
+## Overclock e mudanças de modo
+
+- Implementada a automação de **Overclock**.
+- Overclock agora permite aplicar ao próprio Digimon um Efeito Positivo adquirido.
+- Suporte aos resultados de sucesso, sucesso crítico e falha crítica conforme as regras.
+- Implementado o fluxo normal de **Mode Change**.
+- Expandida a configuração de **Superior Mode Change** no Criador de NPC:
+  - escolha de Qualidades padrão;
+  - escolha de Qualidades do Modo;
+  - controle de custo;
+  - validação do limite do estágio;
+  - integração com ataques e configurações especiais.
+- Corrigida a abertura do Browser de Qualidades do Modo.
+
+## Interface e estabilidade
+
+- Adicionadas traduções em português e inglês para os novos fluxos.
+- Melhorada a apresentação visual de aliados e inimigos.
+- Corrigidos imports, listeners e validações que impediam a abertura de aplicações.
+- Preservados retrato e token específicos de cada forma durante mudanças e snapshots.
+- Mantida compatibilidade com Foundry VTT v13.
+
+---
+
 ## 2.0.4-beta
 
 ### English

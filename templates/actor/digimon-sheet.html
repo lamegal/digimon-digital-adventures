@@ -1,5 +1,5 @@
 <form
-  class="{{cssClass}} dda-digimon-sheet dda-digimon-window-sheet {{#if (eq actor.type "npc")}}dda-enemy-npc-sheet{{/if}}"
+  class="{{cssClass}} dda-digimon-sheet dda-digimon-window-sheet {{#if npcPresentation.isEnemy}}dda-enemy-npc-sheet{{/if}} {{#if npcPresentation.isAlly}}dda-ally-npc-sheet{{/if}}"
   autocomplete="off"
 >
   <div class="dda-window-shell dda-digimon-window-shell">
@@ -976,8 +976,36 @@
     </div>
 
     <div class="dda-evolution-header-actions">
-      <button type="button" class="choose-evolution-form">{{localize "DDA.EvolutionChoice.Button"}}</button>
-      <button type="button" class="clear-evolution-graph">{{localize "DDA.Evolution.ClearGraph"}}</button>
+      <button
+        type="button"
+        class="open-current-form-wizard"
+      >
+        {{localize "DDA.Button.CurrentFormWizard"}}
+      </button>
+
+      <button
+        type="button"
+        class="choose-evolution-form"
+      >
+        {{localize "DDA.EvolutionChoice.Button"}}
+      </button>
+
+      {{#if npcPresentation.canEvolveIndependently}}
+      <button
+        type="button"
+        class="evolve-independent-digimon"
+        title="{{npcPresentation.evolutionButtonHint}}"
+      >
+        {{npcPresentation.evolutionButtonLabel}}
+      </button>
+      {{/if}}
+
+      <button
+        type="button"
+        class="clear-evolution-graph"
+      >
+        {{localize "DDA.Evolution.ClearGraph"}}
+      </button>
     </div>
   </div>
 

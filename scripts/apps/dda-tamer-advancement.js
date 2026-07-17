@@ -1,7 +1,10 @@
 import {
+  claimExperiencedSkillPoint,
+  getExperiencedRewardState,
   getNextTamerGrowthPackage,
   getTamerAttributeCap,
   getTamerSkillCap,
+  markExperiencedRewardClaimed,
   spendTamerGrowthPackage
 } from "../rules/tamer-progression.js";
 
@@ -93,7 +96,15 @@ export class DDATamerAdvancement extends DDATamerAdvancementBase {
 
       this._resetDraft();
 
-      if (getNextTamerGrowthPackage(this.actor)) {
+      const experiencedReward =
+        getExperiencedRewardState(
+          this.actor
+        );
+
+      if (
+        getNextTamerGrowthPackage(this.actor) ||
+        experiencedReward.pending
+      ) {
         await this.render();
       } else {
         await this.close();
@@ -110,6 +121,141 @@ export class DDATamerAdvancement extends DDATamerAdvancementBase {
     }
   }
 
+  static async _onActionClaimExperienced(event) {
+    event.preventDefault();
+
+    if (!this._canSpendGrowthPoints()) {
+      ui.notifications.warn(
+        localize(
+          "DDA.Warning.NoPermission",
+          "You do not have permission to advance this Tamer."
+        )
+      );
+
+      return;
+    }
+
+    const select =
+      this.element?.querySelector(
+        "[data-experienced-skill]"
+      );
+
+    const skillKey =
+      String(
+        select?.value ?? ""
+      ).trim();
+
+    const result =
+      await claimExperiencedSkillPoint(
+        this.actor,
+        skillKey
+      );
+
+    if (!result.ok) {
+      ui.notifications.warn(
+        result.message
+      );
+
+      return;
+    }
+
+    ui.notifications.info(
+      format(
+        "DDA.TamerTalent.Experienced.Applied",
+        {
+          skill:
+            result.skillLabel,
+
+          before:
+            result.before,
+
+          after:
+            result.after
+        },
+        `${result.skillLabel}: ${result.before} → ${result.after}.`
+      )
+    );
+
+    await this.render();
+  }
+
+  static async _onActionMarkExperiencedClaimed(event) {
+    event.preventDefault();
+
+    if (!this._canSpendGrowthPoints()) {
+      ui.notifications.warn(
+        localize(
+          "DDA.Warning.NoPermission",
+          "You do not have permission to advance this Tamer."
+        )
+      );
+
+      return;
+    }
+
+    const confirmed =
+      await foundry.applications.api.DialogV2.confirm({
+        window: {
+          title:
+            localize(
+              "DDA.TamerTalent.Experienced.MarkApplied",
+              "Mark Experienced as Applied"
+            )
+        },
+
+        content: `
+          <p>
+            ${localize(
+              "DDA.TamerTalent.Experienced.MarkAppliedConfirm",
+              "Use this only when the extra Skill Point was already added manually. No Skill will be changed."
+            )}
+          </p>
+        `,
+
+        yes: {
+          label:
+            localize(
+              "DDA.Button.Confirm",
+              "Confirm"
+            ),
+
+          default: true
+        },
+
+        no: {
+          label:
+            localize(
+              "DDA.Button.Cancel",
+              "Cancel"
+            )
+        }
+      });
+
+    if (!confirmed) return;
+
+    const result =
+      await markExperiencedRewardClaimed(
+        this.actor
+      );
+
+    if (!result.ok) {
+      ui.notifications.warn(
+        result.message
+      );
+
+      return;
+    }
+
+    ui.notifications.info(
+      localize(
+        "DDA.TamerTalent.Experienced.MarkedApplied",
+        "Experienced was marked as already applied."
+      )
+    );
+
+    await this.render();
+  }
+
   static DEFAULT_OPTIONS = {
     id: "dda-tamer-advancement",
     classes: ["dda", "dda-tamer-advancement"],
@@ -124,7 +270,9 @@ export class DDATamerAdvancement extends DDATamerAdvancementBase {
     },
     actions: {
       selectAttribute: DDATamerAdvancement._onActionSelectAttribute,
-      spendGrowth: DDATamerAdvancement._onActionSpendGrowth
+      spendGrowth: DDATamerAdvancement._onActionSpendGrowth,
+      claimExperienced: DDATamerAdvancement._onActionClaimExperienced,
+      markExperiencedClaimed: DDATamerAdvancement._onActionMarkExperiencedClaimed
     }
   };
 
@@ -272,11 +420,35 @@ export class DDATamerAdvancement extends DDATamerAdvancementBase {
 
     const points = integer(packageEntry?.remaining, 0);
 
+    const experiencedReward =
+      getExperiencedRewardState(
+        this.actor
+      );
+
+    const experiencedSkills =
+      skills.filter(
+        (skill) =>
+          skill.canIncrease
+      );
+
     return {
       actorName: this.actor?.name ?? "",
       actorImg: this.actor?.img ?? "icons/svg/mystery-man.svg",
       canSpend: this._canSpendGrowthPoints(),
       hasPackage: Boolean(packageEntry),
+
+      experiencedReward: {
+        ...experiencedReward,
+
+        skills:
+          experiencedSkills,
+
+        hasEligibleSkills:
+          experiencedSkills.length > 0
+      },
+
+      hasExperiencedReward:
+        experiencedReward.pending,
 
       modeAttribute: this._draft.mode === "attribute",
       modeSkills: this._draft.mode === "skills",
@@ -307,6 +479,42 @@ export class DDATamerAdvancement extends DDATamerAdvancementBase {
           "DDA.TamerAdvancement.Subtitle",
           "Spend one complete Growth Point package from a released Milestone."
         ),
+
+        experiencedTitle:
+          localize(
+            "DDA.TamerTalent.Experienced.RewardTitle",
+            "Experienced — Extra Skill Point"
+          ),
+
+        experiencedHint:
+          localize(
+            "DDA.TamerTalent.Experienced.RewardHint",
+            "Choose one Skill to increase by +1. Outside Character Creation, the Skill still obeys its current cap."
+          ),
+
+        experiencedSkill:
+          localize(
+            "DDA.TamerTalent.Experienced.ChooseSkill",
+            "Choose Skill"
+          ),
+
+        experiencedClaim:
+          localize(
+            "DDA.TamerTalent.Experienced.Claim",
+            "Apply +1 Skill Point"
+          ),
+
+        experiencedMarkApplied:
+          localize(
+            "DDA.TamerTalent.Experienced.MarkApplied",
+            "Already Applied"
+          ),
+
+        experiencedNoSkills:
+          localize(
+            "DDA.TamerTalent.Experienced.NoEligibleSkills",
+            "No Skill can currently be increased. Raise an associated Attribute or mark the reward as already applied."
+          ),
 
         growthPoints: localize(
           "DDA.TamerSheet.GrowthPoints",

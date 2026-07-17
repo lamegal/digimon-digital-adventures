@@ -18337,3 +18337,235 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box label {
   transform: scale(1) !important;
   transform-origin: center !important;
 }
+
+/* ===================================================== */
+/* Endless Dream                                         */
+/* ===================================================== */
+
+.dda-endless-dream-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.dda-endless-dream-pool {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0.65rem 0.75rem;
+
+  border: 1px solid
+    rgba(113, 201, 255, 0.35);
+
+  border-radius: 7px;
+
+  background:
+    rgba(13, 55, 84, 0.72);
+}
+
+.dda-endless-dream-pool span {
+  font-weight: 700;
+}
+
+.dda-endless-dream-pool strong {
+  font-size: 1.2rem;
+}
+
+.dda-endless-dream-allocations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.dda-endless-dream-recipient {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    70px;
+
+  gap: 0.75rem;
+  align-items: center;
+
+  padding: 0.55rem 0.65rem;
+
+  border: 1px solid
+    rgba(255, 255, 255, 0.12);
+
+  border-radius: 6px;
+
+  background:
+    rgba(4, 24, 38, 0.62);
+}
+
+.dda-endless-dream-recipient-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+
+  min-width: 0;
+  font-weight: 700;
+}
+
+.dda-endless-dream-recipient-name small {
+  opacity: 0.75;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+
+.dda-endless-dream-recipient input {
+  width: 100%;
+  text-align: center;
+  font-weight: 800;
+}
+/* ===================================================== */
+/* DDA — NPC aliado criado pelo Construtor               */
+/* ===================================================== */
+
+form.dda-ally-npc-sheet
+.dda-window-side-device {
+  filter:
+    drop-shadow(
+      0 10px 14px
+      rgba(0, 0, 0, 0.40)
+    )
+    drop-shadow(
+      0 0 12px
+      rgba(73, 218, 146, 0.46)
+    ) !important;
+}
+
+form.dda-ally-npc-sheet
+.dda-window-side-device:hover {
+  filter:
+    drop-shadow(
+      0 10px 14px
+      rgba(0, 0, 0, 0.42)
+    )
+    drop-shadow(
+      0 0 16px
+      rgba(92, 241, 170, 0.68)
+    ) !important;
+}
+
+form.dda-ally-npc-sheet
+.dda-digimon-header {
+  border-bottom-color:
+    rgba(34, 132, 91, 0.82) !important;
+}
+
+form.dda-ally-npc-sheet
+.dda-device-button:hover {
+  background:
+    rgba(30, 160, 103, 0.17)
+    !important;
+
+  box-shadow:
+    0 0 8px
+      rgba(62, 220, 143, 0.52),
+    inset 0 0 8px
+      rgba(224, 255, 239, 0.12)
+    !important;
+}
+
+form.dda-ally-npc-sheet
+.dda-combat-tab
+.wounds-box {
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(110, 255, 185, 0.22),
+      transparent 38%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(9, 91, 58, 0.97),
+      rgba(3, 45, 35, 0.97)
+    ) !important;
+
+  border-color:
+    rgba(115, 255, 198, 0.58)
+    !important;
+
+  box-shadow:
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.12),
+    inset 0 -10px 16px
+      rgba(67, 240, 155, 0.13),
+    0 0 10px
+      rgba(52, 212, 137, 0.17)
+    !important;
+}
+
+form.dda-ally-npc-sheet
+.dda-combat-tab
+.wounds-box::after {
+  background:
+    #72efad !important;
+
+  box-shadow:
+    0 0 8px
+    rgba(87, 235, 161, 0.76)
+    !important;
+}
+
+form.dda-ally-npc-sheet
+.dda-combat-tab
+.wounds-box label,
+
+form.dda-ally-npc-sheet
+.dda-combat-tab
+.wounds-box
+.inline-inputs span {
+  color:
+    #eafff3 !important;
+}
+
+form.dda-ally-npc-sheet
+.dda-combat-tab
+.wounds-box input {
+  color:
+    #ffffff !important;
+
+  background:
+    rgba(0, 28, 16, 0.34)
+    !important;
+
+  border-color:
+    rgba(140, 255, 205, 0.34)
+    !important;
+}
+
+form.dda-ally-npc-sheet
+.evolve-independent-digimon {
+  border-color:
+    rgba(74, 210, 139, 0.62)
+    !important;
+
+  color:
+    #effff6 !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(26, 125, 82, 0.96),
+      rgba(10, 72, 60, 0.96)
+    ) !important;
+}
+
+form.dda-ally-npc-sheet
+.evolve-independent-digimon:hover {
+  border-color:
+    rgba(138, 255, 200, 0.90)
+    !important;
+
+  box-shadow:
+    0 0 9px
+    rgba(70, 221, 145, 0.28)
+    !important;
+}

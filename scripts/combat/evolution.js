@@ -319,6 +319,484 @@ await runDigimonTokenEvolutionTransition(
   return partnerActor;
 }
 
+function getIndependentNpcAlignment(
+  actor = null
+) {
+  const metadata =
+    actor?.getFlag?.(
+      DDA_SYSTEM_ID,
+      "enemyNpc"
+    ) ??
+    actor?.system?.enemy ??
+    {};
+
+  const rawAlignment = String(
+    metadata.alignment ??
+    (
+      metadata.isAlly
+        ? "ally"
+        : "enemy"
+    )
+  )
+    .trim()
+    .toLowerCase();
+
+  return rawAlignment === "ally"
+    ? "ally"
+    : "enemy";
+}
+
+export async function evolveIndependentDigimon(
+  partnerActor
+) {
+  if (!game.user?.isGM) {
+    ui.notifications.warn(
+      localize(
+        "DDA.AllyNpc.Evolution.OnlyGM"
+      )
+    );
+
+    return null;
+  }
+
+  const npcMetadata =
+    partnerActor?.getFlag?.(
+      DDA_SYSTEM_ID,
+      "enemyNpc"
+    ) ??
+    partnerActor?.system?.enemy ??
+    null;
+
+  const isManagedDigimonNpc = Boolean(
+    partnerActor &&
+    partnerActor.documentName === "Actor" &&
+    partnerActor.type === "npc" &&
+    partnerActor.system?.isDigimon &&
+    npcMetadata &&
+    (
+      npcMetadata.alignment ||
+      npcMetadata.isAlly ||
+      npcMetadata.isEnemy ||
+      npcMetadata.autonomousEvolution
+    )
+  );
+
+  if (!isManagedDigimonNpc) {
+    ui.notifications.warn(
+      localize(
+        "DDA.AllyNpc.Evolution.InvalidActor"
+      )
+    );
+
+    return null;
+  }
+
+  const previousFormUuid = String(
+    partnerActor.system.evolution
+      ?.currentFormUuid ||
+    partnerActor.system.evolution
+      ?.sourceFormUuid ||
+    partnerActor.uuid
+  ).trim();
+
+  const storedPreviousSnapshot =
+    getPartnerFormSnapshot(
+      partnerActor,
+      previousFormUuid
+    );
+
+  let previousFormActor =
+    await resolveActor(
+      previousFormUuid
+    );
+
+  if (
+    !previousFormActor &&
+    storedPreviousSnapshot
+  ) {
+    previousFormActor =
+      buildPseudoActorFromFormSnapshot(
+        storedPreviousSnapshot,
+        partnerActor
+      );
+  }
+
+  previousFormActor ??=
+    partnerActor;
+
+  if (
+    isEvolutionLockedForCombat(
+      partnerActor
+    ) ||
+    isEvolutionLockedForCombat(
+      previousFormActor
+    )
+  ) {
+    ui.notifications.warn(
+      localize(
+        "DDA.Warning.EvolutionLockedUntilCombatEnd"
+      )
+    );
+
+    return null;
+  }
+
+  const forms =
+    await collectEvolutionForms(
+      partnerActor,
+      previousFormActor
+    );
+
+  if (!forms.length) {
+    ui.notifications.warn(
+      localize(
+        "DDA.Warning.NoEvolutionFormsRegistered"
+      )
+    );
+
+    return null;
+  }
+
+  const selectedForm =
+    await chooseEvolutionForm(
+      forms,
+      partnerActor,
+      previousFormActor,
+      null,
+      {
+        freeEvolution: true
+      }
+    );
+
+  if (!selectedForm) {
+    return null;
+  }
+
+  let formTemplateActor =
+    selectedForm.persistentSnapshot
+      ? buildPseudoActorFromFormSnapshot(
+          selectedForm.persistentSnapshot,
+          partnerActor
+        )
+      : await resolveActor(
+          selectedForm.uuid
+        );
+
+  if (
+    (
+      !formTemplateActor ||
+      formTemplateActor.documentName !==
+        "Actor"
+    ) &&
+    selectedForm.persistentSnapshot
+  ) {
+    formTemplateActor =
+      buildPseudoActorFromFormSnapshot(
+        selectedForm.persistentSnapshot,
+        partnerActor
+      );
+  }
+
+  if (
+    !formTemplateActor ||
+    formTemplateActor.documentName !==
+      "Actor"
+  ) {
+    ui.notifications.warn(
+      localize(
+        "DDA.Warning.ChosenEvolutionFormNotFound"
+      )
+    );
+
+    return null;
+  }
+
+  if (
+    !["digimon", "npc"].includes(
+      formTemplateActor.type
+    )
+  ) {
+    ui.notifications.warn(
+      localize(
+        "DDA.Warning.ChosenEvolutionFormNotDigimon"
+      )
+    );
+
+    return null;
+  }
+
+  const costData =
+    calculateEvolutionCost({
+      tamerActor: null,
+      previousActor:
+        previousFormActor,
+      newActor:
+        formTemplateActor,
+      edgeMethod:
+        selectedForm.edgeMethod,
+      directLink:
+        selectedForm.directLink,
+      freeEvolution: true
+    });
+
+  if (!costData.allowed) {
+    ui.notifications.warn(
+      costData.blockedReason ||
+      localize(
+        "DDA.Warning.EvolutionMethodDisabled"
+      )
+    );
+
+    return null;
+  }
+
+  const previousFormName = String(
+    previousFormActor.system?.species ||
+    previousFormActor.name ||
+    partnerActor.system?.species ||
+    partnerActor.name
+  ).trim();
+
+  const previousStageKey = String(
+    previousFormActor.system?.stage ||
+    partnerActor.system?.stage ||
+    ""
+  ).trim();
+
+  const nextFormName = String(
+    formTemplateActor.system?.species ||
+    formTemplateActor.name ||
+    selectedForm.name
+  ).trim();
+
+  const confirmed =
+    await Dialog.confirm({
+      title: localize(
+        "DDA.AllyNpc.Evolution.ConfirmTitle"
+      ),
+
+      content: `
+        <div class="dda-roll-dialog dda-independent-evolution-dialog">
+          <p>
+            ${formatI18n(
+              "DDA.AllyNpc.Evolution.ConfirmText",
+              {
+                actor: `<strong>${escapeHtml(
+                  partnerActor.name
+                )}</strong>`,
+
+                previous: `<strong>${escapeHtml(
+                  previousFormName
+                )}</strong>`,
+
+                next: `<strong>${escapeHtml(
+                  nextFormName
+                )}</strong>`
+              }
+            )}
+          </p>
+
+          <p class="muted">
+            ${localize(
+              "DDA.AllyNpc.Evolution.NoCost"
+            )}
+          </p>
+        </div>
+      `,
+
+      yes: () => true,
+      no: () => false,
+      defaultYes: true
+    });
+
+  if (!confirmed) {
+    return null;
+  }
+
+  const previousPersistentWounds =
+    foundry.utils.deepClone(
+      partnerActor.system.miscStats
+        ?.wounds ?? {}
+    );
+
+  const shouldHealAfterEvolution =
+    shouldFullyHealOnEvolution({
+      previousStageKey,
+
+      nextStageKey:
+        formTemplateActor.system
+          ?.stage ?? "",
+
+      transitionType:
+        costData.transitionType
+    });
+
+  await runDigimonTokenEvolutionTransition(
+    partnerActor,
+
+    async () => {
+      await clearClashStateForActor(
+        partnerActor,
+        {
+          reason: "formChange"
+        }
+      );
+
+      await applyEvolutionFormTemplateToPartner({
+        partnerActor,
+        formTemplateActor,
+        tamerActor: null,
+        previousFormActor,
+
+        transitionType:
+          costData.transitionType,
+
+        continuedHybridState: null
+      });
+
+      if (
+        costData.transitionType ===
+        "slide"
+      ) {
+        await applyPersistentSlideEvolutionWoundAdjustment({
+          partnerActor,
+          previousFormActor,
+          formTemplateActor,
+          previousPersistentWounds
+        });
+      } else if (
+        shouldHealAfterEvolution
+      ) {
+        await fullyRestoreWounds(
+          partnerActor,
+          {
+            clearTemp: true
+          }
+        );
+      }
+
+      return partnerActor;
+    },
+
+    {
+      lowAlphaMultiplier: 0.16,
+      midAlphaMultiplier: 0.62,
+      stepDelay: 90
+    }
+  );
+
+  const transitionLabel =
+    getEvolutionTransitionLabelFromType(
+      costData.transitionType
+    );
+
+  await ChatMessage.create({
+    speaker:
+      ChatMessage.getSpeaker({
+        actor: partnerActor
+      }),
+
+    content: `
+      <div class="dda-chat-card dda-effect-card effect-special dda-digivolution-card dda-independent-digivolution-card">
+        <h2>${localize(
+          "DDA.AllyNpc.Evolution.Title"
+        )}</h2>
+
+        <div class="dda-digivolution-hero">
+          <div class="dda-digivolution-form previous">
+            <span class="dda-digivolution-label">
+              ${localize(
+                "DDA.Evolution.PreviousForm"
+              )}
+            </span>
+
+            <strong>
+              ${escapeHtml(
+                previousFormName
+              )}
+            </strong>
+
+            <small>
+              ${escapeHtml(
+                getStageLabel(
+                  previousStageKey
+                )
+              )}
+            </small>
+          </div>
+
+          <div class="dda-digivolution-arrow">
+            →
+          </div>
+
+          <div class="dda-digivolution-form next">
+            <span class="dda-digivolution-label">
+              ${localize(
+                "DDA.Evolution.NewForm"
+              )}
+            </span>
+
+            <strong>
+              ${escapeHtml(
+                nextFormName
+              )}
+            </strong>
+
+            <small>
+              ${escapeHtml(
+                getStageLabel(
+                  formTemplateActor
+                    .system?.stage ??
+                  ""
+                )
+              )}
+            </small>
+          </div>
+        </div>
+
+        <ul class="dda-effect-list dda-digivolution-list">
+          <li>
+            ${localize(
+              "DDA.Label.Type"
+            )}:
+
+            <strong>
+              ${escapeHtml(
+                transitionLabel
+              )}
+            </strong>.
+          </li>
+
+          <li>
+            ${localize(
+              "DDA.AllyNpc.Evolution.CostLabel"
+            )}:
+
+            <strong>
+              ${localize(
+                "DDA.AllyNpc.Evolution.Free"
+              )}
+            </strong>.
+          </li>
+        </ul>
+      </div>
+    `
+  });
+
+  partnerActor.sheet?.render(true);
+
+  ui.notifications.info(
+    formatI18n(
+      "DDA.AllyNpc.Evolution.Completed",
+      {
+        name: partnerActor.name
+      }
+    )
+  );
+
+  return partnerActor;
+}
+
 function isVideoPath(path = "") {
   const cleanPath = String(path ?? "").split("?")[0].split("#")[0].trim();
   return /\.(webm|mp4|m4v|ogg|ogv)$/i.test(cleanPath);
@@ -474,38 +952,136 @@ async function applyEvolutionFormTemplateToPartner({
   return partnerActor;
 }
 
-export async function getCurrentPartnerFormWizardContext(tamerActor) {
-  if (!tamerActor || tamerActor.type !== "character") {
-    ui.notifications.warn(localize("DDA.Warning.DigivolutionOnlyForTamers"));
-    return null;
+async function resolveCurrentFormWizardActors(
+  sourceActor
+) {
+  if (!sourceActor) return null;
+
+  /*
+   * Fluxo tradicional:
+   * o Wizard foi aberto pela ficha do Tamer.
+   */
+  if (sourceActor.type === "character") {
+    const partnerUuid =
+      sourceActor.system.partner?.uuid;
+
+    if (!partnerUuid) {
+      ui.notifications.warn(
+        localize(
+          "DDA.Warning.NoPartnerLinked"
+        )
+      );
+
+      return null;
+    }
+
+    const partnerActor =
+      await resolveActor(partnerUuid);
+
+    if (
+      !partnerActor ||
+      partnerActor.type !== "digimon"
+    ) {
+      ui.notifications.warn(
+        localize(
+          "DDA.Warning.PartnerNotFound"
+        )
+      );
+
+      return null;
+    }
+
+    return {
+      tamerActor: sourceActor,
+      partnerActor
+    };
   }
 
-  const partnerUuid = tamerActor.system.partner?.uuid;
+  /*
+   * Fluxo independente:
+   * o Wizard foi aberto pela ficha do Digimon.
+   */
+  if (
+    ["digimon", "npc"].includes(
+      sourceActor.type
+    )
+  ) {
+    const partnerActor = sourceActor;
 
-  if (!partnerUuid) {
-    ui.notifications.warn(localize("DDA.Warning.NoPartnerLinked"));
-    return null;
-  }
+    const storedTamerUuid = String(
+      partnerActor.system?.tamer?.uuid ?? ""
+    ).trim();
 
-  const partnerActor = await resolveActor(partnerUuid);
-
-  if (!partnerActor || partnerActor.type !== "digimon") {
-    ui.notifications.warn(localize("DDA.Warning.PartnerNotFound"));
-    return null;
-  }
+    let tamerActor = storedTamerUuid
+      ? await resolveActor(storedTamerUuid)
+      : null;
 
     /*
-   * O Actor parceiro persistente é a fonte de verdade da forma ativa.
-   * O Tamer mantém um espelho para interface e referências externas.
+     * Compatibilidade com Digimons antigos que não
+     * possuem system.tamer.uuid, mas estão ligados
+     * por system.partner.uuid no Tamer.
+     */
+    if (tamerActor?.type !== "character") {
+      tamerActor = game.actors.find(
+        (actor) => {
+          return (
+            actor.type === "character" &&
+            actor.system?.partner?.uuid ===
+              partnerActor.uuid
+          );
+        }
+      ) ?? null;
+    }
+
+    return {
+      tamerActor,
+      partnerActor
+    };
+  }
+
+  ui.notifications.warn(
+    localize(
+      "DDA.Warning.ChosenEvolutionFormNotDigimon"
+    )
+  );
+
+  return null;
+}
+
+export async function getCurrentPartnerFormWizardContext(
+  sourceActor
+) {
+  const actors =
+    await resolveCurrentFormWizardActors(
+      sourceActor
+    );
+
+  if (!actors) return null;
+
+  const {
+    tamerActor,
+    partnerActor
+  } = actors;
+
+  /*
+   * O próprio Digimon persistente é a fonte
+   * principal da forma atualmente ativa.
+   *
+   * Quando existe um Tamer, ele funciona apenas
+   * como espelho e referência externa.
    */
   const partnerCurrentFormUuid = String(
-    partnerActor.system.evolution?.currentFormUuid ||
-    partnerActor.system.evolution?.sourceFormUuid ||
+    partnerActor.system.evolution
+      ?.currentFormUuid ||
+    partnerActor.system.evolution
+      ?.sourceFormUuid ||
     ""
   ).trim();
 
   const tamerCurrentFormUuid = String(
-    tamerActor.system.partner?.currentFormUuid || ""
+    tamerActor?.system?.partner
+      ?.currentFormUuid ||
+    ""
   ).trim();
 
   const currentFormUuid =
@@ -514,26 +1090,33 @@ export async function getCurrentPartnerFormWizardContext(tamerActor) {
     partnerActor.uuid;
 
   /*
-   * Formas DDA-SNAPSHOT.* não são Actors reais. Primeiro procuramos
-   * o snapshot persistente; só então tentamos resolver um Actor real.
+   * DDA-SNAPSHOT.* não é um Actor real.
+   * Primeiro procuramos o snapshot armazenado.
    */
-  const storedSnapshot = getPartnerFormSnapshot(
-    partnerActor,
-    currentFormUuid
-  );
-
-  let formTemplateActor = await resolveActor(currentFormUuid);
-
-  if (!formTemplateActor && storedSnapshot) {
-    formTemplateActor = buildPseudoActorFromFormSnapshot(
-      storedSnapshot,
-      partnerActor
+  const storedSnapshot =
+    getPartnerFormSnapshot(
+      partnerActor,
+      currentFormUuid
     );
+
+  let formTemplateActor =
+    await resolveActor(currentFormUuid);
+
+  if (
+    !formTemplateActor &&
+    storedSnapshot
+  ) {
+    formTemplateActor =
+      buildPseudoActorFromFormSnapshot(
+        storedSnapshot,
+        partnerActor
+      );
   }
 
   formTemplateActor ??= partnerActor;
 
-  const snapshot = storedSnapshot ??
+  const snapshot =
+    storedSnapshot ??
     await getOrCreatePartnerFormSnapshot(
       partnerActor,
       formTemplateActor
@@ -541,25 +1124,34 @@ export async function getCurrentPartnerFormWizardContext(tamerActor) {
 
   const totalBonusDp = Math.max(
     0,
+
     Number(
-      partnerActor.system?.advancement?.bonusDp?.total ?? 0
+      partnerActor.system?.advancement
+        ?.bonusDp?.total ?? 0
     ) || 0,
+
     Number(
-      partnerActor.system?.creation?.dp?.bonus ?? 0
+      partnerActor.system?.creation
+        ?.dp?.bonus ?? 0
     ) || 0,
+
     Number(
-      partnerActor.system?.creation?.bonusDp ?? 0
+      partnerActor.system?.creation
+        ?.bonusDp ?? 0
     ) || 0
   );
 
-  const formBonusDp = getPartnerFormBonusDpAvailable(
-    partnerActor,
-    snapshot?.sourceFormUuid ||
-      currentFormUuid ||
-      formTemplateActor?.uuid ||
-      "",
-    totalBonusDp
-  );
+  const formBonusDp =
+    getPartnerFormBonusDpAvailable(
+      partnerActor,
+
+      snapshot?.sourceFormUuid ||
+        currentFormUuid ||
+        formTemplateActor?.uuid ||
+        "",
+
+      totalBonusDp
+    );
 
   return {
     tamerActor,
@@ -730,7 +1322,14 @@ export async function savePartnerFutureFormSnapshot({
 }
 
 async function saveCurrentPartnerFormSnapshot(partnerActor) {
-  if (!partnerActor || partnerActor.type !== "digimon") return null;
+  if (
+    !partnerActor ||
+    !["digimon", "npc"].includes(
+      partnerActor.type
+    )
+  ) {
+    return null;
+  }
 
   const currentFormUuid = partnerActor.system.evolution?.currentFormUuid || partnerActor.system.evolution?.sourceFormUuid || partnerActor.uuid;
   if (!currentFormUuid) return null;
@@ -806,14 +1405,220 @@ async function upsertPartnerFormSnapshot(partnerActor, snapshot) {
 }
 
 function normalizeFormSnapshot(snapshot, fallbackActor = null) {
-  const sourceFormUuid = String(snapshot?.sourceFormUuid || fallbackActor?.uuid || "");
-  const key = snapshot?.key || getFormSnapshotKey(sourceFormUuid || snapshot?.name || fallbackActor?.name || "form");
+  const sourceFormUuid = String(
+    snapshot?.sourceFormUuid ||
+    fallbackActor?.uuid ||
+    ""
+  );
+
+  const key =
+    snapshot?.key ||
+    getFormSnapshotKey(
+      sourceFormUuid ||
+      snapshot?.name ||
+      fallbackActor?.name ||
+      "form"
+    );
+
+  const evolutionCategory = String(
+    snapshot?.evolutionCategory ||
+    fallbackActor?.system
+      ?.evolutionCategory ||
+    "normal"
+  ).trim() || "normal";
+
+  const specialCategories =
+    Array.isArray(
+      snapshot?.specialCategories
+    )
+      ? foundry.utils.deepClone(
+          snapshot.specialCategories
+        )
+      : Array.isArray(
+          fallbackActor?.system
+            ?.specialCategories
+        )
+        ? foundry.utils.deepClone(
+            fallbackActor.system
+              .specialCategories
+          )
+        : evolutionCategory !== "normal"
+          ? [evolutionCategory]
+          : [];
+
+  const primarySpecialCategory = String(
+    snapshot?.primarySpecialCategory ||
+    fallbackActor?.system
+      ?.primarySpecialCategory ||
+    specialCategories.find(
+      (category) => {
+        return category !== "normal";
+      }
+    ) ||
+    (
+      evolutionCategory !== "normal"
+        ? evolutionCategory
+        : ""
+    )
+  ).trim();
+
+  const isSpecialForm = Boolean(
+    snapshot?.isSpecialForm ??
+    fallbackActor?.system
+      ?.isSpecialForm ??
+    evolutionCategory !== "normal"
+  );
+
+  const specialForm =
+    foundry.utils.deepClone(
+      snapshot?.specialForm ??
+      fallbackActor?.system
+        ?.specialForm ??
+      {}
+    );
+
+  if (
+    evolutionCategory === "hybrid"
+  ) {
+    specialForm.kind ??= "hybrid";
+    specialForm.method ??= "hybrid";
+
+    specialForm.equivalentStage ??=
+      String(
+        snapshot?.stage ||
+        fallbackActor?.system?.stage ||
+        "child"
+      );
+  }
 
   return {
     key,
     sourceFormUuid,
-    sourceFormName: String(snapshot?.sourceFormName || fallbackActor?.name || snapshot?.name || ""),
-    name: String(snapshot?.name || fallbackActor?.name || snapshot?.sourceFormName || "Digimon"),
+
+    sourceFormName: String(
+      snapshot?.sourceFormName ||
+      fallbackActor?.name ||
+      snapshot?.name ||
+      ""
+    ),
+
+    sourceId: String(
+      snapshot?.sourceId ||
+      snapshot?.names?.canonical ||
+      fallbackActor?.system?.sourceId ||
+      fallbackActor?.system?.names?.canonical ||
+      snapshot?.species ||
+      fallbackActor?.system?.species ||
+      ""
+    ),
+
+    databaseId: String(
+      snapshot?.databaseId ||
+      fallbackActor?.system?.databaseId ||
+      ""
+    ),
+
+    originalName: String(
+      snapshot?.originalName ||
+      snapshot?.names?.original ||
+      fallbackActor?.system?.names?.original ||
+      snapshot?.species ||
+      fallbackActor?.system?.species ||
+      snapshot?.name ||
+      ""
+    ),
+
+    dubName: String(
+      snapshot?.dubName ||
+      snapshot?.names?.dub ||
+      fallbackActor?.system?.names?.dub ||
+      snapshot?.species ||
+      fallbackActor?.system?.species ||
+      snapshot?.name ||
+      ""
+    ),
+
+    aliases: Array.from(
+      new Set([
+        ...(Array.isArray(snapshot?.aliases)
+          ? snapshot.aliases
+          : []),
+
+        ...(Array.isArray(snapshot?.names?.aliases)
+          ? snapshot.names.aliases
+          : []),
+
+        ...(Array.isArray(
+          fallbackActor?.system?.names?.aliases
+        )
+          ? fallbackActor.system.names.aliases
+          : [])
+      ]
+        .map((value) => {
+          return String(value ?? "").trim();
+        })
+        .filter(Boolean))
+    ),
+
+    names: {
+      canonical: String(
+        snapshot?.names?.canonical ||
+        snapshot?.sourceId ||
+        fallbackActor?.system?.names?.canonical ||
+        fallbackActor?.system?.sourceId ||
+        snapshot?.species ||
+        fallbackActor?.system?.species ||
+        ""
+      ),
+
+      original: String(
+        snapshot?.names?.original ||
+        snapshot?.originalName ||
+        fallbackActor?.system?.names?.original ||
+        snapshot?.species ||
+        fallbackActor?.system?.species ||
+        ""
+      ),
+
+      dub: String(
+        snapshot?.names?.dub ||
+        snapshot?.dubName ||
+        fallbackActor?.system?.names?.dub ||
+        snapshot?.species ||
+        fallbackActor?.system?.species ||
+        ""
+      ),
+
+      aliases: Array.from(
+        new Set([
+          ...(Array.isArray(snapshot?.aliases)
+            ? snapshot.aliases
+            : []),
+
+          ...(Array.isArray(snapshot?.names?.aliases)
+            ? snapshot.names.aliases
+            : []),
+
+          ...(Array.isArray(
+            fallbackActor?.system?.names?.aliases
+          )
+            ? fallbackActor.system.names.aliases
+            : [])
+        ]
+          .map((value) => {
+            return String(value ?? "").trim();
+          })
+          .filter(Boolean))
+      )
+    },
+
+    name: String(
+      snapshot?.name ||
+      fallbackActor?.name ||
+      snapshot?.sourceFormName ||
+      "Digimon"
+    ),
+
     img: String(snapshot?.img || fallbackActor?.img || "icons/svg/mystery-man.svg"),
     portraitImg: String(
       snapshot?.portraitImg ||
@@ -840,9 +1645,29 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
     type: String(snapshot?.type || fallbackActor?.system?.type || ""),
     attribute: String(snapshot?.attribute || fallbackActor?.system?.attribute || "data"),
     field: String(snapshot?.field || fallbackActor?.system?.field || "none"),
-    family: String(snapshot?.family || fallbackActor?.system?.family || "none"),
-    group: String(snapshot?.group || fallbackActor?.system?.group || ""),
-    profile: foundry.utils.deepClone(snapshot?.profile ?? fallbackActor?.system?.profile ?? {}),
+    family: String(
+      snapshot?.family ||
+      fallbackActor?.system?.family ||
+      "none"
+    ),
+
+    group: String(
+      snapshot?.group ||
+      fallbackActor?.system?.group ||
+      ""
+    ),
+
+    evolutionCategory,
+    specialCategories,
+    primarySpecialCategory,
+    isSpecialForm,
+    specialForm,
+
+    profile: foundry.utils.deepClone(
+      snapshot?.profile ??
+      fallbackActor?.system?.profile ??
+      {}
+    ),
     mainStats: foundry.utils.deepClone(snapshot?.mainStats ?? getSnapshotMainStats(fallbackActor)),
     miscStats: foundry.utils.deepClone(snapshot?.miscStats ?? getSnapshotMiscStats(fallbackActor)),
     creation: foundry.utils.deepClone(snapshot?.creation ?? fallbackActor?.system?.creation ?? {}),
@@ -887,8 +1712,54 @@ return {
   attribute: graphSnapshot.attribute || storedSnapshot.attribute,
   field: graphSnapshot.field || storedSnapshot.field,
   family: graphSnapshot.family || storedSnapshot.family,
-  group: graphSnapshot.group || storedSnapshot.group,
-  img: hasGraphImage ? graphImg : (storedImg || graphImg || "icons/svg/mystery-man.svg"),
+  group:
+    graphSnapshot.group ||
+    storedSnapshot.group,
+
+  evolutionCategory:
+    graphSnapshot.evolutionCategory ||
+    storedSnapshot.evolutionCategory ||
+    "normal",
+
+  specialCategories:
+    graphSnapshot.specialCategories?.length
+      ? foundry.utils.deepClone(
+          graphSnapshot.specialCategories
+        )
+      : foundry.utils.deepClone(
+          storedSnapshot
+            .specialCategories ?? []
+        ),
+
+  primarySpecialCategory:
+    graphSnapshot
+      .primarySpecialCategory ||
+    storedSnapshot
+      .primarySpecialCategory ||
+    "",
+
+  isSpecialForm:
+    Boolean(
+      graphSnapshot.isSpecialForm ??
+      storedSnapshot.isSpecialForm
+    ),
+
+  specialForm:
+    foundry.utils.deepClone(
+      Object.keys(
+        graphSnapshot.specialForm ?? {}
+      ).length
+        ? graphSnapshot.specialForm
+        : storedSnapshot.specialForm ?? {}
+    ),
+
+  img: hasGraphImage
+    ? graphImg
+    : (
+        storedImg ||
+        graphImg ||
+        "icons/svg/mystery-man.svg"
+      ),
   portraitImg: storedPortraitImg || graphPortraitImg || storedImg || graphImg || "icons/svg/mystery-man.svg",
   tokenImg: storedTokenImg || graphTokenImg || storedImg || graphImg || storedPortraitImg || graphPortraitImg || "icons/svg/mystery-man.svg",
   updatedAt: new Date().toISOString()
@@ -909,8 +1780,69 @@ function buildFormSnapshotFromGraphNode(node, partnerActor = null) {
   ).trim();
 
   return normalizeFormSnapshot({
-    sourceFormUuid: String(node?.actorUuid || node?.uuid || partnerActor?.uuid || ""),
-    sourceFormName: String(node?.displayName || node?.species || node?.name || ""),
+    sourceFormUuid: String(
+      node?.actorUuid ||
+      node?.uuid ||
+      partnerActor?.uuid ||
+      ""
+    ),
+
+    sourceFormName: String(
+      node?.displayName ||
+      node?.species ||
+      node?.name ||
+      ""
+    ),
+
+    sourceId: String(
+      node?.sourceId || ""
+    ),
+
+    databaseId: String(
+      node?.databaseId || ""
+    ),
+
+    originalName: String(
+      node?.originalName ||
+      nodeSpecies
+    ),
+
+    dubName: String(
+      node?.dubName ||
+      node?.displayName ||
+      nodeSpecies
+    ),
+
+    aliases: Array.isArray(node?.aliases)
+      ? foundry.utils.deepClone(
+          node.aliases
+        )
+      : [],
+
+    names: {
+      canonical: String(
+        node?.sourceId ||
+        nodeSpecies
+      ),
+
+      original: String(
+        node?.originalName ||
+        nodeSpecies
+      ),
+
+      dub: String(
+        node?.dubName ||
+        node?.displayName ||
+        nodeSpecies
+      ),
+
+      aliases: Array.isArray(node?.aliases)
+        ? foundry.utils.deepClone(
+            node.aliases
+          )
+        : []
+    },
+
     name: nodeName,
     img: nodeImg || "icons/svg/mystery-man.svg",
     portraitImg: String(node?.portraitImg || nodeImg || "icons/svg/mystery-man.svg"),
@@ -922,8 +1854,47 @@ function buildFormSnapshotFromGraphNode(node, partnerActor = null) {
     type: String(node?.type || partnerActor?.system?.type || ""),
     attribute: String(node?.attribute || partnerActor?.system?.attribute || "data"),
     field: String(node?.field || partnerActor?.system?.field || "none"),
-    family: String(node?.family || partnerActor?.system?.family || "none"),
-    group: String(node?.group || partnerActor?.system?.group || "")
+    family: String(
+      node?.family ||
+      partnerActor?.system?.family ||
+      "none"
+    ),
+
+    group: String(
+      node?.group ||
+      partnerActor?.system?.group ||
+      ""
+    ),
+
+    evolutionCategory: String(
+      node?.evolutionCategory ||
+      partnerActor?.system
+        ?.evolutionCategory ||
+      "normal"
+    ),
+
+    specialCategories:
+      Array.isArray(
+        node?.specialCategories
+      )
+        ? foundry.utils.deepClone(
+            node.specialCategories
+          )
+        : [],
+
+    primarySpecialCategory:
+      String(
+        node?.primarySpecialCategory ||
+        ""
+      ),
+
+    isSpecialForm:
+      Boolean(node?.isSpecialForm),
+
+    specialForm:
+      foundry.utils.deepClone(
+        node?.specialForm ?? {}
+      )
   }, null);
 }
 
@@ -947,6 +1918,38 @@ function buildPseudoActorFromFormSnapshot(snapshot, partnerActor = null) {
       }
     },
     system: {
+      sourceId:
+        normalized.sourceId || "",
+
+      databaseId:
+        normalized.databaseId || "",
+
+      names:
+        foundry.utils.deepClone(
+          normalized.names ?? {
+            canonical:
+              normalized.sourceId ||
+              normalized.species ||
+              normalized.name ||
+              "Digimon",
+
+            original:
+              normalized.originalName ||
+              normalized.species ||
+              normalized.name ||
+              "Digimon",
+
+            dub:
+              normalized.dubName ||
+              normalized.species ||
+              normalized.name ||
+              "Digimon",
+
+            aliases:
+              normalized.aliases ?? []
+          }
+        ),
+
       species: normalized.species || normalized.name || "Digimon",
       stage: normalized.stage || "child",
       stageValue: Number(normalized.stageValue ?? 2),
@@ -954,9 +1957,40 @@ function buildPseudoActorFromFormSnapshot(snapshot, partnerActor = null) {
       type: normalized.type || "",
       attribute: normalized.attribute || "data",
       field: normalized.field || "none",
-      family: normalized.family || "none",
-      group: normalized.group || "",
-      profile: foundry.utils.deepClone(normalized.profile ?? {}),
+      family:
+        normalized.family || "none",
+
+      group:
+        normalized.group || "",
+
+      evolutionCategory:
+        normalized.evolutionCategory ||
+        "normal",
+
+      specialCategories:
+        foundry.utils.deepClone(
+          normalized.specialCategories ??
+          []
+        ),
+
+      primarySpecialCategory:
+        normalized.primarySpecialCategory ||
+        "",
+
+      isSpecialForm:
+        Boolean(
+          normalized.isSpecialForm
+        ),
+
+      specialForm:
+        foundry.utils.deepClone(
+          normalized.specialForm ?? {}
+        ),
+
+      profile:
+        foundry.utils.deepClone(
+          normalized.profile ?? {}
+        ),
       mainStats: foundry.utils.deepClone(normalized.mainStats ?? {}),
       miscStats: foundry.utils.deepClone(normalized.miscStats ?? {}),
       creation: foundry.utils.deepClone(normalized.creation ?? {}),
@@ -993,8 +2027,58 @@ function buildFormSnapshotFromActor(actor, options = {}) {
   );
 
   return normalizeFormSnapshot({
-    sourceFormUuid: String(options.sourceFormUuid || system.evolution?.currentFormUuid || system.evolution?.sourceFormUuid || actor?.uuid || ""),
-    sourceFormName: String(options.sourceFormName || system.evolution?.currentFormName || system.evolution?.sourceFormName || actor?.name || ""),
+    sourceFormUuid: String(
+      options.sourceFormUuid ||
+      system.evolution?.currentFormUuid ||
+      system.evolution?.sourceFormUuid ||
+      actor?.uuid ||
+      ""
+    ),
+
+    sourceFormName: String(
+      options.sourceFormName ||
+      system.evolution?.currentFormName ||
+      system.evolution?.sourceFormName ||
+      actor?.name ||
+      ""
+    ),
+
+    sourceId: String(
+      system.sourceId ||
+      system.names?.canonical ||
+      ""
+    ),
+
+    databaseId: String(
+      system.databaseId || ""
+    ),
+
+    originalName: String(
+      system.names?.original ||
+      system.species ||
+      actor?.name ||
+      ""
+    ),
+
+    dubName: String(
+      system.names?.dub ||
+      system.species ||
+      actor?.name ||
+      ""
+    ),
+
+    aliases: Array.isArray(
+      system.names?.aliases
+    )
+      ? foundry.utils.deepClone(
+          system.names.aliases
+        )
+      : [],
+
+    names: foundry.utils.deepClone(
+      system.names ?? {}
+    ),
+
     name: actor?.name ?? "Digimon",
     img: actor?.img ?? "icons/svg/mystery-man.svg",
     portraitImg,
@@ -1006,9 +2090,37 @@ function buildFormSnapshotFromActor(actor, options = {}) {
     type: system.type ?? "",
     attribute: system.attribute ?? "data",
     field: system.field ?? "none",
-    family: system.family ?? "none",
-    group: system.group ?? "",
-    profile: foundry.utils.deepClone(system.profile ?? {}),
+    family:
+      system.family ?? "none",
+
+    group:
+      system.group ?? "",
+
+    evolutionCategory:
+      system.evolutionCategory ??
+      "normal",
+
+    specialCategories:
+      foundry.utils.deepClone(
+        system.specialCategories ?? []
+      ),
+
+    primarySpecialCategory:
+      system.primarySpecialCategory ??
+      "",
+
+    isSpecialForm:
+      Boolean(system.isSpecialForm),
+
+    specialForm:
+      foundry.utils.deepClone(
+        system.specialForm ?? {}
+      ),
+
+    profile:
+      foundry.utils.deepClone(
+        system.profile ?? {}
+      ),
     mainStats: getSnapshotMainStats(actor),
     miscStats: getSnapshotMiscStats(actor),
     creation: foundry.utils.deepClone(system.creation ?? {}),
@@ -1156,7 +2268,85 @@ async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateAc
   const mainStats = normalized.mainStats ?? {};
   const movement = normalized.miscStats?.movement ?? {};
 
-  const shouldPreservePartnerName = Boolean(partnerActor.system?.isPersistentPartner);
+  const isIndependentNpc =
+    partnerActor.type === "npc";
+
+  /*
+   * Somente parceiros de Tamer preservam
+   * o nome/apelido entre formas.
+   */
+  const shouldPreservePartnerName =
+    !isIndependentNpc &&
+    Boolean(
+      partnerActor.system?.isPersistentPartner
+    );
+
+  const nextSpeciesName = String(
+    normalized.species ||
+    formTemplateActor?.system?.species ||
+    normalized.sourceFormName ||
+    formTemplateActor?.name ||
+    normalized.name ||
+    partnerActor.name ||
+    "Digimon"
+  ).trim() || "Digimon";
+
+  const nextSourceId = String(
+    normalized.sourceId ||
+    formTemplateActor?.system?.sourceId ||
+    normalized.names?.canonical ||
+    nextSpeciesName
+  ).trim();
+
+  const nextDatabaseId = String(
+    normalized.databaseId ||
+    formTemplateActor?.system?.databaseId ||
+    (
+      nextSourceId
+        ? `${normalized.stage}:${nextSourceId}`
+        : ""
+    )
+  ).trim();
+
+  const nextNames = foundry.utils.deepClone(
+    normalized.names ?? {}
+  );
+
+  nextNames.canonical = String(
+    nextNames.canonical ||
+    nextSourceId ||
+    nextSpeciesName
+  ).trim();
+
+  nextNames.original = String(
+    nextNames.original ||
+    normalized.originalName ||
+    nextSpeciesName
+  ).trim();
+
+  nextNames.dub = String(
+    nextNames.dub ||
+    normalized.dubName ||
+    nextSpeciesName
+  ).trim();
+
+  nextNames.aliases = Array.from(
+    new Set([
+      ...(Array.isArray(nextNames.aliases)
+        ? nextNames.aliases
+        : []),
+
+      nextNames.canonical,
+      nextNames.original,
+      nextNames.dub,
+      nextSpeciesName
+    ]
+      .map((value) => {
+        return String(value ?? "").trim();
+      })
+      .filter(Boolean))
+  );
+
   const portraitImg = String(normalized.portraitImg || normalized.img || "icons/svg/mystery-man.svg");
   const tokenImg = String(normalized.tokenImg || normalized.img || portraitImg || "icons/svg/mystery-man.svg");
   const actorImg = String(normalized.img || partnerActor.img || "icons/svg/mystery-man.svg");
@@ -1168,24 +2358,89 @@ const shouldUsePortraitFlag = Boolean(
 );
 
   const updates = {
-    ...(shouldPreservePartnerName ? {} : { name: normalized.name }),
-    img: isVideoPath(actorImg) ? (partnerActor.img || "icons/svg/mystery-man.svg") : actorImg,
+    ...(shouldPreservePartnerName
+      ? {}
+      : {
+          name: nextSpeciesName
+        }),
+
+    /*
+     * Também corrige Allies antigos que já
+     * tenham sido criados como persistentPartner.
+     */
+    ...(isIndependentNpc
+      ? {
+          "system.customName": "",
+          "system.isPersistentPartner": false
+        }
+      : {}),
+
+    img: isVideoPath(actorImg)
+      ? (
+          partnerActor.img ||
+          "icons/svg/mystery-man.svg"
+        )
+      : actorImg,
     ...(shouldUsePortraitFlag
       ? { [`flags.${DDA_SYSTEM_ID}.digivicePortrait`]: portraitImg }
       : { [`flags.${DDA_SYSTEM_ID}.-=digivicePortrait`]: null }),
     "prototypeToken.texture.src": tokenImg,
     "system.evolution.portraitImg": portraitImg,
     "system.evolution.tokenImg": tokenImg,
-    "system.species": normalized.species,
-    "system.stage": normalized.stage,
+
+    "system.sourceId":
+      nextSourceId,
+
+    "system.databaseId":
+      nextDatabaseId,
+
+    "system.names":
+      nextNames,
+
+    "system.species":
+      nextSpeciesName,
+
+    "system.stage":
+      normalized.stage,
     "system.stageValue": Number(normalized.stageValue ?? 2),
     "system.size": normalized.size,
     "system.type": normalized.type,
     "system.attribute": normalized.attribute,
     "system.field": normalized.field,
-    "system.family": normalized.family,
-    "system.group": normalized.group,
-    "system.profile.appearance": normalized.profile?.appearance ?? partnerSystem.profile?.appearance ?? "",
+    "system.family":
+      normalized.family,
+
+    "system.group":
+      normalized.group,
+
+    "system.evolutionCategory":
+      normalized.evolutionCategory ||
+      "normal",
+
+    "system.specialCategories":
+      foundry.utils.deepClone(
+        normalized.specialCategories ??
+        []
+      ),
+
+    "system.primarySpecialCategory":
+      normalized.primarySpecialCategory ||
+      "",
+
+    "system.isSpecialForm":
+      Boolean(
+        normalized.isSpecialForm
+      ),
+
+    "system.specialForm":
+      foundry.utils.deepClone(
+        normalized.specialForm ?? {}
+      ),
+
+    "system.profile.appearance":
+      normalized.profile?.appearance ??
+      partnerSystem.profile?.appearance ??
+      "",
     "system.profile.personality": normalized.profile?.personality ?? partnerSystem.profile?.personality ?? "",
     "system.profile.tactics": normalized.profile?.tactics ?? partnerSystem.profile?.tactics ?? "",
     "system.mainStats.accuracy.base": Number(mainStats.accuracy?.base ?? 0),
@@ -1205,10 +2460,17 @@ const shouldUsePortraitFlag = Boolean(
     "system.tamer.name": tamerActor?.name ?? partnerSystem.tamer?.name ?? "",
     "system.tamer.uuid": tamerActor?.uuid ?? partnerSystem.tamer?.uuid ?? "",
     "system.evolution.currentFormUuid": normalized.sourceFormUuid,
-    "system.evolution.currentFormName": normalized.sourceFormName || normalized.name,
-    "system.evolution.currentStage": normalized.stage,
-    "system.evolution.sourceFormUuid": normalized.sourceFormUuid,
-    "system.evolution.sourceFormName": normalized.sourceFormName || normalized.name,
+    "system.evolution.currentFormName":
+      nextSpeciesName,
+
+    "system.evolution.currentStage":
+      normalized.stage,
+
+    "system.evolution.sourceFormUuid":
+      normalized.sourceFormUuid,
+
+    "system.evolution.sourceFormName":
+      nextSpeciesName,
     "system.evolution.previousFormUuid": previousTemplateUuid,
     "system.evolution.previousFormName": previousTemplateName,
     "system.evolution.lastTransitionType": transitionType,
@@ -2287,7 +3549,15 @@ function getEvolutionUnlockDataForTamer(tamerActor, form = {}, previousFormActor
   return { allowed: true, reason: "" };
 }
 
-function chooseEvolutionForm(forms, partnerActor, previousFormActor, tamerActor) {
+function chooseEvolutionForm(
+  forms,
+  partnerActor,
+  previousFormActor,
+  tamerActor,
+  {
+    freeEvolution = false
+  } = {}
+) {
   const evaluatedForms = forms.map((form) => {
     const pseudoNewActor = {
       name: form.name,
@@ -2302,8 +3572,13 @@ function chooseEvolutionForm(forms, partnerActor, previousFormActor, tamerActor)
       tamerActor,
       previousActor: previousFormActor,
       newActor: pseudoNewActor,
-      edgeMethod: form.edgeMethod,
-      directLink: form.directLink
+      edgeMethod:
+        form.edgeMethod,
+
+      directLink:
+        form.directLink,
+
+      freeEvolution
     });
 
     const gmUnlockData = getEvolutionUnlockDataForTamer(tamerActor, form, previousFormActor);
@@ -2330,10 +3605,18 @@ function chooseEvolutionForm(forms, partnerActor, previousFormActor, tamerActor)
         ? ` (${localize("DDA.Evolution.Slot")}: ${form.slotLabel})`
         : "";
 
-      const epLabel = localize("DDA.Resource.EvolutionPoints.Short");
-      const costLabel = form.costData.peCost > 0
-        ? ` — ${form.costData.peCost} ${epLabel}`
-        : ` — 0 ${epLabel}`;
+      const epLabel =
+        localize(
+          "DDA.Resource.EvolutionPoints.Short"
+        );
+
+      const costLabel = freeEvolution
+        ? ` — ${localize(
+            "DDA.AllyNpc.Evolution.Free"
+          )}`
+        : form.costData.peCost > 0
+          ? ` — ${form.costData.peCost} ${epLabel}`
+          : ` — 0 ${epLabel}`;
 
       const transitionLabel = getEvolutionTransitionLabelFromType(form.costData.transitionType);
       const blockedLabel = form.costData.allowed
@@ -2367,7 +3650,11 @@ function chooseEvolutionForm(forms, partnerActor, previousFormActor, tamerActor)
       </div>
 
       <p class="muted">
-        ${localize("DDA.Evolution.CostHint")}
+        ${localize(
+          freeEvolution
+            ? "DDA.AllyNpc.Evolution.NoCost"
+            : "DDA.Evolution.CostHint"
+        )}
       </p>
 
       ${
@@ -2410,7 +3697,14 @@ function chooseEvolutionForm(forms, partnerActor, previousFormActor, tamerActor)
   });
 }
 
-function calculateEvolutionCost({ tamerActor, previousActor, newActor, edgeMethod = "normal", directLink = true }) {
+function calculateEvolutionCost({
+  tamerActor,
+  previousActor,
+  newActor,
+  edgeMethod = "normal",
+  directLink = true,
+  freeEvolution = false
+}) {
   const previousStage = previousActor?.system?.stage;
   const newStage = newActor?.system?.stage;
 
@@ -2565,7 +3859,10 @@ function calculateEvolutionCost({ tamerActor, previousActor, newActor, edgeMetho
     }
   } else if (previousIndex !== -1 && newIndex !== -1 && newIndex === previousIndex + 1) {
     transitionType = "standard";
-    const defaultRange = Number(tamerActor.system.evolution?.defaultRange?.value ?? 0);
+    const defaultRange = Number(
+      tamerActor?.system?.evolution
+        ?.defaultRange?.value ?? 0
+    );
     const newStageValue = Number(CONFIG.DDA?.stages?.[newStage]?.stageValue ?? 0);
 
     if (newStageValue <= defaultRange) {
@@ -2587,6 +3884,39 @@ function calculateEvolutionCost({ tamerActor, previousActor, newActor, edgeMetho
     reason = localize("DDA.Evolution.CostReason.NoEPCost");
   }
 
+    if (freeEvolution) {
+    const blockedIndependentMethod =
+      isJogressEvolutionMethod(
+        normalizedEdgeMethod
+      ) ||
+      isHybridEvolutionGraphMethod(
+        normalizedEdgeMethod
+      ) ||
+      isModeChangeEvolutionMethod(
+        normalizedEdgeMethod
+      ) ||
+      [
+        "armor",
+        "dark"
+      ].includes(
+        normalizedEdgeMethod
+      );
+
+    if (blockedIndependentMethod) {
+      allowed = false;
+
+      blockedReason = localize(
+        "DDA.AllyNpc.Evolution.SpecialMethodBlocked"
+      );
+    } else {
+      actionCost = 0;
+      peCost = 0;
+
+      reason = localize(
+        "DDA.AllyNpc.Evolution.NoCost"
+      );
+    }
+  }
 
   const requireDirectLink = Boolean(getDDASettingSafe("requireDirectEvolutionLink", true));
   const allowRebranch = Boolean(getDDASettingSafe("allowEvolutionRebranch", false));
@@ -2618,15 +3948,23 @@ function calculateEvolutionCost({ tamerActor, previousActor, newActor, edgeMetho
   }
 
 const availablePe = Number(
-  tamerActor.system.resources
+  tamerActor?.system?.resources
     ?.evolutionPoints?.value ?? 0
 );
 
-const ipPool = getTamerIpPool(tamerActor);
-const availableIp = ipPool.total;
+const ipPool = tamerActor
+  ? getTamerIpPool(tamerActor)
+  : {
+      total: 0,
+      normal: 0,
+      temporary: 0
+    };
+
+const availableIp =
+  ipPool.total;
 
 const availableActions = Number(
-  tamerActor.system.combat
+  tamerActor?.system?.combat
     ?.actions?.value ?? 0
 );
 

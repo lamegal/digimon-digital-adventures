@@ -85,11 +85,27 @@
   <div class="dda-enemy-quality-card-actions">
     {{#if hasChoiceOptions}}
     <label>
-      <span>{{../labels.choice}}</span>
+      <span>{{choiceFieldLabel}}</span>
 
       <select data-enemy-quality-choice>
         {{#each choiceOptions}}
-        <option value="{{key}}">{{label}}</option>
+        <option value="{{key}}">
+          {{label}}
+        </option>
+        {{/each}}
+      </select>
+    </label>
+    {{/if}}
+
+    {{#if hasMainStatOptions}}
+    <label>
+      <span>{{../labels.mainStat}}</span>
+
+      <select data-enemy-quality-main-stat>
+        {{#each mainStatOptions}}
+        <option value="{{key}}">
+          {{label}}
+        </option>
         {{/each}}
       </select>
     </label>

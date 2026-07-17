@@ -46,6 +46,61 @@ const DDA_SYSTEM_ID =
 const DDA_DIGIMON_MAIN_STAT_MAX =
   20;
 
+  const DDA_NATUREWALK_MAIN_STATS = [
+  {
+    key: "accuracy",
+    labelKey: "DDA.MainStat.Accuracy"
+  },
+  {
+    key: "damage",
+    labelKey: "DDA.MainStat.Damage"
+  },
+  {
+    key: "dodge",
+    labelKey: "DDA.MainStat.Dodge"
+  },
+  {
+    key: "armor",
+    labelKey: "DDA.MainStat.Armor"
+  },
+  {
+    key: "health",
+    labelKey: "DDA.MainStat.Health"
+  }
+];
+
+function normalizeWizardQualityIdentity(
+  value = ""
+) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function isWizardNaturewalkQuality(
+  quality = {}
+) {
+  return [
+    quality.id,
+    quality.name,
+    quality.originalName,
+    quality.system?.sourceId,
+    quality.system?.originalName
+  ].some((value) => {
+    return [
+      "passonatural",
+      "naturewalk"
+    ].includes(
+      normalizeWizardQualityIdentity(
+        value
+      )
+    );
+  });
+}
+
 const DDA_WIZARD_STAGE_ORDER = [
   "baby1",
   "baby2",
@@ -2073,8 +2128,34 @@ getData() {
     html.find("[data-action='select-initial-rookie']").on("click", this._onSelectInitialRookie.bind(this));
     html.find("[data-stat-increase]").on("click", this._onIncreaseStat.bind(this));
     html.find("[data-stat-decrease]").on("click", this._onDecreaseStat.bind(this));
-    html.find("[data-action='add-quality']").on("click", this._onAddQuality.bind(this));
-    html.find("[data-action='remove-quality']").on("click", this._onRemoveQuality.bind(this));
+    html
+      .find(
+        "[data-action='add-quality']"
+      )
+      .on(
+        "click",
+        this._onAddQuality.bind(this)
+      );
+
+    html
+      .find(
+        "[data-action='configure-naturewalk']"
+      )
+      .on(
+        "click",
+        this._onConfigureNaturewalk.bind(
+          this
+        )
+      );
+
+    html
+      .find(
+        "[data-action='remove-quality']"
+      )
+      .on(
+        "click",
+        this._onRemoveQuality.bind(this)
+      );
     html.find("[data-action='select-digimon-image']").on("click", this._onSelectDigimonImage.bind(this));
 
     html.find("input[data-path]:not([type='search']), textarea[data-path]").on("blur", this._onInputChange.bind(this));
@@ -2129,11 +2210,38 @@ _getTemplateChoiceRankData(quality = null, choiceConfig = null, rankNumber = 1) 
   };
 
   return {
-    rank: rankNumber,
-    key: option.key ?? key,
-    label: option.label ?? key,
-    originalLabel: option.originalLabel ?? "",
-    derivedStat: option.derivedStat ?? "",
+    rank:
+      rankNumber,
+
+    key:
+      option.key ??
+      key,
+
+    label:
+      option.label ??
+      key,
+
+    originalLabel:
+      option.originalLabel ??
+      "",
+
+    mainStat:
+      String(
+        choiceConfig.mainStat ??
+        option.mainStat ??
+        ""
+      ).trim(),
+
+    mainStatLabel:
+      String(
+        choiceConfig.mainStatLabel ??
+        option.mainStatLabel ??
+        ""
+      ).trim(),
+
+    derivedStat:
+      option.derivedStat ??
+      "",
     attackId: option.attackId ?? "",
     attackName: option.attackName ?? "",
     attackTag: option.attackTag ?? "",
@@ -2666,30 +2774,129 @@ if (
   return [];
 }
 
-_getTemplateOptionChoiceOptionsForPending(pending = null, quality = null) {
-  const recommended = Array.isArray(pending?.recommendedOptions)
-    ? pending.recommendedOptions.map((entry) => String(entry).toLowerCase())
-    : [];
+_getTemplateOptionChoiceOptionsForPending(
+  pending = null,
+  quality = null
+) {
+  const recommended =
+    Array.isArray(
+      pending?.recommendedOptions
+    )
+      ? pending.recommendedOptions.map(
+          (entry) => {
+            return String(
+              entry
+            ).toLowerCase();
+          }
+        )
+      : [];
 
-  const options = Array.isArray(quality?.choices?.options)
-    ? quality.choices.options
-    : [];
+  const options =
+    Array.isArray(
+      quality?.choices?.options
+    )
+      ? quality.choices.options
+      : [];
 
-  return options
-    .filter((option) => {
-      if (!recommended.length) return true;
-      return recommended.includes(String(option.key ?? "").toLowerCase());
-    })
-    .map((option) => ({
-      key: String(option.key ?? ""),
-      label: option.label ?? option.originalLabel ?? option.key,
-      originalLabel: option.originalLabel ?? "",
-      effect: option.effect ?? "",
-      derivedStat: option.derivedStat ?? "",
-      category: foundry.utils.deepClone(option.category ?? {}),
-      grants: foundry.utils.deepClone(option.grants ?? {})
-    }))
-    .filter((option) => option.key);
+  const baseOptions =
+    options
+      .filter((option) => {
+        if (!recommended.length) {
+          return true;
+        }
+
+        return recommended.includes(
+          String(
+            option.key ?? ""
+          ).toLowerCase()
+        );
+      })
+      .map((option) => ({
+        key:
+          String(
+            option.key ?? ""
+          ),
+
+        label:
+          option.label ??
+          option.originalLabel ??
+          option.key,
+
+        originalLabel:
+          option.originalLabel ??
+          "",
+
+        effect:
+          option.effect ??
+          "",
+
+        derivedStat:
+          option.derivedStat ??
+          "",
+
+        category:
+          foundry.utils.deepClone(
+            option.category ?? {}
+          ),
+
+        grants:
+          foundry.utils.deepClone(
+            option.grants ?? {}
+          )
+      }))
+      .filter((option) => {
+        return Boolean(
+          option.key
+        );
+      });
+
+  if (
+    !isWizardNaturewalkQuality(
+      quality
+    )
+  ) {
+    return baseOptions;
+  }
+
+  /*
+   * O seletor do Build Template possui um único campo.
+   * Para Naturewalk, cada opção representa o par:
+   *
+   * Elemento + Atributo Principal.
+   *
+   * O valor composto só é usado pelo formulário.
+   * O dado final continua salvando:
+   *
+   * key: "fire"
+   * mainStat: "damage"
+   */
+  return baseOptions.flatMap(
+    (option) => {
+      return DDA_NATUREWALK_MAIN_STATS.map(
+        (stat) => {
+          const mainStatLabel =
+            game.i18n.localize(
+              stat.labelKey
+            );
+
+          return {
+            ...option,
+
+            selectionValue:
+              `${option.key}::${stat.key}`,
+
+            label:
+              `${option.label} → ${mainStatLabel}`,
+
+            mainStat:
+              stat.key,
+
+            mainStatLabel
+          };
+        }
+      );
+    }
+  );
 }
 
 _getBuildTemplateChoiceOptionRows(pending = null, quality = null, rankNumber = 1) {
@@ -2706,7 +2913,9 @@ _getBuildTemplateChoiceOptionRows(pending = null, quality = null, rankNumber = 1
   }
 
   return rawOptions.map((option) => {
-    const value = option.key;
+    const value =
+      option.selectionValue ??
+      option.key;
     const label = option.originalLabel
       ? `${option.label} (${option.originalLabel})`
       : option.label;
@@ -9332,6 +9541,145 @@ async _onAddQuality(event) {
 this.render(false);
 }
 
+async _onConfigureNaturewalk(
+  event
+) {
+  event.preventDefault();
+
+  if (
+    this
+      ._usesInitialFormBuildsForMechanicalState()
+  ) {
+    const activeBuild =
+      this._getActiveFormBuild();
+
+    if (activeBuild?.locked) {
+      ui.notifications.warn(
+        text(
+          "Esta forma possui uma build fixa e não pode alterar Naturewalk.",
+          "This form has a fixed build and cannot change Naturewalk."
+        )
+      );
+
+      return;
+    }
+
+    this._syncActiveFormBuildToGlobalState();
+  }
+
+  const qualityId =
+    String(
+      event.currentTarget
+        ?.dataset
+        ?.qualityId ??
+      "passoNatural"
+    ).trim();
+
+  const selectedQuality =
+    this._getSelectedQualityById(
+      qualityId
+    );
+
+  const catalogQuality =
+    this
+      ._getAvailableQualities()
+      .find((quality) => {
+        return (
+          String(
+            quality.id ?? ""
+          ) ===
+          qualityId
+        );
+      });
+
+  if (
+    !selectedQuality ||
+    !catalogQuality ||
+    !isWizardNaturewalkQuality(
+      catalogQuality
+    )
+  ) {
+    ui.notifications.warn(
+      text(
+        "Naturewalk não foi encontrada nesta forma.",
+        "Naturewalk was not found on this form."
+      )
+    );
+
+    return;
+  }
+
+  const rankValue =
+    Math.min(
+      2,
+      Math.max(
+        1,
+        Number(
+          selectedQuality
+            .rank
+            ?.value ??
+          1
+        )
+      )
+    );
+
+  const selectedRanks =
+    [];
+
+  /*
+   * Refazemos todas as escolhas.
+   *
+   * Isso permite reparar Qualidades antigas que possuem
+   * Elemento, mas não possuem Atributo Principal salvo.
+   */
+  for (
+    let rankNumber = 1;
+    rankNumber <= rankValue;
+    rankNumber += 1
+  ) {
+    const choice =
+      await this._promptQualityChoice(
+        catalogQuality,
+        rankNumber,
+        selectedRanks
+      );
+
+    if (!choice) {
+      return;
+    }
+
+    selectedRanks.push(
+      choice
+    );
+  }
+
+  selectedQuality.choices = {
+    ...foundry.utils.deepClone(
+      catalogQuality.choices ?? {}
+    ),
+
+    ...foundry.utils.deepClone(
+      selectedQuality.choices ?? {}
+    ),
+
+    selectedRanks
+  };
+
+  selectedQuality.rank ??= {};
+  selectedQuality.rank.value =
+    rankValue;
+
+  if (
+    this
+      ._usesInitialFormBuildsForMechanicalState()
+  ) {
+    this._syncGlobalStateToActiveFormBuild();
+    this._syncActiveFormBuildToGlobalState();
+  }
+
+  this.render(false);
+}
+
 _getFreeQualityUsed() {
   return [
     ...this.data.qualities.positive,
@@ -9425,8 +9773,240 @@ const availableOptions = isAttackChoice
     });
 
   if (!availableOptions.length) {
-    ui.notifications.warn(text(`${quality.name} não possui mais opções disponíveis.`, `${quality.name} has no available options left.`));
+    ui.notifications.warn(
+      text(
+        `${quality.name} não possui mais opções disponíveis.`,
+        `${quality.name} has no available options left.`
+      )
+    );
+
     return null;
+  }
+
+  if (
+    isWizardNaturewalkQuality(
+      quality
+    )
+  ) {
+    const elementOptionsHtml =
+      availableOptions
+        .map((option) => {
+          const originalLabel =
+            option.originalLabel
+              ? ` (${this._escapeHtml(
+                  option.originalLabel
+                )})`
+              : "";
+
+          return `
+            <option value="${this._escapeHtml(
+              option.key
+            )}">
+              ${this._escapeHtml(
+                option.label ??
+                option.key
+              )}${originalLabel}
+            </option>
+          `;
+        })
+        .join("");
+
+    const mainStatOptionsHtml =
+      DDA_NATUREWALK_MAIN_STATS
+        .map((stat) => {
+          return `
+            <option value="${stat.key}">
+              ${this._escapeHtml(
+                game.i18n.localize(
+                  stat.labelKey
+                )
+              )}
+            </option>
+          `;
+        })
+        .join("");
+
+    const selection =
+      await new Promise((resolve) => {
+        new Dialog({
+          title:
+            text(
+              `${quality.name} — Escolhas do Rank ${rankNumber}`,
+              `${quality.name} — Rank ${rankNumber} Choices`
+            ),
+
+          content: `
+            <form class="dda-quality-choice-form dda-naturewalk-choice-form">
+              <div class="form-group">
+                <label>
+                  ${game.i18n.localize(
+                    "DDA.Naturewalk.Element"
+                  )}
+                </label>
+
+                <select name="elementKey">
+                  ${elementOptionsHtml}
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>
+                  ${game.i18n.localize(
+                    "DDA.Naturewalk.CoreStat"
+                  )}
+                </label>
+
+                <select name="mainStat">
+                  ${mainStatOptionsHtml}
+                </select>
+              </div>
+
+              <p class="notes">
+                ${game.i18n.format(
+                  "DDA.Naturewalk.ChoiceHint",
+                  {
+                    rank:
+                      rankNumber
+                  }
+                )}
+              </p>
+
+              <p class="notes">
+                ${game.i18n.localize(
+                  "DDA.Naturewalk.CoreStatHint"
+                )}
+              </p>
+            </form>
+          `,
+
+          buttons: {
+            confirm: {
+              label:
+                text(
+                  "Confirmar",
+                  "Confirm"
+                ),
+
+              callback: (html) => {
+                const root =
+                  html instanceof jQuery
+                    ? html[0]
+                    : html?.[0] ??
+                      html;
+
+                resolve({
+                  elementKey:
+                    String(
+                      root
+                        ?.querySelector(
+                          "[name='elementKey']"
+                        )
+                        ?.value ??
+                      ""
+                    ).trim(),
+
+                  mainStat:
+                    String(
+                      root
+                        ?.querySelector(
+                          "[name='mainStat']"
+                        )
+                        ?.value ??
+                      ""
+                    ).trim()
+                });
+              }
+            },
+
+            cancel: {
+              label:
+                text(
+                  "Cancelar",
+                  "Cancel"
+                ),
+
+              callback:
+                () => resolve(null)
+            }
+          },
+
+          close:
+            () => resolve(null),
+
+          default:
+            "confirm"
+        }).render(true);
+      });
+
+    if (
+      !selection?.elementKey ||
+      !selection?.mainStat
+    ) {
+      return null;
+    }
+
+    const selectedOption =
+      availableOptions.find((option) => {
+        return (
+          String(
+            option.key ?? ""
+          ) ===
+          selection.elementKey
+        );
+      });
+
+    const selectedStat =
+      DDA_NATUREWALK_MAIN_STATS.find(
+        (stat) => {
+          return (
+            stat.key ===
+            selection.mainStat
+          );
+        }
+      );
+
+    if (
+      !selectedOption ||
+      !selectedStat
+    ) {
+      return null;
+    }
+
+    return {
+      rank:
+        rankNumber,
+
+      key:
+        selectedOption.key,
+
+      label:
+        selectedOption.label ??
+        selectedOption.key,
+
+      originalLabel:
+        selectedOption.originalLabel ??
+        "",
+
+      mainStat:
+        selectedStat.key,
+
+      mainStatLabel:
+        game.i18n.localize(
+          selectedStat.labelKey
+        ),
+
+      terrain:
+        selectedOption.terrain ??
+        "",
+
+      recommendedFor:
+        selectedOption.recommendedFor ??
+        "",
+
+      effect:
+        selectedOption.effect ??
+        ""
+    };
   }
 
 const optionHtml = availableOptions
@@ -10388,8 +10968,20 @@ _escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-_getQualityEffectiveMaxForWizard(quality) {
-  const rankLimit = quality.rankLimit ?? null;
+_getQualityEffectiveMaxForWizard(
+  quality
+) {
+  if (
+    isWizardNaturewalkQuality(
+      quality
+    )
+  ) {
+    return 2;
+  }
+
+  const rankLimit =
+    quality.rankLimit ??
+    null;
 
   if (rankLimit?.type === "derivedStat") {
     const statKey = rankLimit.stat;

@@ -600,6 +600,424 @@ export async function maybeApplyAvoidingConsequences(
   };
 }
 
+const BUSY_HANDS_ITEMS_FLAG =
+  "busyHandsItems";
+
+function normalizeBusyHandsItem(
+  entry = {}
+) {
+  return {
+    id:
+      String(
+        entry.id ??
+        foundry.utils.randomID()
+      ).trim(),
+
+    sourceTalentId:
+      "busyHands",
+
+    crafterUuid:
+      String(
+        entry.crafterUuid ?? ""
+      ).trim(),
+
+    crafterName:
+      String(
+        entry.crafterName ?? ""
+      ).trim(),
+
+    recipientUuid:
+      String(
+        entry.recipientUuid ?? ""
+      ).trim(),
+
+    skillKey:
+      String(
+        entry.skillKey ?? ""
+      ).trim(),
+
+    skillLabel:
+      String(
+        entry.skillLabel ?? ""
+      ).trim(),
+
+    itemName:
+      String(
+        entry.itemName ?? ""
+      ).trim(),
+
+    bonus:
+      integer(
+        entry.bonus,
+        0
+      ),
+
+    createdAt:
+      String(
+        entry.createdAt ??
+        nowIso()
+      ).trim()
+  };
+}
+
+function getStoredBusyHandsItems(
+  tamer
+) {
+  const stored =
+    tamer?.getFlag?.(
+      SYSTEM_ID,
+      BUSY_HANDS_ITEMS_FLAG
+    );
+
+  if (!Array.isArray(stored)) {
+    return [];
+  }
+
+  return stored
+    .map(
+      normalizeBusyHandsItem
+    )
+    .filter((entry) => {
+      return (
+        entry.id &&
+        entry.crafterUuid &&
+        entry.skillKey &&
+        entry.bonus > 0
+      );
+    });
+}
+
+function buildBusyHandsItemsUpdate(
+  entries = []
+) {
+  return {
+    [
+      `flags.${SYSTEM_ID}.${BUSY_HANDS_ITEMS_FLAG}`
+    ]:
+      entries
+        .map(
+          normalizeBusyHandsItem
+        )
+        .filter((entry) => {
+          return (
+            entry.id &&
+            entry.crafterUuid &&
+            entry.skillKey &&
+            entry.bonus > 0
+          );
+        })
+  };
+}
+
+export function getBusyHandsSkillItems(
+  tamer,
+  skillKey = ""
+) {
+  if (
+    !tamer ||
+    tamer.type !== "character"
+  ) {
+    return [];
+  }
+
+  const wantedSkill =
+    String(
+      skillKey ?? ""
+    ).trim();
+
+  return clone(
+    getStoredBusyHandsItems(
+      tamer
+    ).filter((entry) => {
+      return (
+        !wantedSkill ||
+        entry.skillKey === wantedSkill
+      );
+    })
+  );
+}
+
+export async function grantBusyHandsSkillItem(
+  crafter,
+  recipient,
+  {
+    skillKey = "",
+    itemName = "",
+    bonus = 0
+  } = {}
+) {
+  if (
+    !crafter ||
+    crafter.type !== "character" ||
+    !recipient ||
+    recipient.type !== "character"
+  ) {
+    return {
+      ok: false,
+      reason: "invalidActors"
+    };
+  }
+
+  const cleanSkillKey =
+    String(
+      skillKey ?? ""
+    ).trim();
+
+  const recipientSkill =
+    recipient.system
+      ?.skills
+      ?.[cleanSkillKey];
+
+  if (!recipientSkill) {
+    return {
+      ok: false,
+      reason: "invalidSkill"
+    };
+  }
+
+  const cleanBonus =
+    integer(
+      bonus,
+      0
+    );
+
+  if (cleanBonus <= 0) {
+    return {
+      ok: false,
+      reason: "invalidBonus"
+    };
+  }
+
+  const skillLabel =
+    game.i18n.localize(
+      recipientSkill.label ??
+      cleanSkillKey
+    );
+
+  const cleanItemName =
+    String(
+      itemName ?? ""
+    ).trim() ||
+    game.i18n.format(
+      "DDA.TamerTalent.BusyHands.DefaultItemName",
+      {
+        skill:
+          skillLabel
+      }
+    );
+
+  /*
+   * Um mesmo criador só pode manter um item
+   * de Busy Hands ativo por vez.
+   */
+  const entries =
+    getStoredBusyHandsItems(
+      recipient
+    ).filter((entry) => {
+      return (
+        entry.crafterUuid !==
+        crafter.uuid
+      );
+    });
+
+  const item =
+    normalizeBusyHandsItem({
+      id:
+        foundry.utils.randomID(),
+
+      crafterUuid:
+        crafter.uuid,
+
+      crafterName:
+        crafter.name,
+
+      recipientUuid:
+        recipient.uuid,
+
+      skillKey:
+        cleanSkillKey,
+
+      skillLabel,
+
+      itemName:
+        cleanItemName,
+
+      bonus:
+        cleanBonus,
+
+      createdAt:
+        nowIso()
+    });
+
+  entries.push(
+    item
+  );
+
+  await recipient.update(
+    buildBusyHandsItemsUpdate(
+      entries
+    )
+  );
+
+  recipient.sheet?.render(
+    false
+  );
+
+  return {
+    ok: true,
+
+    item:
+      clone(item),
+
+    recipientName:
+      recipient.name,
+
+    skillLabel,
+
+    bonus:
+      cleanBonus
+  };
+}
+
+export async function consumeBusyHandsSkillItem(
+  tamer,
+  itemId = ""
+) {
+  if (
+    !tamer ||
+    tamer.type !== "character"
+  ) {
+    return {
+      consumed: false,
+      item: null
+    };
+  }
+
+  const wantedId =
+    String(
+      itemId ?? ""
+    ).trim();
+
+  const entries =
+    getStoredBusyHandsItems(
+      tamer
+    );
+
+  const item =
+    entries.find((entry) => {
+      return (
+        entry.id === wantedId
+      );
+    }) ?? null;
+
+  if (!item) {
+    return {
+      consumed: false,
+      item: null
+    };
+  }
+
+  const remaining =
+    entries.filter((entry) => {
+      return (
+        entry.id !== wantedId
+      );
+    });
+
+  await tamer.update(
+    buildBusyHandsItemsUpdate(
+      remaining
+    )
+  );
+
+  tamer.sheet?.render(
+    false
+  );
+
+  return {
+    consumed: true,
+
+    item:
+      clone(item)
+  };
+}
+
+export async function clearBusyHandsItemsCraftedBy(
+  crafter
+) {
+  if (
+    !crafter ||
+    crafter.type !== "character"
+  ) {
+    return {
+      cleared: 0,
+      recipients: []
+    };
+  }
+
+  let cleared =
+    0;
+
+  const recipients =
+    [];
+
+  for (
+    const recipient of
+    game.actors?.contents ?? []
+  ) {
+    if (
+      recipient.type !==
+      "character"
+    ) {
+      continue;
+    }
+
+    const entries =
+      getStoredBusyHandsItems(
+        recipient
+      );
+
+    const remaining =
+      entries.filter((entry) => {
+        const remove =
+          entry.crafterUuid ===
+          crafter.uuid;
+
+        if (remove) {
+          cleared += 1;
+        }
+
+        return !remove;
+      });
+
+    if (
+      remaining.length ===
+      entries.length
+    ) {
+      continue;
+    }
+
+    await recipient.update(
+      buildBusyHandsItemsUpdate(
+        remaining
+      )
+    );
+
+    recipient.sheet?.render(
+      false
+    );
+
+    recipients.push(
+      recipient.name
+    );
+  }
+
+  return {
+    cleared,
+    recipients
+  };
+}
+
 function normalizeTemporaryIpEntry(entry = {}) {
   return {
     id: String(entry.id ?? foundry.utils.randomID()).trim(),
@@ -662,6 +1080,101 @@ export function getTamerIpPool(tamer, { allowTemporary = true } = {}) {
     temporary,
     total: normal + temporary,
     max: integer(tamer?.system?.resources?.ip?.max, normal)
+  };
+}
+
+const ENDLESS_DREAM_SOURCE_PREFIX =
+  "endlessDream:";
+
+export function getEndlessDreamTemporaryIpTotal(
+  tamer
+) {
+  if (
+    !tamer ||
+    tamer.type !== "character"
+  ) {
+    return 0;
+  }
+
+  return getStoredTemporaryIpEntries(
+    tamer
+  )
+    .filter((entry) => {
+      return String(
+        entry.sourceKey ?? ""
+      ).startsWith(
+        ENDLESS_DREAM_SOURCE_PREFIX
+      );
+    })
+    .reduce((total, entry) => {
+      return (
+        total +
+        integer(
+          entry.amount,
+          0
+        )
+      );
+    }, 0);
+}
+
+export function getEndlessDreamTemporaryIpCapacity(
+  tamer
+) {
+  if (
+    !tamer ||
+    tamer.type !== "character"
+  ) {
+    return {
+      capacity: 0,
+      endlessDreamTotal: 0,
+      totalIp: 0,
+      maximumTotal: 7
+    };
+  }
+
+  const pool =
+    getTamerIpPool(
+      tamer
+    );
+
+  const endlessDreamTotal =
+    getEndlessDreamTemporaryIpTotal(
+      tamer
+    );
+
+  const remainingFromTalent =
+    Math.max(
+      0,
+      2 -
+      endlessDreamTotal
+    );
+
+  const remainingBeforeSeven =
+    Math.max(
+      0,
+      7 -
+      pool.total
+    );
+
+  return {
+    capacity:
+      Math.min(
+        remainingFromTalent,
+        remainingBeforeSeven
+      ),
+
+    endlessDreamTotal,
+    totalIp:
+      pool.total,
+
+    normalIp:
+      pool.normal,
+
+    temporaryIp:
+      pool.temporary,
+
+    maximumTotal:
+      7
   };
 }
 

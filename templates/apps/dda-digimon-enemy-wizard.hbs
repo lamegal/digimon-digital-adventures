@@ -1,5 +1,5 @@
 {{#if isGM}}
-<section class="dda-enemy-wizard-shell">
+<section class="dda-enemy-wizard-shell is-{{npcAlignment}}">
   <header class="dda-enemy-wizard-hero">
     <div class="dda-enemy-wizard-device-wrap" aria-hidden="true">
       <img src="{{enemyDevicePath}}" alt="" />
@@ -7,7 +7,7 @@
 
     <div class="dda-enemy-wizard-hero-copy">
       <span class="dda-enemy-wizard-kicker">
-        <i class="fa-solid fa-skull"></i>
+        <i class="fa-solid {{#if isAllyNpc}}fa-handshake{{else}}fa-skull{{/if}}"></i>
         {{title}}
       </span>
 
@@ -447,6 +447,39 @@
         </section>
 
         <section class="dda-enemy-narrative-section">
+          <div class="dda-npc-alignment-card is-{{npcAlignment}}">
+            <span class="dda-npc-alignment-title">
+              {{labels.alignment}}
+            </span>
+
+            <div class="dda-npc-alignment-control">
+              <strong class="dda-npc-alignment-label is-ally">
+                {{labels.ally}}
+              </strong>
+
+              <button
+                type="button"
+                class="dda-npc-alignment-toggle"
+                data-action="toggleNpcAlignment"
+                role="switch"
+                aria-checked="{{#if isEnemyNpc}}true{{else}}false{{/if}}"
+                title="{{labels.alignmentHint}}"
+              >
+                <span class="dda-npc-alignment-track">
+                  <span class="dda-npc-alignment-thumb"></span>
+                </span>
+              </button>
+
+              <strong class="dda-npc-alignment-label is-enemy">
+                {{labels.enemy}}
+              </strong>
+            </div>
+
+            <small>
+              {{labels.alignmentHint}}
+            </small>
+          </div>
+
           <label class="dda-enemy-npc-name-field">
             <span>{{labels.npcName}}</span>
 

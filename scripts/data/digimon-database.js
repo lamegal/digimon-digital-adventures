@@ -735,7 +735,12 @@ export class DDADigimonDatabase {
     this._byDatabaseId = new Map();
     this._byStageKey = new Map();
 
-    for (const actor of actors) {
+    const indexedActors = [
+      ...actors,
+      ...(this._virtualSpecialActors ?? [])
+    ];
+
+    for (const actor of indexedActors) {
       const system = actor.system ?? {};
       const stage = system.stage || "";
       const databaseId = actor.databaseId || system.databaseId;

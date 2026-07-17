@@ -1388,6 +1388,92 @@ function getEnemyChoiceOption(quality = {}, choiceKey = "") {
   }) ?? null;
 }
 
+function isEnemyNaturewalkQuality(quality = {}) {
+  const qualityId = normalizeEnemyQualityName(
+    quality.id ??
+    quality.name ??
+    quality.originalName
+  );
+
+  return [
+    "passonatural",
+    "naturewalk"
+  ].includes(qualityId);
+}
+
+function getEnemyNaturewalkMainStat(
+  mainStat = ""
+) {
+  const key = String(mainStat ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!ENEMY_STAT_ORDER.includes(key)) {
+    return null;
+  }
+
+  return {
+    key,
+
+    label: game.i18n.localize(
+      ENEMY_STAT_LABELS[key]
+    )
+  };
+}
+
+function buildEnemyNaturewalkChoiceRank(
+  quality = {},
+  choiceKey = "",
+  mainStat = ""
+) {
+  if (!isEnemyNaturewalkQuality(quality)) {
+    return null;
+  }
+
+  const option = getEnemyChoiceOption(
+    quality,
+    choiceKey
+  );
+
+  const stat = getEnemyNaturewalkMainStat(
+    mainStat
+  );
+
+  if (!option || !stat) return null;
+
+  return {
+    key: String(
+      option.key ?? ""
+    ).trim(),
+
+    label: String(
+      option.label ??
+      option.originalLabel ??
+      option.key ??
+      ""
+    ),
+
+    originalLabel: String(
+      option.originalLabel ?? ""
+    ),
+
+    mainStat: stat.key,
+    mainStatLabel: stat.label,
+
+    terrain: String(
+      option.terrain ?? ""
+    ),
+
+    recommendedFor: String(
+      option.recommendedFor ?? ""
+    ),
+
+    effect: String(
+      option.effect ?? ""
+    )
+  };
+}
+
 function getEnemyQualityChoiceRows(
   quality = {},
   selection = {},
@@ -1399,38 +1485,85 @@ function getEnemyQualityChoiceRows(
     ? selection.choiceKeys
     : [];
 
+  const choiceRanks = Array.isArray(
+    selection.choiceRanks
+  )
+    ? selection.choiceRanks
+    : [];
+
   const allOptions = availableOptions.length
     ? availableOptions
     : getEnemyStaticChoiceOptions(quality);
 
   return choiceKeys
     .map((choiceKey, index) => {
-      const key = String(choiceKey ?? "").trim();
+      const key = String(
+        choiceKey ?? ""
+      ).trim();
 
-      const option = allOptions.find((entry) => {
-        return String(entry?.key ?? "") === key;
-      });
+      const option = allOptions.find(
+        (entry) => {
+          return String(
+            entry?.key ?? ""
+          ) === key;
+        }
+      );
 
       if (!option) return null;
 
-      const cloned = foundry.utils.deepClone(
-        option
-      );
+      const cloned =
+        foundry.utils.deepClone(
+          option
+        );
+
+      const configuredRank =
+        foundry.utils.deepClone(
+          choiceRanks[index] ?? {}
+        );
 
       return {
         ...cloned,
+        ...configuredRank,
+
         rank: index + 1,
         key,
+
         label: String(
+          configuredRank.label ??
           cloned.label ??
           cloned.originalLabel ??
           key
         ),
+
         originalLabel: String(
-          cloned.originalLabel ?? ""
+          configuredRank.originalLabel ??
+          cloned.originalLabel ??
+          ""
         ),
-        effect: String(cloned.effect ?? ""),
-        type: String(cloned.type ?? "")
+
+        mainStat: String(
+          configuredRank.mainStat ??
+          cloned.mainStat ??
+          ""
+        ),
+
+        mainStatLabel: String(
+          configuredRank.mainStatLabel ??
+          cloned.mainStatLabel ??
+          ""
+        ),
+
+        effect: String(
+          configuredRank.effect ??
+          cloned.effect ??
+          ""
+        ),
+
+        type: String(
+          configuredRank.type ??
+          cloned.type ??
+          ""
+        )
       };
     })
     .filter(Boolean);
@@ -1450,11 +1583,63 @@ function getEnemyQualityDisplayRank(
   );
 }
 
-function normalizeEnemyQualitySelection(selection = {}) {
-  const id = String(selection.id ?? "").trim();
-  const quality = getEnemyQualityById(id);
+function normalizeEnemyQualitySelection(
+  selection = {}
+) {
+  const id = String(
+    selection.id ?? ""
+  ).trim();
+
+  const quality =
+    getEnemyQualityById(id);
 
   if (!id || !quality) return null;
+
+  const rawChoiceKeys = Array.isArray(
+    selection.choiceKeys
+  )
+    ? selection.choiceKeys
+    : [];
+
+  const rawChoiceRanks = Array.isArray(
+    selection.choiceRanks
+  )
+    ? selection.choiceRanks
+    : [];
+
+  const choiceKeys = [];
+  const choiceRanks = [];
+  const seenKeys = new Set();
+
+  for (
+    const [index, rawKey]
+    of rawChoiceKeys.entries()
+  ) {
+    const key = String(
+      rawKey ?? ""
+    ).trim();
+
+    if (!key || seenKeys.has(key)) {
+      continue;
+    }
+
+    seenKeys.add(key);
+    choiceKeys.push(key);
+
+    const configuredRank =
+      foundry.utils.deepClone(
+        rawChoiceRanks[index] ?? {}
+      );
+
+    if (
+      Object.keys(configuredRank).length
+    ) {
+      choiceRanks.push({
+        ...configuredRank,
+        key
+      });
+    }
+  }
 
   return {
     id,
@@ -1464,17 +1649,8 @@ function normalizeEnemyQualitySelection(selection = {}) {
       quality
     ),
 
-    choiceKeys: Array.from(
-      new Set(
-        (
-          Array.isArray(selection.choiceKeys)
-            ? selection.choiceKeys
-            : []
-        )
-          .map((key) => String(key ?? "").trim())
-          .filter(Boolean)
-      )
-    )
+    choiceKeys,
+    choiceRanks
   };
 }
 
@@ -1496,8 +1672,8 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
     },
 
     window: {
-      icon: "fa-solid fa-skull",
-      title: "Create Enemy Digimon",
+      icon: "fa-solid fa-dragon",
+      title: "Create Digimon NPC",
       resizable: true
     },
 
@@ -1516,6 +1692,7 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
       toggleSuperiorDefaultQuality: DDADigimonEnemyWizard._onToggleSuperiorDefaultQuality,
       openSuperiorModeQualityBrowser: DDADigimonEnemyWizard._onOpenSuperiorModeQualityBrowser,
       removeSuperiorModeQuality: DDADigimonEnemyWizard._onRemoveSuperiorModeQuality,
+      toggleNpcAlignment: DDADigimonEnemyWizard._onToggleNpcAlignment,
       createEnemyNpc: DDADigimonEnemyWizard._onCreateEnemyNpc
     }
   };
@@ -1549,6 +1726,7 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
     this.filters = defaultFilters();
     this.selectedFormId = "";
     this.enemyName = "";
+    this.npcAlignment = "enemy";
     this.enemyBuild = createEnemyBuild();
     this._enemyBuildFormId = "";
     this._enemyQualityBrowser = null;
@@ -1585,18 +1763,43 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
       ? this._getEnemyBuildPreview(selectedForm)
       : null;
 
+    const isAllyNpc =
+      this.npcAlignment === "ally";
+
+    const isEnemyNpc =
+      !isAllyNpc;
+
     return {
       isGM: true,
-      title: text("Criar Digimon Inimigo", "Create Enemy Digimon"),
-      subtitle: text(
-        "Escolha uma forma da database. Ela cria um NPC independente, sem parceiro, Tamer, linha persistente ou Marcos.",
-        "Choose a form from the database. It creates an independent NPC, without a partner, Tamer, persistent line, or Milestones."
+
+      title: text(
+        "Criar Digimon NPC",
+        "Create Digimon NPC"
       ),
+
+      subtitle: isAllyNpc
+        ? text(
+            "Crie um aliado autônomo do Narrador, capaz de escolher formas e evoluir sem gastar PE ou PI.",
+            "Create an autonomous GM ally that can choose forms and evolve without spending EP or IP."
+          )
+        : text(
+            "Crie um antagonista independente para encontros e combates.",
+            "Create an independent antagonist for encounters and combat."
+          ),
       searchHint: text(
         "Digite livremente. A busca só é aplicada ao pressionar Enter.",
         "Type freely. Search is only applied when you press Enter."
       ),
-      enemyDevicePath: `systems/${DDA_SYSTEM_ID}/assets/ui/digimon-enemy.webp`,
+      npcAlignment:
+        this.npcAlignment,
+
+      isAllyNpc,
+      isEnemyNpc,
+
+      enemyDevicePath:
+        isAllyNpc
+          ? `systems/${DDA_SYSTEM_ID}/assets/ui/digivice-frame-vazio-2.webp`
+          : `systems/${DDA_SYSTEM_ID}/assets/ui/digimon-enemy.webp`,
 
       filters: {
         ...this.filters,
@@ -1645,21 +1848,86 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
           `Mostrando as primeiras ${DDA_ENEMY_FORM_LIMIT}. Refine os filtros ou use a busca.`,
           `Showing the first ${DDA_ENEMY_FORM_LIMIT}. Refine the filters or use search.`
         ),
-        selected: text("Forma selecionada", "Selected form"),
-        source: text("Categoria", "Category"),
-        npcName: text("Nome do inimigo", "Enemy name"),
-        npcNameHint: text(
-          "Deixe vazio para usar o nome da espécie.",
-          "Leave blank to use the species name."
-        ),
-        create: text("Criar NPC Inimigo", "Create Enemy NPC"),
+        selected:
+          text(
+            "Forma selecionada",
+            "Selected form"
+          ),
+
+        source:
+          text(
+            "Categoria",
+            "Category"
+          ),
+
+        alignment:
+          text(
+            "Alinhamento do NPC",
+            "NPC alignment"
+          ),
+
+        ally:
+          text(
+            "Aliado",
+            "Ally"
+          ),
+
+        enemy:
+          text(
+            "Inimigo",
+            "Enemy"
+          ),
+
+        alignmentHint: isAllyNpc
+          ? text(
+              "Aliados usam disposição amigável e podem evoluir gratuitamente pela própria ficha.",
+              "Allies use friendly disposition and may evolve freely from their own sheet."
+            )
+          : text(
+              "Inimigos usam disposição hostil e mantêm o visual escuro do Digivice.",
+              "Enemies use hostile disposition and keep the dark Digivice appearance."
+            ),
+
+        npcName: isAllyNpc
+          ? text(
+              "Nome do aliado",
+              "Ally name"
+            )
+          : text(
+              "Nome do inimigo",
+              "Enemy name"
+            ),
+
+        npcNameHint:
+          text(
+            "Deixe vazio para usar o nome da espécie.",
+            "Leave blank to use the species name."
+          ),
+
+        create: isAllyNpc
+          ? text(
+              "Criar NPC Aliado",
+              "Create Ally NPC"
+            )
+          : text(
+              "Criar NPC Inimigo",
+              "Create Enemy NPC"
+            ),
         choose: text(
           "Escolha uma forma na lista para criar o inimigo.",
           "Choose a form from the list to create the enemy."
         ),
         special: text("Forma alternativa", "Alternative form"),
 
-        build: text("Montar inimigo", "Build enemy"),
+        build: isAllyNpc
+          ? text(
+              "Montar aliado",
+              "Build ally"
+            )
+          : text(
+              "Montar inimigo",
+              "Build enemy"
+            ),
         budget: text("Orçamento individual", "Individual budget"),
         stageBaseDp: text("PD padrão do estágio", "Stage default DP"),
         baseDp: text("PD base deste inimigo", "This enemy's base DP"),
@@ -1753,10 +2021,15 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
           "This build exceeds this enemy's budget."
         ),
 
-        createAndOpen: text(
-          "Criar NPC e abrir ficha",
-          "Create NPC and open sheet"
-        ),
+        createAndOpen: isAllyNpc
+          ? text(
+              "Criar aliado e abrir ficha",
+              "Create ally and open sheet"
+            )
+          : text(
+              "Criar inimigo e abrir ficha",
+              "Create enemy and open sheet"
+            ),
 
         qualities: text("Qualidades", "Qualities"),
         openQualities: text("Abrir catálogo", "Open browser"),
@@ -2357,6 +2630,23 @@ static async _onRemoveEnemyAttack(event, target) {
       ._enemySuperiorModeQualityBrowser
       ?.render({ force: true });
   }
+
+    static async _onToggleNpcAlignment(
+    event
+  ) {
+    event.preventDefault();
+
+    this.npcAlignment =
+      this.npcAlignment === "ally"
+        ? "enemy"
+        : "ally";
+
+    await this._renderPreservingScroll({
+      preserveForms: true,
+      preservePreview: true
+    });
+  }
+
 
   static async _onCreateEnemyNpc(event) {
     event.preventDefault();
@@ -4985,7 +5275,8 @@ _buildEnemyAttackItems(form = {}, build = {}) {
   addEnemySuperiorModeQualityById(
     qualityId = "",
     {
-      choiceKey = ""
+      choiceKey = "",
+      mainStat = ""
     } = {}
   ) {
     const form = this._getSelectedForm();
@@ -5063,6 +5354,25 @@ _buildEnemyAttackItems(form = {}, build = {}) {
       }
     }
 
+    const naturewalkChoiceRank =
+      buildEnemyNaturewalkChoiceRank(
+        quality,
+        choiceKey,
+        mainStat
+      );
+
+    if (
+      isEnemyNaturewalkQuality(quality) &&
+      !naturewalkChoiceRank
+    ) {
+      ui.notifications.warn(text(
+        "Escolha uma Estatística Principal válida para este Rank de Passo Natural.",
+        "Choose a valid Core Stat for this Naturewalk Rank."
+      ));
+
+      return false;
+    }
+
     const draft =
       this._ensureEnemySuperiorModeDraft();
 
@@ -5095,16 +5405,37 @@ _buildEnemyAttackItems(form = {}, build = {}) {
 
       if (needsChoice) {
         existing.choiceKeys ??= [];
-        existing.choiceKeys.push(choiceKey);
+        existing.choiceKeys.push(
+          choiceKey
+        );
+
+        if (naturewalkChoiceRank) {
+          existing.choiceRanks ??= [];
+
+          existing.choiceRanks.push(
+            naturewalkChoiceRank
+          );
+        }
       }
     } else {
       draft.modeQualities.push({
-        id: String(quality.id ?? ""),
-        rank: getEnemyQualityBaseRank(quality),
+        id: String(
+          quality.id ?? ""
+        ),
+
+        rank:
+          getEnemyQualityBaseRank(
+            quality
+          ),
 
         choiceKeys: needsChoice
           ? [choiceKey]
-          : []
+          : [],
+
+        choiceRanks:
+          naturewalkChoiceRank
+            ? [naturewalkChoiceRank]
+            : []
       });
     }
 
@@ -5225,7 +5556,19 @@ const choiceRows = getEnemyQualityChoiceRows(
           attachedChoiceDp;
 
         const choiceLabel = choiceRows
-          .map((choice) => choice.label)
+          .map((choice) => {
+            const label = String(
+              choice.label ?? ""
+            ).trim();
+
+            const mainStatLabel = String(
+              choice.mainStatLabel ?? ""
+            ).trim();
+
+            return mainStatLabel
+              ? `${label} → ${mainStatLabel}`
+              : label;
+          })
           .filter(Boolean)
           .join(", ");
 
@@ -5387,7 +5730,8 @@ if (
   }
 
   addEnemyQualityById(qualityId = "", {
-    choiceKey = ""
+    choiceKey = "",
+    mainStat = ""
   } = {}) {
     const form = this._getSelectedForm();
 
@@ -5448,9 +5792,14 @@ if (
       quality
     );
 
-  if (!choiceKey || !options.some((option) => {
-    return String(option.key ?? "") === String(choiceKey);
-  })) {
+  if (
+    !choiceKey ||
+    !options.some((option) => {
+      return String(
+        option.key ?? ""
+      ) === String(choiceKey);
+    })
+  ) {
     ui.notifications.warn(text(
       "Escolha uma opção válida antes de adicionar esta Qualidade.",
       "Choose a valid option before adding this Quality."
@@ -5460,7 +5809,27 @@ if (
   }
 }
 
-    const previousSelection = foundry.utils.deepClone(
+    const naturewalkChoiceRank =
+      buildEnemyNaturewalkChoiceRank(
+        quality,
+        choiceKey,
+        mainStat
+      );
+
+    if (
+      isEnemyNaturewalkQuality(quality) &&
+      !naturewalkChoiceRank
+    ) {
+      ui.notifications.warn(text(
+        "Escolha uma Estatística Principal válida para este Rank de Passo Natural.",
+        "Choose a valid Core Stat for this Naturewalk Rank."
+      ));
+
+      return false;
+    }
+
+    const previousSelection =
+      foundry.utils.deepClone(
       this.enemyBuild.selectedQualities ?? []
     );
 
@@ -5493,18 +5862,40 @@ if (
         )
       ) {
         existing.choiceKeys ??= [];
-        existing.choiceKeys.push(choiceKey);
+
+        existing.choiceKeys.push(
+          choiceKey
+        );
+
+        if (naturewalkChoiceRank) {
+          existing.choiceRanks ??= [];
+
+          existing.choiceRanks.push(
+            naturewalkChoiceRank
+          );
+        }
       }
     } else {
       this.enemyBuild.selectedQualities.push({
-        id: String(quality.id ?? ""),
-        rank: getEnemyQualityBaseRank(quality),
+        id: String(
+          quality.id ?? ""
+        ),
+
+        rank:
+          getEnemyQualityBaseRank(
+            quality
+          ),
 
         choiceKeys:
           this._enemyQualityNeedsChoiceForNextRank(
             quality
           )
             ? [choiceKey]
+            : [],
+
+        choiceRanks:
+          naturewalkChoiceRank
+            ? [naturewalkChoiceRank]
             : []
       });
     }
@@ -6715,17 +7106,41 @@ const tokenCandidates = await getTokenCandidates(
 
     const spentBonusQualities = Math.max(
       0,
-      build.qualityDp - spentBaseQualities
+      build.qualityDp -
+      spentBaseQualities
     );
 
+    const alignment =
+      this.npcAlignment === "ally"
+        ? "ally"
+        : "enemy";
+
+    const isAlly =
+      alignment === "ally";
+
+    const isEnemy =
+      !isAlly;
+
     const enemyMetadata = {
-      isEnemy: true,
+      alignment,
+      isAlly,
+      isEnemy,
 
-      role: String(build.role ?? "standard"),
+      autonomousEvolution:
+        true,
 
-      threat: String(build.role ?? "standard") === "boss"
-        ? "boss"
-        : "standard",
+      role:
+        String(
+          build.role ?? "standard"
+        ),
+
+      threat: isAlly
+        ? "ally"
+        : String(
+            build.role ?? "standard"
+          ) === "boss"
+          ? "boss"
+          : "standard",
 
       baseDpOverride: baseDp === stageBaseDp
         ? null
@@ -6780,7 +7195,9 @@ const tokenCandidates = await getTokenCandidates(
       img: form.img,
 
       prototypeToken: {
-        disposition: CONST.TOKEN_DISPOSITIONS.HOSTILE,
+        disposition: isAlly
+          ? CONST.TOKEN_DISPOSITIONS.FRIENDLY
+          : CONST.TOKEN_DISPOSITIONS.HOSTILE,
 
         width: toTokenGridSize(
           build.tokenSize,
@@ -6857,11 +7274,45 @@ const tokenCandidates = await getTokenCandidates(
           form.categories ?? []
         ),
 
-        primarySpecialCategory: form.category,
-        isSpecialForm: form.isSpecialForm,
+        primarySpecialCategory:
+          form.category,
+
+        isSpecialForm:
+          form.isSpecialForm,
+
         isDigimon: true,
 
-        notes: String(build.notes ?? ""),
+        /*
+         * Ally e Enemy são NPCs independentes.
+         * Eles não preservam o nome entre formas
+         * como um parceiro persistente de Tamer.
+         */
+        isPersistentPartner:
+          false,
+
+        evolution: {
+          autonomous:
+            true,
+
+          currentStage:
+            form.stageKey,
+
+          currentFormName:
+            form.displayName,
+
+          sourceFormName:
+            form.displayName,
+
+          portraitImg:
+            form.img,
+
+          tokenImg:
+            form.tokenImg ||
+            form.img
+        },
+
+        notes:
+          String(build.notes ?? ""),
 
         profile: {
           description: String(
@@ -6902,7 +7353,10 @@ const tokenCandidates = await getTokenCandidates(
 
           initiative: {
             value: 0,
-            side: "enemies"
+
+            side: isAlly
+              ? "players"
+              : "enemies"
           }
         },
 
@@ -6942,7 +7396,7 @@ export function registerEnemyDigimonWizardDirectoryButton() {
         src="systems/digimon-digital-adventures/assets/ui/enemy-digimon.svg"
         alt=""
       />
-      <span>${text("Criar Digimon Inimigo", "Create Enemy Digimon")}</span>
+      <span>${text("Criar Digimon NPC", "Create Digimon NPC")}</span>
     `;
 
     button.addEventListener("click", (event) => {

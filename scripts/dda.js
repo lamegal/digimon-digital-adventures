@@ -21,6 +21,7 @@ import {
 import { openEncounterCalculator } from "./apps/encounter-calculator.js";
 import { DDA_TAMER_TALENTS } from "./data/tamer-talents.js";
 import { getTamerTalentUsesMax } from "./rules/tamer-talent-automation.js";
+import { registerTamerTalentSocket } from "./rules/tamer-talent-socket.js";
 import { DDADigimonQualityBrowser } from "./apps/digimon-quality-browser.js";
 import { DDAGmTools, registerDdaGmToolsControls } from "./apps/dda-gm-tools.js";
 import { DDADigimonWizard } from "./wizard/dda-digimon-wizard.js";
@@ -316,6 +317,7 @@ Hooks.once("ready", async () => {
   game.dda.actions.takeTamerBreak = takeTamerBreak;
 
   registerAttackDodgeResponseListener();
+  registerTamerTalentSocket();
 
 if (game.user.isGM) {
   await syncExistingPartnerOwnership();

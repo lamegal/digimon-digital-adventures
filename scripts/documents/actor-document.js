@@ -1,5 +1,8 @@
 import { getAttributeFinalCap } from "../rules/campaign-rules.js";
-import { getTamerAttributeCap } from "../rules/tamer-progression.js";
+import {
+  getTamerAttributeCap,
+  getTamerEvolutionPointMaximum
+} from "../rules/tamer-progression.js";
 
 
 const DDA_DIGIMON_MAIN_STAT_MIN =
@@ -270,6 +273,52 @@ function isNaturewalkQuality(item) {
   );
 }
 
+function isNaturewalkQualitySystem(
+  itemSystem = {}
+) {
+  const candidates = [
+    itemSystem.sourceId,
+    itemSystem.id,
+    itemSystem.originalName,
+    itemSystem.name
+  ];
+
+  return candidates.some((candidate) => {
+    return [
+      "passonatural",
+      "naturewalk"
+    ].includes(
+      normalizeQualityChoiceKey(
+        candidate
+      )
+    );
+  });
+}
+
+function getNaturewalkMainStatKey(
+  choice = {}
+) {
+  const statKey =
+    String(
+      choice.mainStat ??
+      choice.coreStat ??
+      choice.stat ??
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+  return [
+    "accuracy",
+    "damage",
+    "dodge",
+    "armor",
+    "health"
+  ].includes(statKey)
+    ? statKey
+    : "";
+}
+
 function isInnateTalentQuality(item) {
   const sourceId = normalizeQualityChoiceKey(
     getQualitySourceId(item)
@@ -514,9 +563,19 @@ export class DDAActor extends Actor {
       ? Math.max(0, milestoneValue)
       : 0;
 
-    const ipMax = 2 + willpower;
-    const evolutionPointsMax = milestones;
-    const woundsMax = 3 + Math.max(0, endurance);
+    const ipMax =
+      2 + willpower;
+
+    const evolutionPointsMax =
+      getTamerEvolutionPointMaximum(
+        this
+      );
+
+    const woundsMax =
+      3 + Math.max(
+        0,
+        endurance
+      );
     const movement = Math.max(0, agility);
     const attributeCap = getTamerAttributeCap(this);
 
@@ -541,8 +600,49 @@ export class DDAActor extends Actor {
       final: getAttributeFinalCap()
     };
 
-    system.resources.ip.max = ipMax;
-    system.resources.evolutionPoints.max = evolutionPointsMax;
+    system.resources ??= {};
+
+    system.resources.ip ??= {
+      value: 0,
+      max: 0,
+      temp: 0
+    };
+
+    system.resources.evolutionPoints ??= {
+      value: 0,
+      max: 0
+    };
+
+    system.resources.ip.max =
+      ipMax;
+
+    const evolutionPointsValue =
+      Number(
+        system.resources
+          .evolutionPoints
+          .value ??
+        0
+      );
+
+    system.resources.evolutionPoints.max =
+      evolutionPointsMax;
+
+    /*
+     * Apenas limita o valor durante prepareDerivedData.
+     * Não enche automaticamente aqui, pois isso devolveria
+     * EP gastos toda vez que a ficha fosse renderizada.
+     */
+    system.resources.evolutionPoints.value =
+      Math.clamp(
+        Number.isFinite(
+          evolutionPointsValue
+        )
+          ? evolutionPointsValue
+          : 0,
+
+        0,
+        evolutionPointsMax
+      );
 
       system.derived.wounds.max = woundsMax;
 
@@ -909,6 +1009,16 @@ system.qualityFeatures.naturewalk = {
   darkvision: false,
   lowLightVision: false,
   awarenessBonus: 0,
+
+  mainStatBonuses: {
+    accuracy: 0,
+    damage: 0,
+    dodge: 0,
+    armor: 0,
+    health: 0
+  },
+
+  incompleteRanks: [],
 
   damageReduction: {
     burn: 0,
@@ -1634,12 +1744,90 @@ if (isNaturewalkQuality(item)) {
       });
     }
 
+    const rankNumber =
+      Math.max(
+        1,
+        Number(
+          choice.rank ??
+          naturewalk.sources.length + 1
+        )
+      );
+
+    const mainStatKey =
+      getNaturewalkMainStatKey(
+        choice
+      );
+
     naturewalk.sources.push({
-      name: item.name,
-      element: normalizedElementKey,
-      label: elementLabel,
-      terrain
+      name:
+        item.name,
+
+      rank:
+        rankNumber,
+
+      element:
+        normalizedElementKey,
+
+      label:
+        elementLabel,
+
+      terrain,
+
+      mainStat:
+        mainStatKey,
+
+      mainStatLabel:
+        String(
+          choice.mainStatLabel ?? ""
+        ).trim()
     });
+
+    if (
+      mainStatKey &&
+      mainStats[mainStatKey]
+    ) {
+      addQualitySourceBonus(
+        mainStats[mainStatKey],
+        {
+          name:
+            item.name,
+
+          value:
+            1,
+
+          type:
+            "naturewalk",
+
+          rank:
+            rankNumber,
+
+          element:
+            normalizedElementKey,
+
+          elementLabel
+        }
+      );
+
+      naturewalk.mainStatBonuses[
+        mainStatKey
+      ] += 1;
+    } else {
+      naturewalk.incompleteRanks.push({
+        itemId:
+          item.id,
+
+        itemName:
+          item.name,
+
+        rank:
+          rankNumber,
+
+        element:
+          normalizedElementKey,
+
+        elementLabel
+      });
+    }
 
     if (elementData.damageReductionType) {
       const reductionType = elementData.damageReductionType;
@@ -3611,9 +3799,36 @@ function getActorStatTotalForQualityRequirement(actorSystem = {}, requirement = 
   ));
 }
 
-function getQualityRankLimitForStage(itemSystem, stageKey, actorSystem = {}) {
-  const rankLimit = itemSystem.rankLimit ?? {};
-  const type = rankLimit.type ?? "fixed";
+function getQualityRankLimitForStage(
+  itemSystem,
+  stageKey,
+  actorSystem = {}
+) {
+  const rankLimit =
+    itemSystem.rankLimit ?? {};
+
+  const type =
+    rankLimit.type ??
+    "fixed";
+
+  /*
+   * Naturewalk possui sempre até 2 Ranks.
+   * Corrige também Items antigos com rank.max = 1.
+   */
+  if (
+    isNaturewalkQualitySystem(
+      itemSystem
+    )
+  ) {
+    return {
+      type:
+        "naturewalk",
+
+      max:
+        2
+    };
+  }
+
 if (isAccelerateQualitySystem(itemSystem)) {
   const ramLimit = getAccelerateRamLimit(actorSystem);
 

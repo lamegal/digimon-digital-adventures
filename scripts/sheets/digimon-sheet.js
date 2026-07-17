@@ -4,7 +4,10 @@ import { endDigimonTurn } from "../combat/end-turn.js";
 import { rollRecovery } from "../combat/recovery.js";
 import { energizeDigimon } from "../combat/energize.js";
 import { getDDASetting } from "../settings.js";
-import { evolvePartner } from "../combat/evolution.js";
+import {
+  evolvePartner,
+  evolveIndependentDigimon
+} from "../combat/evolution.js";
 import { initiateDigimonClash, endDigimonClash } from "../combat/clash.js";
 import { syncTamerAndPartnerOwnership } from "../utils/ownership.js";
 import {
@@ -41,6 +44,7 @@ import {
   getDigimonStageLabel as getConfiguredDigimonStageLabel
 } from "../helpers/digimon-stage-labels.js";
 import { getDdaPortraitPath } from "../data/dda-portrait-and-manual-digimon-data.js";
+import { DDAEvolutionChoiceBrowser } from "../apps/evolution-choice-browser.js";
 
 const ActorSheetV1 = foundry.appv1.sheets.ActorSheet;
 
@@ -398,9 +402,90 @@ get title() {
 }  
 
 async getData(options = {}) {
-  const context = await super.getData(options);
-  context.system = this.actor.system;
-  const digimonAliases = getDigimonAliases(this.actor);
+  const context =
+    await super.getData(options);
+
+  context.system =
+    this.actor.system;
+
+  const systemId =
+    game.system?.id ??
+    "digimon-digital-adventures";
+
+  const npcMetadata =
+    this.actor.getFlag?.(
+      systemId,
+      "enemyNpc"
+    ) ??
+    this.actor.system?.enemy ??
+    {};
+
+  const npcAlignment = String(
+    npcMetadata.alignment ??
+    (
+      npcMetadata.isAlly
+        ? "ally"
+        : "enemy"
+    )
+  )
+    .trim()
+    .toLowerCase();
+
+  const isNpc =
+    this.actor.type === "npc";
+
+  const isAllyNpc =
+    isNpc &&
+    npcAlignment === "ally";
+
+  const isEnemyNpc =
+    isNpc &&
+    !isAllyNpc;
+
+  const isManagedDigimonNpc =
+    isNpc &&
+    Boolean(
+      npcMetadata.alignment ||
+      npcMetadata.isAlly ||
+      npcMetadata.isEnemy ||
+      npcMetadata.autonomousEvolution
+    );
+
+  context.npcPresentation = {
+    alignment: isAllyNpc
+      ? "ally"
+      : isEnemyNpc
+        ? "enemy"
+        : "partner",
+
+    isNpc,
+    isAlly: isAllyNpc,
+    isEnemy: isEnemyNpc,
+    isManaged: isManagedDigimonNpc,
+
+    canEvolveIndependently:
+      Boolean(
+        game.user?.isGM &&
+        isManagedDigimonNpc
+      ),
+
+    evolutionButtonLabel:
+      localize(
+        isEnemyNpc
+          ? "DDA.EnemyNpc.Evolution.Button"
+          : "DDA.AllyNpc.Evolution.Button"
+      ),
+
+    evolutionButtonHint:
+      localize(
+        isEnemyNpc
+          ? "DDA.EnemyNpc.Evolution.ButtonHint"
+          : "DDA.AllyNpc.Evolution.ButtonHint"
+      )
+  };
+
+  const digimonAliases =
+    getDigimonAliases(this.actor);
   const customName = String(this.actor.system?.customName ?? "").trim();
 
   context.digimonDisplay = {
@@ -755,6 +840,13 @@ _getEvolutionGraphData() {
   const rawNodeMap = new Map();
   const manualNodePositions = graph.layout?.nodePositions ?? {};
 
+  const currentFormUuid = String(
+    this.actor.system?.evolution?.currentFormUuid ||
+    this.actor.system?.evolution?.sourceFormUuid ||
+    this.actor.uuid ||
+    ""
+  ).trim();
+
   const getRingRadius = (stageIndex) => {
     if (stageIndex <= 0) return 0;
     return firstRingRadius + (stageIndex - 1) * ringGap;
@@ -792,7 +884,9 @@ _getEvolutionGraphData() {
       stage: resolvedStage,
       stageIndex: getEvolutionStageIndex(resolvedStage),
       stageLabel: getDigimonStageLabel(resolvedStage),
-      isSelf: node.actorUuid === this.actor.uuid || node.actorUuid === this.actor.system?.evolution?.currentFormUuid,
+      isSelf:
+        String(node.actorUuid || "") ===
+        currentFormUuid,
       tooltip: `${displayName} — ${getDigimonStageLabel(resolvedStage)}`
     };
   };
@@ -963,8 +1057,24 @@ _getEvolutionGraphData() {
     html.find(".open-evolution-node").on("click", this._onOpenEvolutionNode.bind(this));
     html.find(".remove-evolution-node").on("click", this._onRemoveEvolutionNode.bind(this));
     html.find(".clear-evolution-graph").on("click", this._onClearEvolutionGraph.bind(this));
-    html.find(".choose-evolution-form").on("click", this._onChooseEvolutionForm.bind(this));
-    html.find(".open-evolution-graph-popout").on("click", this._onOpenEvolutionGraphPopout.bind(this));
+    html.find(".choose-evolution-form").on(
+      "click",
+      this._onChooseEvolutionForm.bind(this)
+    );
+    html.find(".open-current-form-wizard").on(
+      "click",
+      this._onOpenCurrentFormWizard.bind(this)
+    );
+
+    html.find(".evolve-independent-digimon").on(
+      "click",
+      this._onEvolveIndependentDigimon.bind(this)
+    );
+
+    html.find(".open-evolution-graph-popout").on(
+      "click",
+      this._onOpenEvolutionGraphPopout.bind(this)
+    );
     html.find(".evolve-active-special-form").on("click", this._onEvolveActiveSpecialForm.bind(this));
     html.find("[data-evolution-zoom]").on("click", this._onEvolutionGraphZoom.bind(this));
     html.find("[data-evolution-viewport]").on("wheel", this._onEvolutionGraphWheel.bind(this));
@@ -1031,34 +1141,73 @@ html.find(".dda-device-button").on("dblclick", (event) => {
   }
 
   _applyEnemyNpcSheetClass(html) {
-    const root = html instanceof HTMLElement
-      ? html
-      : html?.[0] instanceof HTMLElement
-        ? html[0]
-        : null;
+    const root =
+      html instanceof HTMLElement
+        ? html
+        : html?.[0] instanceof HTMLElement
+          ? html[0]
+          : null;
 
     if (!root) return;
 
-    const systemId = game.system?.id ?? "digimon-digital-adventures";
+    const systemId =
+      game.system?.id ??
+      "digimon-digital-adventures";
+
+    const metadata =
+      this.actor?.getFlag?.(
+        systemId,
+        "enemyNpc"
+      ) ??
+      this.actor?.system?.enemy ??
+      {};
+
+    const alignment = String(
+      metadata.alignment ??
+      (
+        metadata.isAlly
+          ? "ally"
+          : "enemy"
+      )
+    )
+      .trim()
+      .toLowerCase();
+
+    const isNpc =
+      this.actor?.type === "npc";
+
+    const isAllyNpc =
+      isNpc &&
+      alignment === "ally";
 
     const isEnemyNpc =
-      this.actor?.type === "npc" ||
-      Boolean(
-        this.actor?.getFlag?.(systemId, "enemyNpc")?.isEnemy
-      );
+      isNpc &&
+      !isAllyNpc;
 
     root.classList.toggle(
       "dda-enemy-npc-sheet",
       isEnemyNpc
     );
 
-    const appElement = root.closest(".window-app");
+    root.classList.toggle(
+      "dda-ally-npc-sheet",
+      isAllyNpc
+    );
+
+    const appElement =
+      root.closest(".window-app");
 
     appElement?.classList.toggle(
       "dda-enemy-npc-window",
       isEnemyNpc
     );
+
+    appElement?.classList.toggle(
+      "dda-ally-npc-window",
+      isAllyNpc
+    );
   }
+
 
 
   async _onEditDigimonName(event) {
@@ -1126,10 +1275,78 @@ const content = `
 
   async _onChooseEvolutionForm(event) {
     event.preventDefault();
+    event.stopPropagation();
 
-    const { DDAEvolutionChoiceBrowser } = await import("../apps/evolution-choice-browser.js");
-    new DDAEvolutionChoiceBrowser(this.actor).render(true);
+    try {
+      const browser = new DDAEvolutionChoiceBrowser(
+        this.actor
+      );
+
+      browser.render(true);
+    } catch (error) {
+      console.error(
+        "DDA | Falha ao abrir o Browser de Evolução.",
+        {
+          actor: this.actor,
+          error
+        }
+      );
+
+      ui.notifications.error(
+        "Não foi possível abrir o Browser de Evolução. Verifique o console."
+      );
+    }
   }
+
+    async _onEvolveIndependentDigimon(
+    event
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const evolvedActor =
+      await evolveIndependentDigimon(
+        this.actor
+      );
+
+    if (!evolvedActor) return;
+
+    this._ddaEvolutionGraphView = {
+      x: 0,
+      y: 0,
+
+      zoom:
+        this._getEvolutionGraphFocusZoom(),
+
+      initialized: false,
+      actorUuid: this.actor.uuid,
+      focusedOnce: false
+    };
+
+    this.render(false);
+
+    if (
+      this._ddaEvolutionGraphPopout
+        ?.rendered
+    ) {
+      this._ddaEvolutionGraphPopout
+        .render(false);
+    }
+  }
+
+  async _onOpenCurrentFormWizard(event) {
+  event.preventDefault();
+
+  const {
+    DDADigimonWizard
+  } = await import(
+    "../wizard/dda-digimon-wizard.js"
+  );
+
+  await DDADigimonWizard.openCurrentFormWizard(
+    this.actor
+  );
+}
 
   _applyEvolutionSolarDynamicStyles(html) {
     const root = html instanceof jQuery ? html[0] : html;

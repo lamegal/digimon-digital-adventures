@@ -4,6 +4,8 @@ import {
 
 import { applySkillTnModifier } from "../rules/campaign-rules.js";
 import {
+  consumeBusyHandsSkillItem,
+  getBusyHandsSkillItems,
   getOfficialTamerTalentUseState,
   hasUnlockedOfficialTamerTalent,
   maybeApplyAvoidingConsequences,
@@ -35,6 +37,146 @@ function escapeHtml(value = "") {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+async function chooseBusyHandsSkillItem(
+  actor,
+  skillKey,
+  skill,
+  {
+    disabled = false
+  } = {}
+) {
+  if (disabled) {
+    return null;
+  }
+
+  const items =
+    getBusyHandsSkillItems(
+      actor,
+      skillKey
+    );
+
+  if (!items.length) {
+    return null;
+  }
+
+  const skillLabel =
+    localizeLabel(
+      skill?.label ??
+      skillKey
+    );
+
+  let itemId =
+    null;
+
+  try {
+    itemId =
+      await foundry
+        .applications
+        .api
+        .DialogV2
+        .prompt({
+          window: {
+            title:
+              i18n.localize(
+                "DDA.TamerTalent.BusyHands.UseTitle"
+              )
+          },
+
+          content: `
+            <div class="dda-roll-dialog dda-busy-hands-use-dialog">
+              <p>
+                ${i18n.format(
+                  "DDA.TamerTalent.BusyHands.UsePrompt",
+                  {
+                    actor:
+                      `<strong>${escapeHtml(
+                        actor.name
+                      )}</strong>`,
+
+                    skill:
+                      `<strong>${escapeHtml(
+                        skillLabel
+                      )}</strong>`
+                  }
+                )}
+              </p>
+
+              <div class="form-group">
+                <label>
+                  ${i18n.localize(
+                    "DDA.TamerTalent.BusyHands.Item"
+                  )}
+                </label>
+
+                <select name="itemId">
+                  ${items.map((item) => `
+                    <option value="${escapeHtml(
+                      item.id
+                    )}">
+                      ${escapeHtml(
+                        item.itemName
+                      )}
+
+                      — +${item.bonus}
+
+                      (${escapeHtml(
+                        item.crafterName
+                      )})
+                    </option>
+                  `).join("")}
+                </select>
+              </div>
+
+              <p class="notes">
+                ${i18n.localize(
+                  "DDA.TamerTalent.BusyHands.UseWarning"
+                )}
+              </p>
+            </div>
+          `,
+
+          ok: {
+            label:
+              i18n.localize(
+                "DDA.TamerTalent.BusyHands.Use"
+              ),
+
+            callback:
+              (_event, button) => {
+                return String(
+                  button
+                    .form
+                    .elements
+                    .itemId
+                    ?.value ??
+                  ""
+                ).trim();
+              }
+          },
+
+          rejectClose:
+            false,
+
+          modal:
+            true
+        });
+  } catch (_error) {
+    itemId =
+      null;
+  }
+
+  if (!itemId) {
+    return null;
+  }
+
+  return (
+    items.find((item) => {
+      return item.id === itemId;
+    }) ??
+    null
+  );
 }
 
 export async function rollTamerCheck(
@@ -117,6 +259,28 @@ export async function rollTamerCheck(
 
   if (!dialogData) return null;
 
+  const busyHandsItem =
+    await chooseBusyHandsSkillItem(
+      actor,
+      skillKey,
+      skill,
+      {
+        disabled:
+          Boolean(
+            options.skipBusyHands
+          )
+      }
+    );
+
+  const busyHandsModifier =
+    Math.max(
+      0,
+      Number(
+        busyHandsItem?.bonus ??
+        0
+      )
+    );
+
   const attributeValue = Number(
     attribute.value ?? 0
   );
@@ -158,7 +322,8 @@ export async function rollTamerCheck(
     skillModifier +
     manualModifier +
     fixedModifier +
-    aspectModifier;
+    aspectModifier +
+    busyHandsModifier;
 
   const rerollOnes = Boolean(
     options.rerollOnes
@@ -181,6 +346,17 @@ export async function rollTamerCheck(
       modifier
     }
   ).evaluate();
+
+  const busyHandsConsumption =
+    busyHandsItem
+      ? await consumeBusyHandsSkillItem(
+          actor,
+          busyHandsItem.id
+        )
+      : {
+          consumed: false,
+          item: null
+        };
 
   const dieResults =
     roll.dice?.[0]?.results ?? [];
@@ -395,6 +571,46 @@ export async function rollTamerCheck(
       `
       : "";
 
+  const busyHandsNote =
+    busyHandsItem
+      ? `
+        <section class="dda-tamer-talent-result dda-busy-hands-result">
+          <p>
+            <strong>
+              ${i18n.localize(
+                "DDA.TamerTalent.BusyHands.Title"
+              )}:
+            </strong>
+
+            ${i18n.format(
+              "DDA.TamerTalent.BusyHands.Used",
+              {
+                item:
+                  escapeHtml(
+                    busyHandsItem
+                      .itemName
+                  ),
+
+                crafter:
+                  escapeHtml(
+                    busyHandsItem
+                      .crafterName
+                  ),
+
+                skill:
+                  escapeHtml(
+                    skillLabel
+                  ),
+
+                bonus:
+                  busyHandsModifier
+              }
+            )}
+          </p>
+        </section>
+      `
+      : "";
+
   const rerollNote =
     rerolledOnes > 0
       ? `
@@ -508,6 +724,7 @@ export async function rollTamerCheck(
           </p>
 
           ${fixedModifierNote}
+          ${busyHandsNote}
 
           <p>
             <strong>
@@ -607,6 +824,11 @@ export async function rollTamerCheck(
     manualModifier,
     fixedModifier,
     aspectModifier,
+
+    busyHandsModifier,
+    busyHandsItem,
+    busyHandsConsumption,
+
     extraDice,
 
     outcome,

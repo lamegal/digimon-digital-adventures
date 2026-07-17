@@ -1218,21 +1218,43 @@
     <div class="dda-selected-quality-choices">
       {{#each quality.choices.selectedRanks as |choice|}}
         <small>
-          <strong>{{localize "DDA.DigimonWizard.Qualities.Rank"}} {{choice.rank}}:</strong> {{choice.label}}
+          <strong>
+            {{localize "DDA.DigimonWizard.Qualities.Rank"}} {{choice.rank}}:
+          </strong>
+
+          {{choice.label}}
+
+          {{#if choice.mainStatLabel}}
+            → {{choice.mainStatLabel}}
+          {{/if}}
         </small>
       {{/each}}
     </div>
   {{/if}}
 </span>
 
-                  <button
-                    type="button"
-                    data-action="remove-quality"
-                    data-quality-id="{{quality.id}}"
-                    data-kind="positive"
-                  >
-                    {{localize "DDA.Button.Remove"}}
-                  </button>
+                  <div class="dda-selected-quality-actions">
+                    {{#if (eq quality.id "passoNatural")}}
+                      <button
+                        type="button"
+                        data-action="configure-naturewalk"
+                        data-quality-id="{{quality.id}}"
+                      >
+                        <i class="fa-solid fa-sliders"></i>
+
+                        {{localize "DDA.Button.Configure"}}
+                      </button>
+                    {{/if}}
+
+                    <button
+                      type="button"
+                      data-action="remove-quality"
+                      data-quality-id="{{quality.id}}"
+                      data-kind="positive"
+                    >
+                      {{localize "DDA.Button.Remove"}}
+                    </button>
+                  </div>
                 </div>
               {{/each}}
             {{else}}

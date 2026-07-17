@@ -107,6 +107,12 @@
   data-original-name="{{originalName}}"
   data-dub-name="{{dubName}}"
   data-aliases="{{aliasesText}}"
+  data-evolution-category="{{evolutionCategory}}"
+  data-special-categories="{{specialCategoriesText}}"
+  data-primary-special-category="{{primarySpecialCategory}}"
+  data-is-special-form="{{#if isSpecialForm}}true{{else}}false{{/if}}"
+  data-raw-evolution-category="{{rawEvolutionCategory}}"
+  data-raw-is-special-form="{{#if rawIsSpecialForm}}true{{else}}false{{/if}}"
   {{#unless ../stageUnlocked}}disabled{{/unless}} {{#unless usable}}disabled{{/unless}}
 >
   {{buttonLabel}}
@@ -157,6 +163,16 @@
     data-stage="{{stage}}"
     data-source="{{source}}"
     data-compatibility="{{compatibility.score}}"
+    data-source-id="{{sourceId}}"
+    data-original-name="{{originalName}}"
+    data-dub-name="{{dubName}}"
+    data-aliases="{{aliasesText}}"
+    data-evolution-category="{{evolutionCategory}}"
+    data-special-categories="{{specialCategoriesText}}"
+    data-primary-special-category="{{primarySpecialCategory}}"
+    data-is-special-form="{{#if isSpecialForm}}true{{else}}false{{/if}}"
+    data-raw-evolution-category="{{rawEvolutionCategory}}"
+    data-raw-is-special-form="{{#if rawIsSpecialForm}}true{{else}}false{{/if}}"
     {{#unless ../stageUnlocked}}disabled{{/unless}} {{#unless usable}}disabled{{/unless}}
   >
     {{buttonLabel}}

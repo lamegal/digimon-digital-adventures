@@ -2,7 +2,7 @@
   "id": "digimon-digital-adventures",
   "title": "Digimon Digital Adventures V2",
   "description": "Sistema não oficial para jogar Digimon Digital Adventures 2ª Edição no Foundry Virtual Tabletop. Inclui fichas para Digi-Escolhidos, Digimon parceiros e NPCs, com suporte a Aspectos, PI, PE, Tormentos, Marcos, PD, Qualidades, Ataques, Estágios Evolutivos, Posturas, Ações de Combate e rolagens de Testes e Reservas.",
-  "version": "2.0.4-beta",
+  "version": "2.0.5-beta",
   "compatibility": {
     "minimum": "13",
     "verified": "13"
@@ -160,8 +160,8 @@
   "secondaryTokenAttribute": "combat.actions",
   "url": "https://github.com/lamegal/digimon-digital-adventures",
   "manifest": "https://raw.githubusercontent.com/lamegal/digimon-digital-adventures/main/system.json",
-  "download": "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.4-beta/digimon-digital-adventures-v2.0.4-beta.zip",
+  "download": "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.5-beta/digimon-digital-adventures-v2.0.5-beta.zip",
   "bugs": "https://github.com/lamegal/digimon-digital-adventures/issues",
-  "changelog": "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.4-beta",
+  "changelog": "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.5-beta",
   "license": "LICENSE"
 }

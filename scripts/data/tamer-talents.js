@@ -218,7 +218,11 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerRest",
     uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
     specialOrder: { name: "" },
-    effect: "Permite plantar pequenos itens sem rolagem e criar, durante um Descanso, um item de suporte para uma Perícia. O bônus é igual à Precisão acima de 2 e o item perde efeito após usado ou após novo Descanso."
+    effect: "Permite plantar pequenos itens sem rolagem e criar, durante um Descanso, um item de suporte para uma Perícia. O bônus é igual à Precisão acima de 2 e o item perde efeito após usado ou após novo Descanso.",
+    automation: {
+      enabled: true,
+      type: "busyHandsCraft"
+    }
   },
 
   {
@@ -409,7 +413,11 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerRest",
     uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
     specialOrder: { name: "" },
-    effect: "Com uma performance, concede PI Temporário a aliados igual à Performance acima de 2, dividido como quiser. Não pode conceder a si mesmo."
+    effect: "Com uma performance, concede PI Temporário a aliados igual à Performance acima de 2, dividido como quiser. Não pode conceder a si mesmo.",
+    automation: {
+      enabled: true,
+      type: "endlessDreamDistribution"
+    }
   },
 
   {

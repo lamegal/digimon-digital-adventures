@@ -335,20 +335,69 @@ function getDevCompatibilityOverride(candidate = {}, currentActor = null) {
     : null;
 }
 
-function isCandidateExcludedByDev(candidate = {}, currentActor = null) {
-  const explicitOverride = getDevCompatibilityOverride(candidate, currentActor);
-  if (explicitOverride?.hidden) return true;
+function isCandidateExcludedByDev(
+  candidate = {},
+  currentActor = null,
+  {
+    ignoreExclusionLists = false
+  } = {}
+) {
+  const explicitOverride = getDevCompatibilityOverride(
+    candidate,
+    currentActor
+  );
 
-  const fromKeys = [...getActorLookupKeys(currentActor), "*"];
-  const toKeys = new Set(getCandidateLookupKeys(candidate));
+  /*
+   * Overrides explicitamente marcados como ocultos
+   * continuam tendo autoridade sobre o candidato.
+   */
+  if (explicitOverride?.hidden) {
+    return true;
+  }
+
+  /*
+   * Relações diretas curadas da database não devem
+   * desaparecer por causa de exclusões antigas ou
+   * geradas pela limpeza automática de duplicatas.
+   */
+  if (ignoreExclusionLists) {
+    return false;
+  }
+
+  const fromKeys = [
+    ...getActorLookupKeys(currentActor),
+    "*"
+  ];
+
+  const toKeys = new Set(
+    getCandidateLookupKeys(candidate)
+  );
 
   for (const fromKey of fromKeys) {
-    const exclusions = getDevChoiceExclusions()?.[fromKey];
-    if (!Array.isArray(exclusions)) continue;
+    const exclusions =
+      getDevChoiceExclusions()?.[fromKey];
+
+    if (!Array.isArray(exclusions)) {
+      continue;
+    }
 
     for (const entry of exclusions) {
-      if (typeof entry === "string" && toKeys.has(devLookupKey(entry))) return true;
-      if (isPlainObject(entry) && exclusionEntryMatchesCandidate(entry, candidate)) return true;
+      if (
+        typeof entry === "string" &&
+        toKeys.has(devLookupKey(entry))
+      ) {
+        return true;
+      }
+
+      if (
+        isPlainObject(entry) &&
+        exclusionEntryMatchesCandidate(
+          entry,
+          candidate
+        )
+      ) {
+        return true;
+      }
     }
   }
 
@@ -556,7 +605,14 @@ function getCandidateDisplayName(value = "") {
 }
 
 function actorToCandidate(actor, options = {}) {
-  if (!actor || actor.type !== "digimon") return null;
+  if (
+    !actor ||
+    !["digimon", "npc"].includes(
+      actor.type
+    )
+  ) {
+    return null;
+  }
 
   const nameData = getDigimonNameData(actor);
   const aliases = getDigimonAliases(actor);
@@ -593,9 +649,35 @@ function actorToCandidate(actor, options = {}) {
     field: actor.system?.field || "",
     family: actor.system?.family || "",
     evolutionCategory: actor.system?.evolutionCategory || "normal",
-    isSpecialForm: Boolean(actor.system?.isSpecialForm),
-    rawEvolutionCategory: actor.system?.evolutionCategory || "normal",
-    rawIsSpecialForm: Boolean(actor.system?.isSpecialForm),
+
+    specialCategories:
+      Array.isArray(
+        actor.system?.specialCategories
+      )
+        ? foundry.utils.deepClone(
+            actor.system.specialCategories
+          )
+        : [],
+
+    specialCategoriesText:
+      Array.isArray(
+        actor.system?.specialCategories
+      )
+        ? actor.system.specialCategories.join("|")
+        : "",
+
+    primarySpecialCategory:
+      actor.system?.primarySpecialCategory || "",
+
+    isSpecialForm:
+      Boolean(actor.system?.isSpecialForm),
+
+    rawEvolutionCategory:
+      actor.system?.evolutionCategory || "normal",
+
+    rawIsSpecialForm:
+      Boolean(actor.system?.isSpecialForm),
+
     source: options.source ?? "actor",
     direct: Boolean(options.direct),
     usable: true,
@@ -643,6 +725,56 @@ function nodeToCandidate(node, options = {}) {
     attribute: node.attribute || "",
     field: node.field || "",
     family: node.family || "",
+
+    evolutionCategory:
+      node.evolutionCategory || "normal",
+
+    specialCategories:
+      Array.isArray(node.specialCategories)
+        ? foundry.utils.deepClone(
+            node.specialCategories
+          )
+        : [],
+
+    specialCategoriesText:
+      Array.isArray(node.specialCategories)
+        ? node.specialCategories.join("|")
+        : "",
+
+    primarySpecialCategory:
+      node.primarySpecialCategory || "",
+
+    isSpecialForm:
+      Boolean(node.isSpecialForm),
+
+    rawEvolutionCategory:
+      node.rawEvolutionCategory ||
+      node.evolutionCategory ||
+      "normal",
+
+    rawIsSpecialForm:
+      Boolean(
+        node.rawIsSpecialForm ??
+        node.isSpecialForm
+      ),
+
+    isRawHybrid:
+      String(
+        node.rawEvolutionCategory ||
+        node.evolutionCategory ||
+        ""
+      ) === "hybrid",
+
+    hybridTreatedAsNormal:
+      String(
+        node.rawEvolutionCategory ||
+        node.evolutionCategory ||
+        ""
+      ) === "hybrid" &&
+      String(
+        node.evolutionCategory || "normal"
+      ) === "normal",
+
     source: options.source ?? "graph",
     direct: Boolean(options.direct),
     snapshotOnly: isSnapshotNode,
@@ -749,6 +881,25 @@ function databaseEntryToCandidate(entry) {
     entry.isSpecialForm
   );
 
+  const specialCategories = Array.isArray(
+    system.specialCategories
+  )
+    ? foundry.utils.deepClone(
+        system.specialCategories
+      )
+    : rawEvolutionCategory !== "normal"
+      ? [rawEvolutionCategory]
+      : [];
+
+  const primarySpecialCategory = String(
+    system.primarySpecialCategory ||
+    specialCategories.find((category) => {
+      return category !== "normal";
+    }) ||
+    rawEvolutionCategory ||
+    ""
+  ).trim();
+
   const evolutionCategory =
     getEffectiveEvolutionCategory(entry);
 
@@ -806,6 +957,14 @@ function databaseEntryToCandidate(entry) {
     family,
 
     evolutionCategory,
+
+    specialCategories,
+
+    specialCategoriesText:
+      specialCategories.join("|"),
+
+    primarySpecialCategory,
+
     isSpecialForm,
     rawEvolutionCategory,
     rawIsSpecialForm,
@@ -897,6 +1056,34 @@ function normalizeEvolutionChoiceLineForm(form = {}, defaultStageKey = "") {
     actorUuid: form.actorUuid ?? form.uuid ?? "",
     sourceId: form.sourceId ?? "",
     snapshot: Boolean(form.snapshot),
+
+    evolutionCategory:
+      form.evolutionCategory ?? "normal",
+
+    specialCategories:
+      Array.isArray(form.specialCategories)
+        ? foundry.utils.deepClone(
+            form.specialCategories
+          )
+        : [],
+
+    primarySpecialCategory:
+      form.primarySpecialCategory ?? "",
+
+    isSpecialForm:
+      Boolean(form.isSpecialForm),
+
+    rawEvolutionCategory:
+      form.rawEvolutionCategory ??
+      form.evolutionCategory ??
+      "normal",
+
+    rawIsSpecialForm:
+      Boolean(
+        form.rawIsSpecialForm ??
+        form.isSpecialForm
+      ),
+
     stage: form.stage ?? defaultStageKey,
     img: form.img ?? "",
     portraitImg: form.portraitImg ?? form.img ?? ""
@@ -942,7 +1129,39 @@ function buildEvolutionChoiceLineForm(choice = {}) {
     source: choice.source || "evolution-choice-browser",
     originalName: choice.originalName || "",
     dubName: choice.dubName || "",
-    aliases: Array.isArray(choice.aliases) ? choice.aliases : [],
+
+    aliases:
+      Array.isArray(choice.aliases)
+        ? choice.aliases
+        : [],
+
+    evolutionCategory:
+      choice.evolutionCategory || "normal",
+
+    specialCategories:
+      Array.isArray(choice.specialCategories)
+        ? foundry.utils.deepClone(
+            choice.specialCategories
+          )
+        : [],
+
+    primarySpecialCategory:
+      choice.primarySpecialCategory || "",
+
+    isSpecialForm:
+      Boolean(choice.isSpecialForm),
+
+    rawEvolutionCategory:
+      choice.rawEvolutionCategory ||
+      choice.evolutionCategory ||
+      "normal",
+
+    rawIsSpecialForm:
+      Boolean(
+        choice.rawIsSpecialForm ??
+        choice.isSpecialForm
+      ),
+
     stage: choice.stage || "",
     img: choice.img || "icons/svg/mystery-man.svg",
     portraitImg: choice.portraitImg || choice.img || "icons/svg/mystery-man.svg"
@@ -998,7 +1217,11 @@ constructor(digimonActor, options = {}) {
     const directCandidates = await this._getDirectCandidates(targetStage);
     const directNames = new Set(directCandidates.map((entry) => normalize(entry.species || entry.name)));
     const explorationCandidates = await this._getExplorationCandidates(targetStage, directNames);
-    const savedChoice = tamer?.system?.partner?.evolutionChoices?.[targetStage] ?? null;
+    const savedChoice =
+      this._getSavedEvolutionChoice(
+        tamer,
+        targetStage
+      );
     const selectedChoice = this.pendingChoice ?? savedChoice ?? null;
     const selectionIsPending = Boolean(this.pendingChoice);
     const hybridRulesEnabled = isHybridRulesEnabled();    
@@ -1118,9 +1341,144 @@ root.find("[data-action='exploration-search']")
 
   _isStageUnlocked(tamer, stageKey) {
     if (!stageKey) return false;
-    const unlocked = tamer?.system?.partner?.unlockedEvolutionStages ?? {};
-    if (unlocked[stageKey] === undefined) return ["baby1", "baby2", "child"].includes(stageKey);
+
+    if (!tamer) {
+      return true;
+    }
+
+    const unlocked =
+      tamer.system?.partner
+        ?.unlockedEvolutionStages ?? {};
+
+    if (unlocked[stageKey] === undefined) {
+      return [
+        "baby1",
+        "baby2",
+        "child"
+      ].includes(stageKey);
+    }
+
     return Boolean(unlocked[stageKey]);
+  }
+
+  _getActorSavedEvolutionChoice(
+    stageKey = ""
+  ) {
+    if (!stageKey) return null;
+
+    const slot =
+      this.actor.system
+        ?.evolutionLine
+        ?.forms
+        ?.[stageKey] ?? {};
+
+    const forms =
+      normalizeEvolutionChoiceSlotForms(
+        slot,
+        stageKey
+      );
+
+    const selectedForm = forms[0] ?? null;
+
+    if (!selectedForm) return null;
+
+    return {
+      uuid: selectedForm.uuid || "",
+
+      name:
+        selectedForm.name ||
+        selectedForm.species ||
+        "Digimon",
+
+      displayName:
+        selectedForm.displayName ||
+        selectedForm.species ||
+        selectedForm.name ||
+        "Digimon",
+
+      species:
+        selectedForm.species ||
+        selectedForm.name ||
+        "Digimon",
+
+      img:
+        selectedForm.img ||
+        "icons/svg/mystery-man.svg",
+
+      portraitImg:
+        selectedForm.portraitImg ||
+        selectedForm.img ||
+        "icons/svg/mystery-man.svg",
+
+      stage:
+        selectedForm.stage ||
+        stageKey,
+
+      sourceId:
+        selectedForm.sourceId || "",
+
+      evolutionCategory:
+        selectedForm.evolutionCategory ||
+        "normal",
+
+      specialCategories:
+        Array.isArray(
+          selectedForm.specialCategories
+        )
+          ? foundry.utils.deepClone(
+              selectedForm.specialCategories
+            )
+          : [],
+
+      specialCategoriesText:
+        Array.isArray(
+          selectedForm.specialCategories
+        )
+          ? selectedForm.specialCategories.join("|")
+          : "",
+
+      primarySpecialCategory:
+        selectedForm.primarySpecialCategory ||
+        "",
+
+      isSpecialForm:
+        Boolean(
+          selectedForm.isSpecialForm
+        ),
+
+      rawEvolutionCategory:
+        selectedForm.rawEvolutionCategory ||
+        selectedForm.evolutionCategory ||
+        "normal",
+
+      rawIsSpecialForm:
+        Boolean(
+          selectedForm.rawIsSpecialForm ??
+          selectedForm.isSpecialForm
+        ),
+
+      source:
+        selectedForm.snapshot
+          ? "database"
+          : "actor-line",
+
+      snapshot:
+        Boolean(selectedForm.snapshot)
+    };
+  }
+
+  _getSavedEvolutionChoice(
+    tamer,
+    stageKey = ""
+  ) {
+    return (
+      tamer?.system?.partner
+        ?.evolutionChoices
+        ?.[stageKey] ??
+      this._getActorSavedEvolutionChoice(
+        stageKey
+      )
+    );
   }
 
 async _getDirectCandidates(targetStage) {
@@ -1202,7 +1560,10 @@ async _findCuratedDatabaseActor() {
     getActorLookupKeys(this.actor)
   );
 
-  const allEntries = await DDADigimonDatabase.getAll();
+  const allEntries =
+    await DDADigimonDatabase.getAll({
+      includeVirtualSpecialForms: true
+    });
 
   return allEntries.find((entry) => {
     const entryStage = String(
@@ -1234,21 +1595,38 @@ async _getCuratedDirectCandidates(targetStage) {
     getCandidateLookupKeys(originCandidate)
   );
 
-  const allEntries = await DDADigimonDatabase.getAll();
+  const allEntries =
+    await DDADigimonDatabase.getAll({
+      includeVirtualSpecialForms: true
+    });
+
   const candidatesByIdentity = new Map();
 
-  const isNormalRelation = (relation = {}) => {
+  const isAllowedDirectRelation = (
+    relation = {}
+  ) => {
     const relationType = String(
       relation.relationType ?? "normal"
-    ).trim().toLowerCase();
+    )
+      .trim()
+      .toLowerCase();
 
     const evolutionCategory = String(
       relation.evolutionCategory ?? "normal"
-    ).trim().toLowerCase();
+    )
+      .trim()
+      .toLowerCase();
+
+    const allowedCategories = new Set([
+      "normal",
+      "hybrid"
+    ]);
 
     return (
-      relationType === "normal" &&
-      evolutionCategory === "normal"
+      allowedCategories.has(relationType) &&
+      allowedCategories.has(
+        evolutionCategory
+      )
     );
   };
 
@@ -1275,13 +1653,30 @@ async _getCuratedDirectCandidates(targetStage) {
       return;
     }
 
+    const rawCategory = String(
+      candidate.rawEvolutionCategory ??
+      candidate.evolutionCategory ??
+      "normal"
+    )
+      .trim()
+      .toLowerCase();
+
+    const rawSpecialForm = Boolean(
+      candidate.rawIsSpecialForm ??
+      candidate.isSpecialForm
+    );
+
+    const isNormalCandidate = (
+      rawCategory === "normal" &&
+      !rawSpecialForm
+    );
+
+    const isHybridCandidate =
+      rawCategory === "hybrid";
+
     if (
-      String(
-        candidate.rawEvolutionCategory ??
-        candidate.evolutionCategory ??
-        "normal"
-      ) !== "normal" ||
-      Boolean(candidate.rawIsSpecialForm ?? candidate.isSpecialForm)
+      !isNormalCandidate &&
+      !isHybridCandidate
     ) {
       return;
     }
@@ -1307,7 +1702,10 @@ async _getCuratedDirectCandidates(targetStage) {
       },
       new Set([
         normalize(candidate.species || candidate.name)
-      ])
+      ]),
+      {
+        protectCuratedDirect: true
+      }
     );
 
     if (enriched) {
@@ -1326,7 +1724,11 @@ async _getCuratedDirectCandidates(targetStage) {
     : [];
 
   for (const relation of outgoingRelations) {
-    if (!isNormalRelation(relation)) continue;
+    if (
+      !isAllowedDirectRelation(relation)
+    ) {
+      continue;
+    }
 
     const entry = await DDADigimonDatabase.getByReference(
       relation,
@@ -1352,7 +1754,7 @@ async _getCuratedDirectCandidates(targetStage) {
 
     const matchingRelation = incomingRelations.find((relation) => {
       return (
-        isNormalRelation(relation) &&
+        isAllowedDirectRelation(relation) &&
         relationReferencesOrigin(relation)
       );
     });
@@ -1473,7 +1875,12 @@ async _getGraphDirectCandidates(targetStage) {
       candidates.push(enriched);
     }
 
-    for (const entry of await DDADigimonDatabase.getAll()) {
+    for (
+      const entry of
+      await DDADigimonDatabase.getAll({
+        includeVirtualSpecialForms: true
+      })
+    ) {
       const candidate = databaseEntryToCandidate(entry);
       if (!candidate || candidate.stage !== targetStage) continue;
       const nameKey = normalize(candidate.species || candidate.name);
@@ -1518,8 +1925,30 @@ async _getGraphDirectCandidates(targetStage) {
   return normalize(searchable).includes(normalize(term));
 }
 
-  _withCompatibility(candidate, directNames) {
-    if (isCandidateExcludedByDev(candidate, this.actor)) return null;
+  _withCompatibility(
+    candidate,
+    directNames,
+    {
+      protectCuratedDirect = false
+    } = {}
+  ) {
+    const ignoreExclusionLists = Boolean(
+      protectCuratedDirect &&
+      candidate?.direct &&
+      candidate?.source === "database"
+    );
+
+    if (
+      isCandidateExcludedByDev(
+        candidate,
+        this.actor,
+        {
+          ignoreExclusionLists
+        }
+      )
+    ) {
+      return null;
+    }
 
     const isDatabaseSnapshot = candidate.source === "database";
     const usable = isDatabaseSnapshot || (candidate.usable !== false && isUsableEvolutionCandidateUuid(candidate.uuid));
@@ -1599,10 +2028,49 @@ _choiceFromButton(button) {
     source: button.dataset.source ?? "exploration",
     snapshot: (button.dataset.source ?? "exploration") === "database",
     selectedAt: new Date().toISOString(),
-    sourceId: button.dataset.sourceId ?? "",
-    originalName: button.dataset.originalName ?? "",
-    dubName: button.dataset.dubName ?? "",
-    aliases: String(button.dataset.aliases ?? "")
+    sourceId:
+      button.dataset.sourceId ?? "",
+
+    originalName:
+      button.dataset.originalName ?? "",
+
+    dubName:
+      button.dataset.dubName ?? "",
+
+    evolutionCategory:
+      button.dataset.evolutionCategory ??
+      "normal",
+
+    specialCategories: String(
+      button.dataset.specialCategories ?? ""
+    )
+      .split("|")
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+
+    specialCategoriesText:
+      button.dataset.specialCategories ?? "",
+
+    primarySpecialCategory:
+      button.dataset.primarySpecialCategory ??
+      "",
+
+    isSpecialForm:
+      button.dataset.isSpecialForm ===
+      "true",
+
+    rawEvolutionCategory:
+      button.dataset.rawEvolutionCategory ??
+      button.dataset.evolutionCategory ??
+      "normal",
+
+    rawIsSpecialForm:
+      button.dataset.rawIsSpecialForm ===
+      "true",
+
+    aliases: String(
+      button.dataset.aliases ?? ""
+    )
       .split("|")
       .map((entry) => entry.trim())
       .filter(Boolean)
@@ -1624,33 +2092,40 @@ async _onClearEvolutionChoice(event) {
 
   const tamer = await this._getLinkedTamer();
 
-  if (!tamer) {
-    if (pendingChoice) {
-      const removedName = pendingChoice.displayName || pendingChoice.species || pendingChoice.name || stage;
-      this.pendingChoice = null;
+  const tamerSavedChoice =
+    tamer?.system?.partner
+      ?.evolutionChoices
+      ?.[stage] ?? null;
 
-      ui.notifications.info(game.i18n.format("DDA.EvolutionChoice.SelectionCleared", {
-        name: removedName
-      }));
+  const actorSavedChoice =
+    this._getActorSavedEvolutionChoice(
+      stage
+    );
 
-      this.render(true);
-      return;
-    }
-
-    ui.notifications.warn(localize("DDA.Warning.NoTamerLinked"));
-    return;
-  }
-
-  const choices = foundry.utils.deepClone(tamer.system.partner?.evolutionChoices ?? {});
-  const savedChoice = choices?.[stage] ?? null;
+  const savedChoice =
+    tamerSavedChoice ??
+    actorSavedChoice;
 
   if (!pendingChoice && !savedChoice) {
-    ui.notifications.info(localize("DDA.EvolutionChoice.NoSelectionToClear"));
+    ui.notifications.info(
+      localize(
+        "DDA.EvolutionChoice.NoSelectionToClear"
+      )
+    );
+
     this.render(true);
     return;
   }
 
   this.pendingChoice = null;
+
+  if (tamerSavedChoice) {
+    await tamer.update({
+      [
+        `system.partner.evolutionChoices.-=${stage}`
+      ]: null
+    });
+  }
 
   if (savedChoice) {
     const removalChoice = {
@@ -1658,24 +2133,33 @@ async _onClearEvolutionChoice(event) {
       stage: savedChoice.stage || stage
     };
 
-    await tamer.update({
-      [`system.partner.evolutionChoices.-=${stage}`]: null
-    });
+    await this._removeChoiceFromGraph(
+      removalChoice
+    );
 
-    await this._removeChoiceFromGraph(removalChoice);
-    await this._removeChoiceFromActorEvolutionLists(removalChoice);
+    await this._removeChoiceFromActorEvolutionLists(
+      removalChoice
+    );
   }
 
-  const removedChoice = pendingChoice ?? savedChoice;
+  const removedChoice =
+    pendingChoice ??
+    savedChoice;
+
   const removedName =
     removedChoice?.displayName ||
     removedChoice?.species ||
     removedChoice?.name ||
     stage;
 
-  ui.notifications.info(game.i18n.format("DDA.EvolutionChoice.SelectionCleared", {
-    name: removedName
-  }));
+  ui.notifications.info(
+    game.i18n.format(
+      "DDA.EvolutionChoice.SelectionCleared",
+      {
+        name: removedName
+      }
+    )
+  );
 
   this.render(true);
   this.actor.sheet?.render(false);
@@ -1686,14 +2170,20 @@ async _onSaveEvolutionChoice(event) {
 
   const tamer = await this._getLinkedTamer();
 
-  if (!tamer) {
-    ui.notifications.warn(localize("DDA.Warning.NoTamerLinked"));
-    return;
-  }
+  const targetStage =
+    event.currentTarget?.dataset?.stage ||
+    nextStage(this.actor.system?.stage || "");
 
-  const targetStage = event.currentTarget?.dataset?.stage || nextStage(this.actor.system?.stage || "");
-  const savedChoice = tamer.system.partner?.evolutionChoices?.[targetStage] ?? null;
-  const choice = this.pendingChoice ?? savedChoice ?? null;
+  const savedChoice =
+    this._getSavedEvolutionChoice(
+      tamer,
+      targetStage
+    );
+
+  const choice =
+    this.pendingChoice ??
+    savedChoice ??
+    null;
 
   if (!choice) {
     ui.notifications.warn(localize("DDA.EvolutionChoice.NoSelection"));
@@ -1711,9 +2201,20 @@ async _onSaveEvolutionChoice(event) {
     savedAt: new Date().toISOString()
   };
 
-  await this._saveChoiceToTamer(tamer, cleanChoice);
-  await this._addChoiceToGraph(cleanChoice);
-  await this._saveChoiceToActorEvolutionLists(cleanChoice);
+  if (tamer) {
+    await this._saveChoiceToTamer(
+      tamer,
+      cleanChoice
+    );
+  }
+
+  await this._addChoiceToGraph(
+    cleanChoice
+  );
+
+  await this._saveChoiceToActorEvolutionLists(
+    cleanChoice
+  );
 
   this.pendingChoice = null;
 
@@ -1783,37 +2284,73 @@ _buildRegisteredEvolutionForm(choice = {}) {
 }
 
 async _saveChoiceToActorEvolutionLists(choice = {}) {
-  const stageKey = choice.stage || nextStage(this.actor.system?.stage || "");
+  const stageKey =
+    choice.stage ||
+    nextStage(this.actor.system?.stage || "");
 
   if (!stageKey) return;
 
-  const slot = this.actor.system?.evolutionLine?.forms?.[stageKey] ?? {};
-  const currentForms = normalizeEvolutionChoiceSlotForms(slot, stageKey);
-  const nextForm = buildEvolutionChoiceLineForm({
-    ...choice,
-    stage: stageKey
-  });
+  const slot =
+    this.actor.system
+      ?.evolutionLine
+      ?.forms
+      ?.[stageKey] ?? {};
 
-  const existingIndex = currentForms.findIndex((form) => {
-    const sameUuid = form.uuid && nextForm.uuid && form.uuid === nextForm.uuid;
-    const sameSourceId = form.sourceId && nextForm.sourceId && form.sourceId === nextForm.sourceId;
-    const sameName =
-      normalize(form.species || form.name || form.displayName) ===
-      normalize(nextForm.species || nextForm.name || nextForm.displayName);
+  const currentForms =
+    normalizeEvolutionChoiceSlotForms(
+      slot,
+      stageKey
+    );
 
-    return sameUuid || sameSourceId || sameName;
-  });
+  const nextForm =
+    buildEvolutionChoiceLineForm({
+      ...choice,
+      stage: stageKey
+    });
 
-  if (existingIndex >= 0) {
-    currentForms[existingIndex] = {
-      ...currentForms[existingIndex],
-      ...nextForm
-    };
-  } else {
-    currentForms.push(nextForm);
-  }
+  const remainingForms =
+    currentForms.filter((form) => {
+      const sameUuid =
+        form.uuid &&
+        nextForm.uuid &&
+        form.uuid === nextForm.uuid;
 
-  await this.actor.update(buildEvolutionChoiceSlotUpdate(stageKey, currentForms));
+      const sameSourceId =
+        form.sourceId &&
+        nextForm.sourceId &&
+        form.sourceId ===
+          nextForm.sourceId;
+
+      const sameName =
+        normalize(
+          form.species ||
+          form.name ||
+          form.displayName
+        ) ===
+        normalize(
+          nextForm.species ||
+          nextForm.name ||
+          nextForm.displayName
+        );
+
+      return !(
+        sameUuid ||
+        sameSourceId ||
+        sameName
+      );
+    });
+
+  const nextForms = [
+    nextForm,
+    ...remainingForms
+  ];
+
+  await this.actor.update(
+    buildEvolutionChoiceSlotUpdate(
+      stageKey,
+      nextForms
+    )
+  );
 }
 
 async _removeChoiceFromActorEvolutionLists(choice = {}) {
@@ -1930,11 +2467,55 @@ async _addChoiceToGraph(choice) {
       name: this.actor.system?.species || this.actor.name,
       displayName: this.actor.system?.species || this.actor.name,
       species: this.actor.system?.species || this.actor.name,
-      img: getCandidateImagePath(this.actor.img, {
-        name: this.actor.name,
-        species: this.actor.system?.species,
-        stage: this.actor.system?.stage
-      }),
+      img: getCandidateImagePath(
+        this.actor.img,
+        {
+          name: this.actor.name,
+          species:
+            this.actor.system?.species,
+          stage:
+            this.actor.system?.stage
+        }
+      ),
+
+      evolutionCategory:
+        this.actor.system
+          ?.evolutionCategory ||
+        "normal",
+
+      specialCategories:
+        Array.isArray(
+          this.actor.system
+            ?.specialCategories
+        )
+          ? foundry.utils.deepClone(
+              this.actor.system
+                .specialCategories
+            )
+          : [],
+
+      primarySpecialCategory:
+        this.actor.system
+          ?.primarySpecialCategory ||
+        "",
+
+      isSpecialForm:
+        Boolean(
+          this.actor.system
+            ?.isSpecialForm
+        ),
+
+      rawEvolutionCategory:
+        this.actor.system
+          ?.evolutionCategory ||
+        "normal",
+
+      rawIsSpecialForm:
+        Boolean(
+          this.actor.system
+            ?.isSpecialForm
+        ),
+
       portraitImg: String(
         this.actor.system?.evolution?.portraitImg ||
         this.actor.flags?.["digimon-digital-adventures"]?.digivicePortrait ||
@@ -1985,10 +2566,51 @@ async _addChoiceToGraph(choice) {
       name: choice.name || choice.species || "Digimon",
       displayName: choice.displayName || getCandidateDisplayName(choice.species || choice.name),
       species: choice.species || choice.name || "",
-      originalName: choice.originalName || "",
-      dubName: choice.dubName || "",
-      aliases: Array.isArray(choice.aliases) ? choice.aliases : [],
-      img: choice.img || "icons/svg/mystery-man.svg",
+      originalName:
+        choice.originalName || "",
+
+      dubName:
+        choice.dubName || "",
+
+      aliases:
+        Array.isArray(choice.aliases)
+          ? choice.aliases
+          : [],
+
+      evolutionCategory:
+        choice.evolutionCategory ||
+        "normal",
+
+      specialCategories:
+        Array.isArray(
+          choice.specialCategories
+        )
+          ? foundry.utils.deepClone(
+              choice.specialCategories
+            )
+          : [],
+
+      primarySpecialCategory:
+        choice.primarySpecialCategory ||
+        "",
+
+      isSpecialForm:
+        Boolean(choice.isSpecialForm),
+
+      rawEvolutionCategory:
+        choice.rawEvolutionCategory ||
+        choice.evolutionCategory ||
+        "normal",
+
+      rawIsSpecialForm:
+        Boolean(
+          choice.rawIsSpecialForm ??
+          choice.isSpecialForm
+        ),
+
+      img:
+        choice.img ||
+        "icons/svg/mystery-man.svg",
       portraitImg: choice.portraitImg || choice.img || "icons/svg/mystery-man.svg",
       stage: choice.stage,
       explored: true
@@ -2008,7 +2630,54 @@ async _addChoiceToGraph(choice) {
       species: choice.species || toNode.species,
       originalName: choice.originalName || toNode.originalName || "",
       dubName: choice.dubName || toNode.dubName || "",
-      aliases: Array.isArray(choice.aliases) ? choice.aliases : (toNode.aliases ?? []),
+      aliases:
+        Array.isArray(choice.aliases)
+          ? choice.aliases
+          : (toNode.aliases ?? []),
+
+      evolutionCategory:
+        choice.evolutionCategory ||
+        toNode.evolutionCategory ||
+        "normal",
+
+      specialCategories:
+        Array.isArray(
+          choice.specialCategories
+        )
+          ? foundry.utils.deepClone(
+              choice.specialCategories
+            )
+          : (
+              toNode.specialCategories ??
+              []
+            ),
+
+      primarySpecialCategory:
+        choice.primarySpecialCategory ||
+        toNode.primarySpecialCategory ||
+        "",
+
+      isSpecialForm:
+        Boolean(
+          choice.isSpecialForm ??
+          toNode.isSpecialForm
+        ),
+
+      rawEvolutionCategory:
+        choice.rawEvolutionCategory ||
+        toNode.rawEvolutionCategory ||
+        choice.evolutionCategory ||
+        toNode.evolutionCategory ||
+        "normal",
+
+      rawIsSpecialForm:
+        Boolean(
+          choice.rawIsSpecialForm ??
+          toNode.rawIsSpecialForm ??
+          choice.isSpecialForm ??
+          toNode.isSpecialForm
+        ),
+
       img: choice.img || toNode.img,
       portraitImg: choice.portraitImg || toNode.portraitImg || choice.img || toNode.img,
       stage: choice.stage || toNode.stage,
@@ -2145,8 +2814,23 @@ function getAllEvolutionEditorSources() {
   };
 
   for (const actor of game.actors ?? []) {
-    if (actor?.type !== "digimon") continue;
-    addCandidate(actorToCandidate(actor, { source: "actor" }), "Actor");
+    if (
+      !["digimon", "npc"].includes(
+        actor?.type
+      )
+    ) {
+      continue;
+    }
+
+    addCandidate(
+      actorToCandidate(
+        actor,
+        {
+          source: "actor"
+        }
+      ),
+      "Actor"
+    );
   }
 
   for (const entry of DDA_DIGIMON_ACTOR_DATABASE ?? []) {
@@ -2175,8 +2859,23 @@ function getAllEvolutionEditorCandidates(targetStage = "") {
   };
 
   for (const actor of game.actors ?? []) {
-    if (actor?.type !== "digimon") continue;
-    addCandidate(actorToCandidate(actor, { source: "actor" }), "Actor");
+    if (
+      !["digimon", "npc"].includes(
+        actor?.type
+      )
+    ) {
+      continue;
+    }
+
+    addCandidate(
+      actorToCandidate(
+        actor,
+        {
+          source: "actor"
+        }
+      ),
+      "Actor"
+    );
   }
 
   for (const entry of DDA_DIGIMON_ACTOR_DATABASE ?? []) {

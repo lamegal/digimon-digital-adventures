@@ -1,8 +1,15 @@
 import { DDA_TAMER_TALENTS } from "../data/tamer-talents.js";
 import { getTamerTalentUsesMax } from "../rules/tamer-talent-automation.js";
 import {
+  getTamerEvolutionPointMaximum
+} from "../rules/tamer-progression.js";
+import {
   clearTamerTemporaryIp
 } from "../rules/tamer-resources.js";
+
+import {
+  requestClearBusyHandsItems
+} from "../rules/tamer-talent-socket.js";
 
 export async function takeTamerBreak(actor) {
   if (!actor || actor.type !== "character") {
@@ -30,9 +37,33 @@ export async function takeTamerBreak(actor) {
   const woundMax = Number(wounds.max ?? wounds.value ?? 0);
   if (woundMax > 0) updates["system.derived.wounds.value"] = woundMax;
 
-  const epCurrent = Number(actor.system.resources?.evolutionPoints?.value ?? 0);
-  const epMax = Number(actor.system.resources?.evolutionPoints?.max ?? 0);
-  updates["system.resources.evolutionPoints.value"] = Math.min(epMax, epCurrent + 1);
+  const epCurrent =
+    Math.max(
+      0,
+      Number(
+        actor.system
+          .resources
+          ?.evolutionPoints
+          ?.value ??
+        0
+      )
+    );
+
+  const epMax =
+    getTamerEvolutionPointMaximum(
+      actor
+    );
+
+  updates[
+    "system.resources.evolutionPoints.max"
+  ] = epMax;
+
+  updates[
+    "system.resources.evolutionPoints.value"
+  ] = Math.min(
+    epMax,
+    epCurrent + 1
+  );
 
   await actor.update(updates);
 
@@ -76,7 +107,10 @@ export async function takeTamerRest(actor) {
     return;
   }
 
-  const epMax = Number(actor.system.resources?.evolutionPoints?.max ?? 0);
+  const epMax =
+    getTamerEvolutionPointMaximum(
+      actor
+    );
   const maxActions = Number(actor.system.combat?.actions?.max ?? 2);
   const blastUsesMax = Number(actor.system.blastEvolution?.uses?.max ?? actor.system.blastEvolution?.uses?.value ?? 0);
   const tamerTalentUsesUpdates = getTamerTalentUsesRestUpdates(actor);
@@ -90,8 +124,14 @@ export async function takeTamerRest(actor) {
     "system.aspects.major.uses.value": Number(actor.system.aspects?.major?.uses?.max ?? 1),
     "system.aspects.minor.uses.value": Number(actor.system.aspects?.minor?.uses?.max ?? 2),
 
-    "system.resources.evolutionPoints.value": epMax,
-    "system.combat.actions.value": maxActions,
+    "system.resources.evolutionPoints.max":
+      epMax,
+
+    "system.resources.evolutionPoints.value":
+      epMax,
+
+    "system.combat.actions.value":
+      maxActions,
     "system.recovery.breakUsedSinceCombat": false,
     "system.blastEvolution.uses.value": blastUsesMax,
 
@@ -129,6 +169,11 @@ export async function takeTamerRest(actor) {
   }
 
   await actor.update(actorUpdates);
+
+  const clearedBusyHandsItems =
+    await requestClearBusyHandsItems(
+      actor
+    );
 
   const clearedTemporaryIp =
     await clearTamerTemporaryIp(actor, {
@@ -231,6 +276,23 @@ export async function takeTamerRest(actor) {
   ${localize("DDA.TamerSheet.BlastEvolution")}:
   <strong>${blastUsesMax}</strong>.
 </li>
+
+${
+  clearedBusyHandsItems.cleared > 0
+    ? `
+      <li>
+        ${formatI18n(
+          "DDA.Rest.BusyHandsItemsCleared",
+          {
+            amount:
+              clearedBusyHandsItems
+                .cleared
+          }
+        )}
+      </li>
+    `
+    : ""
+}
 
 ${
   clearedTemporaryIp.cleared > 0
