@@ -19,6 +19,15 @@ export const DDA_SYSTEM_ID = "digimon-digital-adventures";
 export const DDA_MILESTONE_LEDGER_SETTING = "campaignMilestoneLedger";
 export const DDA_GROWTH_POINTS_PER_MILESTONE = 3;
 export const DDA_BONUS_DP_PER_MILESTONE = 3;
+export const DDA_BONUS_DP_STAGE_ORDER = [
+  "baby1",
+  "baby2",
+  "child",
+  "adult",
+  "perfect",
+  "ultimate",
+  "ultimatePlus"
+];
 
 /**
  * Mapa canônico de Atributos associados a cada Perícia de Tamer.
@@ -994,11 +1003,6 @@ async function releaseMilestoneToTarget(record, target) {
 
     const milestonePackages = appendBonusDpPackage(partner, record);
 
-    const sharedSpent = getSharedBonusDpSpent(
-      partner,
-      nextBonusDp
-    );
-
     const bonusProgress = synchronizeBonusDpPackages(
       {
         system: {
@@ -1011,13 +1015,13 @@ async function releaseMilestoneToTarget(record, target) {
         }
       },
       nextBonusDp,
-      sharedSpent
+      0
     );
 
     await partner.update({
       "system.advancement.bonusDp.total": bonusProgress.total,
-      "system.advancement.bonusDp.sharedSpent": bonusProgress.spent,
-      "system.advancement.bonusDp.remaining": bonusProgress.remaining,
+      "system.advancement.bonusDp.sharedSpent": 0,
+      "system.advancement.bonusDp.remaining": bonusProgress.total,
       "system.advancement.bonusDp.packages": bonusProgress.packages,
       "system.creation.dp.bonus": bonusProgress.total,
       "system.creation.bonusDp": bonusProgress.total
@@ -1631,6 +1635,13 @@ function getPartnerFormCreationEntries(
 
     entries.set(sourceFormUuid, {
       sourceFormUuid,
+      name: String(
+        snapshot?.species ??
+        snapshot?.sourceFormName ??
+        snapshot?.name ??
+        sourceFormUuid
+      ),
+      stage: String(snapshot?.stage ?? "child"),
       creation: snapshot?.creation ?? {},
       updatedAt: String(snapshot?.updatedAt ?? "")
     });
@@ -1662,6 +1673,8 @@ function getPartnerFormCreationEntries(
      */
     entries.set(currentSourceFormUuid, {
       sourceFormUuid: currentSourceFormUuid,
+      name: String(partner?.system?.species ?? partner?.name ?? currentSourceFormUuid),
+      stage: String(partner?.system?.stage ?? "child"),
       creation: partner.system.creation,
       updatedAt: new Date().toISOString()
     });
@@ -1739,16 +1752,66 @@ export function getPartnerFormBonusDpAvailable(
     ? getPartnerBonusDpTotal(null, partner)
     : Math.max(0, number(totalBonusDp, 0));
 
-  const spentByOtherForms = getSharedBonusDpSpent(
-    partner,
-    total,
-    null,
-    {
-      excludeSourceFormUuid: sourceFormUuid
-    }
-  );
+  /*
+   * Bonus DP pertence ao Estágio da forma, não a uma reserva compartilhada
+   * entre todas as formas. O Wizard recebe o orçamento integral; o gasto já
+   * existente da própria forma é calculado dentro de creation.dp.
+   */
+  return total;
+}
 
-  return Math.max(0, total - spentByOtherForms);
+export function getPartnerBonusDpByStage(
+  partner,
+  totalBonusDp = null
+) {
+  const total = totalBonusDp === null
+    ? getPartnerBonusDpTotal(null, partner)
+    : Math.max(0, number(totalBonusDp, 0));
+  const entries = getPartnerFormCreationEntries(partner);
+  const byStage = {};
+
+  for (const stageKey of DDA_BONUS_DP_STAGE_ORDER) {
+    const stageTotal = stageKey === "baby1" ? 0 : total;
+    byStage[stageKey] = {
+      total: stageTotal,
+      spent: 0,
+      remaining: stageTotal,
+      formCount: 0,
+      forms: []
+    };
+  }
+
+  for (const entry of entries) {
+    const stageKey = DDA_BONUS_DP_STAGE_ORDER.includes(entry.stage)
+      ? entry.stage
+      : "child";
+    const stage = byStage[stageKey];
+    const spent = getCreationBonusSpent(entry.creation, stage.total);
+    const remaining = Math.max(0, stage.total - spent);
+    stage.forms.push({
+      sourceFormUuid: entry.sourceFormUuid,
+      name: entry.name,
+      spent,
+      total: stage.total,
+      remaining
+    });
+    stage.formCount += 1;
+  }
+
+  for (const stage of Object.values(byStage)) {
+    /*
+     * Cada forma possui seu próprio orçamento. Estes campos resumem a forma
+     * mais investida sem somar gastos de builds independentes.
+     */
+    stage.spent = stage.forms.length
+      ? Math.max(...stage.forms.map((form) => form.spent))
+      : 0;
+    stage.remaining = stage.forms.length
+      ? Math.min(...stage.forms.map((form) => form.remaining))
+      : stage.total;
+  }
+
+  return byStage;
 }
 
 export function synchronizeBonusDpPackages(
@@ -1821,14 +1884,17 @@ export function synchronizeBonusDpPackages(
 
 export function getDigimonBonusDpSummary(tamer, partner) {
   const total = getPartnerBonusDpTotal(tamer, partner);
+  const byStage = getPartnerBonusDpByStage(partner, total);
 
   const progress = synchronizeBonusDpPackages(
     partner,
-    total
+    total,
+    0
   );
 
   return {
     ...progress,
+    byStage,
 
     milestoneGranted: progress.packages.reduce(
       (sum, entry) => {
@@ -1855,7 +1921,7 @@ export function getDigimonBonusDpSummary(tamer, partner) {
 function synchronizeBonusDpCreation(
   creation = {},
   totalBonusDp = 0,
-  sharedSpent = 0
+  _legacySharedSpent = 0
 ) {
   const next = clone(creation);
   next.dp = clone(next.dp ?? {});
@@ -1867,9 +1933,9 @@ function synchronizeBonusDpCreation(
     number(totalBonusDp, 0)
   );
 
-  const sharedRemaining = Math.max(
+  const formBonusRemaining = Math.max(
     0,
-    bonus - Math.max(0, number(sharedSpent, 0))
+    bonus - allocation.spentBonusTotal
   );
 
   const localRemaining = Math.max(
@@ -1884,7 +1950,7 @@ function synchronizeBonusDpCreation(
 
   const remaining = Math.max(
     0,
-    localRemaining + sharedRemaining
+    localRemaining + formBonusRemaining
   );
 
   next.dp.base = allocation.base;
@@ -1944,8 +2010,7 @@ function synchronizeBonusDpCreation(
 
 function synchronizePartnerFormSnapshotBonusDp(
   partner,
-  totalBonusDp,
-  sharedSpent
+  totalBonusDp
 ) {
   const snapshots = clone(
     partner?.system?.evolution?.formSnapshots ?? {}
@@ -1956,10 +2021,13 @@ function synchronizePartnerFormSnapshotBonusDp(
       continue;
     }
 
+    const stageBonus = String(snapshot.stage ?? "child") === "baby1"
+      ? 0
+      : totalBonusDp;
+
     snapshot.creation = synchronizeBonusDpCreation(
       snapshot.creation,
-      totalBonusDp,
-      sharedSpent
+      stageBonus
     );
 
     snapshot.updatedAt = nowIso();
@@ -1980,33 +2048,31 @@ export async function synchronizePartnerBonusDpAcrossForms(
     ? getPartnerBonusDpTotal(null, partner)
     : Math.max(0, number(totalBonusDp, 0));
 
-  const sharedSpent = getSharedBonusDpSpent(
-    partner,
-    total
-  );
-
   const progress = synchronizeBonusDpPackages(
     partner,
     total,
-    sharedSpent
+    0
   );
+
+  const byStage = getPartnerBonusDpByStage(partner, total);
+  const currentStage = String(partner.system?.stage ?? "child");
+  const currentStageBonus = currentStage === "baby1" ? 0 : progress.total;
 
   const currentCreation = synchronizeBonusDpCreation(
     partner.system?.creation,
-    progress.total,
-    progress.spent
+    currentStageBonus
   );
 
   const snapshots = synchronizePartnerFormSnapshotBonusDp(
     partner,
-    progress.total,
-    progress.spent
+    progress.total
   );
 
   await partner.update({
     "system.advancement.bonusDp.total": progress.total,
-    "system.advancement.bonusDp.sharedSpent": progress.spent,
-    "system.advancement.bonusDp.remaining": progress.remaining,
+    "system.advancement.bonusDp.sharedSpent": 0,
+    "system.advancement.bonusDp.remaining": progress.total,
+    "system.advancement.bonusDp.byStage": byStage,
     "system.advancement.bonusDp.packages": progress.packages,
     "system.creation": currentCreation,
     "system.evolution.formSnapshots": snapshots

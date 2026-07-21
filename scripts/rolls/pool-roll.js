@@ -10,6 +10,10 @@ import {
   consumeTamerActionPoolEffects,
   prepareTamerActionPoolOptions
 } from "../combat/tamer-actions.js";
+import {
+  consumeDigimonActionPoolEffects,
+  prepareDigimonActionPoolOptions
+} from "../combat/digimon-actions.js";
 
 function getEvasiveManeuversReserve(
   actor
@@ -122,6 +126,11 @@ export async function rollPool(actor, statKey, options = {}) {
     statKey,
     options
   );
+  options = prepareDigimonActionPoolOptions(
+    actor,
+    statKey,
+    options
+  );
 
   const system = actor.system;
   const stat = system.mainStats?.[statKey];
@@ -158,6 +167,14 @@ const preparedOptions =
   const baseDice = Math.max(0, Number(stat.total ?? 0));
   const manualDiceModifier = Number(dialogData.manualDiceModifier ?? 0);
 const externalDiceModifier = Number(dialogData.externalDiceModifier ?? 0);
+const modifierBreakdown = (Array.isArray(options.modifierBreakdown) ? options.modifierBreakdown : [])
+  .filter((entry) => entry && String(entry.label ?? "").trim())
+  .map((entry) => ({
+    ...entry,
+    label: String(entry.label).trim(),
+    value: entry.value === null || entry.value === undefined ? null : Number(entry.value),
+    kind: String(entry.kind ?? "external").replace(/[^a-zA-Z0-9_-]+/g, "-")
+  }));
 const stanceDiceModifier =
   Number(
     dialogData.stanceDiceModifier ?? 0
@@ -274,21 +291,75 @@ content: `
   );
   const rerollLabel = lowRerollDeclaration?.label ?? options.rerollLabel ?? "Reroll";
   const rerolledDice = [];
+  const rerollProtectedDice = Math.min(
+    diceResults.length,
+    Math.max(0, Math.floor(Number(options.ddaRerollProtectedDice ?? 0)))
+  );
+  const protectedDiceStart = Math.max(0, diceResults.length - rerollProtectedDice);
 
   if (rerollLimit > 0 && diceResults.length) {
-    for (const result of diceResults) {
-      const originalValue = Number(result.result ?? 0);
-      if (originalValue <= 0 || originalValue > rerollLimit) continue;
-
-      const reroll = await new Roll("1d6").evaluate();
-      const newValue = Number(reroll.total ?? originalValue);
-
-      rerolledDice.push({
-        original: originalValue,
-        result: newValue
+    /*
+     * Congelamos a lista de dados elegíveis antes
+     * de realizar qualquer rerrolagem.
+     *
+     * Assim, um resultado novo nunca entra novamente
+     * na lista de dados que podem ser rerrolados.
+     */
+    const eligibleDice = diceResults
+      .map((result, index) => ({
+        result,
+        index,
+        original:
+          Number(result.result ?? 0)
+      }))
+      .filter((entry) => {
+        return (
+          entry.index < protectedDiceStart &&
+          entry.original > 0 &&
+          entry.original <= rerollLimit
+        );
       });
 
-      result.result = newValue;
+    if (eligibleDice.length > 0) {
+      /*
+       * Todos os dados elegíveis são rerrolados juntos
+       * em uma única segunda passagem.
+       */
+      const reroll = await new Roll(
+        `${eligibleDice.length}d6`
+      ).evaluate();
+
+      const replacementResults =
+        reroll.dice[0]?.results ?? [];
+
+      for (
+        let index = 0;
+        index < eligibleDice.length;
+        index += 1
+      ) {
+        const entry =
+          eligibleDice[index];
+
+        const replacement = Number(
+          replacementResults[index]?.result ??
+          entry.original
+        );
+
+        rerolledDice.push({
+          dieIndex: entry.index,
+          original: entry.original,
+          result: replacement
+        });
+
+        /*
+         * O novo resultado é definitivo.
+         *
+         * Mesmo que ainda seja 1 ou 2, esse dado
+         * não poderá ser rerrolado novamente.
+         */
+        entry.result.result =
+          replacement;
+      }
     }
   }
 
@@ -349,6 +420,7 @@ const content = `
       ${
 manualDiceModifier !== 0 ||
 externalDiceModifier !== 0 ||
+modifierBreakdown.length > 0 ||
 resultModifier !== 0 ||
 stanceDiceModifier !== 0 ||
 evasiveManeuversDice !== 0 ||
@@ -364,8 +436,17 @@ dodgePenalty !== 0
                 }
 
                 ${
-                  externalDiceModifier !== 0
-                    ? `<span>${formatSigned(externalDiceModifier)} ${options.externalLabel ?? localize("DDA.Pool.Modifier.External")}</span>`
+                  externalDiceModifier !== 0 || modifierBreakdown.length > 0
+                    ? modifierBreakdown.length
+                      ? modifierBreakdown.map((entry) => {
+                          const value = Number.isFinite(entry.value) && entry.value !== 0
+                            ? `${formatSigned(entry.value)} `
+                            : "";
+                          const detailClass = entry.detail ? " is-detail" : "";
+                          const protectedClass = entry.kind === "tamerDirect" ? " is-protected" : "";
+                          return `<span class="modifier-chip kind-${entry.kind}${detailClass}${protectedClass}">${value}${foundry.utils.escapeHTML(entry.label)}</span>`;
+                        }).join("")
+                      : `<span>${formatSigned(externalDiceModifier)} ${options.externalLabel ?? localize("DDA.Pool.Modifier.External")}</span>`
                     : ""
                 }
 
@@ -407,6 +488,13 @@ ${
       </li>
 
       ${rerollHtml}
+
+      ${rerollProtectedDice > 0 && rerollLimit > 0 ? `
+        <li class="pool-reroll-protected-note">
+          <i class="fas fa-lock"></i>
+          ${formatI18n("DDA.Pool.RerollProtectedDirect", { dice: rerollProtectedDice })}
+        </li>
+      ` : ""}
 
       <li>
         ${localize("DDA.Pool.RolledSuccesses")}:
@@ -475,6 +563,11 @@ if (lowRerollDeclaration?.quality) {
   }
 
   await consumeTamerActionPoolEffects(
+    actor,
+    options
+  );
+
+  await consumeDigimonActionPoolEffects(
     actor,
     options
   );

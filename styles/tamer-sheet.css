@@ -8645,7 +8645,11 @@ form.dda-tamer-window-sheet
 }
 
 .dda-tamer-action-menu-grid strong {
-  display: block !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.45rem !important;
+  width: 100% !important;
 
   margin-bottom: 0.3rem !important;
 
@@ -8653,6 +8657,16 @@ form.dda-tamer-window-sheet
   font-weight: 900 !important;
   letter-spacing: 0.045em !important;
   text-transform: uppercase !important;
+}
+
+.dda-tamer-action-menu-grid strong span {
+  flex: 0 0 auto !important;
+  padding: 0.08rem 0.38rem !important;
+  border-radius: 999px !important;
+  background: rgba(255, 196, 49, 0.16) !important;
+  color: #ffdc73 !important;
+  font-size: 0.72em !important;
+  letter-spacing: normal !important;
 }
 
 .dda-tamer-action-menu-grid small {
@@ -9184,4 +9198,119 @@ button:disabled {
   border:
     1px solid
     rgba(145, 230, 255, 0.34) !important;
+}
+.dda-tamer-action-menu-grid .dda-tamer-action-automation {
+  display: inline-flex !important;
+  align-items: center !important;
+  margin-top: auto !important;
+  padding: 0.16rem 0.42rem !important;
+  border-radius: 999px !important;
+  font-size: 0.62rem !important;
+  font-style: normal !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+}
+
+.dda-tamer-action-menu-grid .dda-tamer-action-automation.is-automated {
+  color: #baffdd !important;
+  background: rgba(45, 174, 114, 0.2) !important;
+  border: 1px solid rgba(93, 232, 163, 0.35) !important;
+}
+
+.dda-tamer-action-menu-grid .dda-tamer-action-automation.is-assisted {
+  color: #ffe4a4 !important;
+  background: rgba(214, 139, 35, 0.18) !important;
+  border: 1px solid rgba(255, 192, 89, 0.34) !important;
+}
+
+
+/* ===================================================== */
+/* DDA — Partner Bond compact refresh                    */
+/* ===================================================== */
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-bond-actions {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.55rem !important;
+  align-items: stretch !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-bond-actions button {
+  min-height: 34px !important;
+  height: auto !important;
+  padding: 0.35rem 0.8rem !important;
+  border-radius: 999px !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-bond-actions .unlink-partner {
+  background: linear-gradient(180deg, rgba(24, 87, 122, 0.98), rgba(8, 44, 72, 0.98)) !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-info-grid .dda-partner-starting-stage-field {
+  grid-column: 1 / -1 !important;
+  align-items: start !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-info-grid .dda-partner-starting-stage-field select,
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-info-grid .dda-partner-starting-stage-field input {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-info-grid .dda-partner-starting-stage-field small {
+  grid-column: 2 !important;
+  display: block !important;
+  margin-top: 0.2rem !important;
+  color: #35566c !important;
+  font-size: 0.72rem !important;
+  line-height: 1.25 !important;
+}
+
+@media (max-width: 720px) {
+  form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-bond-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+
+/* ===================================================== */
+/* DDA — Partner Starting Stage alignment hotfix         */
+/* ===================================================== */
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-info-grid > .dda-partner-starting-stage-field {
+  display: grid !important;
+  grid-template-columns: 126px minmax(0, 1fr) !important;
+  grid-template-rows: auto auto !important;
+  align-items: center !important;
+  column-gap: 0.65rem !important;
+  row-gap: 0.2rem !important;
+  padding: 0.45rem 0.65rem !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-info-grid > .dda-partner-starting-stage-field > label {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  align-self: center !important;
+  white-space: nowrap !important;
+  font-size: 0.71rem !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-info-grid > .dda-partner-starting-stage-field > select,
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-info-grid > .dda-partner-starting-stage-field > input {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+}
+
+form.dda-tamer-window-sheet .dda-tamer-advancement-tab .dda-partner-info-grid > .dda-partner-starting-stage-field > small {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  color: #35566c !important;
+  font-size: 0.69rem !important;
+  line-height: 1.2 !important;
 }

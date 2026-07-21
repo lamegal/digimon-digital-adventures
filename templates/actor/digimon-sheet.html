@@ -612,7 +612,8 @@
       <h2>{{localize "DDA.Tab.Combat"}}</h2>
 
 <div class="combat-actions">
-  <button type="button" class="end-turn">{{localize "DDA.EndTurn.Title"}}</button>
+  <button type="button" class="open-digimon-actions">{{localize "DDA.DigimonAction.Menu.Title"}}</button>
+  <button type="button" class="end-turn"><i class="fa-solid fa-forward-step"></i> {{localize "DDA.EndTurn.Title"}}</button>
 
   {{#if settings.energizeAction}}
   <button type="button" class="energize-action">{{localize "DDA.Energize.Title"}}</button>
@@ -669,7 +670,7 @@
 <div class="resource-grid quality-resources-grid">
   {{#if hasResolveResource}}
   <div class="resource-box">
-    <label>Resolve</label>
+    <label>{{localize "DDA.Resource.Resolve"}}</label>
     <div class="inline-inputs">
       <input
         type="number"
@@ -689,7 +690,7 @@
 
   {{#if hasMasteryResource}}
   <div class="resource-box">
-    <label>Mastery</label>
+    <label>{{localize "DDA.Resource.Mastery"}}</label>
 
     <div class="inline-inputs">
       <input
@@ -756,7 +757,7 @@
       {{#each system.effects.active as |effect|}}
       <div class="active-effect-row" data-effect-id="{{effect.id}}">
         <div class="active-effect-main">
-          <strong>{{effect.label}}</strong>
+          <strong>{{localize effect.label}}</strong>
           <span>{{effect.sourceAttackName}}</span>
         </div>
 
@@ -969,25 +970,27 @@
 </section>
 
 <section class="tab dda-evolution-tab" data-group="primary" data-tab="evolution">
-  <div class="dda-evolution-graph-header">
-    <div>
-      <h2>{{localize "DDA.Evolution.GraphTitle"}}</h2>
-      <p class="muted">{{localize "DDA.Evolution.GraphHint"}}</p>
+  <div class="dda-evolution-graph-header dda-evolution-toolbar">
+    <div class="dda-evolution-toolbar-copy">
+      <h2>{{localize "DDA.Evolution.TitleCompact"}}</h2>
+      <p class="muted">{{localize "DDA.Evolution.ToolbarHint"}}</p>
     </div>
 
-    <div class="dda-evolution-header-actions">
+    <div class="dda-evolution-header-actions dda-evolution-toolbar-actions">
       <button
         type="button"
-        class="open-current-form-wizard"
+        class="open-partner-form-planner is-primary"
+        title="{{localize 'DDA.PartnerFormPlanner.Help'}}"
       >
-        {{localize "DDA.Button.CurrentFormWizard"}}
+        {{localize "DDA.Button.PartnerFormPlanner"}}
       </button>
 
       <button
         type="button"
-        class="choose-evolution-form"
+        class="open-evolution-graph-popout evolution-map-toolbar-button"
+        title="{{localize 'DDA.Evolution.GraphHint'}}"
       >
-        {{localize "DDA.EvolutionChoice.Button"}}
+        {{localize "DDA.Button.EvolutionMap"}}
       </button>
 
       {{#if npcPresentation.canEvolveIndependently}}
@@ -1002,7 +1005,8 @@
 
       <button
         type="button"
-        class="clear-evolution-graph"
+        class="clear-evolution-graph is-danger"
+        title="{{localize 'DDA.Evolution.ConfirmClearGraph'}}"
       >
         {{localize "DDA.Evolution.ClearGraph"}}
       </button>

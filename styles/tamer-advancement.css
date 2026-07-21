@@ -834,3 +834,62 @@
   opacity: 0.45 !important;
   cursor: not-allowed !important;
 }
+
+/* ===================================================== */
+/* DDA — Tamer Advancement guidance refresh              */
+/* ===================================================== */
+.dda-tamer-advancement-guide {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dda-tamer-advancement-guide-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(18, 49, 71, 0.88), rgba(8, 21, 33, 0.94));
+  border: 1px solid rgba(135, 214, 255, 0.18);
+}
+
+.dda-tamer-advancement-guide-step strong {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(82, 187, 255, 0.16);
+  color: #f4fbff;
+  font-size: 0.92rem;
+}
+
+.dda-tamer-advancement-guide-step span {
+  color: #deefff;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.dda-tamer-advancement-mode-choice > header {
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+}
+
+.dda-tamer-advancement-mode-choice > header h3 {
+  margin: 0 0 4px;
+}
+
+.dda-tamer-advancement-mode-choice > header p {
+  margin: 0;
+  color: #b7d4ec;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 760px) {
+  .dda-tamer-advancement-guide {
+    grid-template-columns: 1fr;
+  }
+}

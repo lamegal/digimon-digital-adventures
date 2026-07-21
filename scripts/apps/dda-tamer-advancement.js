@@ -583,6 +583,27 @@ export class DDATamerAdvancement extends DDATamerAdvancementBase {
           "DDA.TamerAdvancement.SpendPackage",
           { points },
           `Spend ${points} Growth Points`
+        ),
+        modeTitle: localize(
+          "DDA.TamerAdvancement.ModeTitle",
+          "Choose how to spend this package"
+        ),
+        modeHint: format(
+          "DDA.TamerAdvancement.ModeHint",
+          { points },
+          `A released Milestone grants ${points} Growth Points: either +1 Attribute or the same points distributed among Skills.`
+        ),
+        guideMode: localize(
+          "DDA.TamerAdvancement.GuideMode",
+          "Choose Attribute or Skills"
+        ),
+        guideSpend: localize(
+          "DDA.TamerAdvancement.GuideSpend",
+          "Review caps and allocate the package"
+        ),
+        guideApply: localize(
+          "DDA.TamerAdvancement.GuideApply",
+          "Confirm to spend the released Growth Points"
         )
       }
     };

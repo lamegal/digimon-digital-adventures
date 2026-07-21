@@ -20,7 +20,7 @@ export const DDA_DIGIMON_BUILD_TEMPLATES = [
       damage: 2,
       dodge: 1,
       armor: 1,
-      health: 2
+      health: 1
     },
     qualities: [
       { qualityId: "otimizacaoDeDados", rank: 1, choice: { key: "closeCombat" } },

@@ -1,11 +1,13 @@
-import { advanceDDACombatTurn } from "./initiative.js";
+import {
+  advanceDDACombatTurn
+} from "./initiative.js";
 import { maybeApplyGritSurvival } from "../rules/tamer-resources.js";
 
 import {
   tryUndefeatedEndurance
 } from "../rolls/damage-application.js";
 
-export async function endDigimonTurn(actor) {
+export async function endDigimonTurn(actor, options = {}) {
   if (!actor || (actor.type !== "digimon" && actor.type !== "npc")) {
     ui.notifications.warn(localize("DDA.Warning.EndTurnOnlyForDigimonNpc"));
     return;
@@ -40,18 +42,21 @@ export async function endDigimonTurn(actor) {
 
   const newBattery = Math.min(maxBattery, currentBattery + batteryGain);
 
+  /* Consequências de fim de turno usam as Ações gastas antes do reset. */
+  const effectConsequenceData = await applyEndTurnEffectConsequences(actor);
+
   await actor.update({
     "system.combat.actions.value": turnRestrictionData.restoredActions,
     "system.combat.dodgePenalty": 0,
     "system.combat.hasAttackedThisRound": false,
     "system.combat.attacksMadeThisTurn": 0,
+    "system.combat.movementActionsThisTurn": 0,
     "system.combat.multiattackPenalty": 0,
     "system.combat.signatureMoveUsedThisTurn": false,
     "system.combat.energizeUsedThisTurn": false,
     "system.resources.battery.value": newBattery
   });
 
-  const effectConsequenceData = await applyEndTurnEffectConsequences(actor);
   const effectTurnData = reduceActiveEffectDurations(actor);
   const shieldTempCleared = await clearExpiredShieldTemp(actor, effectTurnData.expiredEffects);
   const turnUseRechargeData = await rechargeQualityUses(actor, "turn");
@@ -71,6 +76,11 @@ if (effectConsequenceData.changed) {
     "system.combat.defeated"
   ] =
     effectConsequenceData.newWounds <= 0;
+
+  updateData["system.combat.effectDamageRoundKey"] =
+    effectConsequenceData.effectDamageRoundKey;
+  updateData["system.combat.effectDamageTakenThisRound"] =
+    effectConsequenceData.effectDamageTakenThisRound;
 }
 
   if (effectTurnData.changed) {
@@ -269,7 +279,9 @@ if (effectConsequenceData.changed) {
 
   actor.sheet?.render(false);
 
-  await advanceDDACombatTurn(actor);
+  if (!options.deferAdvance) {
+    await advanceDDACombatTurn(actor);
+  }
 }
 
 function getEndTurnActionRestrictions(actor, maxActions) {
@@ -285,26 +297,9 @@ function getEndTurnActionRestrictions(actor, maxActions) {
   let batteryGainBlocked = false;
   const notes = [];
 
-  if (tags.has("paralyze")) {
-    restoredActions = Math.min(
-      restoredActions,
-      Math.max(1, Math.floor(maxActions / 2))
-    );
-
-    notes.push(localize("DDA.EndTurn.Restriction.Paralyze"));
-  }
-
-  if (tags.has("freeze")) {
-    restoredActions = Math.max(0, restoredActions - 1);
+  if (tags.has("dot")) {
     batteryGainBlocked = true;
-
-    notes.push(localize("DDA.EndTurn.Restriction.FreezeDigimon"));
-  }
-
-  if (tags.has("stun")) {
-    restoredActions = 0;
-
-    notes.push(localize("DDA.EndTurn.Restriction.Stun"));
+    notes.push("[DOT] impede o ganho de Bateria.");
   }
 
   return {
@@ -327,20 +322,34 @@ function reduceActiveEffectDurations(actor) {
     };
   }
 
-  const updatedEffects = currentEffects.map((effect) => {
-    const currentRemaining = Number(effect.remaining ?? effect.duration ?? 1);
+  const combat = game.combat;
+  const currentTick = `${combat?.id ?? "no-combat"}:${Number(combat?.round ?? 0)}:${Number(combat?.turn ?? -1)}`;
+  const remainingEffects = [];
+  const expiredEffects = [];
+  let changed = false;
 
-    return {
-      ...effect,
-      remaining: currentRemaining - 1
-    };
-  });
+  for (const effect of currentEffects) {
+    const isSpecial = effect.hasSpecialDuration === true || effect.durationRule === "special";
 
-  const remainingEffects = updatedEffects.filter((effect) => Number(effect.remaining ?? 0) > 0);
-  const expiredEffects = updatedEffects.filter((effect) => Number(effect.remaining ?? 0) <= 0);
+    /* Durações normais são reduzidas no começo do turno do Caster. */
+    if (!isSpecial) {
+      remainingEffects.push(effect);
+      continue;
+    }
+
+    const appliedTick = `${effect.appliedCombatId ?? ""}:${Number(effect.appliedCombatRound ?? 0)}:${Number(effect.appliedCombatTurn ?? -1)}`;
+
+    if (appliedTick === currentTick) {
+      remainingEffects.push(effect);
+      continue;
+    }
+
+    expiredEffects.push({ ...effect, remaining: 0 });
+    changed = true;
+  }
 
   return {
-    changed: true,
+    changed,
     beforeCount: currentEffects.length,
     afterCount: remainingEffects.length,
     remainingEffects,
@@ -353,8 +362,7 @@ async function applyEndTurnEffectConsequences(actor) {
     ? actor.system.effects.active
     : [];
 
-  const damagingTags = new Set(["burn", "poison", "ruin"]);
-  const healingTags = new Set(["regen"]);
+  const damagingTags = new Set(["freeze", "poison", "ruin"]);
 
   const entries = [];
   let woundDelta = 0;
@@ -365,35 +373,50 @@ async function applyEndTurnEffectConsequences(actor) {
     const label = effect.label ?? CONFIG.DDA?.effectTags?.[tag] ?? rawTag;
 
     const isDamage = damagingTags.has(tag);
-    const isHealing = healingTags.has(tag);
-
-    if (!isDamage && !isHealing) continue;
+    if (!isDamage) continue;
 
     let amount = 1;
 
-    if (tag === "ruin") {
-      amount = await getRuinDamageAmount(
-        effect
-      );
+    if (tag === "freeze") {
+      const maxActions = Math.max(0, Number(actor.system?.combat?.actions?.max ?? 2));
+      const currentActions = Math.max(0, Number(actor.system?.combat?.actions?.value ?? 0));
+      const movementActions = Math.max(0, Number(actor.system?.combat?.movementActionsThisTurn ?? 0));
+      amount = Math.max(0, (maxActions - currentActions - movementActions) * 2);
     }
 
-    if (tag === "regen") {
+    if (tag === "poison") {
       amount = Math.max(
-        1,
+        0,
         Number(
           effect.potency ??
           effect.value ??
-          1
+          actor.system?.derivedStats?.cpu?.value ??
+          0
         )
       );
     }
 
+    if (tag === "ruin") {
+      amount = Number(effect.potency ?? 0) || await getRuinDamageAmount(effect);
+    }
+
+    const damageEffectCount = activeEffects.filter((candidate) => {
+      return ["burn", "freeze", "poison", "ruin"].includes(getEffectTagKey(candidate.tag));
+    }).length;
+    const natureReduction = Math.max(
+      0,
+      Number(actor.system?.qualityFeatures?.naturewalk?.damageReduction?.[tag] ?? 0)
+    );
+
+    amount = Math.max(0, amount - Math.max(0, damageEffectCount - 1) - natureReduction);
+
     amount = Math.max(
-      1,
-      Number(amount ?? 1)
+      0,
+      Number(amount ?? 0)
     );
 
     if (isDamage) {
+      if (amount <= 0) continue;
       woundDelta -= amount;
 
       entries.push({
@@ -406,19 +429,18 @@ async function applyEndTurnEffectConsequences(actor) {
       });
     }
 
-    if (isHealing) {
-      woundDelta += amount;
-
-      entries.push({
-        tag,
-        label,
-        amount,
-        type: "healing",
-        sourceActorName: effect.sourceActorName ?? "",
-        sourceAttackName: effect.sourceAttackName ?? ""
-      });
-    }
   }
+
+  /* Efeitos nunca causam mais que SV x 2 de Dano Inalterável por Rodada. */
+  const effectDamageCap = Math.max(0, Number(actor.system?.stageValue ?? 0) * 2);
+  const effectDamageRoundKey = `${game.combat?.id ?? "no-combat"}:${Number(game.combat?.round ?? 0)}`;
+  const previousEffectDamage = String(actor.system?.combat?.effectDamageRoundKey ?? "") === effectDamageRoundKey
+    ? Math.max(0, Number(actor.system?.combat?.effectDamageTakenThisRound ?? 0))
+    : 0;
+  if (effectDamageCap > 0 && woundDelta < 0) {
+    woundDelta = -Math.min(-woundDelta, Math.max(0, effectDamageCap - previousEffectDamage));
+  }
+  const effectDamageTakenThisRound = previousEffectDamage + Math.max(0, -woundDelta);
 
   const oldWoundsRaw = Number(actor.system.miscStats?.wounds?.value ?? 0);
   const maxWoundsRaw = Number(actor.system.miscStats?.wounds?.max ?? 1);
@@ -432,7 +454,9 @@ async function applyEndTurnEffectConsequences(actor) {
       oldWounds,
       newWounds: oldWounds,
       woundDelta: 0,
-      entries
+      entries,
+      effectDamageRoundKey,
+      effectDamageTakenThisRound
     };
   }
 
@@ -475,6 +499,8 @@ return {
     newWounds - oldWounds,
 
   entries,
+  effectDamageRoundKey,
+  effectDamageTakenThisRound,
   undefeatedEndurance
 };
 }
@@ -579,47 +605,7 @@ async function endLinkedTamerTurn(digimonActor) {
 }
 
 async function reduceLinkedTamerEffectDurations(tamer) {
-  const currentEffects = foundry.utils.deepClone(tamer.system.effects?.active ?? []);
-
-  if (!currentEffects.length) {
-    return {
-      changed: false,
-      beforeCount: 0,
-      afterCount: 0,
-      remainingEffects: [],
-      expiredEffects: []
-    };
-  }
-
-  const updatedEffects = [];
-  const expiredEffects = [];
-
-  for (const effect of currentEffects) {
-    const currentRemaining = Number(effect.remaining ?? effect.duration ?? 1);
-    const nextRemaining = currentRemaining - 1;
-
-    if (nextRemaining <= 0) {
-      expiredEffects.push({
-        ...effect,
-        remaining: 0
-      });
-
-      continue;
-    }
-
-    updatedEffects.push({
-      ...effect,
-      remaining: nextRemaining
-    });
-  }
-
-  return {
-    changed: true,
-    beforeCount: currentEffects.length,
-    afterCount: updatedEffects.length,
-    remainingEffects: updatedEffects,
-    expiredEffects
-  };
+  return reduceActiveEffectDurations(tamer);
 }
 
 function getSceneTokenActorForLinkedTamer(tamer) {
@@ -913,7 +899,7 @@ function formatI18n(key, data = {}) {
   return game.i18n.format(key, data);
 }
 
-export async function endTamerTurn(actor) {
+export async function endTamerTurn(actor, options = {}) {
   if (!actor || actor.type !== "character") {
     const isEnglish = String(
       game.i18n?.lang ??
@@ -1063,7 +1049,9 @@ export async function endTamerTurn(actor) {
 
   actor.sheet?.render(false);
 
-  await advanceDDACombatTurn(actor);
+  if (!options.deferAdvance) {
+    await advanceDDACombatTurn(actor);
+  }
 
   return {
     actions: turnRestrictionData.restoredActions,

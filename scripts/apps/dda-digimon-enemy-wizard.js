@@ -1169,14 +1169,32 @@ function getEnemyQualityDeclaredMaxRank(quality = {}) {
     : 1;
 }
 
-function enemyQualityRequiresAttackChoice(quality = {}) {
+function enemyQualityRequiresAttackChoice(
+  quality = {}
+) {
   const choiceType = String(
     quality.choices?.type ?? ""
   ).trim();
 
   return Boolean(
     quality.choices?.required &&
-    ENEMY_ATTACK_CHOICE_TYPES.has(choiceType)
+    (
+      ENEMY_ATTACK_CHOICE_TYPES.has(
+        choiceType
+      ) ||
+      choiceType === "effectTagPerRank"
+    )
+  );
+}
+
+function enemyQualityUsesEffectAttackChoice(
+  quality = {}
+) {
+  return (
+    Boolean(quality.choices?.required) &&
+    String(
+      quality.choices?.type ?? ""
+    ).trim() === "effectTagPerRank"
   );
 }
 
@@ -1501,25 +1519,33 @@ function getEnemyQualityChoiceRows(
         choiceKey ?? ""
       ).trim();
 
-      const option = allOptions.find(
-        (entry) => {
-          return String(
-            entry?.key ?? ""
-          ) === key;
-        }
-      );
+const option = allOptions.find(
+  (entry) => {
+    return String(
+      entry?.key ?? ""
+    ) === key;
+  }
+);
 
-      if (!option) return null;
+const configuredRank =
+  foundry.utils.deepClone(
+    choiceRanks[index] ?? {}
+  );
 
-      const cloned =
-        foundry.utils.deepClone(
-          option
-        );
+const sourceOption =
+  option ??
+  (
+    Object.keys(configuredRank).length
+      ? configuredRank
+      : null
+  );
 
-      const configuredRank =
-        foundry.utils.deepClone(
-          choiceRanks[index] ?? {}
-        );
+if (!sourceOption) return null;
+
+const cloned =
+  foundry.utils.deepClone(
+    sourceOption
+  );
 
       return {
         ...cloned,
@@ -3449,9 +3475,11 @@ _getEnemySelectedEffectKeys() {
     const selection of
     this.enemyBuild?.selectedQualities ?? []
   ) {
-    if (!effectQualityIds.has(
-      String(selection.id ?? "")
-    )) {
+    if (
+      !effectQualityIds.has(
+        String(selection.id ?? "")
+      )
+    ) {
       continue;
     }
 
@@ -3459,11 +3487,29 @@ _getEnemySelectedEffectKeys() {
       const choiceKey of
       selection.choiceKeys ?? []
     ) {
-      const key = String(
+      const compoundKey = String(
         choiceKey ?? ""
       ).trim();
 
-      if (key) keys.add(key);
+      if (!compoundKey) continue;
+
+      const separatorIndex =
+        compoundKey.lastIndexOf(":");
+
+      const effectTag = (
+        separatorIndex > 0
+          ? compoundKey.slice(
+              separatorIndex + 1
+            )
+          : compoundKey
+      )
+        .trim()
+        .replace(/^\[|\]$/g, "")
+        .toLowerCase();
+
+      if (effectTag) {
+        keys.add(effectTag);
+      }
     }
   }
 
@@ -3851,6 +3897,227 @@ _getEnemyQualityDynamicChoiceOptions(
     });
   }
 
+  /*
+ * Basic Effect, Advanced Effect e Master Effect
+ * precisam selecionar simultaneamente:
+ *
+ * 1. A Tag de Efeito;
+ * 2. O Ataque que receberá essa Tag.
+ */
+if (
+  enemyQualityUsesEffectAttackChoice(
+    quality
+  )
+) {
+  const attacks =
+    this.getEnemyAttackChoiceOptions();
+
+  const selectedQualities = Array.isArray(
+    this._enemyQualitySelectionOverride
+  )
+    ? this._enemyQualitySelectionOverride
+    : Array.isArray(
+        this.enemyBuild?.selectedQualities
+      )
+      ? this.enemyBuild.selectedQualities
+      : [];
+
+  const usedEffectTags = new Set();
+  const usedAttackKeys = new Set();
+
+  /*
+   * As restrições valem conjuntamente entre
+   * Basic, Advanced e Master Effect.
+   */
+  for (const selection of selectedQualities) {
+    const sourceQuality =
+      getEnemyQualityById(
+        selection.id
+      );
+
+    if (
+      !sourceQuality ||
+      !enemyQualityUsesEffectAttackChoice(
+        sourceQuality
+      )
+    ) {
+      continue;
+    }
+
+    const choiceRanks = Array.isArray(
+      selection.choiceRanks
+    )
+      ? selection.choiceRanks
+      : [];
+
+    for (
+      const [index, rawChoiceKey]
+      of (selection.choiceKeys ?? []).entries()
+    ) {
+      const configuredChoice =
+        choiceRanks[index] ?? {};
+
+      const compoundKey = String(
+        rawChoiceKey ?? ""
+      ).trim();
+
+      const separatorIndex =
+        compoundKey.lastIndexOf(":");
+
+      const attackKey = String(
+        configuredChoice.attackKey ??
+        (
+          separatorIndex > 0
+            ? compoundKey.slice(
+                0,
+                separatorIndex
+              )
+            : ""
+        )
+      ).trim();
+
+      const effectTag = String(
+        configuredChoice.effectTag ??
+        configuredChoice.attackTag ??
+        (
+          separatorIndex > 0
+            ? compoundKey.slice(
+                separatorIndex + 1
+              )
+            : compoundKey
+        )
+      )
+        .trim()
+        .replace(/^\[|\]$/g, "")
+        .toLowerCase();
+
+      if (attackKey) {
+        usedAttackKeys.add(attackKey);
+      }
+
+      if (effectTag) {
+        usedEffectTags.add(effectTag);
+      }
+    }
+  }
+
+  const overclockEffectTags =
+    this._getEnemyOverclockSelectedEffectKeys();
+
+  return getEnemyStaticChoiceOptions(
+    quality
+  )
+    .filter((effect) => {
+      const effectTag = String(
+        effect.key ?? ""
+      )
+        .trim()
+        .replace(/^\[|\]$/g, "")
+        .toLowerCase();
+
+      return (
+        Boolean(effectTag) &&
+        !usedEffectTags.has(effectTag) &&
+        !overclockEffectTags.has(effectTag)
+      );
+    })
+    .flatMap((effect) => {
+      const effectTag = String(
+        effect.key ?? ""
+      )
+        .trim()
+        .replace(/^\[|\]$/g, "")
+        .toLowerCase();
+
+      return attacks
+        .filter((attack) => {
+          return !usedAttackKeys.has(
+            String(attack.key ?? "")
+          );
+        })
+        .filter((attack) => {
+          if (!effect.requiresDamageTag) {
+            return true;
+          }
+
+          return String(
+            attack.functionType ?? ""
+          ).toLowerCase() === "damage";
+        })
+        .map((attack) => ({
+          ...foundry.utils.deepClone(
+            effect
+          ),
+
+          /*
+           * Chave exclusiva para a combinação.
+           */
+          key:
+            `${attack.key}:${effectTag}`,
+
+          label:
+            `${attack.label} — ` +
+            `[${effectTag.toUpperCase()}]`,
+
+          originalLabel: String(
+            effect.originalLabel ??
+            effect.label ??
+            effectTag
+          ),
+
+          type: "effectAttack",
+
+          attackKey:
+            String(attack.key ?? ""),
+
+          attackName: String(
+            attack.label ??
+            attack.name ??
+            ""
+          ),
+
+          rangeType:
+            attack.rangeType,
+
+          functionType:
+            attack.functionType,
+
+          attackTag:
+            effectTag,
+
+          effectTag,
+
+          effectType: String(
+            effect.type ?? ""
+          ),
+
+          potencyStat: String(
+            effect.potency ??
+            effect.potencyStat ??
+            ""
+          ),
+
+          duration:
+            effect.duration ?? true,
+
+          extraActionRequired:
+            Boolean(
+              effect.extraActionRequired
+            ),
+
+          requiresDamageTag:
+            Boolean(
+              effect.requiresDamageTag
+            ),
+
+          onlyAffectsAllies:
+            Boolean(
+              effect.onlyAffectsAllies
+            )
+        }));
+    });
+}
+
   if (!enemyQualityRequiresAttackChoice(quality)) {
     return [];
   }
@@ -3958,6 +4225,39 @@ getEnemyQualityEffectiveMax(
 
   const qualityId = getEnemyQualityId(quality);
 
+  if (
+  enemyQualityUsesEffectAttackChoice(
+    quality
+  )
+) {
+  const currentRank =
+    this.getEnemyQualitySelectionRank(
+      qualityId
+    );
+
+  const availableAttackKeys = new Set(
+    this
+      ._getEnemyQualityDynamicChoiceOptions(
+        quality
+      )
+      .map((option) => {
+        return String(
+          option.attackKey ?? ""
+        ).trim();
+      })
+      .filter(Boolean)
+  );
+
+  /*
+   * O máximo é igual aos Ranks já comprados
+   * mais o número de Ataques ainda disponíveis.
+   */
+  return (
+    currentRank +
+    availableAttackKeys.size
+  );
+}
+
   if (qualityId === "forcaElemental") {
     return this.getEnemyQualitySelectionRank(
       "passoNatural"
@@ -4035,12 +4335,15 @@ _getEnemyQualityAllChoiceOptions(quality = {}) {
     quality.choices?.type ?? ""
   ).trim();
 
-  const staticOptions =
+const staticOptions =
+  (
     ENEMY_SPECIAL_PAIR_CHOICE_TYPES.has(
       choiceType
-    )
-      ? []
-      : getEnemyStaticChoiceOptions(quality);
+    ) ||
+    choiceType === "effectTagPerRank"
+  )
+    ? []
+    : getEnemyStaticChoiceOptions(quality);
 
   const options = [
     ...staticOptions,
@@ -4312,22 +4615,29 @@ _getEnemyQualityAvailableChoiceOptions(
     );
   }
 
-  if (
-    [
-      "efeitoBasico",
-      "efeitoAvancado",
-      "efeitoMestre"
-    ].includes(qualityId)
-  ) {
-    const overclockEffectKeys =
-      this._getEnemyOverclockSelectedEffectKeys();
+if (
+  [
+    "efeitoBasico",
+    "efeitoAvancado",
+    "efeitoMestre"
+  ].includes(qualityId)
+) {
+  const overclockEffectKeys =
+    this._getEnemyOverclockSelectedEffectKeys();
 
-    options = options.filter((option) => {
-      return !overclockEffectKeys.has(
-        String(option.key ?? "")
-      );
-    });
-  }
+  options = options.filter((option) => {
+    return !overclockEffectKeys.has(
+      String(
+        option.effectTag ??
+        option.attackTag ??
+        option.key ??
+        ""
+      )
+        .trim()
+        .toLowerCase()
+    );
+  });
+}
 
   return options;
 }
@@ -4549,7 +4859,10 @@ _getEnemyAttackQualityTags(
   attackKey = "",
   build = {}
 ) {
-  const key = String(attackKey ?? "");
+  const key = String(
+    attackKey ?? ""
+  ).trim();
+
   const tags = new Set();
 
   const qualityRows = Array.isArray(
@@ -4559,23 +4872,62 @@ _getEnemyAttackQualityTags(
     : [];
 
   for (const row of qualityRows) {
-    const appliesToAttack = (
+    const matchingChoices = (
       row.choiceRows ?? []
-    ).some((choice) => {
-      return String(
-        choice.attackKey ??
-        choice.key ??
-        ""
-      ) === key;
+    ).filter((choice) => {
+      const choiceAttackKey = String(
+        choice.attackKey ?? ""
+      ).trim();
+
+      if (choiceAttackKey) {
+        return choiceAttackKey === key;
+      }
+
+      const choiceKey = String(
+        choice.key ?? ""
+      ).trim();
+
+      return (
+        choiceKey === key ||
+        choiceKey.startsWith(`${key}:`)
+      );
     });
 
-    if (!appliesToAttack) continue;
+    if (!matchingChoices.length) {
+      continue;
+    }
+
+    if (
+      enemyQualityUsesEffectAttackChoice(
+        row.quality
+      )
+    ) {
+      for (const choice of matchingChoices) {
+        const effectTag = String(
+          choice.effectTag ??
+          choice.attackTag ??
+          ""
+        )
+          .trim()
+          .replace(/^\[|\]$/g, "")
+          .toLowerCase();
+
+        if (effectTag) {
+          tags.add(effectTag);
+        }
+      }
+
+      continue;
+    }
 
     for (
       const tag of
-      row.quality?.attackModifier?.grantsTags ?? []
+      row.quality?.attackModifier
+        ?.grantsTags ?? []
     ) {
-      const normalizedTag = String(tag ?? "")
+      const normalizedTag = String(
+        tag ?? ""
+      )
         .trim()
         .replace(/^\[|\]$/g, "")
         .toLowerCase();
@@ -4587,6 +4939,82 @@ _getEnemyAttackQualityTags(
   }
 
   return [...tags];
+}
+
+_getEnemyAttackEffectChoice(
+  attackKey = "",
+  build = {}
+) {
+  const key = String(
+    attackKey ?? ""
+  ).trim();
+
+  if (!key) return null;
+
+  const qualityRows = Array.isArray(
+    build.selectedQualityRows
+  )
+    ? build.selectedQualityRows
+    : [];
+
+  for (const row of qualityRows) {
+    if (
+      !enemyQualityUsesEffectAttackChoice(
+        row.quality
+      )
+    ) {
+      continue;
+    }
+
+    const choice = (
+      row.choiceRows ?? []
+    ).find((entry) => {
+      const choiceAttackKey = String(
+        entry.attackKey ?? ""
+      ).trim();
+
+      if (choiceAttackKey) {
+        return choiceAttackKey === key;
+      }
+
+      const choiceKey = String(
+        entry.key ?? ""
+      ).trim();
+
+      return choiceKey.startsWith(
+        `${key}:`
+      );
+    });
+
+    if (!choice) continue;
+
+    const effectTag = String(
+      choice.effectTag ??
+      choice.attackTag ??
+      ""
+    )
+      .trim()
+      .replace(/^\[|\]$/g, "")
+      .toLowerCase();
+
+    if (!effectTag) continue;
+
+    return {
+      ...foundry.utils.deepClone(
+        choice
+      ),
+
+      effectTag,
+
+      sourceQualityId: String(
+        row.id ??
+        row.quality?.id ??
+        ""
+      )
+    };
+  }
+
+  return null;
 }
 
 _buildEnemyAttackItems(form = {}, build = {}) {
@@ -4614,6 +5042,16 @@ _buildEnemyAttackItems(form = {}, build = {}) {
           attack.key,
           build
         );
+
+      const effectChoice =
+        this._getEnemyAttackEffectChoice(
+          attack.key,
+          build
+        );
+
+      const effectTag = String(
+        effectChoice?.effectTag ?? ""
+      ).trim();
 
       return {
         name: String(
@@ -4657,12 +5095,31 @@ _buildEnemyAttackItems(form = {}, build = {}) {
           qualityTags,
 
           effectTag: {
-            enabled: false,
-            tag: "",
-            type: "",
-            sourceQualityId: "",
-            potencyStat: "",
-            duration: true
+            enabled: Boolean(effectTag),
+
+            tag:
+              effectTag,
+
+            type: String(
+              effectChoice?.effectType ??
+              effectChoice?.type ??
+              ""
+            ),
+
+            sourceQualityId: String(
+              effectChoice?.sourceQualityId ??
+              ""
+            ),
+
+            potencyStat: String(
+              effectChoice?.potencyStat ??
+              effectChoice?.potency ??
+              ""
+            ),
+
+            duration:
+              effectChoice?.duration ??
+              true
           },
 
           accuracy: {
@@ -4685,7 +5142,11 @@ _buildEnemyAttackItems(form = {}, build = {}) {
 
           support: {
             enabled: isSupport,
-            effect: "",
+
+            effect: String(
+              effectChoice?.effect ?? ""
+            ),
+
             potency: 0,
             duration: 1
           },
@@ -5332,18 +5793,23 @@ _buildEnemyAttackItems(form = {}, build = {}) {
         }
       );
 
+    let selectedChoiceOption = null;
+
     if (needsChoice) {
       const options =
         this.getEnemySuperiorModeQualityBrowserChoiceOptions(
           quality
         );
 
-      if (
-        !choiceKey ||
-        !options.some((option) => {
+      selectedChoiceOption =
+        options.find((option) => {
           return String(option.key ?? "") ===
             String(choiceKey);
-        })
+        }) ?? null;
+
+      if (
+        !choiceKey ||
+        !selectedChoiceOption
       ) {
         ui.notifications.warn(text(
           "Escolha uma opção válida antes de adicionar esta Qualidade do Modo.",
@@ -5359,6 +5825,16 @@ _buildEnemyAttackItems(form = {}, build = {}) {
         quality,
         choiceKey,
         mainStat
+      );
+
+    const selectedChoiceRank =
+      naturewalkChoiceRank ??
+      (
+        needsChoice && selectedChoiceOption
+          ? foundry.utils.deepClone(
+              selectedChoiceOption
+            )
+          : null
       );
 
     if (
@@ -5409,11 +5885,11 @@ _buildEnemyAttackItems(form = {}, build = {}) {
           choiceKey
         );
 
-        if (naturewalkChoiceRank) {
+        if (selectedChoiceRank) {
           existing.choiceRanks ??= [];
 
           existing.choiceRanks.push(
-            naturewalkChoiceRank
+            selectedChoiceRank
           );
         }
       }
@@ -5433,8 +5909,8 @@ _buildEnemyAttackItems(form = {}, build = {}) {
           : [],
 
         choiceRanks:
-          naturewalkChoiceRank
-            ? [naturewalkChoiceRank]
+          selectedChoiceRank
+            ? [selectedChoiceRank]
             : []
       });
     }
@@ -5781,7 +6257,7 @@ if (effectiveMax <= 0) {
 
   return false;
 }
-
+let selectedChoiceOption = null;
 if (
   this._enemyQualityNeedsChoiceForNextRank(
     quality
@@ -5792,13 +6268,16 @@ if (
       quality
     );
 
-  if (
-    !choiceKey ||
-    !options.some((option) => {
+  selectedChoiceOption =
+    options.find((option) => {
       return String(
         option.key ?? ""
       ) === String(choiceKey);
-    })
+    }) ?? null;
+
+  if (
+    !choiceKey ||
+    !selectedChoiceOption
   ) {
     ui.notifications.warn(text(
       "Escolha uma opção válida antes de adicionar esta Qualidade.",
@@ -5814,6 +6293,16 @@ if (
         quality,
         choiceKey,
         mainStat
+      );
+
+    const selectedChoiceRank =
+      naturewalkChoiceRank ??
+      (
+        selectedChoiceOption
+          ? foundry.utils.deepClone(
+              selectedChoiceOption
+            )
+          : null
       );
 
     if (
@@ -5867,11 +6356,11 @@ if (
           choiceKey
         );
 
-        if (naturewalkChoiceRank) {
+        if (selectedChoiceRank) {
           existing.choiceRanks ??= [];
 
           existing.choiceRanks.push(
-            naturewalkChoiceRank
+            selectedChoiceRank
           );
         }
       }
@@ -5894,8 +6383,8 @@ if (
             : [],
 
         choiceRanks:
-          naturewalkChoiceRank
-            ? [naturewalkChoiceRank]
+          selectedChoiceRank
+            ? [selectedChoiceRank]
             : []
       });
     }

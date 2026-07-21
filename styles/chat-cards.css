@@ -1560,22 +1560,60 @@
   margin-top: 0.35rem !important;
 }
 
-.dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag {
-  display: inline-flex !important;
-  align-items: center !important;
+.dda-chat-card.dda-effect-card.dda-attack-card
+.attack-effect-tag.attack-effect-tag-detailed {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.22rem !important;
 
-  padding: 0.18rem 0.42rem !important;
+  min-width: 7.2rem !important;
+  padding: 0.30rem 0.46rem !important;
+
+  border-radius: 7px !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card
+.attack-effect-tag-name {
+  display: block !important;
 
   color: #ffffff !important;
-  font-size: 0.68rem !important;
-  font-weight: 700 !important;
+  font-size: 0.70rem !important;
+  font-weight: 800 !important;
   line-height: 1.1 !important;
-  letter-spacing: 0.03em !important;
+  letter-spacing: 0.04em !important;
+}
 
-  border-radius: 999px !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+.dda-chat-card.dda-effect-card.dda-attack-card
+.attack-effect-tag-values {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.22rem !important;
+}
 
-  background: rgba(20, 32, 44, 0.78) !important;
+.dda-chat-card.dda-effect-card.dda-attack-card
+.attack-effect-tag-value {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.18rem !important;
+
+  padding: 0.12rem 0.26rem !important;
+
+  color: rgba(235, 250, 255, 0.90) !important;
+  font-size: 0.59rem !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+
+  background: rgba(0, 8, 16, 0.34) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border-radius: 4px !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-attack-card
+.attack-effect-tag-value strong {
+  color: #ffffff !important;
+  font-size: 0.64rem !important;
+  font-weight: 900 !important;
 }
 
 .dda-chat-card.dda-effect-card.dda-attack-card .attack-effect-tag.effect-positive {
@@ -4948,4 +4986,83 @@
 
 .dda-pool-card .pool-quality-automatic-successes span strong {
   color: #ffffff;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-modifier-chips .modifier-chip.kind-battery {
+  color: #fff1a8 !important;
+  border-color: rgba(255, 214, 77, 0.55) !important;
+  background: rgba(98, 68, 9, 0.72) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-modifier-chips .modifier-chip.kind-quality-total {
+  color: #f2dcff !important;
+  border-color: rgba(201, 119, 255, 0.52) !important;
+  background: rgba(76, 31, 104, 0.72) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-modifier-chips .modifier-chip.kind-quality.is-detail {
+  padding-inline: 0.34rem !important;
+  color: #ebd6ff !important;
+  font-size: 0.62rem !important;
+  border-color: rgba(197, 134, 241, 0.34) !important;
+  background: rgba(49, 27, 66, 0.68) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-modifier-chips .modifier-chip.kind-quality.is-detail::before {
+  content: "◆";
+  margin-right: 0.24rem;
+  color: #cf7fff;
+  font-size: 0.48rem;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-modifier-chips .modifier-chip.kind-tamerDirect {
+  color: #c8fbff !important;
+  border-color: rgba(87, 229, 255, 0.58) !important;
+  background: rgba(10, 79, 102, 0.76) !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-modifier-chips .modifier-chip.kind-tamerDirect::before {
+  content: "▸";
+  margin-right: 0.24rem;
+  color: #73eeff;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-reroll-protected-note {
+  color: rgba(216, 242, 250, 0.82) !important;
+  font-size: 0.68rem !important;
+}
+
+.dda-chat-card.dda-effect-card.dda-pool-card .pool-reroll-protected-note i {
+  margin-right: 0.3rem;
+  color: #77eaff;
+}
+/* Intercede uses the same glass-and-neon language as the combat cards. */
+.dda-intercede-card .dda-intercede-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dda-intercede-card .dda-intercede-options button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid rgba(103, 221, 255, 0.55);
+  border-radius: 9px;
+  color: #e9fbff;
+  background: linear-gradient(145deg, rgba(17, 91, 137, 0.95), rgba(5, 37, 68, 0.98));
+}
+
+.dda-intercede-card .dda-intercede-options button small {
+  grid-column: 2;
+  color: rgba(218, 244, 255, 0.72);
+}
+
+.dda-intercede-card.is-resolved {
+  border-color: rgba(122, 235, 255, 0.75);
+  box-shadow: inset 0 0 20px rgba(45, 166, 218, 0.16);
 }

@@ -9,6 +9,11 @@ import {
   hasUnlockedOfficialTamerTalent,
   maybeApplyGritSurvival
 } from "../rules/tamer-resources.js";
+
+import {
+  checkActorActionSpend,
+  spendActorActions
+} from "../combat/action-economy.js";
 const DAMAGE_TYPE_LABEL_KEYS = {
   crash: "DDA.Damage.Type.Crash",
   burn: "DDA.Damage.Type.Burn",
@@ -89,6 +94,9 @@ export async function applyDamageFromChat(event) {
   const damage = Number(button.dataset.damage ?? 0);
   const damageType = normalizeDamageType(button.dataset.damageType ?? "");
   const damageLabel = String(button.dataset.damageLabel ?? "").trim();
+  const holdBack = button.dataset.holdBack === "true";
+  const tamerIntercede = button.dataset.tamerIntercede === "true";
+  const unalterable = button.dataset.unalterable === "true";
 
   if (!defenderUuid) {
     warnLocalized(
@@ -133,6 +141,9 @@ export async function applyDamageFromChat(event) {
     const result = await applyDamage(defender, damage, {
       damageType,
       damageLabel,
+      holdBack,
+      tamerIntercede,
+      unalterable,
       attacker
     });
 
@@ -543,6 +554,79 @@ export async function tryUndefeatedEndurance(
   };
 }
 
+async function maybeUseStandardFatesProtection(actor, options = {}) {
+  if (
+    actor?.type !== "character" ||
+    !options?.attacker ||
+    options?.tamerIntercede
+  ) {
+    return null;
+  }
+
+  const actionCheck = checkActorActionSpend(actor, 1, {
+    requireActiveUnit: false,
+    notify: false
+  });
+
+  if (!actionCheck) return null;
+
+  const combatId = String(getCombatId() ?? "");
+  const storedCombatId = String(
+    actor.system?.combat?.fatesProtectionStandardCombatId ?? ""
+  );
+  const usesBefore = storedCombatId === combatId
+    ? Math.max(0, Number(actor.system?.combat?.fatesProtectionStandardUses ?? 0))
+    : 0;
+  const ipCost = usesBefore > 0 ? 2 : 0;
+  const ipBefore = Math.max(0, Number(actor.system?.resources?.ip?.value ?? 0));
+
+  if (ipBefore < ipCost) return null;
+
+  const confirmed = await Dialog.confirm({
+    title: localizeWithFallback(
+      "DDA.FatesProtection.Title",
+      "Proteção do Destino"
+    ),
+    content: `<div class="dda-confirm-dialog dda-fates-protection-dialog">
+      <p>${escapeHtml(localizeWithFallback(
+        "DDA.FatesProtection.Prompt",
+        "Usar Proteção do Destino para evitar todo o Dano deste Ataque?"
+      ))}</p>
+      <p>${escapeHtml(localizeWithFallback(
+        ipCost > 0
+          ? "DDA.FatesProtection.CostPaid"
+          : "DDA.FatesProtection.FirstUseFree",
+        ipCost > 0
+          ? "Esta utilização custa 1 Ação e 2 PI."
+          : "A primeira utilização no Combate custa 1 Ação e nenhum PI."
+      ))}</p>
+    </div>`,
+    yes: () => true,
+    no: () => false,
+    defaultYes: false
+  });
+
+  if (!confirmed) return null;
+
+  const payment = await spendActorActions(actor, 1, {
+    requireActiveUnit: false,
+    notify: true
+  });
+
+  if (!payment) return null;
+
+  return {
+    used: true,
+    combatId,
+    usesBefore,
+    usesAfter: usesBefore + 1,
+    ipCost,
+    ipBefore,
+    ipAfter: ipBefore - ipCost,
+    payment
+  };
+}
+
 async function applyDamageToActor(actor, damage, options = {}, config = {}) {
   const wounds = foundry.utils.getProperty(actor, config.woundsDataPath);
 
@@ -563,8 +647,77 @@ const result = calculateWoundLoss(
   effectiveDamage
 );
 
-const gritSurvival =
-  await maybeApplyGritSurvival(
+const intercedePending = actor.type === "character" && Boolean(options.tamerIntercede);
+
+let intercedeSurvival = null;
+
+if (intercedePending) {
+  const ipCurrent = Math.max(0, Number(actor.system?.resources?.ip?.value ?? 0));
+  const combatId = String(getCombatId() ?? "");
+  const fateAlreadyUsed = String(actor.system?.combat?.fatesProtectionCombatId ?? "") === combatId;
+  const canUseFatesProtection = ipCurrent >= 2 && !fateAlreadyUsed;
+  const useFatesProtection = canUseFatesProtection && await Dialog.confirm({
+    title: localizeWithFallback("DDA.Intercede.FatesProtectionTitle", "Fate's Protection"),
+    content: `<p>${localizeWithFallback(
+      "DDA.Intercede.FatesProtectionPrompt",
+      "Spend 2 IP so {actor} remains at 1 Wound Box after Interceding?",
+      { actor: actor.name }
+    )}</p>`,
+    yes: () => true,
+    no: () => false,
+    defaultYes: false
+  });
+
+  result.temp = 0;
+  result.wounds = useFatesProtection ? 1 : 0;
+  result.tempDamage = currentTemp;
+  result.healthDamage = Math.max(0, currentWounds - result.wounds);
+  intercedeSurvival = {
+    used: true,
+    fatesProtection: Boolean(useFatesProtection),
+    ipBefore: ipCurrent,
+    ipAfter: useFatesProtection ? ipCurrent - 2 : ipCurrent,
+    combatId
+  };
+}
+
+let fatesProtection = null;
+
+if (!intercedePending && effectiveDamage > 0) {
+  fatesProtection = await maybeUseStandardFatesProtection(actor, options);
+
+  if (fatesProtection?.used) {
+    result.temp = currentTemp;
+    result.wounds = currentWounds;
+    result.tempDamage = 0;
+    result.healthDamage = 0;
+    result.absorbedByTemp = 0;
+  }
+}
+
+let regenSurvival = null;
+let activeEffectsUpdate = null;
+const activeEffects = foundry.utils.deepClone(actor.system?.effects?.active ?? []);
+const regenIndex = activeEffects.findIndex((effect) => {
+  return String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase() === "regen";
+});
+const regenAlreadyUsed = String(actor.system?.combat?.regenSurvivalCombatId ?? "") === String(getCombatId());
+
+if (!intercedePending && !fatesProtection?.used && result.wounds <= 0 && regenIndex >= 0 && !regenAlreadyUsed) {
+  const [regenEffect] = activeEffects.splice(regenIndex, 1);
+  result.wounds = 1;
+  result.healthDamage = Math.max(0, currentWounds - 1);
+  activeEffectsUpdate = activeEffects;
+  regenSurvival = {
+    used: true,
+    effect: regenEffect,
+    combatId: getCombatId()
+  };
+}
+
+const gritSurvival = intercedePending || fatesProtection?.used
+  ? null
+  : await maybeApplyGritSurvival(
     actor,
     {
       currentWounds,
@@ -592,8 +745,9 @@ if (gritSurvival?.used) {
   );
 }
 
-const undefeatedEndurance =
-  await tryUndefeatedEndurance(
+const undefeatedEndurance = intercedePending || fatesProtection?.used
+  ? null
+  : await tryUndefeatedEndurance(
     actor,
     {
       prospectiveWounds:
@@ -611,6 +765,13 @@ if (undefeatedEndurance?.used) {
     undefeatedEndurance.wounds;
 }
 
+const heldBack = Boolean(!intercedePending && options.holdBack && currentWounds > 0 && result.wounds <= 0);
+
+if (heldBack) {
+  result.wounds = 1;
+  result.healthDamage = Math.max(0, currentWounds - 1);
+}
+
 await actor.update({
   [config.woundsValuePath]:
     result.wounds,
@@ -619,7 +780,22 @@ await actor.update({
     result.temp,
 
   "system.combat.defeated":
-    result.wounds <= 0
+    result.wounds <= 0,
+
+  ...(heldBack ? { "system.combat.incapacitated": true } : {}),
+
+  ...(activeEffectsUpdate ? { "system.effects.active": activeEffectsUpdate } : {}),
+  ...(regenSurvival ? { "system.combat.regenSurvivalCombatId": regenSurvival.combatId } : {}),
+  ...(intercedeSurvival?.fatesProtection ? {
+    "system.resources.ip.value": intercedeSurvival.ipAfter,
+    "system.combat.fatesProtectionCombatId": intercedeSurvival.combatId
+  } : {}),
+
+  ...(fatesProtection?.used ? {
+    "system.resources.ip.value": fatesProtection.ipAfter,
+    "system.combat.fatesProtectionStandardCombatId": fatesProtection.combatId,
+    "system.combat.fatesProtectionStandardUses": fatesProtection.usesAfter
+  } : {})
 });
 
 let shieldBroken = false;
@@ -638,6 +814,9 @@ shieldBroken,
 combatMonsterResolve,
 gritSurvival,
 undefeatedEndurance,
+regenSurvival,
+intercedeSurvival,
+fatesProtection,
 before: {
     wounds: currentWounds,
     temp: currentTemp
@@ -663,6 +842,7 @@ content: buildDamageChatContent({
   shieldBroken,
   combatMonsterResolve,
   gritSurvival,
+  fatesProtection,
   currentWounds,
   currentTemp,
   effectiveDamage
@@ -712,6 +892,7 @@ function buildDamageChatContent({
   shieldBroken,
   combatMonsterResolve,
   gritSurvival,
+  fatesProtection,
   currentWounds,
   currentTemp,
   effectiveDamage
@@ -791,6 +972,16 @@ function buildDamageChatContent({
           ${escapeHtml(localizeWithFallback("DDA.Damage.Health", "Saúde"))}:
           <strong>${currentWounds} → ${result.wounds}</strong>.
         </li>
+        ${
+          fatesProtection?.used
+            ? `
+              <li class="damage-fates-protection">
+                <strong>${escapeHtml(localizeWithFallback("DDA.FatesProtection.Title", "Proteção do Destino"))}:</strong>
+                ${escapeHtml(localizeWithFallback("DDA.FatesProtection.Applied", "Todo o Dano deste Ataque foi evitado."))}
+              </li>
+            `
+            : ""
+        }
         ${
           gritSurvival?.used
             ? `

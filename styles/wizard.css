@@ -6582,3 +6582,706 @@ html body .app.window-app.dda-wizard
 .dda-naturewalk-choice-form select {
   width: 100%;
 }
+
+/* ===================================================== */
+/* DDA — Ready-made Builds e Review Cards                */
+/* ===================================================== */
+
+.dda-build-template-card {
+  --template-accent: 96, 190, 255;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(var(--template-accent), 0.17),
+      transparent 42%
+    ),
+    linear-gradient(
+      155deg,
+      rgba(32, 75, 105, 0.8),
+      rgba(10, 37, 61, 0.92)
+    );
+
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.dda-build-template-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  height: 3px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--template-accent), 0.95),
+      rgba(var(--template-accent), 0)
+    );
+}
+
+.dda-build-template-card.role-damage,
+.dda-build-template-card.role-bruiser {
+  --template-accent: 255, 126, 93;
+}
+
+.dda-build-template-card.role-defense,
+.dda-build-template-card.role-clash {
+  --template-accent: 89, 208, 255;
+}
+
+.dda-build-template-card.role-control {
+  --template-accent: 195, 126, 255;
+}
+
+.dda-build-template-card.role-support {
+  --template-accent: 103, 222, 160;
+}
+
+.dda-build-template-card.role-mobility {
+  --template-accent: 92, 178, 255;
+}
+
+.dda-build-template-card.role-balanced,
+.dda-build-template-card.role-wildcard {
+  --template-accent: 255, 211, 105;
+}
+
+.dda-build-template-card:hover {
+  border-color:
+    rgba(var(--template-accent), 0.76);
+
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(var(--template-accent), 0.25),
+      transparent 44%
+    ),
+    linear-gradient(
+      155deg,
+      rgba(38, 85, 117, 0.9),
+      rgba(11, 41, 67, 0.96)
+    );
+
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.2);
+
+  transform: translateY(-2px);
+}
+
+.dda-build-template-card.selected {
+  border-color:
+    rgba(var(--template-accent), 0.9);
+
+  box-shadow:
+    0 0 0 2px
+      rgba(var(--template-accent), 0.14),
+    0 0 20px
+      rgba(var(--template-accent), 0.18);
+
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(var(--template-accent), 0.28),
+      transparent 44%
+    ),
+    linear-gradient(
+      155deg,
+      rgba(41, 89, 119, 0.94),
+      rgba(12, 43, 70, 0.98)
+    );
+}
+
+.dda-build-template-icon {
+  background:
+    rgba(var(--template-accent), 0.16);
+
+  border-color:
+    rgba(var(--template-accent), 0.44);
+
+  box-shadow:
+    0 0 14px
+      rgba(var(--template-accent), 0.12);
+}
+
+/*
+ * Três atributos na primeira linha e dois
+ * centralizados na segunda.
+ *
+ * Isso evita que Accuracy e Damage se misturem
+ * na largura padrão do wizard.
+ */
+.dda-build-template-card dl {
+  grid-template-columns:
+    repeat(6, minmax(0, 1fr));
+}
+
+.dda-build-template-card dl div {
+  grid-column: span 2;
+}
+
+.dda-build-template-card dl div:nth-child(4) {
+  grid-column: 2 / span 2;
+}
+
+.dda-build-template-card dl div:nth-child(5) {
+  grid-column: 4 / span 2;
+}
+
+.dda-build-template-quality-block {
+  display: grid;
+  gap: 7px;
+  padding-top: 9px;
+
+  border-top:
+    1px solid
+    rgba(var(--template-accent), 0.22);
+}
+
+.dda-build-template-quality-count span {
+  color:
+    rgb(var(--template-accent));
+
+  text-shadow:
+    0 0 7px
+    rgba(var(--template-accent), 0.5);
+}
+
+.dda-build-template-quality-list {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dda-build-template-quality-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  min-width: 0;
+  padding: 5px 7px;
+
+  border:
+    1px solid
+    rgba(var(--template-accent), 0.18);
+
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.16);
+  color: #e8f6ff;
+}
+
+.dda-build-template-quality-list li > span {
+  flex: 0 0 auto;
+
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+
+  background:
+    rgb(var(--template-accent));
+
+  box-shadow:
+    0 0 6px
+    rgba(var(--template-accent), 0.55);
+}
+
+.dda-build-template-quality-list li strong {
+  min-width: 0;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.dda-build-template-quality-list li.missing {
+  border-color: rgba(255, 100, 100, 0.52);
+  color: #ffc6cb;
+}
+
+/* ===================================================== */
+/* DDA — Review cards por forma                          */
+/* ===================================================== */
+
+.dda-form-build-summary-card {
+  --form-accent: 105, 196, 255;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at 100% 0,
+      rgba(var(--form-accent), 0.14),
+      transparent 38%
+    ),
+    linear-gradient(
+      155deg,
+      rgba(13, 43, 68, 0.88),
+      rgba(6, 20, 39, 0.94)
+    );
+
+  box-shadow:
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.04),
+    0 8px 22px
+      rgba(0, 0, 0, 0.14);
+}
+
+.dda-form-build-summary-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  height: 3px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--form-accent), 0.95),
+      rgba(var(--form-accent), 0)
+    );
+}
+
+.dda-form-build-summary-card.stage-baby1 {
+  --form-accent: 126, 220, 157;
+}
+
+.dda-form-build-summary-card.stage-baby2 {
+  --form-accent: 105, 196, 255;
+}
+
+.dda-form-build-summary-card.stage-child {
+  --form-accent: 255, 211, 105;
+}
+
+.dda-form-build-summary-card header img {
+  padding: 3px;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(var(--form-accent), 0.16),
+      rgba(0, 0, 0, 0.3)
+    );
+
+  border:
+    1px solid
+    rgba(var(--form-accent), 0.46);
+
+  box-shadow:
+    0 0 14px
+    rgba(var(--form-accent), 0.11);
+}
+
+.dda-form-build-summary-budget {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+
+  gap: 2px 8px;
+  margin: 2px 0 11px;
+  padding: 7px 9px;
+
+  border:
+    1px solid
+    rgba(120, 190, 255, 0.2);
+
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dda-form-build-summary-budget > span {
+  grid-row: 1 / span 2;
+
+  display: grid;
+  place-items: center;
+
+  min-width: 35px;
+  min-height: 35px;
+
+  border-radius: 9px;
+  background: rgba(95, 190, 255, 0.14);
+
+  color: #cfeeff;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.dda-form-build-summary-budget strong,
+.dda-form-build-summary-budget small {
+  text-align: right;
+}
+
+.dda-form-build-summary-budget strong {
+  color: #f6fbff;
+  font-size: 0.94rem;
+}
+
+.dda-form-build-summary-budget small {
+  color: #a9c7dc;
+  font-size: 0.72rem;
+}
+
+.dda-form-build-summary-budget.is-balanced {
+  border-color: rgba(106, 226, 171, 0.42);
+  background: rgba(36, 139, 98, 0.12);
+}
+
+.dda-form-build-summary-budget.is-balanced > span {
+  background: rgba(67, 196, 139, 0.18);
+  color: #baffdd;
+}
+
+.dda-form-build-summary-budget.is-available {
+  border-color: rgba(105, 196, 255, 0.38);
+}
+
+.dda-form-build-summary-budget.is-over {
+  border-color: rgba(255, 100, 100, 0.7);
+  background: rgba(152, 31, 42, 0.18);
+
+  box-shadow:
+    inset 0 0 14px
+    rgba(180, 30, 45, 0.1);
+}
+
+.dda-form-build-summary-budget.is-over > span {
+  background: rgba(220, 57, 70, 0.24);
+  color: #ffd1d5;
+}
+
+.dda-form-build-summary-budget.is-over small {
+  color: #ffb6bd;
+  font-weight: 800;
+}
+
+.dda-form-build-summary-section h4 {
+  color:
+    rgb(var(--form-accent));
+
+  letter-spacing: 0.025em;
+}
+
+.dda-form-build-summary-section ul {
+  display: grid;
+  gap: 4px;
+
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dda-form-build-summary-section li {
+  position: relative;
+
+  padding:
+    4px 7px 4px 17px;
+
+  border-radius: 7px;
+  background:
+    rgba(255, 255, 255, 0.035);
+
+  color: #e5f4fd;
+  line-height: 1.25;
+}
+
+.dda-form-build-summary-section li::before {
+  content: "";
+  position: absolute;
+
+  left: 7px;
+  top: 0.72em;
+
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+
+  background:
+    rgb(var(--form-accent));
+
+  box-shadow:
+    0 0 6px
+    rgba(var(--form-accent), 0.55);
+}
+
+/* ===================================================== */
+/* DDA — Contraste dos nomes e ataques das formas        */
+/* ===================================================== */
+
+html body
+.window-app.dda-wizard
+.dda-line-form-fields input,
+
+html body
+.app.window-app.dda-wizard
+.dda-line-form-fields input {
+  min-height: 36px !important;
+  padding: 7px 10px !important;
+
+  color: #f5fcff !important;
+  -webkit-text-fill-color: #f5fcff !important;
+
+  caret-color: #ffffff !important;
+  font-family:
+    "Trebuchet MS",
+    Arial,
+    sans-serif !important;
+
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(1, 15, 29, 0.96),
+      rgba(4, 29, 50, 0.98)
+    ) !important;
+
+  border:
+    1px solid
+    rgba(130, 210, 255, 0.48) !important;
+
+  border-radius: 9px !important;
+}
+
+html body
+.window-app.dda-wizard
+.dda-line-form-fields input::placeholder,
+
+html body
+.app.window-app.dda-wizard
+.dda-line-form-fields input::placeholder {
+  color: #8fb7cf !important;
+  opacity: 1 !important;
+}
+
+html body
+.window-app.dda-wizard
+.dda-line-form-fields input:focus,
+
+html body
+.app.window-app.dda-wizard
+.dda-line-form-fields input:focus {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+
+  outline: none !important;
+
+  border-color:
+    rgba(185, 240, 255, 0.95) !important;
+
+  box-shadow:
+    inset 0 0 10px
+      rgba(0, 0, 0, 0.34),
+    0 0 0 2px
+      rgba(75, 190, 245, 0.18),
+    0 0 14px
+      rgba(90, 210, 255, 0.2) !important;
+}
+/* ===================================================== */
+/* DDA Wizard — ajuste de PD a partir da revisão         */
+/* ===================================================== */
+
+.dda-form-build-adjust-button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  width: 100%;
+  min-height: 48px;
+  margin: -2px 0 12px;
+  padding: 7px 10px;
+
+  border: 1px solid rgba(var(--form-accent), 0.42);
+  border-radius: 11px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(var(--form-accent), 0.18),
+      rgba(8, 27, 48, 0.82) 62%
+    );
+
+  color: #eefaff;
+  text-align: left;
+  cursor: pointer;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 12px rgba(0, 0, 0, 0.12);
+
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.dda-form-build-adjust-button:hover,
+.dda-form-build-adjust-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(var(--form-accent), 0.82);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(var(--form-accent), 0.29),
+      rgba(10, 38, 66, 0.94) 68%
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 7px 16px rgba(0, 0, 0, 0.2),
+    0 0 13px rgba(var(--form-accent), 0.14);
+}
+
+.dda-form-build-adjust-button.is-over {
+  border-color: rgba(255, 105, 118, 0.7);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(195, 43, 60, 0.3),
+      rgba(52, 14, 25, 0.86) 70%
+    );
+}
+
+.dda-form-build-adjust-button__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+
+  background: rgba(var(--form-accent), 0.16);
+  color: rgb(var(--form-accent));
+}
+
+.dda-form-build-adjust-button.is-over
+.dda-form-build-adjust-button__icon {
+  background: rgba(255, 105, 118, 0.17);
+  color: #ffb1ba;
+}
+
+.dda-form-build-adjust-button__copy {
+  display: grid;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dda-form-build-adjust-button__copy strong {
+  overflow: hidden;
+
+  color: #f4fbff;
+  font-size: 0.82rem;
+  line-height: 1.15;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-form-build-adjust-button__copy small {
+  overflow: hidden;
+
+  color: #a9c9dd;
+  font-size: 0.68rem;
+  line-height: 1.15;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-form-build-adjust-button > .fa-chevron-right {
+  flex: 0 0 auto;
+
+  color: rgba(var(--form-accent), 0.82);
+  font-size: 0.72rem;
+}
+
+.dda-review-adjustment-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin: 0 0 14px;
+  padding: 11px 13px;
+
+  border: 1px solid rgba(103, 205, 255, 0.44);
+  border-radius: 13px;
+
+  background:
+    radial-gradient(
+      circle at 0 50%,
+      rgba(75, 191, 255, 0.18),
+      transparent 42%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(10, 47, 77, 0.9),
+      rgba(6, 24, 44, 0.94)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.dda-review-adjustment-banner__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+
+  border: 1px solid rgba(125, 220, 255, 0.36);
+  background: rgba(75, 191, 255, 0.14);
+  color: #a9e9ff;
+
+  box-shadow:
+    0 0 13px rgba(70, 190, 255, 0.12);
+}
+
+.dda-review-adjustment-banner > div {
+  min-width: 0;
+}
+
+.dda-review-adjustment-banner strong {
+  display: block;
+
+  margin-bottom: 2px;
+
+  color: #f2fbff;
+  font-size: 0.9rem;
+}
+
+.dda-review-adjustment-banner p {
+  margin: 0;
+
+  color: #b8d5e7;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 620px) {
+  .dda-form-build-adjust-button__copy strong,
+  .dda-form-build-adjust-button__copy small {
+    white-space: normal;
+  }
+}

@@ -1163,6 +1163,83 @@ export async function getCurrentPartnerFormWizardContext(
   };
 }
 
+export async function getStoredPartnerFormWizardContext(
+  sourceActor,
+  sourceFormUuid
+) {
+  const actors = await resolveCurrentFormWizardActors(sourceActor);
+  if (!actors) return null;
+
+  const { tamerActor, partnerActor } = actors;
+  const wantedReference = String(sourceFormUuid ?? "").trim();
+
+  if (!wantedReference) {
+    ui.notifications.warn(localize("DDA.Warning.ChosenEvolutionFormNotFound"));
+    return null;
+  }
+
+  const snapshot = getPartnerFormSnapshot(partnerActor, wantedReference);
+
+  if (!snapshot) {
+    ui.notifications.warn(localize("DDA.Warning.ChosenEvolutionFormNotFound"));
+    return null;
+  }
+
+  let formTemplateActor = await resolveActor(
+    snapshot.sourceFormUuid || wantedReference
+  );
+
+  if (!formTemplateActor) {
+    formTemplateActor = buildPseudoActorFromFormSnapshot(
+      snapshot,
+      partnerActor
+    );
+  }
+
+  const currentFormUuid = String(
+    partnerActor.system.evolution?.currentFormUuid ||
+    partnerActor.system.evolution?.sourceFormUuid ||
+    partnerActor.uuid
+  ).trim();
+
+  const currentSnapshot = getPartnerFormSnapshot(
+    partnerActor,
+    currentFormUuid
+  );
+
+  const isCurrentForm = Boolean(
+    wantedReference === currentFormUuid ||
+    snapshot.sourceFormUuid === currentFormUuid ||
+    snapshot.sourceFormUuid === partnerActor.uuid ||
+    (currentSnapshot && currentSnapshot.key === snapshot.key) ||
+    (currentSnapshot &&
+      currentSnapshot.sourceFormUuid === snapshot.sourceFormUuid)
+  );
+
+  const totalBonusDp = Math.max(
+    0,
+    Number(partnerActor.system?.advancement?.bonusDp?.total ?? 0) || 0,
+    Number(partnerActor.system?.creation?.dp?.bonus ?? 0) || 0,
+    Number(partnerActor.system?.creation?.bonusDp ?? 0) || 0
+  );
+
+  const formBonusDp = getPartnerFormBonusDpAvailable(
+    partnerActor,
+    snapshot.sourceFormUuid || wantedReference,
+    totalBonusDp
+  );
+
+  return {
+    tamerActor,
+    partnerActor,
+    formTemplateActor,
+    snapshot,
+    bonusDp: formBonusDp,
+    bonusDpTotal: totalBonusDp,
+    isCurrentForm
+  };
+}
+
 export async function getFuturePartnerFormWizardContext(
   tamerActor,
   formTemplateActor
@@ -1191,13 +1268,15 @@ export async function getFuturePartnerFormWizardContext(
     return null;
   }
 
+  const formTemplateReference = getFormTemplateReference(formTemplateActor);
+
   const existingSnapshot = getPartnerFormSnapshot(
     partnerActor,
-    formTemplateActor.uuid
+    formTemplateReference
   );
 
   const snapshot = existingSnapshot ?? {
-    sourceFormUuid: formTemplateActor.uuid,
+    sourceFormUuid: formTemplateReference,
     sourceFormName: formTemplateActor.name,
 
     // O apelido pertence ao parceiro e acompanha toda a linha.
@@ -1246,7 +1325,7 @@ export async function getFuturePartnerFormWizardContext(
   const formBonusDp = getPartnerFormBonusDpAvailable(
     partnerActor,
     snapshot?.sourceFormUuid ||
-      formTemplateActor?.uuid ||
+      formTemplateReference ||
       "",
     totalBonusDp
   );
@@ -1344,9 +1423,10 @@ async function saveCurrentPartnerFormSnapshot(partnerActor) {
 }
 
 async function getOrCreatePartnerFormSnapshot(partnerActor, formTemplateActor) {
+  const formTemplateReference = getFormTemplateReference(formTemplateActor);
   const existing = getPartnerFormSnapshot(
     partnerActor,
-    formTemplateActor?.uuid
+    formTemplateReference
   );
 
   const snapshot = existing
@@ -1354,7 +1434,7 @@ async function getOrCreatePartnerFormSnapshot(partnerActor, formTemplateActor) {
     : buildFormSnapshotFromActor(
         formTemplateActor ?? partnerActor,
         {
-          sourceFormUuid: formTemplateActor?.uuid ?? partnerActor.uuid,
+          sourceFormUuid: formTemplateReference || partnerActor.uuid,
           sourceFormName: formTemplateActor?.name ?? partnerActor.name
         }
       );
@@ -1373,6 +1453,19 @@ async function getOrCreatePartnerFormSnapshot(partnerActor, formTemplateActor) {
   }
 
   return snapshot;
+}
+
+function getFormTemplateReference(actor = null) {
+  return String(
+    actor?.uuid ??
+    actor?.databaseId ??
+    actor?.system?.databaseId ??
+    actor?.system?.sourceId ??
+    actor?._id ??
+    actor?.id ??
+    actor?.name ??
+    ""
+  ).trim();
 }
 
 function getPartnerFormSnapshot(partnerActor, sourceFormUuid) {

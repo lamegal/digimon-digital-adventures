@@ -1251,3 +1251,649 @@ html body .window-app.dda.quality-browser-window
     justify-content: flex-start !important;
   }
 }
+/* =========================================================
+   DDA — EFFECT QUALITY PICKER
+   ========================================================= */
+
+.dda-effect-choice-dialog {
+  --effect-bg-deep: #041c2b;
+  --effect-bg: #082b42;
+  --effect-panel: #0a344f;
+  --effect-line: rgba(103, 190, 228, 0.4);
+  --effect-cyan: #74d9ff;
+  --effect-cyan-soft: #b9efff;
+  --effect-orange: #e65c2c;
+  --effect-text: #f2f7fa;
+  --effect-muted: #a9bdc8;
+}
+
+.dda-effect-choice-dialog .window-content {
+  padding: 0;
+  overflow: hidden;
+
+  color: var(--effect-text);
+
+  background:
+    radial-gradient(
+      circle at 90% 5%,
+      rgba(46, 162, 210, 0.17),
+      transparent 32%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(116, 217, 255, 0.04),
+      transparent 42%
+    ),
+    var(--effect-bg-deep);
+}
+
+.dda-effect-choice-dialog .dialog-content {
+  padding: 0;
+}
+
+.dda-effect-choice-dialog .dialog-buttons {
+  gap: 10px;
+  margin: 0;
+  padding: 12px 18px;
+
+  border-top: 1px solid
+    rgba(102, 190, 228, 0.26);
+
+  background:
+    rgba(3, 20, 31, 0.94);
+}
+
+.dda-effect-choice-dialog .dialog-buttons button {
+  min-height: 36px;
+
+  border: 1px solid
+    rgba(105, 205, 245, 0.55);
+  border-radius: 8px;
+
+  color: #fff;
+
+  background:
+    linear-gradient(
+      180deg,
+      #12688f,
+      #094666
+    );
+
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dda-effect-choice-dialog .dialog-buttons button:hover {
+  border-color:
+    var(--effect-cyan);
+
+  box-shadow:
+    0 0 0 2px
+      rgba(116, 217, 255, 0.12),
+    0 0 18px
+      rgba(65, 182, 231, 0.2);
+}
+
+.dda-effect-picker {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+}
+
+.dda-effect-picker__header {
+  position: relative;
+
+  padding: 18px 20px 16px;
+
+  border-bottom: 1px solid
+    rgba(102, 186, 224, 0.3);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(10, 66, 96, 0.97),
+      rgba(5, 35, 53, 0.9)
+    );
+}
+
+.dda-effect-picker__header::after {
+  content: "";
+
+  position: absolute;
+  right: 20px;
+  bottom: -1px;
+  left: 20px;
+
+  height: 2px;
+
+  background:
+    linear-gradient(
+      90deg,
+      var(--effect-orange) 0 35%,
+      transparent 35%
+    );
+}
+
+.dda-effect-picker__eyebrow {
+  display: block;
+  margin-bottom: 3px;
+
+  color: var(--effect-cyan);
+
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.dda-effect-picker__header h2 {
+  margin: 0;
+
+  color: #fff;
+
+  font-size: 21px;
+  line-height: 1.1;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.dda-effect-picker__header p {
+  max-width: 650px;
+  margin: 7px 0 0;
+
+  color: var(--effect-muted);
+
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.dda-effect-picker__toolbar {
+  display: grid;
+  gap: 9px;
+
+  padding: 12px 18px;
+
+  border-bottom: 1px solid
+    rgba(102, 186, 224, 0.22);
+
+  background:
+    rgba(4, 28, 43, 0.66);
+}
+
+.dda-effect-picker__search-wrapper {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+
+  min-height: 36px;
+  padding: 0 10px;
+
+  border: 1px solid
+    var(--effect-line);
+  border-radius: 7px;
+
+  background:
+    rgba(3, 24, 38, 0.74);
+}
+
+.dda-effect-picker__search-wrapper:focus-within {
+  border-color:
+    var(--effect-cyan);
+
+  box-shadow:
+    0 0 0 2px
+      rgba(116, 217, 255, 0.1);
+}
+
+.dda-effect-picker__search-wrapper i {
+  color: var(--effect-cyan);
+  text-align: center;
+}
+
+.dda-effect-picker__search {
+  width: 100%;
+  height: 34px;
+  margin: 0;
+  padding: 4px 7px;
+
+  border: 0;
+  outline: 0;
+
+  color: var(--effect-text);
+  background: transparent;
+  box-shadow: none;
+}
+
+.dda-effect-picker__search::placeholder {
+  color:
+    rgba(190, 214, 225, 0.58);
+}
+
+.dda-effect-picker__filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dda-effect-picker__filter {
+  flex: 0 0 auto;
+
+  min-height: 27px;
+  padding: 4px 11px;
+
+  border: 1px solid
+    rgba(111, 194, 231, 0.35);
+  border-radius: 999px;
+
+  color: var(--effect-muted);
+
+  background:
+    rgba(9, 50, 73, 0.72);
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.dda-effect-picker__filter:hover {
+  color: #fff;
+  border-color:
+    rgba(116, 217, 255, 0.75);
+}
+
+.dda-effect-picker__filter.is-active {
+  color: #fff;
+  border-color:
+    var(--effect-cyan);
+
+  background:
+    linear-gradient(
+      180deg,
+      #1680ad,
+      #0b5d83
+    );
+}
+
+.dda-effect-picker__layout {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(270px, 0.85fr);
+  gap: 12px;
+
+  padding: 14px 18px 16px;
+}
+
+.dda-effect-picker__catalog {
+  min-width: 0;
+}
+
+.dda-effect-picker__cards {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      auto-fill,
+      minmax(145px, 1fr)
+    );
+  gap: 8px;
+
+  max-height: 348px;
+  overflow-y: auto;
+
+  padding: 2px 6px 2px 2px;
+
+  scrollbar-width: thin;
+
+  scrollbar-color:
+    #2383aa
+    rgba(3, 24, 38, 0.55);
+}
+
+.dda-effect-picker__card {
+  position: relative;
+
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  gap: 4px 8px;
+  align-content: center;
+
+  min-width: 0;
+  min-height: 74px;
+  margin: 0;
+  padding: 10px;
+
+  border: 1px solid
+    rgba(105, 181, 214, 0.34);
+  border-radius: 8px;
+
+  color: var(--effect-text);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(13, 58, 84, 0.9),
+      rgba(5, 34, 52, 0.94)
+    );
+
+  text-align: left;
+
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.dda-effect-picker__card:hover {
+  transform:
+    translateY(-1px);
+
+  border-color:
+    rgba(116, 217, 255, 0.8);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16, 78, 109, 0.95),
+      rgba(7, 43, 63, 0.96)
+    );
+}
+
+.dda-effect-picker__card.is-selected {
+  border-color:
+    var(--effect-cyan);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16, 112, 151, 0.96),
+      rgba(7, 52, 76, 0.98)
+    );
+
+  box-shadow:
+    0 0 0 2px
+      rgba(116, 217, 255, 0.13),
+    0 6px 18px
+      rgba(0, 0, 0, 0.2);
+}
+
+.dda-effect-picker__card.is-selected::before {
+  content: "";
+
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -1px;
+
+  width: 3px;
+
+  border-radius:
+    0 3px 3px 0;
+
+  background:
+    var(--effect-orange);
+}
+
+.dda-effect-picker__tag {
+  overflow: hidden;
+
+  color: #fff;
+
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-effect-picker__kind {
+  align-self: start;
+  padding: 2px 5px;
+
+  border-radius: 4px;
+
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.dda-effect-picker__card--negative
+.dda-effect-picker__kind {
+  color: #ffdce0;
+  background:
+    rgba(201, 64, 79, 0.48);
+}
+
+.dda-effect-picker__card--positive
+.dda-effect-picker__kind {
+  color: #d6fff0;
+  background:
+    rgba(47, 153, 115, 0.48);
+}
+
+.dda-effect-picker__card--damage
+.dda-effect-picker__kind {
+  color: #ffead7;
+  background:
+    rgba(204, 104, 36, 0.52);
+}
+
+.dda-effect-picker__card--unique
+.dda-effect-picker__kind {
+  color: #eee2ff;
+  background:
+    rgba(123, 83, 181, 0.54);
+}
+
+.dda-effect-picker__meta,
+.dda-effect-picker__available {
+  color: var(--effect-muted);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.dda-effect-picker__available {
+  text-align: right;
+}
+
+.dda-effect-picker__detail {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+
+  min-width: 0;
+  padding: 13px;
+
+  border: 1px solid
+    rgba(108, 193, 230, 0.4);
+  border-radius: 9px;
+
+  background:
+    linear-gradient(
+      155deg,
+      rgba(13, 57, 82, 0.9),
+      rgba(4, 28, 44, 0.94)
+    );
+}
+
+.dda-effect-picker__selected-label {
+  display: block;
+  margin-bottom: 2px;
+
+  color: var(--effect-muted);
+
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dda-effect-picker__detail h3 {
+  margin: 0;
+
+  color: var(--effect-cyan);
+
+  font-size: 19px;
+  line-height: 1;
+  letter-spacing: 0.035em;
+}
+
+.dda-effect-picker__facts {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.dda-effect-picker__fact {
+  min-width: 0;
+  padding: 7px 8px;
+
+  border: 1px solid
+    rgba(122, 193, 224, 0.16);
+  border-radius: 6px;
+
+  background:
+    rgba(255, 255, 255, 0.045);
+}
+
+.dda-effect-picker__fact strong {
+  display: block;
+  margin-bottom: 2px;
+
+  color: var(--effect-muted);
+
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dda-effect-picker__fact span {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dda-effect-picker__rules > strong {
+  display: block;
+  margin-bottom: 5px;
+
+  color: var(--effect-cyan-soft);
+
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dda-effect-picker__rules p {
+  max-height: 128px;
+  overflow-y: auto;
+
+  margin: 0;
+  padding: 8px;
+
+  border-left: 2px solid
+    var(--effect-orange);
+  border-radius:
+    0 5px 5px 0;
+
+  color: #d5e1e7;
+
+  background:
+    rgba(1, 18, 29, 0.48);
+
+  font-size: 10px;
+  line-height: 1.38;
+  white-space: pre-wrap;
+}
+
+.dda-effect-picker__attack {
+  display: grid;
+  gap: 5px;
+}
+
+.dda-effect-picker__attack > span {
+  color: var(--effect-cyan-soft);
+
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.dda-effect-picker__attack select {
+  width: 100%;
+  height: 34px;
+  margin: 0;
+  padding: 4px 8px;
+
+  border: 1px solid
+    rgba(113, 202, 239, 0.58);
+  border-radius: 6px;
+
+  color: var(--effect-text);
+  background: #082a40;
+}
+
+.dda-effect-picker__attack select:focus {
+  border-color:
+    var(--effect-cyan);
+
+  box-shadow:
+    0 0 0 2px
+      rgba(116, 217, 255, 0.1);
+}
+
+.dda-effect-picker__attack option {
+  color: #fff;
+  background: #082a40;
+}
+
+.dda-effect-picker__rank-note {
+  margin: 0;
+
+  color: var(--effect-muted);
+
+  font-size: 9px;
+  font-style: italic;
+}
+
+.dda-effect-picker__empty {
+  display: none;
+
+  min-height: 150px;
+  padding: 30px;
+
+  color: var(--effect-muted);
+
+  text-align: center;
+}
+
+.dda-effect-picker__empty i {
+  display: block;
+  margin-bottom: 8px;
+
+  color: var(--effect-cyan);
+  font-size: 22px;
+}
+
+@media (max-width: 720px) {
+  .dda-effect-picker__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-effect-picker__cards {
+    max-height: 235px;
+  }
+
+  .dda-effect-picker__detail {
+    max-height: 310px;
+    overflow-y: auto;
+  }
+}

@@ -113,6 +113,26 @@ const DDA_QUALITY_AVAILABILITY_LABELS = {
   }
 };
 
+const DDA_QUALITY_I18N_PRESENTATION = {
+  efeitoBasico: {
+    nameKey: "DDA.Quality.Name.BasicEffect",
+    choiceLabelKey: "DDA.Quality.Choice.BasicEffectTag"
+  },
+  efeitoAvancado: {
+    nameKey: "DDA.Quality.Name.AdvancedEffect",
+    choiceLabelKey: "DDA.Quality.Choice.AdvancedEffectTag"
+  },
+  efeitoMestre: {
+    nameKey: "DDA.Quality.Name.MasterEffect",
+    choiceLabelKey: "DDA.Quality.Choice.MasterEffectTag"
+  }
+};
+
+function localizeQualityPresentationKey(key = "", fallback = "") {
+  const value = globalThis.game?.i18n?.localize?.(key);
+  return value && value !== key ? value : fallback;
+}
+
 /*
  * These are presentation-only corrections for entries whose English copy was
  * historically saved as a Portuguese/English hybrid. Do not put mechanics,
@@ -737,6 +757,25 @@ export function localizeDigimonQualityPresentation(
       ...(next.availability ?? {}),
       label: localizedAvailability
     };
+  }
+
+  const i18nPresentation = DDA_QUALITY_I18N_PRESENTATION[next.id];
+
+  if (i18nPresentation) {
+    next.name = localizeQualityPresentationKey(
+      i18nPresentation.nameKey,
+      next.name
+    );
+
+    if (next.choices) {
+      next.choices = {
+        ...next.choices,
+        label: localizeQualityPresentationKey(
+          i18nPresentation.choiceLabelKey,
+          next.choices.label
+        )
+      };
+    }
   }
 
   if (locale === "en") {

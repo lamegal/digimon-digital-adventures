@@ -6,6 +6,7 @@ import {
 import {
   getCurrentPartnerFormWizardContext,
   getFuturePartnerFormWizardContext,
+  getStoredPartnerFormWizardContext,
   savePartnerFormWizardSnapshot,
   savePartnerFutureFormSnapshot
 } from "../combat/evolution.js";
@@ -1356,6 +1357,11 @@ this._wizardStaticPortraitIndexPromise = null;
         resolvedChoices: {}
       },
 
+            reviewAdjustment: {
+        active: false,
+        stageKey: ""
+      },
+
       identity: {
         name: "",
         species: "",
@@ -1978,9 +1984,11 @@ async _preloadWizardDatabase() {
 
 
 
-  static async openCurrentFormWizard(tamerActor) {
-    const formContext = await getCurrentPartnerFormWizardContext(tamerActor);
+  static async openCurrentFormWizard(sourceActor, options = {}) {
+    const formContext = await getCurrentPartnerFormWizardContext(sourceActor);
     if (!formContext) return null;
+
+    formContext.returnApplication = options.returnApplication ?? null;
 
     const wizard = new this({
       mode: "formSnapshot",
@@ -1991,7 +1999,27 @@ async _preloadWizardDatabase() {
     return wizard;
   }
 
-    static async openFutureFormWizard(tamerActor, formTemplateActor) {
+  static async openStoredFormWizard(sourceActor, sourceFormUuid, options = {}) {
+    const formContext = await getStoredPartnerFormWizardContext(
+      sourceActor,
+      sourceFormUuid
+    );
+
+    if (!formContext) return null;
+
+    formContext.isFutureForm = !formContext.isCurrentForm;
+    formContext.returnApplication = options.returnApplication ?? null;
+
+    const wizard = new this({
+      mode: "formSnapshot",
+      formContext
+    });
+
+    wizard.render(true);
+    return wizard;
+  }
+
+  static async openFutureFormWizard(tamerActor, formTemplateActor, options = {}) {
     const formContext = await getFuturePartnerFormWizardContext(
       tamerActor,
       formTemplateActor
@@ -2000,6 +2028,7 @@ async _preloadWizardDatabase() {
     if (!formContext) return null;
 
     formContext.isFutureForm = true;
+    formContext.returnApplication = options.returnApplication ?? null;
 
     const wizard = new this({
       mode: "formSnapshot",
@@ -2056,10 +2085,16 @@ getData() {
 
   this._validate();
 
+  const reviewAdjustmentView = this._getReviewAdjustmentViewData();
+
   return {
       step: this.currentStep,
-      stepIndex: this.stepIndex + 1,
-      totalSteps: this.steps.length,
+      stepIndex: reviewAdjustmentView.active
+        ? reviewAdjustmentView.stepNumber
+        : this.stepIndex + 1,
+      totalSteps: reviewAdjustmentView.active
+        ? reviewAdjustmentView.totalSteps
+        : this.steps.length,
 
       isFirstStep: this.isFirstStep,
       isLastStep: this.isLastStep,
@@ -2067,12 +2102,17 @@ getData() {
       data: this.data,
       formBuildView: this._getFormBuildViewData(),
       formBuildSummary: this._getFormBuildSummaryData(),
+      reviewAdjustmentView,
       formMode: this.mode === "formSnapshot",
       identityPixelArt: getDigimonPixelArtPath(this.data.identity?.species || this.data.identity?.name, this.data.stage),      wizardTitle: this.mode === "formSnapshot" ? game.i18n.localize("DDA.DigimonWizard.FormTitle") : game.i18n.localize("DDA.DigimonWizard.Title"),
       createButtonLabel: this.mode === "formSnapshot" ? game.i18n.localize("DDA.DigimonWizard.Button.SaveForm") : game.i18n.localize("DDA.DigimonWizard.Button.CreateDigimon"),
 
-      progressLabel: this._getProgressLabel(),
-      progressSteps: this._getProgressSteps(),
+      progressLabel: reviewAdjustmentView.active
+        ? reviewAdjustmentView.progressLabel
+        : this._getProgressLabel(),
+      progressSteps: reviewAdjustmentView.active
+        ? reviewAdjustmentView.progressSteps
+        : this._getProgressSteps(),
 
       identityOptions: this._getIdentityOptions(),
       identityLabels: this._getIdentityLabels(),
@@ -2123,6 +2163,7 @@ getData() {
     html.find("[data-action='select-digitama']").on("click", this._onSelectDigitama.bind(this));
     html.find("[data-action='select-stage']").on("click", this._onSelectStage.bind(this));
     html.find("[data-action='select-form-build-stage']").on("click", this._onSelectFormBuildStage.bind(this));
+    html.find("[data-action='adjust-form-build']").on("click", this._onAdjustFormBuild.bind(this));
     html.find("[data-action='select-initial-baby1']").on("click", this._onSelectInitialBaby1.bind(this));
     html.find("[data-action='select-initial-baby2']").on("click", this._onSelectInitialBaby2.bind(this));
     html.find("[data-action='select-initial-rookie']").on("click", this._onSelectInitialRookie.bind(this));
@@ -2317,8 +2358,10 @@ _getNormalizedQualityCatalogIndex() {
   return index;
 }
 
-_getTemplateQualityDefinition(templateQuality = {}) {
-  const catalogIndex = this._getNormalizedQualityCatalogIndex();
+_getTemplateQualityDefinition(templateQuality = {}, catalogIndex = null) {
+  const qualityCatalogIndex =
+    catalogIndex ??
+    this._getNormalizedQualityCatalogIndex();
 
   const candidates = [
     templateQuality.qualityId,
@@ -2330,8 +2373,11 @@ _getTemplateQualityDefinition(templateQuality = {}) {
     .filter(Boolean);
 
   for (const candidate of candidates) {
-    const quality = catalogIndex.get(candidate);
-    if (quality) return quality;
+    const quality = qualityCatalogIndex.get(candidate);
+
+    if (quality) {
+      return quality;
+    }
   }
 
   return null;
@@ -2479,9 +2525,14 @@ _applySelectedBuildTemplateToChildBuild({ force = false } = {}) {
 
   const selectedQualities = [];
   const missingQualities = [];
+  const qualityCatalogIndex =
+    this._getNormalizedQualityCatalogIndex();
 
   for (const templateQuality of template.qualities ?? []) {
-    const quality = this._getTemplateQualityDefinition(templateQuality);
+    const quality = this._getTemplateQualityDefinition(
+      templateQuality,
+      qualityCatalogIndex
+    );
 
     if (!quality) {
       missingQualities.push(templateQuality.qualityId ?? templateQuality.name ?? templateQuality.originalName ?? "unknown");
@@ -3102,16 +3153,97 @@ async _onUpdateBuildTemplateChoice(event) {
 }
 
 _getBuildTemplateOptions() {
-  const selectedId = String(this.data.buildTemplate?.selectedId ?? "").trim();
-  const enabled = Boolean(this.data.buildTemplate?.enabled) && this._buildTemplatesCanBeUsed();
+  const selectedId = String(
+    this.data.buildTemplate?.selectedId ?? ""
+  ).trim();
 
-  return DDA_DIGIMON_BUILD_TEMPLATES.map((template) => ({
-    ...foundry.utils.deepClone(template),
-    selected: template.id === selectedId,
-    nameLabel: getLocalizedValue(template.name, template.id),
-    subtitleLabel: getLocalizedValue(template.subtitle, ""),
-    descriptionLabel: getLocalizedValue(template.description, "")
-  }));
+  const enabled =
+    Boolean(this.data.buildTemplate?.enabled) &&
+    this._buildTemplatesCanBeUsed();
+
+  const qualityCatalogIndex =
+    this._getNormalizedQualityCatalogIndex();
+
+  return DDA_DIGIMON_BUILD_TEMPLATES.map((template) => {
+    const qualityRows =
+      (template.qualities ?? []).flatMap((templateQuality) => {
+        const quality = this._getTemplateQualityDefinition(
+          templateQuality,
+          qualityCatalogIndex
+        );
+
+        /*
+         * Qualidades opcionais podem não existir
+         * na versão atual do catálogo.
+         *
+         * Nesse caso, elas não devem aparecer
+         * como identificadores internos no card.
+         */
+        if (
+          !quality &&
+          templateQuality.optionalIfMissing
+        ) {
+          return [];
+        }
+
+        return [{
+          id:
+            quality?.id ??
+            templateQuality.qualityId ??
+            "",
+
+          name:
+            quality?.name ??
+            text(
+              "Qualidade desconhecida",
+              "Unknown Quality"
+            ),
+
+          description:
+            quality?.description ??
+            quality?.effect ??
+            text(
+              "Esta Qualidade não foi encontrada no catálogo atual.",
+              "This Quality was not found in the current catalog."
+            ),
+
+          missing: !quality
+        }];
+      });
+
+    return {
+      ...foundry.utils.deepClone(template),
+
+      selected:
+        template.id === selectedId,
+
+      disabled:
+        !enabled,
+
+      nameLabel:
+        getLocalizedValue(
+          template.name,
+          template.id
+        ),
+
+      subtitleLabel:
+        getLocalizedValue(
+          template.subtitle,
+          ""
+        ),
+
+      descriptionLabel:
+        getLocalizedValue(
+          template.description,
+          ""
+        ),
+
+      qualityCount:
+        qualityRows.length,
+
+      qualityRows
+    };
+  });
 }
 
 _getSelectedBuildTemplate() {
@@ -3428,7 +3560,10 @@ async _onSelectFormBuildStage(event) {
 
   if (!this._usesInitialFormBuildsForMechanicalState()) return;
 
-  const stageKey = this._getInitialLineStageKey(event.currentTarget.dataset.stage ?? "");
+  const stageKey = this._getInitialLineStageKey(
+    event.currentTarget.dataset.stage ?? ""
+  );
+
   const order = this.data.formBuilds?.order ?? [];
 
   if (!order.includes(stageKey)) return;
@@ -3438,8 +3573,83 @@ async _onSelectFormBuildStage(event) {
 
   this.data.formBuilds.activeStage = stageKey;
 
+  if (this.data.reviewAdjustment?.active) {
+    this.data.reviewAdjustment.stageKey = stageKey;
+  }
+
   this._syncActiveFormBuildToGlobalState();
   this._renderPreservingScroll();
+}
+
+async _onAdjustFormBuild(event) {
+  event.preventDefault();
+
+  if (!this._usesInitialFormBuildsForMechanicalState()) return;
+
+  const stageKey = this._getInitialLineStageKey(
+    event.currentTarget.dataset.stage ?? ""
+  );
+
+  const build = this._getFormBuild(stageKey);
+
+  if (!build || build.locked || !build.editable) {
+    ui.notifications.warn(text(
+      "Esta forma é fixa e não pode ser ajustada.",
+      "This form is fixed and cannot be adjusted."
+    ));
+    return;
+  }
+
+  this._syncInputsFromHtml();
+
+  this.data.reviewAdjustment = {
+    active: true,
+    stageKey
+  };
+
+  this.data.formBuilds.activeStage = stageKey;
+  this._syncActiveFormBuildToGlobalState();
+  this._rebuildSteps();
+
+  const statsStepIndex = this.steps.indexOf("stats");
+
+  if (statsStepIndex < 0) {
+    this.data.reviewAdjustment = {
+      active: false,
+      stageKey: ""
+    };
+
+    ui.notifications.warn(text(
+      "Não foi possível abrir o ajuste desta forma.",
+      "Could not open this form's adjustment flow."
+    ));
+    return;
+  }
+
+  this.stepIndex = statsStepIndex;
+  this.render(false);
+}
+
+_returnFromReviewAdjustment() {
+  if (this._usesInitialFormBuildsForMechanicalState()) {
+    this._syncGlobalStateToActiveFormBuild();
+  }
+
+  this.data.reviewAdjustment = {
+    active: false,
+    stageKey: ""
+  };
+
+  if (this._usesInitialFormBuildsForMechanicalState()) {
+    this.data.formBuilds.activeStage =
+      this._getPrimaryMechanicalBuildStage();
+
+    this._syncActiveFormBuildToGlobalState();
+  }
+
+  this._rebuildSteps();
+  this.stepIndex = Math.max(0, this.steps.indexOf("summary"));
+  this.render(false);
 }
 
 async _onSelectStage(event) {
@@ -3715,6 +3925,14 @@ async _onNext(event) {
       return;
     }
 
+        if (
+      this.data.reviewAdjustment?.active
+      && previousStep === "qualities"
+    ) {
+      this._returnFromReviewAdjustment();
+      return;
+    }
+
     if (!this.isLastStep) {
       if (previousStep === "buildTemplate") {
         const applied = this._applySelectedBuildTemplateToChildBuild({ force: true });
@@ -3724,6 +3942,33 @@ async _onNext(event) {
             "Não foi possível aplicar a build pronta. Escolha outro template ou desative a opção.",
             "Could not apply the ready-made build. Choose another template or disable the option."
           ));
+
+          this.render(false);
+          return;
+        }
+
+        const templateBuild =
+          this._getBuildTemplateChildBuild();
+
+        const remainingDp =
+          Number(
+            templateBuild?.dp?.remaining ?? 0
+          );
+
+        if (remainingDp < 0) {
+          const templateName =
+            templateBuild?.template?.name ??
+            this._getSelectedBuildTemplate()?.id ??
+            text(
+              "Build pronta",
+              "Ready-made build"
+            );
+
+          ui.notifications.warn(text(
+            `${templateName} excede o limite em ${Math.abs(remainingDp)} PD. Escolha outra build ou avise o responsável pelo sistema para revisar este template.`,
+            `${templateName} exceeds the limit by ${Math.abs(remainingDp)} DP. Choose another build or ask the system maintainer to review this template.`
+          ));
+
           this.render(false);
           return;
         }
@@ -3744,8 +3989,19 @@ async _onNext(event) {
 
       this.stepIndex += 1;
 
-      if (this._usesInitialFormBuildsForMechanicalState() && ["stats", "qualities", "buildTemplate", "templateChoices"].includes(previousStep)) {
-        this.data.formBuilds.activeStage = this._getPrimaryMechanicalBuildStage();
+      if (
+        this._usesInitialFormBuildsForMechanicalState()
+        && !this.data.reviewAdjustment?.active
+        && [
+          "stats",
+          "qualities",
+          "buildTemplate",
+          "templateChoices"
+        ].includes(previousStep)
+      ) {
+        this.data.formBuilds.activeStage =
+          this._getPrimaryMechanicalBuildStage();
+
         this._syncActiveFormBuildToGlobalState();
       }
 
@@ -3753,19 +4009,31 @@ async _onNext(event) {
     }
   }
 
-  async _onBack(event) {
-    event.preventDefault();
+async _onBack(event) {
+  event.preventDefault();
 
-    this._syncInputsFromHtml();
-    if (this._usesInitialFormBuildsForMechanicalState() && ["stats", "qualities"].includes(this.currentStep)) {
-  this._syncGlobalStateToActiveFormBuild();
-}
+  this._syncInputsFromHtml();
 
-    if (!this.isFirstStep) {
-      this.stepIndex -= 1;
-      this.render(false);
-    }
+  if (
+    this._usesInitialFormBuildsForMechanicalState()
+    && ["stats", "qualities"].includes(this.currentStep)
+  ) {
+    this._syncGlobalStateToActiveFormBuild();
   }
+
+  if (
+    this.data.reviewAdjustment?.active
+    && this.currentStep === "stats"
+  ) {
+    this._returnFromReviewAdjustment();
+    return;
+  }
+
+  if (!this.isFirstStep) {
+    this.stepIndex -= 1;
+    this.render(false);
+  }
+}
 
 async _onCreate(event) {
   event.preventDefault();
@@ -4297,6 +4565,7 @@ coreDiscount: {
   this.close();
   partnerActor.sheet?.render(true);
   context.tamerActor?.sheet?.render(false);
+  await context.returnApplication?.render?.();
 }
 
 _getInitialFormBuildStageKeys() {
@@ -4812,6 +5081,70 @@ _formBuildsAreValidForAdvance() {
   return this._getFormBuildValidationErrors().length === 0;
 }
 
+_getReviewAdjustmentViewData() {
+  const active = Boolean(this.data.reviewAdjustment?.active);
+
+  const stageKey = active
+    ? this._getInitialLineStageKey(
+      this.data.reviewAdjustment?.stageKey ?? ""
+    )
+    : "";
+
+  const form = active
+    ? this._getLineFormViewData(stageKey)
+    : null;
+
+  const formName =
+    String(form?.species ?? "").trim()
+    || (stageKey ? this._getStageLabel(stageKey) : "");
+
+  const stepNumber =
+    this.currentStep === "qualities"
+      ? 2
+      : 1;
+
+  return {
+    active,
+    stageKey,
+    formName,
+    stepNumber,
+    totalSteps: 2,
+
+    progressLabel: text(
+      "Ajuste de build",
+      "Build Adjustment"
+    ),
+
+    progressSteps: [
+      {
+        key: "stats",
+        active: stepNumber === 1,
+        done: stepNumber > 1
+      },
+      {
+        key: "qualities",
+        active: stepNumber === 2,
+        done: false
+      }
+    ],
+
+    title: text(
+      `Ajustando ${formName}`,
+      `Adjusting ${formName}`
+    ),
+
+    help: text(
+      "Distribua os PD restantes entre Atributos e Qualidades. Ao concluir, você voltará para a revisão.",
+      "Spend the remaining DP on Attributes and Qualities. When finished, you will return to the review."
+    ),
+
+    returnLabel: text(
+      "Voltar à revisão",
+      "Return to Review"
+    )
+  };
+}
+
 _getFormBuildSummaryData() {
   if (!this._usesInitialFormBuildsForMechanicalState()) {
     return {
@@ -4849,6 +5182,27 @@ _getFormBuildSummaryData() {
         negative: []
       };
 
+      const dp =
+        foundry.utils.deepClone(
+          build?.dp ?? {}
+        );
+
+      const dpRemaining =
+        Number(dp.remaining ?? 0);
+
+      const editable =
+        Boolean(build?.editable) && !build?.locked;
+
+      const adjustmentAmount =
+        Math.abs(dpRemaining);
+
+      dp.statusClass =
+        dpRemaining < 0
+          ? "is-over"
+          : dpRemaining === 0
+            ? "is-balanced"
+            : "is-available";
+
       return {
         stageKey: cleanStage,
         stageLabel: this._getStageLabel(cleanStage),
@@ -4857,8 +5211,39 @@ _getFormBuildSummaryData() {
         img: form.img || "icons/svg/mystery-man.svg",
         active: cleanStage === primaryStage,
         locked: Boolean(build?.locked),
+        editable,
 
-        dp: foundry.utils.deepClone(build?.dp ?? {}),
+        adjustment: {
+          enabled: editable,
+          className: dp.statusClass,
+
+          label: dpRemaining < 0
+            ? text(
+              `Corrigir ${adjustmentAmount} PD excedente`,
+              `Fix ${adjustmentAmount} DP overspend`
+            )
+            : dpRemaining > 0
+              ? text(
+                `Gastar ${dpRemaining} PD`,
+                `Spend ${dpRemaining} DP`
+              )
+              : text(
+                "Ajustar build",
+                "Adjust build"
+              ),
+
+          caption: text(
+            "Atributos e Qualidades",
+            "Attributes and Qualities"
+          ),
+
+          hint: text(
+            "Editar os Atributos e as Qualidades desta forma.",
+            "Edit this form's Attributes and Qualities."
+          )
+        },
+
+        dp,
         stats: foundry.utils.deepClone(build?.stats ?? {}),
         statAllocation: foundry.utils.deepClone(build?.statAllocation ?? {}),
         derivedStatsPreview: foundry.utils.deepClone(build?.derivedStatsPreview ?? {}),
@@ -4988,10 +5373,24 @@ if (!this._isQuestionnaireBaby1Locked() || effectiveStage !== "baby1") {
 
 steps.push("identity", "evolutionLine");
 
-if (this.data.buildTemplate?.enabled && this._buildTemplatesCanBeUsed()) {
-  steps.push("buildTemplate", "templateChoices", "partnerQuestions", "summary");
+if (
+  this.data.buildTemplate?.enabled
+  && this._buildTemplatesCanBeUsed()
+) {
+  steps.push("buildTemplate", "templateChoices");
+
+  if (this.data.reviewAdjustment?.active) {
+    steps.push("stats", "qualities");
+  }
+
+  steps.push("partnerQuestions", "summary");
 } else {
-  steps.push("stats", "qualities", "partnerQuestions", "summary");
+  steps.push(
+    "stats",
+    "qualities",
+    "partnerQuestions",
+    "summary"
+  );
 }
 
   this.steps = steps;
@@ -9047,7 +9446,7 @@ _getFormBonusDp() {
 
   /*
    * evolution.js já calcula o orçamento utilizável desta forma:
-   * total compartilhado menos o que as OUTRAS formas consumiram.
+   * o Bonus DP integral reservado ao Estágio desta forma.
    *
    * Zero é um valor válido e não pode cair em fallback global.
    */
@@ -9692,6 +10091,913 @@ _getFreeQualityUsed() {
   }, 0);
 }
 
+async _promptEffectTagChoice(
+  quality,
+  rankNumber,
+  availableOptions = []
+) {
+  const groupsByTag =
+    new Map();
+
+  const effectGroups = [];
+
+  /*
+   * Agrupa as combinações pelo Efeito.
+   *
+   * ROOT + Ataque A
+   * ROOT + Ataque B
+   * ROOT + Ataque C
+   *
+   * passa a ser um único card ROOT com três Ataques disponíveis.
+   */
+  for (
+    const option of
+    availableOptions
+  ) {
+    const tag = String(
+      option.effectTag ??
+      option.attackTag ??
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+    if (!tag) continue;
+
+    let group =
+      groupsByTag.get(tag);
+
+    if (!group) {
+      group = {
+        tag,
+
+        type: String(
+          option.effectType ??
+          option.type ??
+          "unique"
+        ).toLowerCase(),
+
+        potencyStat: String(
+          option.potencyStat ??
+          option.potency ??
+          ""
+        ),
+
+        duration:
+          option.duration,
+
+        effect: String(
+          option.effect ?? ""
+        ),
+
+        options: []
+      };
+
+      groupsByTag.set(
+        tag,
+        group
+      );
+
+      effectGroups.push(
+        group
+      );
+    }
+
+    group.options.push(
+      option
+    );
+  }
+
+  if (!effectGroups.length) {
+    ui.notifications.warn(
+      text(
+        "Não há Efeitos compatíveis com os Ataques restantes.",
+        "There are no Effects compatible with the remaining Attacks."
+      )
+    );
+
+    return null;
+  }
+
+  const typeLabels = {
+    negative:
+      text(
+        "Negativo",
+        "Negative"
+      ),
+
+    positive:
+      text(
+        "Positivo",
+        "Positive"
+      ),
+
+    damage:
+      text(
+        "Dano",
+        "Damage"
+      ),
+
+    unique:
+      text(
+        "Especial",
+        "Special"
+      )
+  };
+
+  const getDurationLabel = (
+    duration
+  ) => {
+    if (duration === true) {
+      return text(
+        "Até 3 rodadas",
+        "Up to 3 rounds"
+      );
+    }
+
+    if (
+      duration === "special"
+    ) {
+      return text(
+        "Especial",
+        "Special"
+      );
+    }
+
+    return text(
+      "Instantâneo",
+      "Instant"
+    );
+  };
+
+  const cardsHtml =
+    effectGroups
+      .map((group) => {
+        const potency =
+          group.potencyStat
+            ? group.potencyStat
+                .toUpperCase()
+            : "—";
+
+        return `
+          <button
+            type="button"
+            class="
+              dda-effect-picker__card
+              dda-effect-picker__card--${this._escapeHtml(
+                group.type
+              )}
+            "
+            data-effect-card="${this._escapeHtml(
+              group.tag
+            )}"
+          >
+            <span class="dda-effect-picker__tag">
+              [${this._escapeHtml(
+                group.tag.toUpperCase()
+              )}]
+            </span>
+
+            <span class="dda-effect-picker__kind">
+              ${this._escapeHtml(
+                typeLabels[group.type] ??
+                typeLabels.unique
+              )}
+            </span>
+
+            <span class="dda-effect-picker__meta">
+              ${text(
+                "Potência",
+                "Potency"
+              )}:
+              ${this._escapeHtml(
+                potency
+              )}
+            </span>
+
+            <span class="dda-effect-picker__available">
+              ${group.options.length}
+              ${text(
+                "ataque(s)",
+                "attack(s)"
+              )}
+            </span>
+          </button>
+        `;
+      })
+      .join("");
+
+  const filterHtml = [
+    "all",
+    "negative",
+    "positive",
+    "damage",
+    "unique"
+  ]
+    .map((type) => {
+      const label =
+        type === "all"
+          ? text(
+              "Todos",
+              "All"
+            )
+          : (
+              typeLabels[type] ??
+              type
+            );
+
+      return `
+        <button
+          type="button"
+          class="
+            dda-effect-picker__filter
+            ${type === "all"
+              ? "is-active"
+              : ""}
+          "
+          data-effect-filter="${type}"
+        >
+          ${this._escapeHtml(
+            label
+          )}
+        </button>
+      `;
+    })
+    .join("");
+
+  const selectedKey =
+    await new Promise(
+      (resolve) => {
+        let settled = false;
+
+        let selectedTag =
+          effectGroups[0].tag;
+
+        let activeFilter =
+          "all";
+
+        const finish = (
+          value
+        ) => {
+          if (settled) return;
+
+          settled = true;
+          resolve(value);
+        };
+
+        new Dialog(
+          {
+            title:
+              text(
+                `${quality.name} — Escolha do Rank ${rankNumber}`,
+                `${quality.name} — Rank ${rankNumber} Choice`
+              ),
+
+            content: `
+              <form class="dda-effect-picker">
+                <header class="dda-effect-picker__header">
+                  <span class="dda-effect-picker__eyebrow">
+                    ${text(
+                      `Configuração do Rank ${rankNumber}`,
+                      `Rank ${rankNumber} configuration`
+                    )}
+                  </span>
+
+                  <h2>
+                    ${text(
+                      "Escolha um Efeito",
+                      "Choose an Effect"
+                    )}
+                  </h2>
+
+                  <p>
+                    ${text(
+                      "Selecione um Efeito, confira suas regras e escolha um Ataque compatível.",
+                      "Select an Effect, review its rules, then choose a compatible Attack."
+                    )}
+                  </p>
+                </header>
+
+                <div class="dda-effect-picker__toolbar">
+                  <label class="dda-effect-picker__search-wrapper">
+                    <i class="fas fa-search"></i>
+
+                    <input
+                      type="search"
+                      class="dda-effect-picker__search"
+                      autocomplete="off"
+                      placeholder="${text(
+                        "Buscar efeito...",
+                        "Search effect..."
+                      )}"
+                    >
+                  </label>
+
+                  <div class="dda-effect-picker__filters">
+                    ${filterHtml}
+                  </div>
+                </div>
+
+                <div class="dda-effect-picker__layout">
+                  <section class="dda-effect-picker__catalog">
+                    <div class="dda-effect-picker__cards">
+                      ${cardsHtml}
+                    </div>
+
+                    <div class="dda-effect-picker__empty">
+                      <i class="fas fa-filter-circle-xmark"></i>
+
+                      <span>
+                        ${text(
+                          "Nenhum Efeito corresponde a essa busca.",
+                          "No Effect matches this search."
+                        )}
+                      </span>
+                    </div>
+                  </section>
+
+                  <section class="dda-effect-picker__detail">
+                    <div class="dda-effect-picker__detail-heading">
+                      <span class="dda-effect-picker__selected-label">
+                        ${text(
+                          "Efeito selecionado",
+                          "Selected effect"
+                        )}
+                      </span>
+
+                      <h3 data-effect-title></h3>
+                    </div>
+
+                    <div class="dda-effect-picker__facts">
+                      <div class="dda-effect-picker__fact">
+                        <strong>
+                          ${text(
+                            "Tipo",
+                            "Type"
+                          )}
+                        </strong>
+
+                        <span data-effect-kind></span>
+                      </div>
+
+                      <div class="dda-effect-picker__fact">
+                        <strong>
+                          ${text(
+                            "Potência",
+                            "Potency"
+                          )}
+                        </strong>
+
+                        <span data-effect-potency></span>
+                      </div>
+
+                      <div class="dda-effect-picker__fact">
+                        <strong>
+                          ${text(
+                            "Duração",
+                            "Duration"
+                          )}
+                        </strong>
+
+                        <span data-effect-duration></span>
+                      </div>
+
+                      <div class="dda-effect-picker__fact">
+                        <strong>
+                          ${text(
+                            "Ataques",
+                            "Attacks"
+                          )}
+                        </strong>
+
+                        <span data-effect-count></span>
+                      </div>
+                    </div>
+
+                    <div class="dda-effect-picker__rules">
+                      <strong>
+                        ${text(
+                          "Regras do Efeito",
+                          "Effect rules"
+                        )}
+                      </strong>
+
+                      <p data-effect-description></p>
+                    </div>
+
+                    <label class="dda-effect-picker__attack">
+                      <span>
+                        ${text(
+                          "Aplicar este Efeito em",
+                          "Apply this Effect to"
+                        )}
+                      </span>
+
+                      <select name="choiceKey"></select>
+                    </label>
+
+                    <p class="dda-effect-picker__rank-note">
+                      ${text(
+                        `Esta escolha será registrada no Rank ${rankNumber}.`,
+                        `This choice will be recorded at Rank ${rankNumber}.`
+                      )}
+                    </p>
+                  </section>
+                </div>
+              </form>
+            `,
+
+            buttons: {
+              confirm: {
+                icon:
+                  '<i class="fas fa-check"></i>',
+
+                label:
+                  text(
+                    "Confirmar",
+                    "Confirm"
+                  ),
+
+                callback: (
+                  html
+                ) => {
+                  finish(
+                    String(
+                      html
+                        .find(
+                          "[name='choiceKey']"
+                        )
+                        .val() ??
+                      ""
+                    )
+                  );
+                }
+              },
+
+              cancel: {
+                icon:
+                  '<i class="fas fa-times"></i>',
+
+                label:
+                  text(
+                    "Cancelar",
+                    "Cancel"
+                  ),
+
+                callback: () => {
+                  finish(null);
+                }
+              }
+            },
+
+            default:
+              "confirm",
+
+            render: (
+              html
+            ) => {
+              const search =
+                html.find(
+                  ".dda-effect-picker__search"
+                );
+
+              const cards =
+                html.find(
+                  "[data-effect-card]"
+                );
+
+              const attackSelect =
+                html.find(
+                  "[name='choiceKey']"
+                );
+
+              const selectGroup = (
+                tag
+              ) => {
+                const group =
+                  groupsByTag.get(tag);
+
+                if (!group) return;
+
+                selectedTag =
+                  tag;
+
+                cards.removeClass(
+                  "is-selected"
+                );
+
+                cards
+                  .filter(
+                    `[data-effect-card="${tag}"]`
+                  )
+                  .addClass(
+                    "is-selected"
+                  );
+
+                html
+                  .find(
+                    "[data-effect-title]"
+                  )
+                  .text(
+                    `[${tag.toUpperCase()}]`
+                  );
+
+                html
+                  .find(
+                    "[data-effect-kind]"
+                  )
+                  .text(
+                    typeLabels[
+                      group.type
+                    ] ??
+                    typeLabels.unique
+                  );
+
+                html
+                  .find(
+                    "[data-effect-potency]"
+                  )
+                  .text(
+                    group.potencyStat
+                      ? group.potencyStat
+                          .toUpperCase()
+                      : "—"
+                  );
+
+                html
+                  .find(
+                    "[data-effect-duration]"
+                  )
+                  .text(
+                    getDurationLabel(
+                      group.duration
+                    )
+                  );
+
+                html
+                  .find(
+                    "[data-effect-count]"
+                  )
+                  .text(
+                    group.options.length
+                  );
+
+                html
+                  .find(
+                    "[data-effect-description]"
+                  )
+                  .text(
+                    group.effect ||
+                    text(
+                      "Nenhuma descrição disponível.",
+                      "No description available."
+                    )
+                  );
+
+                attackSelect.empty();
+
+                for (
+                  const option of
+                  group.options
+                ) {
+                  const element =
+                    document.createElement(
+                      "option"
+                    );
+
+                  element.value =
+                    option.key;
+
+                  element.textContent =
+                    option.attackName ??
+                    option.label ??
+                    option.key;
+
+                  attackSelect.append(
+                    element
+                  );
+                }
+              };
+
+              const applyFilters =
+                () => {
+                  const query =
+                    normalizeWizardQualityIdentity(
+                      search.val()
+                    );
+
+                  let firstVisibleTag =
+                    "";
+
+                  let selectedIsVisible =
+                    false;
+
+                  cards.each(
+                    (
+                      _index,
+                      element
+                    ) => {
+                      const card =
+                        $(element);
+
+                      const tag =
+                        String(
+                          card.data(
+                            "effectCard"
+                          ) ??
+                          ""
+                        );
+
+                      const group =
+                        groupsByTag.get(
+                          tag
+                        );
+
+                      const matchesType =
+                        activeFilter ===
+                          "all" ||
+                        group?.type ===
+                          activeFilter;
+
+                      const haystack =
+                        normalizeWizardQualityIdentity(
+                          [
+                            tag,
+                            group?.effect ??
+                              "",
+                            typeLabels[
+                              group?.type
+                            ] ??
+                              ""
+                          ].join(" ")
+                        );
+
+                      const visible =
+                        matchesType &&
+                        (
+                          !query ||
+                          haystack.includes(
+                            query
+                          )
+                        );
+
+                      card.toggle(
+                        visible
+                      );
+
+                      if (
+                        visible &&
+                        !firstVisibleTag
+                      ) {
+                        firstVisibleTag =
+                          tag;
+                      }
+
+                      if (
+                        visible &&
+                        tag === selectedTag
+                      ) {
+                        selectedIsVisible =
+                          true;
+                      }
+                    }
+                  );
+
+                  html
+                    .find(
+                      ".dda-effect-picker__empty"
+                    )
+                    .toggle(
+                      !firstVisibleTag
+                    );
+
+                  if (
+                    !selectedIsVisible &&
+                    firstVisibleTag
+                  ) {
+                    selectGroup(
+                      firstVisibleTag
+                    );
+                  }
+                };
+
+              cards.on(
+                "click",
+                (event) => {
+                  event.preventDefault();
+
+                  selectGroup(
+                    String(
+                      event
+                        .currentTarget
+                        .dataset
+                        .effectCard ??
+                      ""
+                    )
+                  );
+                }
+              );
+
+              html
+                .find(
+                  "[data-effect-filter]"
+                )
+                .on(
+                  "click",
+                  (event) => {
+                    event.preventDefault();
+
+                    activeFilter =
+                      String(
+                        event
+                          .currentTarget
+                          .dataset
+                          .effectFilter ??
+                        "all"
+                      );
+
+                    html
+                      .find(
+                        "[data-effect-filter]"
+                      )
+                      .removeClass(
+                        "is-active"
+                      );
+
+                    $(
+                      event.currentTarget
+                    ).addClass(
+                      "is-active"
+                    );
+
+                    applyFilters();
+                  }
+                );
+
+              search.on(
+                "input",
+                applyFilters
+              );
+
+              selectGroup(
+                selectedTag
+              );
+            },
+
+            close: () => {
+              finish(null);
+            }
+          },
+
+          {
+            width:
+              780,
+
+            height:
+              "auto",
+
+            classes: [
+              "dda-effect-choice-dialog"
+            ]
+          }
+        ).render(true);
+      }
+    );
+
+  if (!selectedKey) {
+    return null;
+  }
+
+  const selectedOption =
+    availableOptions.find(
+      (option) => {
+        return (
+          String(option.key) ===
+          String(selectedKey)
+        );
+      }
+    );
+
+  if (!selectedOption) {
+    return null;
+  }
+
+  return {
+    rank:
+      rankNumber,
+
+    key:
+      selectedOption.key,
+
+    label:
+      selectedOption.label ??
+      selectedOption.key,
+
+    originalLabel:
+      selectedOption.originalLabel ??
+      "",
+
+    derivedStat:
+      selectedOption.derivedStat ??
+      "",
+
+    attackId:
+      selectedOption.attackId ??
+      "",
+
+    attackName:
+      selectedOption.attackName ??
+      "",
+
+    attackTag:
+      selectedOption.attackTag ??
+      "",
+
+    effectTag:
+      selectedOption.effectTag ??
+      "",
+
+    effectType:
+      selectedOption.effectType ??
+      selectedOption.type ??
+      "",
+
+    potencyStat:
+      selectedOption.potencyStat ??
+      selectedOption.potency ??
+      "",
+
+    duration:
+      selectedOption.duration ??
+      true,
+
+    extraActionRequired:
+      Boolean(
+        selectedOption
+          .extraActionRequired
+      ),
+
+    requiresDamageTag:
+      Boolean(
+        selectedOption
+          .requiresDamageTag
+      ),
+
+    onlyAffectsAllies:
+      Boolean(
+        selectedOption
+          .onlyAffectsAllies
+      ),
+
+    appliesTo:
+      selectedOption.appliesTo ??
+      "",
+
+    requirements:
+      foundry.utils.deepClone(
+        selectedOption.requirements ??
+        {}
+      ),
+
+    effect:
+      selectedOption.effect ??
+      "",
+
+    pendingAttackChoice:
+      Boolean(
+        selectedOption
+          .pendingAttackChoice
+      ),
+
+    pendingAttackSlot:
+      selectedOption
+        .pendingAttackSlot ??
+      null,
+
+    dataOptimization:
+      selectedOption
+        .dataOptimization ??
+      "",
+
+    dataOptimizationLabel:
+      selectedOption
+        .dataOptimizationLabel ??
+      "",
+
+    category:
+      foundry.utils.deepClone(
+        selectedOption.category ??
+        {}
+      ),
+
+    grants:
+      foundry.utils.deepClone(
+        selectedOption.grants ??
+        {}
+      )
+  };
+}
+
 async _promptQualityChoice(quality, rankNumber, existingChoices = []) {
   const choices = quality.choices ?? {};
 
@@ -10007,6 +11313,22 @@ const availableOptions = isAttackChoice
         selectedOption.effect ??
         ""
     };
+  }
+
+    /*
+   * Basic, Advanced, Master e qualquer derivada baseada
+   * em effectTagPerRank usam o seletor visual.
+   */
+  if (
+    normalizeWizardQualityIdentity(
+      choices.type
+    ) === "effecttagperrank"
+  ) {
+    return this._promptEffectTagChoice(
+      quality,
+      rankNumber,
+      availableOptions
+    );
   }
 
 const optionHtml = availableOptions
@@ -10977,6 +12299,80 @@ _getQualityEffectiveMaxForWizard(
     )
   ) {
     return 2;
+  }
+
+    /*
+   * Basic, Advanced e Master Effect usam um Rank para cada Ataque que
+   * ainda pode receber uma Tag de Efeito. rank.max = 0 representa um
+   * limite dinâmico, não uma Qualidade travada no Rank atual.
+   */
+  if (
+    normalizeWizardQualityIdentity(
+      quality?.choices?.type
+    ) === "effecttagperrank"
+  ) {
+    const ownedEntry =
+      this._getSelectedQualityById(
+        quality.id
+      );
+
+    const currentRank = Math.max(
+      0,
+      Number(
+        ownedEntry?.rank?.value ??
+        0
+      )
+    );
+
+    const existingChoices = Array.isArray(
+      ownedEntry?.choices?.selectedRanks
+    )
+      ? ownedEntry.choices.selectedRanks
+      : [];
+
+    const availableOptions =
+      this._getAttackChoiceOptionsForQuality(
+        quality,
+        existingChoices
+      );
+
+    const availableAttackKeys = new Set(
+      availableOptions
+        .map((option) => {
+          const attackId = String(
+            option.attackId ?? ""
+          ).trim();
+
+          if (attackId) {
+            return attackId;
+          }
+
+          /*
+           * Ataques provisórios do Future Form Wizard não possuem
+           * attackId definitivo. Nesse caso, recuperamos o identificador
+           * armazenado antes dos dois-pontos em option.key.
+           */
+          const key = String(
+            option.key ?? ""
+          ).trim();
+
+          const separatorIndex =
+            key.indexOf(":");
+
+          return separatorIndex > 0
+            ? key.slice(
+                0,
+                separatorIndex
+              )
+            : key;
+        })
+        .filter(Boolean)
+    );
+
+    return (
+      currentRank +
+      availableAttackKeys.size
+    );
   }
 
   const rankLimit =

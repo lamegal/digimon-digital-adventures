@@ -9,6 +9,7 @@ import {
   evolveIndependentDigimon
 } from "../combat/evolution.js";
 import { initiateDigimonClash, endDigimonClash } from "../combat/clash.js";
+import { openDigimonActionMenu } from "../combat/digimon-actions.js";
 import { syncTamerAndPartnerOwnership } from "../utils/ownership.js";
 import {
   qualityMatches,
@@ -1036,6 +1037,7 @@ _getEvolutionGraphData() {
     html.find('[data-action="roll-derived-stat"]').on("click", this._onRollDerivedStat.bind(this));
     html.find(".roll-attack").on("click", this.#onRollAttack.bind(this));
     html.find(".end-turn").on("click", this.#onEndTurn.bind(this));
+    html.find(".open-digimon-actions").on("click", this.#onOpenDigimonActions.bind(this));
     html.find(".roll-recovery").on("click", this.#onRollRecovery.bind(this));
     html.find(".dda-clash-stat-card").on("click", this._onInitiateClash.bind(this));
     html.find(".end-clash-digimon").on("click", this._onEndClash.bind(this));
@@ -1057,13 +1059,9 @@ _getEvolutionGraphData() {
     html.find(".open-evolution-node").on("click", this._onOpenEvolutionNode.bind(this));
     html.find(".remove-evolution-node").on("click", this._onRemoveEvolutionNode.bind(this));
     html.find(".clear-evolution-graph").on("click", this._onClearEvolutionGraph.bind(this));
-    html.find(".choose-evolution-form").on(
+    html.find(".open-partner-form-planner").on(
       "click",
-      this._onChooseEvolutionForm.bind(this)
-    );
-    html.find(".open-current-form-wizard").on(
-      "click",
-      this._onOpenCurrentFormWizard.bind(this)
+      this._onOpenPartnerFormPlanner.bind(this)
     );
 
     html.find(".evolve-independent-digimon").on(
@@ -1273,6 +1271,7 @@ const content = `
   });
 }
 
+
   async _onChooseEvolutionForm(event) {
     event.preventDefault();
     event.stopPropagation();
@@ -1347,6 +1346,18 @@ const content = `
     this.actor
   );
 }
+
+  async _onOpenPartnerFormPlanner(event) {
+    event.preventDefault();
+
+    const {
+      DDAPartnerFormPlanner
+    } = await import(
+      "../apps/dda-partner-form-planner.js"
+    );
+
+    await DDAPartnerFormPlanner.open(this.actor);
+  }
 
   _applyEvolutionSolarDynamicStyles(html) {
     const root = html instanceof jQuery ? html[0] : html;
@@ -2389,6 +2400,11 @@ _getDigimonSkillLabel(statKey, skillKey) {
   event.preventDefault();
 
   await endDigimonTurn(this.actor);
+}
+async #onOpenDigimonActions(event) {
+  event.preventDefault();
+
+  await openDigimonActionMenu(this.actor);
 }
 async #onRollRecovery(event) {
   event.preventDefault();

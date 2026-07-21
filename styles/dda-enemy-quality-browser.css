@@ -667,3 +667,25 @@
     width: 100% !important;
   }
 }
+.dda-enemy-quality-browser .dda-enemy-effect-picker-hint {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+
+  max-width: 220px !important;
+  padding: 0.35rem 0.5rem !important;
+
+  border: 1px solid rgba(116, 217, 255, 0.34) !important;
+  border-radius: 6px !important;
+
+  color: #b9efff !important;
+  background: rgba(8, 48, 72, 0.72) !important;
+
+  font-size: 0.64rem !important;
+  line-height: 1.25 !important;
+}
+
+.dda-enemy-quality-browser .dda-enemy-effect-picker-hint i {
+  flex: 0 0 auto !important;
+  color: #74d9ff !important;
+}

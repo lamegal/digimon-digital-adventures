@@ -59,6 +59,80 @@ function isNaturewalkQualityData(
   });
 }
 
+function normalizeQualityBrowserIdentity(value = "") {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function qualityBrowserMatches(quality = {}, ownedItem = null, aliases = []) {
+  const expected = new Set(aliases.map(normalizeQualityBrowserIdentity));
+  return [
+    quality?.id,
+    quality?.name,
+    quality?.originalName,
+    ownedItem?.system?.sourceId,
+    ownedItem?.system?.originalName,
+    ownedItem?.name
+  ].some((entry) => expected.has(normalizeQualityBrowserIdentity(entry)));
+}
+
+function isEffectPurchaseQualityData(quality = {}, ownedItem = null) {
+  const definitions = [
+    quality,
+    ownedItem?.system
+  ].filter(Boolean);
+
+  const hasEffectChoiceStructure = definitions.some((definition) => {
+    const choiceType = normalizeQualityBrowserIdentity(
+      definition?.choices?.type
+    );
+
+    const appliesTo = normalizeQualityBrowserIdentity(
+      definition?.attackModifier?.appliesTo
+    );
+
+    return choiceType === "effecttagperrank" ||
+      appliesTo === "oneattackperpurchasedeffect";
+  });
+
+  return hasEffectChoiceStructure ||
+    qualityBrowserMatches(quality, ownedItem, [
+      "efeitoBasico",
+      "basicEffect",
+      "basic-effect",
+
+      "efeitoAvancado",
+      "advancedEffect",
+      "advanced-effect",
+
+      "efeitoMestre",
+      "masterEffect",
+      "master-effect"
+    ]);
+}
+
+function isElementalForceQualityData(quality = {}, ownedItem = null) {
+  return qualityBrowserMatches(quality, ownedItem, [
+    "forcaElemental", "elementalForce"
+  ]);
+}
+
+function isElementalMyriadQualityData(quality = {}, ownedItem = null) {
+  return qualityBrowserMatches(quality, ownedItem, [
+    "miríadeElemental", "miriadeElemental", "elementalMyriad"
+  ]);
+}
+
+function isNaturalWeaknessQualityData(quality = {}, ownedItem = null) {
+  return qualityBrowserMatches(quality, ownedItem, [
+    "fraquezaNatural", "naturalWeakness"
+  ]);
+}
+
 function escapeNaturewalkHtml(
   value = ""
 ) {
@@ -70,23 +144,15 @@ function escapeNaturewalkHtml(
     .replaceAll("'", "&#039;");
 }
 const QUALITY_BROWSER_CATEGORY_FILTERS = [
-  { key: "all", pt: "Todas as categorias", en: "All categories" },
-  { key: "core", pt: "Centrais", en: "Core" },
-  { key: "attack", pt: "Ataque", en: "Attack / Offensive" },
-  { key: "defense", pt: "Defesa", en: "Defense" },
-  { key: "clash", pt: "Clash", en: "Clash" },
-  {
-    key: "effect",
-    pt: "Efeito e Conjuração",
-    en: "Effect & Conjuration"
-  },
-  { key: "utility", pt: "Utilidade", en: "Utility" },
-  {
-    key: "stanceMode",
-    pt: "Postura e Modo",
-    en: "Stance & Mode"
-  },
-  { key: "digizoid", pt: "Digizoide", en: "Digizoid" }
+  { key: "all", labelKey: "DDA.QualityBrowser.Category.All" },
+  { key: "core", labelKey: "DDA.QualityBrowser.Category.Core" },
+  { key: "attack", labelKey: "DDA.QualityBrowser.Category.Attack" },
+  { key: "defense", labelKey: "DDA.QualityBrowser.Category.Defense" },
+  { key: "clash", labelKey: "DDA.QualityBrowser.Category.Clash" },
+  { key: "effect", labelKey: "DDA.QualityBrowser.Category.Effect" },
+  { key: "utility", labelKey: "DDA.QualityBrowser.Category.Utility" },
+  { key: "stanceMode", labelKey: "DDA.QualityBrowser.Category.StanceMode" },
+  { key: "digizoid", labelKey: "DDA.QualityBrowser.Category.Digizoid" }
 ];
 
 const QUALITY_BROWSER_SECTION_GROUPS = {
@@ -410,16 +476,12 @@ _matchesQualitySearch(quality, searchTerm) {
       { key: "negative", label: "DDA.QualityBrowser.Filter.Negative" }
     ];
 
-        const categories =
-      QUALITY_BROWSER_CATEGORY_FILTERS.map(
-        (category) => ({
-          key: category.key,
-
-          label: isQualityBrowserEnglish()
-            ? category.en
-            : category.pt
-        })
-      );
+    const categories = QUALITY_BROWSER_CATEGORY_FILTERS.map(
+      (category) => ({
+        key: category.key,
+        label: game.i18n.localize(category.labelKey)
+      })
+    );
 
     const term = this.searchTerm;
 
@@ -676,7 +738,11 @@ await this._applyAttackChoiceToAttack(
       );
     });
 
-    return option.requirements?.mode === "any"
+    const requirementText = String(option.requirements?.text ?? "").toLowerCase();
+    const usesAnyRequirement = option.requirements?.mode === "any" ||
+      /\b(or|ou)\b/.test(requirementText);
+
+    return usesAnyRequirement
       ? matches.some(Boolean)
       : matches.every(Boolean);
   }
@@ -718,6 +784,7 @@ const isAreaAttackChoice =
 
 const isAttackChoice =
   isAreaAttackChoice ||
+  isElementalForceQualityData(quality) ||
   [
     "singleAttack",
     "attackTag",
@@ -735,7 +802,11 @@ const isAttackChoice =
       : Array.isArray(choices.options)
         ? choices.options
         : []
-  ).filter((option) => {
+  ).map((option) => {
+    return typeof option === "string"
+      ? { key: normalizeQualityBrowserIdentity(option), label: option, originalLabel: option }
+      : option;
+  }).filter((option) => {
     return this._actorMeetsChoiceOptionRequirements(
       option
     );
@@ -814,8 +885,18 @@ const availableOptions =
           })
           .join("");
 
+      const mainStatUseCount = existingChoices.reduce((counts, choice) => {
+        const stat = String(choice?.mainStat ?? "").trim();
+        if (stat) counts[stat] = Number(counts[stat] ?? 0) + 1;
+        return counts;
+      }, {});
+
+      const availableMainStats = NATUREWALK_MAIN_STATS.filter((stat) => {
+        return Number(mainStatUseCount[stat.key] ?? 0) < 2;
+      });
+
       const mainStatOptionsHtml =
-        NATUREWALK_MAIN_STATS
+        availableMainStats
           .map((stat) => {
             return `
               <option value="${stat.key}">
@@ -958,7 +1039,7 @@ const availableOptions =
         );
 
       const selectedStat =
-        NATUREWALK_MAIN_STATS.find(
+        availableMainStats.find(
           (stat) => {
             return (
               stat.key ===
@@ -1004,6 +1085,900 @@ const availableOptions =
         recommendedFor:
           selectedOption.recommendedFor ??
           "",
+
+        effect:
+          selectedOption.effect ??
+          ""
+      };
+    }
+
+    if (choices.type === "twoElementsPerRank") {
+      const naturewalkElements = new Set(
+        (this.actor?.system?.qualityFeatures?.naturewalk?.elements ?? [])
+          .map(normalizeQualityBrowserIdentity)
+      );
+      const alreadyChosen = new Set(
+        existingChoices.flatMap((choice) => choice?.elements ?? [])
+          .map((element) => normalizeQualityBrowserIdentity(element?.key ?? element?.label ?? element))
+      );
+      const eligible = availableOptions.filter((option) => {
+        const key = normalizeQualityBrowserIdentity(option.key);
+        return key && !naturewalkElements.has(key) && !alreadyChosen.has(key);
+      });
+
+      if (eligible.length < 2) {
+        ui.notifications.warn(game.i18n.localize("DDA.Warning.QualityNoAvailableOptions"));
+        return null;
+      }
+
+      let selectedKeys = null;
+      try {
+        selectedKeys = await foundry.applications.api.DialogV2.prompt({
+          window: { title: `${quality.name} — Rank ${rankNumber}` },
+          content: `<div class="dda-quality-choice-form">
+            <p>${isQualityBrowserEnglish() ? "Choose exactly two non-Naturewalk Elements." : "Escolha exatamente dois Elementos que não sejam Naturewalk."}</p>
+            ${eligible.map((option) => `<label><input type="checkbox" name="elements" value="${escapeNaturewalkHtml(option.key)}"> ${escapeNaturewalkHtml(option.label)}</label>`).join("")}
+          </div>`,
+          ok: {
+            label: game.i18n.localize("DDA.Button.Confirm"),
+            callback: (_event, button) => [...button.form.querySelectorAll('[name="elements"]:checked')].map((input) => input.value)
+          },
+          rejectClose: false,
+          modal: true
+        });
+      } catch (_error) {
+        selectedKeys = null;
+      }
+
+      if (!Array.isArray(selectedKeys) || selectedKeys.length !== 2) {
+        ui.notifications.warn(isQualityBrowserEnglish() ? "Choose exactly two Elements." : "Escolha exatamente dois Elementos.");
+        return null;
+      }
+
+      const elements = selectedKeys.map((key) => {
+        const option = eligible.find((entry) => String(entry.key) === String(key));
+        return { key: option.key, label: option.label, originalLabel: option.originalLabel ?? option.label };
+      });
+
+      return {
+        rank: rankNumber,
+        key: elements.map((element) => element.key).join("+"),
+        label: elements.map((element) => element.label).join(" + "),
+        elements
+      };
+    }
+
+        /*
+     * Basic / Advanced / Master Effect:
+     * mostra cada Efeito uma vez e deixa a escolha do Ataque para o painel
+     * de detalhes. Isso evita repetir a mesma descrição para cada Ataque.
+     */
+    if (
+      String(choices.type ?? "") ===
+      "effectTagPerRank"
+    ) {
+      const english =
+        isQualityBrowserEnglish();
+
+      const groupsByTag =
+        new Map();
+
+      const effectGroups = [];
+
+      for (
+        const option of
+        availableOptions
+      ) {
+        const tag = String(
+          option.effectTag ??
+          option.attackTag ??
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+        if (!tag) continue;
+
+        let group =
+          groupsByTag.get(tag);
+
+        if (!group) {
+          group = {
+            tag,
+
+            type: String(
+              option.effectType ??
+              option.type ??
+              "unique"
+            ).toLowerCase(),
+
+            potencyStat: String(
+              option.potencyStat ??
+              option.potency ??
+              ""
+            ),
+
+            duration:
+              option.duration,
+
+            effect: String(
+              option.effect ?? ""
+            ),
+
+            options: []
+          };
+
+          groupsByTag.set(
+            tag,
+            group
+          );
+
+          effectGroups.push(
+            group
+          );
+        }
+
+        group.options.push(
+          option
+        );
+      }
+
+      if (!effectGroups.length) {
+        ui.notifications.warn(
+          english
+            ? "There are no Effects compatible with the remaining Attacks."
+            : "Não há Efeitos compatíveis com os Ataques restantes."
+        );
+
+        return null;
+      }
+
+      const typeLabels = english
+        ? {
+            negative: "Negative",
+            positive: "Positive",
+            damage: "Damage",
+            unique: "Special"
+          }
+        : {
+            negative: "Negativo",
+            positive: "Positivo",
+            damage: "Dano",
+            unique: "Especial"
+          };
+
+      const getDurationLabel = (
+        duration
+      ) => {
+        if (duration === true) {
+          return english
+            ? "Up to 3 rounds"
+            : "Até 3 rodadas";
+        }
+
+        if (
+          duration === "special"
+        ) {
+          return english
+            ? "Special"
+            : "Especial";
+        }
+
+        return english
+          ? "Instant"
+          : "Instantâneo";
+      };
+
+      const cardsHtml =
+        effectGroups
+          .map((group) => {
+            const potency =
+              group.potencyStat
+                ? group.potencyStat
+                    .toUpperCase()
+                : "—";
+
+            return `
+              <button
+                type="button"
+                class="
+                  dda-effect-picker__card
+                  dda-effect-picker__card--${escapeNaturewalkHtml(
+                    group.type
+                  )}
+                "
+                data-effect-card="${escapeNaturewalkHtml(
+                  group.tag
+                )}"
+              >
+                <span class="dda-effect-picker__tag">
+                  [${escapeNaturewalkHtml(
+                    group.tag.toUpperCase()
+                  )}]
+                </span>
+
+                <span class="dda-effect-picker__kind">
+                  ${escapeNaturewalkHtml(
+                    typeLabels[group.type] ??
+                    typeLabels.unique
+                  )}
+                </span>
+
+                <span class="dda-effect-picker__meta">
+                  ${english
+                    ? "Potency"
+                    : "Potência"}:
+                  ${escapeNaturewalkHtml(
+                    potency
+                  )}
+                </span>
+
+                <span class="dda-effect-picker__available">
+                  ${group.options.length}
+                  ${english
+                    ? "attack(s)"
+                    : "ataque(s)"}
+                </span>
+              </button>
+            `;
+          })
+          .join("");
+
+      const filterHtml = [
+        "all",
+        "negative",
+        "positive",
+        "damage",
+        "unique"
+      ]
+        .map((type) => {
+          const label =
+            type === "all"
+              ? (
+                  english
+                    ? "All"
+                    : "Todos"
+                )
+              : (
+                  typeLabels[type] ??
+                  type
+                );
+
+          return `
+            <button
+              type="button"
+              class="
+                dda-effect-picker__filter
+                ${type === "all"
+                  ? "is-active"
+                  : ""}
+              "
+              data-effect-filter="${type}"
+            >
+              ${escapeNaturewalkHtml(
+                label
+              )}
+            </button>
+          `;
+        })
+        .join("");
+
+      const selectedKey =
+        await new Promise(
+          (resolve) => {
+            let settled = false;
+
+            let selectedTag =
+              effectGroups[0].tag;
+
+            let activeFilter =
+              "all";
+
+            const finish = (
+              value
+            ) => {
+              if (settled) return;
+
+              settled = true;
+              resolve(value);
+            };
+
+            new Dialog(
+              {
+                title:
+                  game.i18n.format(
+                    "DDA.QualityBrowser.ChoiceDialogTitle",
+                    {
+                      quality:
+                        quality.name,
+
+                      rank:
+                        rankNumber
+                    }
+                  ),
+
+                content: `
+                  <form class="dda-effect-picker">
+                    <header class="dda-effect-picker__header">
+                      <span class="dda-effect-picker__eyebrow">
+                        ${english
+                          ? `Rank ${rankNumber} configuration`
+                          : `Configuração do Rank ${rankNumber}`}
+                      </span>
+
+                      <h2>
+                        ${english
+                          ? "Choose an Effect"
+                          : "Escolha um Efeito"}
+                      </h2>
+
+                      <p>
+                        ${english
+                          ? "Select an Effect, review its rules, then choose a compatible Attack."
+                          : "Selecione um Efeito, confira suas regras e escolha um Ataque compatível."}
+                      </p>
+                    </header>
+
+                    <div class="dda-effect-picker__toolbar">
+                      <label class="dda-effect-picker__search-wrapper">
+                        <i class="fas fa-search"></i>
+
+                        <input
+                          type="search"
+                          class="dda-effect-picker__search"
+                          autocomplete="off"
+                          placeholder="${english
+                            ? "Search effect..."
+                            : "Buscar efeito..."}"
+                        >
+                      </label>
+
+                      <div class="dda-effect-picker__filters">
+                        ${filterHtml}
+                      </div>
+                    </div>
+
+                    <div class="dda-effect-picker__layout">
+                      <section class="dda-effect-picker__catalog">
+                        <div class="dda-effect-picker__cards">
+                          ${cardsHtml}
+                        </div>
+
+                        <div class="dda-effect-picker__empty">
+                          <i class="fas fa-filter-circle-xmark"></i>
+
+                          <span>
+                            ${english
+                              ? "No Effect matches this search."
+                              : "Nenhum Efeito corresponde a essa busca."}
+                          </span>
+                        </div>
+                      </section>
+
+                      <section class="dda-effect-picker__detail">
+                        <div class="dda-effect-picker__detail-heading">
+                          <span class="dda-effect-picker__selected-label">
+                            ${english
+                              ? "Selected effect"
+                              : "Efeito selecionado"}
+                          </span>
+
+                          <h3 data-effect-title></h3>
+                        </div>
+
+                        <div class="dda-effect-picker__facts">
+                          <div class="dda-effect-picker__fact">
+                            <strong>
+                              ${english
+                                ? "Type"
+                                : "Tipo"}
+                            </strong>
+
+                            <span data-effect-kind></span>
+                          </div>
+
+                          <div class="dda-effect-picker__fact">
+                            <strong>
+                              ${english
+                                ? "Potency"
+                                : "Potência"}
+                            </strong>
+
+                            <span data-effect-potency></span>
+                          </div>
+
+                          <div class="dda-effect-picker__fact">
+                            <strong>
+                              ${english
+                                ? "Duration"
+                                : "Duração"}
+                            </strong>
+
+                            <span data-effect-duration></span>
+                          </div>
+
+                          <div class="dda-effect-picker__fact">
+                            <strong>
+                              ${english
+                                ? "Attacks"
+                                : "Ataques"}
+                            </strong>
+
+                            <span data-effect-count></span>
+                          </div>
+                        </div>
+
+                        <div class="dda-effect-picker__rules">
+                          <strong>
+                            ${english
+                              ? "Effect rules"
+                              : "Regras do Efeito"}
+                          </strong>
+
+                          <p data-effect-description></p>
+                        </div>
+
+                        <label class="dda-effect-picker__attack">
+                          <span>
+                            ${english
+                              ? "Apply this Effect to"
+                              : "Aplicar este Efeito em"}
+                          </span>
+
+                          <select name="choiceKey"></select>
+                        </label>
+
+                        <p class="dda-effect-picker__rank-note">
+                          ${game.i18n.format(
+                            "DDA.QualityBrowser.ChoiceRegisteredRank",
+                            {
+                              rank:
+                                rankNumber
+                            }
+                          )}
+                        </p>
+                      </section>
+                    </div>
+                  </form>
+                `,
+
+                buttons: {
+                  confirm: {
+                    icon:
+                      '<i class="fas fa-check"></i>',
+
+                    label:
+                      game.i18n.localize(
+                        "DDA.Button.Confirm"
+                      ),
+
+                    callback: (
+                      html
+                    ) => {
+                      finish(
+                        String(
+                          html
+                            .find(
+                              "[name='choiceKey']"
+                            )
+                            .val() ??
+                          ""
+                        )
+                      );
+                    }
+                  },
+
+                  cancel: {
+                    icon:
+                      '<i class="fas fa-times"></i>',
+
+                    label:
+                      game.i18n.localize(
+                        "DDA.Button.Cancel"
+                      ),
+
+                    callback: () => {
+                      finish(null);
+                    }
+                  }
+                },
+
+                default:
+                  "confirm",
+
+                render: (
+                  html
+                ) => {
+                  const search =
+                    html.find(
+                      ".dda-effect-picker__search"
+                    );
+
+                  const cards =
+                    html.find(
+                      "[data-effect-card]"
+                    );
+
+                  const attackSelect =
+                    html.find(
+                      "[name='choiceKey']"
+                    );
+
+                  const selectGroup = (
+                    tag
+                  ) => {
+                    const group =
+                      groupsByTag.get(tag);
+
+                    if (!group) return;
+
+                    selectedTag =
+                      tag;
+
+                    cards.removeClass(
+                      "is-selected"
+                    );
+
+                    cards
+                      .filter(
+                        `[data-effect-card="${tag}"]`
+                      )
+                      .addClass(
+                        "is-selected"
+                      );
+
+                    html
+                      .find(
+                        "[data-effect-title]"
+                      )
+                      .text(
+                        `[${tag.toUpperCase()}]`
+                      );
+
+                    html
+                      .find(
+                        "[data-effect-kind]"
+                      )
+                      .text(
+                        typeLabels[
+                          group.type
+                        ] ??
+                        typeLabels.unique
+                      );
+
+                    html
+                      .find(
+                        "[data-effect-potency]"
+                      )
+                      .text(
+                        group.potencyStat
+                          ? group.potencyStat
+                              .toUpperCase()
+                          : "—"
+                      );
+
+                    html
+                      .find(
+                        "[data-effect-duration]"
+                      )
+                      .text(
+                        getDurationLabel(
+                          group.duration
+                        )
+                      );
+
+                    html
+                      .find(
+                        "[data-effect-count]"
+                      )
+                      .text(
+                        group.options.length
+                      );
+
+                    html
+                      .find(
+                        "[data-effect-description]"
+                      )
+                      .text(
+                        group.effect ||
+                        (
+                          english
+                            ? "No description available."
+                            : "Nenhuma descrição disponível."
+                        )
+                      );
+
+                    attackSelect.empty();
+
+                    for (
+                      const option of
+                      group.options
+                    ) {
+                      const element =
+                        document.createElement(
+                          "option"
+                        );
+
+                      element.value =
+                        option.key;
+
+                      element.textContent =
+                        option.attackName ??
+                        option.label ??
+                        option.key;
+
+                      attackSelect.append(
+                        element
+                      );
+                    }
+                  };
+
+                  const applyFilters =
+                    () => {
+                      const query =
+                        normalizeQualityBrowserIdentity(
+                          search.val()
+                        );
+
+                      let firstVisibleTag =
+                        "";
+
+                      let selectedIsVisible =
+                        false;
+
+                      cards.each(
+                        (
+                          _index,
+                          element
+                        ) => {
+                          const card =
+                            $(element);
+
+                          const tag =
+                            String(
+                              card.data(
+                                "effectCard"
+                              ) ??
+                              ""
+                            );
+
+                          const group =
+                            groupsByTag.get(
+                              tag
+                            );
+
+                          const matchesType =
+                            activeFilter ===
+                              "all" ||
+                            group?.type ===
+                              activeFilter;
+
+                          const haystack =
+                            normalizeQualityBrowserIdentity(
+                              [
+                                tag,
+                                group?.effect ??
+                                  "",
+                                typeLabels[
+                                  group?.type
+                                ] ??
+                                  ""
+                              ].join(" ")
+                            );
+
+                          const visible =
+                            matchesType &&
+                            (
+                              !query ||
+                              haystack.includes(
+                                query
+                              )
+                            );
+
+                          card.toggle(
+                            visible
+                          );
+
+                          if (
+                            visible &&
+                            !firstVisibleTag
+                          ) {
+                            firstVisibleTag =
+                              tag;
+                          }
+
+                          if (
+                            visible &&
+                            tag === selectedTag
+                          ) {
+                            selectedIsVisible =
+                              true;
+                          }
+                        }
+                      );
+
+                      html
+                        .find(
+                          ".dda-effect-picker__empty"
+                        )
+                        .toggle(
+                          !firstVisibleTag
+                        );
+
+                      if (
+                        !selectedIsVisible &&
+                        firstVisibleTag
+                      ) {
+                        selectGroup(
+                          firstVisibleTag
+                        );
+                      }
+                    };
+
+                  cards.on(
+                    "click",
+                    (event) => {
+                      event.preventDefault();
+
+                      selectGroup(
+                        String(
+                          event
+                            .currentTarget
+                            .dataset
+                            .effectCard ??
+                          ""
+                        )
+                      );
+                    }
+                  );
+
+                  html
+                    .find(
+                      "[data-effect-filter]"
+                    )
+                    .on(
+                      "click",
+                      (event) => {
+                        event.preventDefault();
+
+                        activeFilter =
+                          String(
+                            event
+                              .currentTarget
+                              .dataset
+                              .effectFilter ??
+                            "all"
+                          );
+
+                        html
+                          .find(
+                            "[data-effect-filter]"
+                          )
+                          .removeClass(
+                            "is-active"
+                          );
+
+                        $(
+                          event.currentTarget
+                        ).addClass(
+                          "is-active"
+                        );
+
+                        applyFilters();
+                      }
+                    );
+
+                  search.on(
+                    "input",
+                    applyFilters
+                  );
+
+                  selectGroup(
+                    selectedTag
+                  );
+                },
+
+                close: () => {
+                  finish(null);
+                }
+              },
+
+              {
+                width: 780,
+                height: "auto",
+
+                classes: [
+                  "dda-effect-choice-dialog"
+                ]
+              }
+            ).render(true);
+          }
+        );
+
+      if (!selectedKey) {
+        return null;
+      }
+
+      const selectedOption =
+        availableOptions.find(
+          (option) => {
+            return (
+              String(option.key) ===
+              String(selectedKey)
+            );
+          }
+        );
+
+      if (!selectedOption) {
+        return null;
+      }
+
+      return {
+        rank:
+          rankNumber,
+
+        key:
+          selectedOption.key,
+
+        label:
+          selectedOption.label ??
+          selectedOption.key,
+
+        originalLabel:
+          selectedOption.originalLabel ??
+          "",
+
+        derivedStat:
+          selectedOption.derivedStat ??
+          "",
+
+        attackId:
+          selectedOption.attackId ??
+          "",
+
+        attackName:
+          selectedOption.attackName ??
+          "",
+
+        attackTag:
+          selectedOption.attackTag ??
+          "",
+
+        effectTag:
+          selectedOption.effectTag ??
+          "",
+
+        effectType:
+          selectedOption.effectType ??
+          selectedOption.type ??
+          "",
+
+        potencyStat:
+          selectedOption.potencyStat ??
+          selectedOption.potency ??
+          "",
+
+        duration:
+          selectedOption.duration ??
+          true,
+
+        extraActionRequired:
+          Boolean(
+            selectedOption
+              .extraActionRequired
+          ),
+
+        requiresDamageTag:
+          Boolean(
+            selectedOption
+              .requiresDamageTag
+          ),
+
+        onlyAffectsAllies:
+          Boolean(
+            selectedOption
+              .onlyAffectsAllies
+          ),
 
         effect:
           selectedOption.effect ??
@@ -1248,6 +2223,18 @@ _getAttackChoiceOptionsForQuality(
         .filter(Boolean)
     );
 
+  const actorHasCodeWizard = (this.actor?.items ?? []).some((item) => {
+    const selected = [
+      ...(item.system?.choices?.selectedRanks ?? []),
+      ...(item.system?.choices?.selected ?? [])
+    ];
+    return item.type === "quality" && selected.some((choice) => {
+      return normalizeQualityBrowserIdentity(
+        typeof choice === "string" ? choice : choice?.key ?? choice?.value ?? choice?.id
+      ) === "codewizard";
+    });
+  });
+
   const getAttackTags = (
     attack
   ) => {
@@ -1322,6 +2309,57 @@ _getAttackChoiceOptionsForQuality(
         return allEffectTags.has(tag);
       });
   };
+
+  /*
+   * ELEMENTAL FORCE
+   *
+   * Cada Rank escolhe um Naturewalk que o Actor possui e o vincula a
+   * um Ataque [DAMAGE] diferente. A escolha composta é persistida para
+   * que o attack-roll saiba exatamente qual ataque pode disparar o bônus.
+   */
+  if (isElementalForceQualityData(quality)) {
+    const elementalTags = new Set([
+      "fire", "water", "wind", "earth", "ice",
+      "wood", "steel", "thunder", "darkness", "light"
+    ]);
+
+    const ownedElements = new Set(
+      (this.actor?.system?.qualityFeatures?.naturewalk?.elements ?? [])
+        .map(normalizeTag)
+        .filter(Boolean)
+    );
+
+    const elementOptions = Array.isArray(choices.options)
+      ? choices.options
+      : [];
+
+    return elementOptions
+      .filter((option) => ownedElements.has(normalizeTag(option.key)))
+      .flatMap((option) => {
+        const element = normalizeTag(option.key);
+
+        return attacks
+          .filter((attack) => !usedAttackIds.has(attack.id))
+          .filter((attack) => {
+            return String(attack.system?.baseTags?.functionType ?? "")
+              .trim()
+              .toLowerCase() === "damage";
+          })
+          .filter((attack) => {
+            return !getAttackTags(attack).some((tag) => elementalTags.has(tag));
+          })
+          .map((attack) => ({
+            key: `${attack.id}:${element}`,
+            label: `${attack.name} — [${element.toUpperCase()}]`,
+            originalLabel: "",
+            attackId: attack.id,
+            attackName: attack.name,
+            attackTag: element,
+            element,
+            effect: option.effect ?? ""
+          }));
+      });
+  }
 
   const isAreaAttackChoice =
     quality.id ===
@@ -1494,7 +2532,8 @@ _getAttackChoiceOptionsForQuality(
           })
           .filter((attack) => {
             if (
-              !option.requiresDamageTag
+              !option.requiresDamageTag ||
+              actorHasCodeWizard
             ) {
               return true;
             }
@@ -1793,7 +2832,83 @@ _getQualityEffectiveMax(
       ownedItem
     )
   ) {
-    return 2;
+    const hasElementalMyriad = this.actor?.items?.some((item) => {
+      return item.type === "quality" && isElementalMyriadQualityData({}, item);
+    });
+
+    return hasElementalMyriad ? 10 : 2;
+  }
+
+  /*
+   * Basic/Advanced/Master Effect e Elemental Force não possuem
+   * um limite fixo. O limite real é a quantidade de Ataques que ainda
+   * podem receber uma escolha válida.
+   */
+  if (
+    isEffectPurchaseQualityData(quality, ownedItem) ||
+    isElementalForceQualityData(quality, ownedItem)
+  ) {
+    const currentRank = Math.max(
+      0,
+      Number(ownedItem?.system?.rank?.value ?? 0)
+    );
+
+    const existingChoices = Array.isArray(
+      ownedItem?.system?.choices?.selectedRanks
+    )
+      ? ownedItem.system.choices.selectedRanks
+      : [];
+
+    /*
+     * Itens de builds antigas podem ter sido salvos sem choices ou
+     * attackModifier completos. A definição atual sobrescreve o fallback.
+     */
+    const choiceDefinition = {
+      ...(ownedItem?.system ?? {}),
+      ...(quality ?? {}),
+
+      choices: {
+        ...(ownedItem?.system?.choices ?? {}),
+        ...(quality?.choices ?? {})
+      },
+
+      attackModifier: {
+        ...(ownedItem?.system?.attackModifier ?? {}),
+        ...(quality?.attackModifier ?? {})
+      }
+    };
+
+    const availableOptions =
+      this._getAttackChoiceOptionsForQuality(
+        choiceDefinition,
+        existingChoices
+      );
+
+    /*
+     * Várias Tags podem apontar para o mesmo Ataque.
+     * Cada Ataque disponível conta somente uma vez.
+     */
+    const availableAttackIds = new Set(
+      availableOptions
+        .map((option) => {
+          return String(
+            option.attackId ?? ""
+          ).trim();
+        })
+        .filter(Boolean)
+    );
+
+    return (
+      currentRank +
+      availableAttackIds.size
+    );
+  }
+
+  if (isNaturalWeaknessQualityData(quality, ownedItem)) {
+    const naturewalk = this.actor?.items?.find((item) => {
+      return item.type === "quality" && isNaturewalkQualityData({}, item);
+    });
+    return Math.max(0, Number(naturewalk?.system?.rank?.value ?? 0));
   }
 
   const actorComputedEffectiveMax =
@@ -1890,7 +3005,7 @@ _isAccelerateQuality(quality, ownedItem = null) {
     if (!raw) return [];
 
     return raw
-      .split(",")
+      .split(/[,;|]/)
       .map((entry) => entry.trim())
       .filter(Boolean);
   }
@@ -1913,7 +3028,10 @@ _isAccelerateQuality(quality, ownedItem = null) {
       );
     });
 
-    return quality.requirements?.mode === "any"
+    const anyMode = quality.requirements?.mode === "any" ||
+      /\b(or|ou)\b/i.test(String(quality.requirements?.text ?? ""));
+
+    return anyMode
       ? matches.some(Boolean)
       : matches.every(Boolean);
   }
@@ -1936,7 +3054,10 @@ _isAccelerateQuality(quality, ownedItem = null) {
       );
     });
 
-    if (quality.requirements?.mode === "any") {
+    const anyMode = quality.requirements?.mode === "any" ||
+      /\b(or|ou)\b/i.test(String(quality.requirements?.text ?? ""));
+
+    if (anyMode) {
       return missing.length === requiredNames.length
         ? requiredNames
         : [];
@@ -2154,4 +3275,4 @@ _isAccelerateQuality(quality, ownedItem = null) {
       ? game.i18n.localize(labelKey)
       : quality.availability?.label ?? game.i18n.localize("DDA.QualityBrowser.Tier.Starting");
   }
-} 
+}

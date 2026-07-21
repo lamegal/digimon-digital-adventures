@@ -20,12 +20,12 @@
   {{#if selectedChoice}}
     <div class="dda-evolution-choice-selected-panel">
       <div>
-        <span>Seleção atual</span>
+        <span>{{localize "DDA.EvolutionChoice.SelectionCurrent"}}</span>
         <strong>{{selectedChoice.displayName}}</strong>
         <small>{{selectedChoice.stageLabel}}</small>
       </div>
       <button type="button" data-action="clear-evolution-choice" data-stage="{{targetStage}}" data-uuid="{{selectedChoice.uuid}}">
-        Remover seleção
+        {{localize "DDA.EvolutionChoice.ClearSelection"}}
       </button>
     </div>
   {{/if}}

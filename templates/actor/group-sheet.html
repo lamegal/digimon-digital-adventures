@@ -67,16 +67,18 @@
 
       <div class="dda-group-member-list">
         {{#each members as |member|}}
-          <article class="dda-group-member-card {{#if member.missing}}is-missing{{/if}}">
-            <header class="dda-group-member-header">
-              <img src="{{member.img}}" alt="{{member.name}}" />
+          <article class="dda-group-member-card dda-group-member-card-compact {{#if member.missing}}is-missing{{/if}}">
+            <section class="dda-group-member-side dda-group-member-tamer">
+              <img class="dda-group-member-portrait" src="{{member.img}}" alt="{{member.name}}" />
 
-              <div>
+              <div class="dda-group-member-copy">
+                <span class="dda-group-member-kicker">{{localize "DDA.Actor.Tamer"}}</span>
                 <h3>{{member.name}}</h3>
+
                 {{#if member.missing}}
-                  <span>{{localize "DDA.Group.MissingTamer"}}</span>
+                  <small>{{localize "DDA.Group.MissingTamer"}}</small>
                 {{else}}
-                  <span>{{localize "DDA.Actor.Tamer"}}</span>
+                  <small>{{localize "DDA.Group.MemberReady"}}</small>
                 {{/if}}
               </div>
 
@@ -86,95 +88,76 @@
                     type="button"
                     data-action="groupOpenTamer"
                     data-uuid="{{member.uuid}}"
+                    title="{{localize 'DDA.Group.OpenTamer'}}"
                   >
+                    <i class="fa-solid fa-user" aria-hidden="true"></i>
                     {{localize "DDA.Button.Open"}}
                   </button>
                 {{/unless}}
 
                 <button
                   type="button"
+                  class="is-danger"
                   data-action="groupRemoveMember"
                   data-uuid="{{member.uuid}}"
+                  title="{{localize 'DDA.Button.Remove'}}"
                 >
-                  {{localize "DDA.Button.Remove"}}
+                  <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                 </button>
               </div>
-            </header>
+            </section>
 
-            {{#unless member.missing}}
-              <div class="dda-group-partner-grid">
-                <div class="dda-group-partner-box">
-                  <label>{{localize "DDA.TamerSheet.Partner"}}</label>
+            <div class="dda-group-member-link" aria-hidden="true">
+              <i class="fa-solid fa-link"></i>
+            </div>
 
-                  <div class="dda-group-digimon-line">
-                    <img src="{{member.partnerImg}}" alt="{{member.partnerName}}" />
-                    <strong>
-                      {{#if member.partnerName}}
-                        {{member.partnerName}}
-                      {{else}}
-                        {{localize "DDA.Group.NoPartner"}}
-                      {{/if}}
-                    </strong>
-                  </div>
+            <section class="dda-group-member-side dda-group-member-digimon">
+              {{#unless member.missing}}
+                <img
+                  class="dda-group-member-portrait"
+                  src="{{member.currentFormImg}}"
+                  alt="{{member.currentFormName}}"
+                />
 
-                  {{#if member.partnerUuid}}
-                    <button
-                      type="button"
-                      data-action="groupOpenPartner"
-                      data-uuid="{{member.partnerUuid}}"
-                    >
-                      {{localize "DDA.Button.Open"}}
-                    </button>
-                  {{/if}}
+                <div class="dda-group-member-copy">
+                  <span class="dda-group-member-kicker">{{localize "DDA.TamerSheet.CurrentForm"}}</span>
+                  <h3>
+                    {{#if member.currentFormName}}
+                      {{member.currentFormName}}
+                    {{else}}
+                      {{localize "DDA.Group.NoCurrentForm"}}
+                    {{/if}}
+                  </h3>
+
+                  <small>
+                    {{#if member.currentFormStageLabel}}
+                      {{member.currentFormStageLabel}}
+                    {{else}}
+                      {{localize "DDA.Group.NoCurrentForm"}}
+                    {{/if}}
+                  </small>
                 </div>
 
-                <div class="dda-group-partner-box">
-                  <label>{{localize "DDA.TamerSheet.CurrentForm"}}</label>
-
-                  <div class="dda-group-digimon-line">
-                    <img src="{{member.currentFormImg}}" alt="{{member.currentFormName}}" />
-                    <strong>
-                      {{#if member.currentFormName}}
-                        {{member.currentFormName}}
-                      {{else}}
-                        {{localize "DDA.Group.NoCurrentForm"}}
-                      {{/if}}
-                    </strong>
-
-                    {{#if member.currentFormStageLabel}}
-                      <span>{{member.currentFormStageLabel}}</span>
-                    {{/if}}
-                  </div>
-
-                  {{#if member.currentFormUuid}}
+                {{#if member.currentFormUuid}}
+                  <div class="dda-group-member-actions">
                     <button
                       type="button"
                       data-action="groupOpenForm"
                       data-uuid="{{member.currentFormUuid}}"
+                      title="{{localize 'DDA.Group.OpenCurrentForm'}}"
                     >
+                      <i class="fa-solid fa-paw" aria-hidden="true"></i>
                       {{localize "DDA.Button.Open"}}
                     </button>
-                  {{/if}}
-                </div>
-              </div>
-
-              <div class="dda-group-evolution-summary">
-                <h4>
-                  {{localize "DDA.Group.RegisteredEvolutions"}}:
-                  {{member.evolutionCount}}
-                </h4>
-
-                {{#if member.nextForms.length}}
-                  <div class="dda-group-next-forms">
-                    {{#each member.nextForms as |form|}}
-                      <span title="{{form.stageLabel}}">{{form.name}}</span>
-                    {{/each}}
                   </div>
-                {{else}}
-                  <p class="muted">{{localize "DDA.Group.NoRegisteredNextForms"}}</p>
                 {{/if}}
-              </div>
-            {{/unless}}
+              {{else}}
+                <div class="dda-group-member-copy dda-group-member-missing-copy">
+                  <span class="dda-group-member-kicker">{{localize "DDA.TamerSheet.CurrentForm"}}</span>
+                  <h3>{{localize "DDA.Group.NoCurrentForm"}}</h3>
+                </div>
+              {{/unless}}
+            </section>
           </article>
         {{/each}}
       </div>
@@ -185,9 +168,16 @@
       data-group="primary"
       data-tab="jogress"
     >
-      <div class="dda-group-section-title">
-        <h2>{{localize "DDA.Group.JogressTitle"}}</h2>
-        <span>{{localize "DDA.Group.JogressHint"}}</span>
+      <div class="dda-group-section-title dda-group-jogress-hero">
+        <div class="dda-group-jogress-hero-icon" aria-hidden="true">
+          <i class="fa-solid fa-link"></i>
+        </div>
+
+        <div class="dda-group-jogress-hero-copy">
+          <small>{{localize "DDA.Group.JogressKicker"}}</small>
+          <h2>{{localize "DDA.Group.JogressTitle"}}</h2>
+          <span>{{localize "DDA.Group.JogressHint"}}</span>
+        </div>
       </div>
 
       {{#if hasActiveJogressStates}}
@@ -238,7 +228,13 @@
       {{/if}}
 
       {{#unless hasJogressRecipes}}
-        <p class="dda-group-empty">{{localize "DDA.Group.EmptyJogressRecipes"}}</p>
+        <div class="dda-group-empty dda-group-jogress-empty">
+          <i class="fa-solid fa-code-branch" aria-hidden="true"></i>
+          <div>
+            <strong>{{localize "DDA.Group.EmptyJogressRecipes"}}</strong>
+            <span>{{localize "DDA.Group.EmptyJogressRecipesHint"}}</span>
+          </div>
+        </div>
       {{/unless}}
 
       <div class="dda-group-jogress-list">
@@ -271,7 +267,7 @@
                   <strong>{{component.label}}</strong>
 
                   {{#if component.matched}}
-                    <span>{{component.digimonName}} — {{component.memberName}}</span>
+                    <span>{{component.digimonName}} — {{component.memberName}} {{#if component.matchLabel}}• {{component.matchLabel}}{{/if}}</span>
                   {{else}}
                     <span>{{localize "DDA.Group.ComponentMissing"}}</span>
                   {{/if}}

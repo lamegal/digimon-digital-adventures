@@ -20,6 +20,7 @@
 .dda-combat-pair-card {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(68px, auto);
   min-height: 68px;
   overflow: hidden;
   border: 1px solid rgba(155, 185, 214, 0.38);
@@ -35,7 +36,45 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
+.dda-combat-pair-card.is-active {
+  border-color: rgba(87, 211, 255, 0.9);
+  box-shadow:
+    0 0 0 1px rgba(255, 206, 74, 0.32),
+    0 0 16px rgba(58, 192, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.dda-pair-shared-turn {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 20px;
+  padding: 3px 8px;
+  border-bottom: 1px solid rgba(154, 208, 235, 0.18);
+  color: rgba(206, 229, 241, 0.76);
+  background: rgba(5, 18, 31, 0.58);
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.dda-combat-pair-card.is-active .dda-pair-shared-turn {
+  color: #eafaff;
+  background: linear-gradient(
+    90deg,
+    rgba(49, 176, 229, 0.18),
+    rgba(255, 194, 55, 0.13)
+  );
+}
+
 .dda-pair-initiative {
+  grid-column: 1;
+  grid-row: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -55,6 +94,7 @@
 }
 
 .dda-pair-member {
+  grid-row: 2;
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);
   column-gap: 7px;
@@ -74,7 +114,12 @@
 }
 
 .dda-pair-member--digimon {
+  grid-column: 2;
   border-right: 1px solid rgba(177, 217, 248, 0.16);
+}
+
+.dda-pair-member--tamer {
+  grid-column: 3;
 }
 
 .dda-pair-member:hover {
