@@ -94,7 +94,11 @@ export class DDAGmTools extends HandlebarsApplicationMixin(ApplicationV2) {
       "refresh-targets": DDAGmTools.#onRefreshTargets,
       "apply-damage": DDAGmTools.#onApplyDamage,
       "start-session": DDAGmTools.#onStartSession,
-      "end-session": DDAGmTools.#onEndSession
+      "end-session": DDAGmTools.#onEndSession,
+      "grant-actions": DDAGmTools.#onGrantActions,
+      "restore-actions": DDAGmTools.#onRestoreActions,
+      "grant-unrestricted-movement": DDAGmTools.#onGrantUnrestrictedMovement,
+      "clear-movement": DDAGmTools.#onClearMovement
     }
   };
 
@@ -236,6 +240,151 @@ export class DDAGmTools extends HandlebarsApplicationMixin(ApplicationV2) {
     try {
       const result = await endDdaSession();
       await postSessionEndCard(result);
+      await this.render();
+    } finally {
+      target.disabled = false;
+    }
+  }
+
+  static async #onGrantActions(event, target) {
+    event.preventDefault();
+
+    const form = target.closest("form");
+    if (!form) return;
+
+    const formData = new FormData(form);
+    const amount = Math.max(1, Math.floor(Number(formData.get("actionAmount") ?? 1)));
+    const targetMode = String(formData.get("targetMode") ?? "auto");
+    const targets = getNarrativeTargets(targetMode);
+
+    if (!targets.length) {
+      ui.notifications.warn(game.i18n.localize("DDA.Warning.GmToolsNoValidTargets"));
+      return;
+    }
+
+    target.disabled = true;
+    try {
+      for (const { actor } of targets) {
+        const current = Math.max(0, Number(actor.system?.combat?.actions?.value ?? 0));
+        await actor.update({
+          "system.combat.actions.value": current + amount
+        });
+      }
+
+      ui.notifications.info(game.i18n.format("DDA.GmTools.Actions.GrantedNotice", {
+        amount,
+        count: targets.length
+      }));
+      await this.render();
+    } finally {
+      target.disabled = false;
+    }
+  }
+
+  static async #onRestoreActions(event, target) {
+    event.preventDefault();
+
+    const form = target.closest("form");
+    if (!form) return;
+
+    const formData = new FormData(form);
+    const targetMode = String(formData.get("targetMode") ?? "auto");
+    const targets = getNarrativeTargets(targetMode);
+
+    if (!targets.length) {
+      ui.notifications.warn(game.i18n.localize("DDA.Warning.GmToolsNoValidTargets"));
+      return;
+    }
+
+    target.disabled = true;
+    try {
+      for (const { actor, token } of targets) {
+        const maximum = Math.max(0, Number(actor.system?.combat?.actions?.max ?? 2));
+        await actor.update({
+          "system.combat.actions.value": maximum,
+          "system.combat.hasAttackedThisRound": false,
+          "system.combat.attacksMadeThisTurn": 0,
+          "system.combat.movementActionsThisTurn": 0
+        });
+
+        const combatant = getTargetCombatant(token, actor);
+        if (combatant) {
+          await combatant.update({
+            [`flags.${SYSTEM_ID}.initiative.endedRound`]: 0
+          });
+        }
+      }
+
+      ui.notifications.info(game.i18n.format("DDA.GmTools.Actions.RestoredNotice", {
+        count: targets.length
+      }));
+      await this.render();
+    } finally {
+      target.disabled = false;
+    }
+  }
+
+  static async #onGrantUnrestrictedMovement(event, target) {
+    event.preventDefault();
+
+    const form = target.closest("form");
+    if (!form) return;
+
+    const formData = new FormData(form);
+    const targetMode = String(formData.get("targetMode") ?? "auto");
+    const targets = getNarrativeTargets(targetMode);
+    const tracker = game?.dda?.movementTracker;
+
+    if (!targets.length) {
+      ui.notifications.warn(game.i18n.localize("DDA.Warning.GmToolsNoValidTargets"));
+      return;
+    }
+
+    if (!tracker?.grantUnrestrictedMovement) {
+      ui.notifications.warn(game.i18n.localize("DDA.GmTools.Movement.TrackerUnavailable"));
+      return;
+    }
+
+    target.disabled = true;
+    try {
+      let granted = 0;
+      for (const { actor } of targets) {
+        const success = await tracker.grantUnrestrictedMovement(actor, {
+          label: game.i18n.localize("DDA.GmTools.Movement.UnrestrictedLabel")
+        });
+        if (success) granted += 1;
+      }
+
+      ui.notifications.info(game.i18n.format("DDA.GmTools.Movement.GrantedNotice", {
+        count: granted
+      }));
+      await this.render();
+    } finally {
+      target.disabled = false;
+    }
+  }
+
+  static async #onClearMovement(event, target) {
+    event.preventDefault();
+
+    const form = target.closest("form");
+    if (!form) return;
+
+    const formData = new FormData(form);
+    const targetMode = String(formData.get("targetMode") ?? "auto");
+    const targets = getNarrativeTargets(targetMode);
+    const tracker = game?.dda?.movementTracker;
+
+    if (!targets.length) {
+      ui.notifications.warn(game.i18n.localize("DDA.Warning.GmToolsNoValidTargets"));
+      return;
+    }
+
+    target.disabled = true;
+    try {
+      for (const { actor } of targets) {
+        await tracker?.clearForActor?.(actor);
+      }
       await this.render();
     } finally {
       target.disabled = false;
@@ -413,6 +562,16 @@ function getNarrativeTargets(mode = "auto") {
   }));
 }
 
+function getTargetCombatant(token, actor) {
+  const combat = game?.combat;
+  if (!combat?.started) return null;
+
+  return combat.combatants?.find((combatant) => {
+    if (token?.id && combatant.tokenId === token.id) return true;
+    return combatant.actor?.uuid === actor?.uuid;
+  }) ?? null;
+}
+
 function getTargetViewData(actor, token) {
   const woundState = getActorWoundState(actor);
   const crashReduction = actor.system?.utilityBonuses?.crashDamageReduction ?? {};
@@ -427,6 +586,8 @@ function getTargetViewData(actor, token) {
     wounds: woundState.value,
     maxWounds: woundState.max,
     tempWounds: woundState.temp,
+    actions: Math.max(0, Number(actor.system?.combat?.actions?.value ?? 0)),
+    maxActions: Math.max(0, Number(actor.system?.combat?.actions?.max ?? 0)),
     crashReduction: crashReductionValue,
     crashReductionTooltip: crashReduction.tooltip ?? ""
   };

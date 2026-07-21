@@ -1,5 +1,6 @@
 import { getDDASetting } from "../settings.js";
 import { rollAttack } from "../rolls/attack-roll.js";
+import { getActiveDDAUnitContext } from "./initiative.js";
 
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 const DDA_CLASH_SOCKET_ACTION_UPDATE_ACTOR = "clashUpdateActor";
@@ -284,6 +285,19 @@ function getClashState(actor) {
 
 function hasActiveClash(actor) {
   return Boolean(actor?.system?.clash?.state?.active || actor?.system?.combat?.clash?.active);
+}
+
+function hasFearFrom(actor, sourceActor) {
+  const sourceKeys = new Set([
+    sourceActor?.uuid,
+    sourceActor?.id,
+    sourceActor?.id ? `Actor.${sourceActor.id}` : ""
+  ].filter(Boolean).map(String));
+
+  return (actor?.system?.effects?.active ?? []).some((effect) => {
+    const tag = String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase();
+    return tag === "fear" && sourceKeys.has(String(effect.sourceActorUuid ?? ""));
+  });
 }
 
 function getClashMapKey(actorOrUuid) {
@@ -905,6 +919,19 @@ export async function initiateDigimonClash(actor) {
     return null;
   }
 
+  const turnContext = getActiveDDAUnitContext(actor);
+  if (!turnContext.allowed) {
+    ui.notifications.warn(turnContext.ended
+      ? "Este Digimon já encerrou sua parte desta ativação."
+      : "Este Digimon não pertence à unidade ativa.");
+    return null;
+  }
+
+  if (hasFearFrom(actor, targetActor)) {
+    ui.notifications.warn("[FEAR] impede iniciar ou controlar um Clash contra este Caster.");
+    return null;
+  }
+
   if (hasActiveClash(actor) || hasActiveClash(targetActor)) {
     ui.notifications.warn(localize("DDA.Warning.ClashParticipantAlreadyInClash"));
     return null;
@@ -924,7 +951,10 @@ export async function initiateDigimonClash(actor) {
 
   const initiatorRoll = await rollClashCheck(actor, targetActor, { bonus: initiatorBonus });
   const targetRoll = await rollClashCheck(targetActor, actor, { bonus: targetBonus });
-  const controller = resolveController(actor, targetActor, initiatorRoll, targetRoll);
+  let controller = resolveController(actor, targetActor, initiatorRoll, targetRoll);
+  if (controller.uuid === targetActor.uuid && hasFearFrom(targetActor, actor)) {
+    controller = actor;
+  }
   const opponent = controller.uuid === actor.uuid ? targetActor : actor;
 
   const autoEndForSize = getSizeDifference(controller, opponent) <= -2 && !hasMonsterStrength(controller);

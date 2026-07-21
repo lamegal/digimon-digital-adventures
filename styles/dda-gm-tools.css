@@ -257,3 +257,43 @@ button.control.ui-control.tool.icon.dda-gm-tools-control-icon::before,
 .dda-gm-tools-session-actions button {
   margin: 0;
 }
+/* DDA — Combat overrides for the GM */
+.dda-gm-tools-section-help,
+.dda-gm-tools-override-note {
+  margin: 0;
+  opacity: 0.82;
+}
+
+.dda-gm-tools-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dda-gm-tools-action-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  margin: 0;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+.dda-gm-tools-action-grid button[data-action="grant-unrestricted-movement"] {
+  border-color: rgba(86, 200, 255, 0.6);
+  background: rgba(25, 108, 154, 0.28);
+}
+
+.dda-gm-tools-override-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 9px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: rgba(78, 166, 224, 0.1);
+  font-size: 12px;
+}

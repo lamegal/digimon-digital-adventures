@@ -24,6 +24,7 @@
           "hasAttackedThisRound": false,
           "surprised": false,
           "defeated": false,
+          "incapacitated": false,
           "tamerActionUses": {}   
        },
         "effects": {
@@ -689,6 +690,8 @@
         "energizeUsedThisTurn": false,
         "surprised": false,
         "defeated": false,
+        "incapacitated": false,
+        "digimonActionUses": {},
         "digitama": false,
         "clash": {
           "active": false,
@@ -753,6 +756,15 @@
           "spentQualities": 0,
           "remaining": 0,
           "sharedSpent": 0,
+          "byStage": {
+            "baby1": { "total": 0, "spent": 0, "remaining": 0, "formCount": 0 },
+            "baby2": { "total": 0, "spent": 0, "remaining": 0, "formCount": 0 },
+            "child": { "total": 0, "spent": 0, "remaining": 0, "formCount": 0 },
+            "adult": { "total": 0, "spent": 0, "remaining": 0, "formCount": 0 },
+            "perfect": { "total": 0, "spent": 0, "remaining": 0, "formCount": 0 },
+            "ultimate": { "total": 0, "spent": 0, "remaining": 0, "formCount": 0 },
+            "ultimatePlus": { "total": 0, "spent": 0, "remaining": 0, "formCount": 0 }
+          },
           "packages": []
         },
         "sharedStatBonus": {
@@ -950,6 +962,8 @@
         "energizeUsedThisTurn": false,
         "surprised": false,
         "defeated": false,
+        "incapacitated": false,
+        "digimonActionUses": {},
         "digitama": false,
         "clash": {
           "active": false,

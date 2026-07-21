@@ -159,7 +159,7 @@ export async function applyLuckyNumberReward(
   if (
     !sourceActor ||
     !Array.isArray(diceResults) ||
-    diceResults.length < 2
+    diceResults.length !== 3
   ) {
     return null;
   }

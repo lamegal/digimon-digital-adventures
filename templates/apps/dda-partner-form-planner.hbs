@@ -1,0 +1,219 @@
+<section class="dda-partner-form-planner__root">
+  {{#unless ready}}
+    <div class="dda-partner-form-planner__empty">
+      <i class="fas fa-exclamation-triangle"></i>
+      <p>{{localize "DDA.PartnerFormPlanner.Unavailable"}}</p>
+    </div>
+  {{else}}
+    <header class="dda-partner-form-planner__header">
+      <div class="dda-partner-form-planner__identity">
+        <img src="{{partner.img}}" alt="{{partner.name}}">
+        <div>
+          <span>{{tamer.name}}</span>
+          <h2>{{partner.name}}</h2>
+          <p>{{localize "DDA.PartnerFormPlanner.Subtitle"}}</p>
+        </div>
+      </div>
+
+      <button type="button" data-action="refresh">
+        <i class="fas fa-sync-alt"></i>
+        {{localize "DDA.PartnerFormPlanner.Refresh"}}
+      </button>
+    </header>
+
+    <div class="dda-partner-form-planner__body">
+      <section class="dda-partner-form-planner__intro">
+        <i class="fas fa-info-circle"></i>
+        <p>{{localize "DDA.PartnerFormPlanner.Help"}}</p>
+      </section>
+
+      {{#if hasForms}}
+        <section class="dda-partner-form-planner__forms">
+          <header>
+            <div>
+              <h3>{{localize "DDA.PartnerFormPlanner.PreparedForms"}}</h3>
+              <p>{{localize "DDA.PartnerFormPlanner.PreparedFormsHint"}}</p>
+            </div>
+          </header>
+
+          <div class="dda-form-build-summary-grid">
+            {{#each forms as |form|}}
+              <article class="dda-form-build-summary-card stage-{{form.stageKey}} {{form.dp.statusClass}} {{#if form.isCurrent}}main-form{{/if}}">
+                <header>
+                  <img
+                    src="{{form.img}}"
+                    alt="{{form.species}}"
+                    data-fallback-index="0"
+                    data-fallback-srcs="{{form.imageFallbacks}}"
+                  >
+                  <div>
+                    <span>{{form.stageLabel}}</span>
+                    <strong>{{form.species}}</strong>
+
+                    <div class="dda-partner-form-planner__badges">
+                      {{#if form.isCurrent}}
+                        <em>{{localize "DDA.PartnerFormPlanner.CurrentForm"}}</em>
+                      {{else if form.prepared}}
+                        <em>{{localize "DDA.PartnerFormPlanner.PreparedForm"}}</em>
+                      {{else if form.createdByInitialLine}}
+                        <em>{{localize "DDA.PartnerFormPlanner.InitialLineForm"}}</em>
+                      {{/if}}
+
+                      {{#if form.unlocked}}
+                        <em class="is-unlocked">
+                          <i class="fas fa-lock-open"></i>
+                          {{localize "DDA.PartnerFormPlanner.StageUnlocked"}}
+                        </em>
+                      {{else}}
+                        <em class="is-locked">
+                          <i class="fas fa-lock"></i>
+                          {{localize "DDA.PartnerFormPlanner.StageLocked"}}
+                        </em>
+                      {{/if}}
+                    </div>
+                  </div>
+                </header>
+
+                <div class="dda-form-build-summary-budget {{form.dp.statusClass}}">
+                  <span>{{localize "DDA.Resource.DP.Short"}}</span>
+                  <strong>{{form.dp.spent}} / {{form.dp.total}}</strong>
+                  <small>
+                    {{form.dp.remaining}}
+                    {{localize "DDA.Creation.RemainingDP"}}
+                  </small>
+                </div>
+
+                {{#if form.canEdit}}
+                  <button
+                    type="button"
+                    class="dda-form-build-adjust-button {{form.adjustment.className}}"
+                    data-action="adjustForm"
+                    data-form-uuid="{{form.sourceFormUuid}}"
+                  >
+                    <span class="dda-form-build-adjust-button__icon">
+                      <i class="fas fa-sliders-h"></i>
+                    </span>
+
+                    <span class="dda-form-build-adjust-button__copy">
+                      <strong>{{form.adjustment.label}}</strong>
+                      <small>{{localize "DDA.PartnerFormPlanner.AdjustCaption"}}</small>
+                    </span>
+
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
+                {{/if}}
+
+                <dl>
+                  <dt>{{localize "DDA.MainStat.Accuracy"}}</dt>
+                  <dd>{{form.stats.accuracy}}</dd>
+
+                  <dt>{{localize "DDA.MainStat.Damage"}}</dt>
+                  <dd>{{form.stats.damage}}</dd>
+
+                  <dt>{{localize "DDA.MainStat.Dodge"}}</dt>
+                  <dd>{{form.stats.dodge}}</dd>
+
+                  <dt>{{localize "DDA.MainStat.Armor"}}</dt>
+                  <dd>{{form.stats.armor}}</dd>
+
+                  <dt>{{localize "DDA.MainStat.Health"}}</dt>
+                  <dd>{{form.stats.health}}</dd>
+                </dl>
+
+                <div class="dda-form-build-summary-section">
+                  <h4>{{localize "DDA.DigimonWizard.Summary.Attacks"}}</h4>
+
+                  {{#if form.attacks.length}}
+                    <ul>
+                      {{#each form.attacks as |attack|}}
+                        <li>{{attack.name}}</li>
+                      {{/each}}
+                    </ul>
+                  {{else}}
+                    <p>{{localize "DDA.Label.None"}}.</p>
+                  {{/if}}
+                </div>
+
+                <div class="dda-form-build-summary-section">
+                  <h4>{{localize "DDA.DigimonWizard.Qualities.Positive"}}</h4>
+
+                  {{#if form.qualitiesPositive.length}}
+                    <ul>
+                      {{#each form.qualitiesPositive as |quality|}}
+                        <li
+                          data-tooltip="{{quality.description}}"
+                          data-tooltip-direction="UP"
+                        >
+                          {{quality.name}}
+                        </li>
+                      {{/each}}
+                    </ul>
+                  {{else}}
+                    <p>{{localize "DDA.Label.None"}}.</p>
+                  {{/if}}
+
+                  <h4>{{localize "DDA.DigimonWizard.Qualities.Negative"}}</h4>
+
+                  {{#if form.qualitiesNegative.length}}
+                    <ul>
+                      {{#each form.qualitiesNegative as |quality|}}
+                        <li
+                          data-tooltip="{{quality.description}}"
+                          data-tooltip-direction="UP"
+                        >
+                          {{quality.name}}
+                        </li>
+                      {{/each}}
+                    </ul>
+                  {{else}}
+                    <p>{{localize "DDA.Label.None"}}.</p>
+                  {{/if}}
+                </div>
+              </article>
+            {{/each}}
+          </div>
+        </section>
+      {{else}}
+        <div class="dda-partner-form-planner__empty">
+          <i class="fas fa-project-diagram"></i>
+          <p>{{localize "DDA.PartnerFormPlanner.NoPreparedForms"}}</p>
+        </div>
+      {{/if}}
+
+      <section class="dda-partner-form-planner__add">
+        <header>
+          <div>
+            <h3>{{localize "DDA.PartnerFormPlanner.AddForm"}}</h3>
+            <p>{{localize "DDA.PartnerFormPlanner.AddFormHint"}}</p>
+          </div>
+        </header>
+
+        <div class="dda-partner-form-planner__stage-grid">
+          {{#each stages as |stage|}}
+            <button
+              type="button"
+              class="{{#if stage.unlocked}}is-unlocked{{else}}is-locked{{/if}}"
+              data-action="addForm"
+              data-stage-key="{{stage.key}}"
+              {{#unless ../canEdit}}disabled{{/unless}}
+            >
+              <span>
+                {{#if stage.unlocked}}
+                  <i class="fas fa-lock-open"></i>
+                {{else}}
+                  <i class="fas fa-lock"></i>
+                {{/if}}
+                {{stage.label}}
+              </span>
+
+              <small>
+                {{stage.formCount}}
+                {{localize "DDA.PartnerFormPlanner.PreparedCount"}}
+              </small>
+            </button>
+          {{/each}}
+        </div>
+      </section>
+    </div>
+  {{/unless}}
+</section>

@@ -1,3 +1,8 @@
+import {
+  getActiveDDAUnitContext,
+  getCombatantUnitId
+} from "../combat/initiative.js";
+
 const DDA_MOVEMENT_FLAG = "movementTracker";
 const MOVABLE_TYPES = new Set(["character", "digimon", "npc"]);
 
@@ -63,6 +68,21 @@ function getSession(document) {
     getStoredSession(document);
 }
 
+function refreshTokenHud(document) {
+  const hud = canvas?.tokens?.hud;
+  const hudDocument = hud?.object?.document ?? hud?.object;
+
+  if (
+    !hud?.rendered ||
+    !document ||
+    String(hudDocument?.id ?? "") !== String(document.id ?? "")
+  ) {
+    return;
+  }
+
+  hud.render();
+}
+
 async function setSession(document, session) {
   const id = String(document?.id ?? "");
   const value = clone(session);
@@ -85,6 +105,60 @@ async function unsetSession(document) {
     scope(),
     DDA_MOVEMENT_FLAG
   );
+}
+
+function isStraightLineSession(session) {
+  const points = [point(session?.start ?? {})];
+
+  for (const segment of session?.segments ?? []) {
+    for (const waypoint of segment?.waypoints ?? []) {
+      points.push(point(waypoint));
+    }
+
+    points.push(point(segment?.to ?? {}));
+  }
+
+  if (points.length <= 2) return true;
+
+  const start = points[0];
+  const end = points.at(-1);
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = (dx * dx) + (dy * dy);
+
+  if (lengthSquared <= 0) return false;
+
+  const length = Math.sqrt(lengthSquared);
+  const tolerance = Math.max(
+    1,
+    num(canvas.grid?.size, 100) * 0.02
+  );
+
+  let previousProjection = -tolerance;
+
+  for (const current of points) {
+    const relativeX = current.x - start.x;
+    const relativeY = current.y - start.y;
+
+    const distanceFromLine = Math.abs(
+      (dx * relativeY) - (dy * relativeX)
+    ) / length;
+
+    const projection = (
+      (relativeX * dx) + (relativeY * dy)
+    ) / length;
+
+    if (
+      distanceFromLine > tolerance ||
+      projection + tolerance < previousProjection
+    ) {
+      return false;
+    }
+
+    previousProjection = projection;
+  }
+
+  return true;
 }
 
 function sameActor(left, right) {
@@ -113,29 +187,73 @@ function getCombatant(combat, document) {
 }
 
 function landMovementData(actor) {
-  const land = actor?.system?.movementTypes?.land;
+  const land =
+    actor?.system?.movementTypes?.land;
+
+  /*
+   * Tamers store Movement under
+   * system.derived.movement.
+   *
+   * Digimon and NPC Digimon store it under
+   * system.miscStats.movement or movementTypes.
+   */
+  const fallbackTotal =
+    actor?.type === "character"
+      ? (
+          actor?.system?.derived
+            ?.movement?.total ??
+          actor?.system?.derived
+            ?.movement?.value
+        )
+      : (
+          actor?.system?.miscStats
+            ?.movement?.total ??
+          actor?.system?.miscStats
+            ?.movement?.value
+        );
 
   if (!land) {
     return {
       key: "land",
-      label: i18n("Terrestre", "Land"),
+
+      label: i18n(
+        "Terrestre",
+        "Land"
+      ),
+
       enabled: true,
-      total: Math.max(0, num(
-        actor?.system?.miscStats?.movement?.total ??
-        actor?.system?.miscStats?.movement?.value
-      ))
+
+      total: Math.max(
+        0,
+        num(fallbackTotal)
+      )
     };
   }
 
   return {
     key: "land",
+
     label: String(
       land.displayLabel ??
       land.label ??
-      i18n("Terrestre", "Land")
+      i18n(
+        "Terrestre",
+        "Land"
+      )
     ),
-    enabled: Boolean(land.enabled),
-    total: Math.max(0, num(land.total))
+
+    /*
+     * Older Actors may not explicitly contain
+     * the enabled property.
+     */
+    enabled:
+      land.enabled !== false,
+
+    total: Math.max(
+      0,
+      num(land.total ?? land.value),
+      num(fallbackTotal)
+    )
   };
 }
 
@@ -167,7 +285,8 @@ function clearTracker(token) {
     });
 }
 
-function movementColor(spent, max) {
+function movementColor(spent, max, unrestricted = false) {
+  if (unrestricted) return 0x58c8ff;
   if (spent > max) return 0x7a0000;
   if (spent <= Math.ceil(max / 3)) return 0x00ff66;
   if (spent <= Math.ceil((max * 2) / 3)) return 0xffcc00;
@@ -196,7 +315,7 @@ function drawTracker(token, session) {
       num(canvas.grid?.size, 100)
   );
 
-  const color = movementColor(spent, max);
+  const color = movementColor(spent, max, Boolean(session.unrestricted));
 
   const box = new PIXI.Container();
   box.name = "dda-movement-tracker";
@@ -232,9 +351,11 @@ function drawTracker(token, session) {
     ? spent
     : spent.toFixed(1);
 
-  const displayMax = Number.isInteger(max)
-    ? max
-    : max.toFixed(1);
+  const displayMax = session.unrestricted
+    ? "∞"
+    : Number.isInteger(max)
+      ? max
+      : max.toFixed(1);
 
   const suffix = session.state === "complete"
     ? "✓"
@@ -298,10 +419,44 @@ function isCurrentActiveMove(
 }
 
 function getReservedActions(actor) {
-  return Math.max(
+  const key =
+    actorKey(actor);
+
+  if (!key) return 0;
+
+  /*
+   * pendingMoves é a fonte real das reservas.
+   *
+   * actionReservations funciona somente como proteção
+   * contra duas movimentações simultâneas. Ele não pode
+   * continuar bloqueando o Actor sem um movimento pendente
+   * correspondente.
+   */
+  const pendingCount = [
+    ...pendingMoves.values()
+  ].filter((pending) => {
+    return (
+      pending?.reservationKey === key
+    );
+  }).length;
+
+  const storedCount = Math.max(
     0,
-    num(actionReservations.get(actorKey(actor)))
+    num(actionReservations.get(key))
   );
+
+  if (storedCount !== pendingCount) {
+    if (pendingCount > 0) {
+      actionReservations.set(
+        key,
+        pendingCount
+      );
+    } else {
+      actionReservations.delete(key);
+    }
+  }
+
+  return pendingCount;
 }
 
 function reserveAction(actor) {
@@ -327,6 +482,79 @@ function releaseActionReservation(key) {
   }
 
   actionReservations.set(key, current - 1);
+}
+
+function discardPendingMove(document) {
+  if (!document) return false;
+
+  const id =
+    String(document.id ?? "");
+
+  const pending =
+    pendingMoves.get(id);
+
+  if (!pending) return false;
+
+  if (pending.reservationKey) {
+    releaseActionReservation(
+      pending.reservationKey
+    );
+  }
+
+  pendingMoves.delete(id);
+
+  /*
+   * A sessão em runtime pode conter um movimento
+   * que nunca chegou ao updateToken.
+   *
+   * Nesse caso, voltamos para a última sessão
+   * realmente salva no TokenDocument.
+   */
+  const storedSession =
+    getStoredSession(document);
+
+  if (storedSession) {
+    runtimeSessions.set(
+      id,
+      clone(storedSession)
+    );
+  } else {
+    runtimeSessions.delete(id);
+  }
+
+  return true;
+}
+
+function pruneOrphanedActionReservation(actor) {
+  const key =
+    actorKey(actor);
+
+  if (
+    !key ||
+    !actionReservations.has(key)
+  ) {
+    return false;
+  }
+
+  const hasMatchingPendingMove = [
+    ...pendingMoves.values()
+  ].some((pending) => {
+    return (
+      pending?.reservationKey === key
+    );
+  });
+
+  if (hasMatchingPendingMove) {
+    return false;
+  }
+
+  /*
+   * Existe uma reserva, mas nenhum movimento
+   * pendente é responsável por ela.
+   */
+  actionReservations.delete(key);
+
+  return true;
 }
 
 function enqueueActorUpdate(actor, callback) {
@@ -383,14 +611,124 @@ function createAutomaticSession(
   };
 }
 
+function actorHasEffect(actor, tag) {
+  const needle = String(tag ?? "").toLowerCase();
+  return (actor?.system?.effects?.active ?? []).some((effect) => {
+    return String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase() === needle &&
+      Number(effect?.remaining ?? effect?.duration ?? 1) > 0;
+  });
+}
+
+function directionalEffectPenalty(actor, movement) {
+  const origin = point(movement?.origin ?? {});
+  const destination = point(movement?.destination ?? {});
+
+  for (const effect of actor?.system?.effects?.active ?? []) {
+    const tag = String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase();
+    if (tag !== "fear" && tag !== "taunt") continue;
+
+    const sourceToken = (canvas?.tokens?.placeables ?? []).find((token) => {
+      return token.actor?.uuid === effect.sourceActorUuid ||
+        token.actor?.id === effect.sourceActorUuid ||
+        `Actor.${token.actor?.id}` === effect.sourceActorUuid;
+    });
+    if (!sourceToken) continue;
+
+    const source = point(sourceToken.document ?? sourceToken);
+    const before = Math.hypot(origin.x - source.x, origin.y - source.y);
+    const after = Math.hypot(destination.x - source.x, destination.y - source.y);
+
+    if (tag === "fear" && after < before) return 1;
+    if (tag === "taunt" && after > before) return 1;
+  }
+
+  return 0;
+}
+
+async function applyBurnMovementDamage(actor, spaces, { unwilling = false } = {}) {
+  const effects = actor?.system?.effects?.active ?? [];
+  if (!effects.some((effect) => String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase() === "burn")) {
+    return 0;
+  }
+
+  const damageEffectCount = effects.filter((effect) => {
+    return ["burn", "freeze", "poison", "ruin"].includes(
+      String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase()
+    );
+  }).length;
+  const reduction = Math.max(0, damageEffectCount - 1) + Math.max(
+    0,
+    num(actor.system?.qualityFeatures?.naturewalk?.damageReduction?.burn)
+  );
+  const rawDamage = unwilling ? Math.floor(num(spaces) / 2) : Math.floor(num(spaces));
+  let damage = Math.max(0, rawDamage - reduction);
+  if (damage <= 0) return 0;
+
+  const roundKey = `${game.combat?.id ?? "no-combat"}:${num(game.combat?.round)}`;
+  const previousKey = String(actor.system?.combat?.effectDamageRoundKey ?? "");
+  const previousDamage = previousKey === roundKey
+    ? Math.max(0, num(actor.system?.combat?.effectDamageTakenThisRound))
+    : 0;
+  const cap = Math.max(0, num(actor.system?.stageValue) * 2);
+  if (cap > 0) damage = Math.min(damage, Math.max(0, cap - previousDamage));
+  if (damage <= 0) return 0;
+
+  const woundsPath = actor.type === "character"
+    ? "system.derived.wounds.value"
+    : "system.miscStats.wounds.value";
+  const currentWounds = Math.max(0, num(foundry.utils.getProperty(actor, woundsPath)));
+
+  await actor.update({
+    [woundsPath]: Math.max(0, currentWounds - damage),
+    "system.combat.effectDamageRoundKey": roundKey,
+    "system.combat.effectDamageTakenThisRound": previousDamage + damage
+  });
+
+  return damage;
+}
+
 function buildSegment(document, movement, spaces) {
+  const difficultMultiplier =
+    actorHasEffect(document?.actor, "paralyze")
+      ? 2
+      : 1;
+
+  const directionalPenalty =
+    directionalEffectPenalty(
+      document?.actor,
+      movement
+    );
+
   return {
-    from: point(movement?.origin ?? document),
-    to: point(movement?.destination ?? document),
+    from: point(
+      movement?.origin ??
+      document
+    ),
+
+    to: point(
+      movement?.destination ??
+      document
+    ),
+
+    waypoints:
+      (movement?.passed?.waypoints ?? [])
+        .map((waypoint) => point(waypoint)),
+
     spaces,
-    cost: spaces,
+
+    cost:
+      spaces * difficultMultiplier +
+      directionalPenalty,
+
+    directionalPenalty,
+
     type: "land",
-    typeLabel: i18n("Terrestre", "Land")
+
+    typeLabel:
+      i18n(
+        "Terrestre",
+        "Land"
+      )
   };
 }
 
@@ -428,6 +766,8 @@ function queueAutomaticMove(document, movement) {
   );
 
   if (startsNew) {
+    pruneOrphanedActionReservation(actor);
+
     const actions = Math.max(
       0,
       num(actor.system?.combat?.actions?.value)
@@ -457,12 +797,17 @@ function queueAutomaticMove(document, movement) {
     session = clone(session);
   }
 
+  const segment = buildSegment(document, movement, spaces);
+  if (session.directionalPenaltyApplied && segment.directionalPenalty) {
+    segment.cost -= segment.directionalPenalty;
+    segment.directionalPenalty = 0;
+  }
   const remaining = Math.max(
     0,
     num(session.max) - num(session.spent)
   );
 
-  if (spaces > remaining) {
+  if (segment.cost > remaining) {
     if (startsNew) {
       releaseActionReservation(
         session.actionReservationKey
@@ -477,12 +822,6 @@ function queueAutomaticMove(document, movement) {
     return false;
   }
 
-  const segment = buildSegment(
-    document,
-    movement,
-    spaces
-  );
-
   const next = clone(session);
 
   next.segments = [
@@ -491,6 +830,9 @@ function queueAutomaticMove(document, movement) {
   ];
 
   next.spent = num(next.spent) + segment.cost;
+  next.directionalPenaltyApplied = Boolean(
+    session.directionalPenaltyApplied || segment.directionalPenalty
+  );
   next.lastType = "land";
   next.lastTypeLabel = data.label;
 
@@ -522,10 +864,15 @@ function findTokenDocumentForActor(actor) {
 
 function isGrantedMovementSession(session, combat) {
   if (!session || session.state !== "active") return false;
-  if (session.kind !== "granted") return false;
+  if (!["granted", "charge-approach", "paid-action", "gm-unrestricted"].includes(session.kind)) return false;
 
   if (!combat?.started) return true;
-  return !session.combatId || session.combatId === combat.id;
+
+  return (
+    (!session.combatId || session.combatId === combat.id) &&
+    num(session.round, -1) === num(combat.round, -2) &&
+    num(session.turn, -1) === num(combat.turn, -2)
+  );
 }
 
 function queueGrantedMove(document, movement, session) {
@@ -533,12 +880,17 @@ function queueGrantedMove(document, movement, session) {
 
   if (spaces <= 0) return true;
 
+  const segment = buildSegment(document, movement, spaces);
+  if (session.directionalPenaltyApplied && segment.directionalPenalty) {
+    segment.cost -= segment.directionalPenalty;
+    segment.directionalPenalty = 0;
+  }
   const remaining = Math.max(
     0,
     num(session.max) - num(session.spent)
   );
 
-  if (spaces > remaining) {
+  if (!session.unrestricted && segment.cost > remaining) {
     warn(i18n(
       `Reposicionamento insuficiente: restam ${remaining} Espaços.`,
       `Not enough Reposition movement: ${remaining} Spaces remain.`
@@ -547,7 +899,6 @@ function queueGrantedMove(document, movement, session) {
     return false;
   }
 
-  const segment = buildSegment(document, movement, spaces);
   const next = clone(session);
 
   next.segments = [
@@ -555,9 +906,80 @@ function queueGrantedMove(document, movement, session) {
     segment
   ];
 
-  next.spent = num(next.spent) + segment.cost;
-  next.lastType = "land";
-  next.lastTypeLabel = dataLabel(next);
+  next.spent =
+    num(next.spent) +
+    segment.cost;
+  next.directionalPenaltyApplied = Boolean(
+    session.directionalPenaltyApplied ||
+    segment.directionalPenalty
+  );
+
+  if (
+    next.source === "charge" &&
+    !isStraightLineSession(next)
+  ) {
+    warn(i18n(
+      "O Movimento de [CHARGE] deve seguir em linha reta, sem retornar pelo trajeto.",
+      "[CHARGE] Movement must follow a straight line without backtracking."
+    ));
+
+    return false;
+  }
+
+  if (next.kind === "charge-approach") {
+    const targetToken = canvas.tokens?.get(next.targetTokenId);
+
+    if (!targetToken) {
+      warn(i18n(
+        "O alvo de [CHARGE] não está mais disponível.",
+        "The [CHARGE] target is no longer available."
+      ));
+      return false;
+    }
+
+    const targetCenter = targetToken.center;
+    const from = segment.from;
+    const to = segment.to;
+    const gridSize = Math.max(1, num(canvas.grid?.size, 100));
+    const width = num(document.width, 1) * gridSize;
+    const height = num(document.height, 1) * gridSize;
+    const fromCenter = { x: from.x + width / 2, y: from.y + height / 2 };
+    const toCenter = { x: to.x + width / 2, y: to.y + height / 2 };
+    const before = Math.hypot(fromCenter.x - targetCenter.x, fromCenter.y - targetCenter.y);
+    const after = Math.hypot(toCenter.x - targetCenter.x, toCenter.y - targetCenter.y);
+
+    if (after >= before - 1) {
+      warn(i18n(
+        "O Movimento de [CHARGE] precisa aproximar o Digimon do alvo.",
+        "[CHARGE] Movement must bring the Digimon closer to its target."
+      ));
+      return false;
+    }
+  }
+
+  /*
+   * An exhausted granted movement session must
+   * become complete instead of remaining active
+   * forever with zero spaces.
+   */
+  if (
+    !next.unrestricted &&
+    next.spent >=
+    num(next.max) &&
+    next.kind !== "charge-approach"
+  ) {
+    next.spent =
+      num(next.max);
+
+    next.state =
+      "complete";
+  }
+
+  next.lastType =
+    "land";
+
+  next.lastTypeLabel =
+    dataLabel(next);
 
   runtimeSessions.set(document.id, next);
 
@@ -600,14 +1022,15 @@ async function grantMovement(actor, spaces, options = {}) {
 
   const session = {
     version: 5,
-    kind: "granted",
+    kind: String(options.kind ?? "granted"),
     state: "active",
 
     combatId: combat?.id ?? "",
     combatantId: combatant?.id ?? "",
     round: num(combat?.round),
+    turn: num(combat?.turn, -1),
 
-    actionCost: 0,
+    actionCost: Math.max(0, num(options.actionCost)),
     actionSpent: true,
     actionReservationKey: "",
 
@@ -624,6 +1047,14 @@ async function grantMovement(actor, spaces, options = {}) {
     sourceActorUuid: String(options.sourceActorUuid ?? ""),
     sourceActorName: String(options.sourceActorName ?? ""),
     difficultTerrain: Boolean(options.difficultTerrain),
+    unrestricted: Boolean(options.unrestricted),
+
+    attackItemUuid: String(options.attackItemUuid ?? ""),
+    targetTokenId: String(options.targetTokenId ?? ""),
+    targetSceneId: String(options.targetSceneId ?? canvas?.scene?.id ?? ""),
+    attackReach: Math.max(1, num(options.attackReach, 1)),
+    sprintQualityId: String(options.sprintQualityId ?? ""),
+    initialTargetDistance: Math.max(0, num(options.initialTargetDistance, 0)),
 
     segments: []
   };
@@ -634,11 +1065,348 @@ async function grantMovement(actor, spaces, options = {}) {
   return true;
 }
 
+async function grantUnrestrictedMovement(actor, options = {}) {
+  const baseline = Math.max(
+    1,
+    num(
+      actor?.system?.derived?.movement?.value ??
+      actor?.system?.movement?.land?.total ??
+      actor?.system?.movement?.land?.value ??
+      actor?.system?.miscStats?.movement?.total ??
+      actor?.system?.miscStats?.movement?.value ??
+      actor?.system?.miscStats?.movement?.base,
+      1
+    )
+  );
+
+  return grantMovement(actor, baseline, {
+    ...options,
+    kind: "gm-unrestricted",
+    source: "gmUnrestrictedMovement",
+    actionCost: 0,
+    unrestricted: true,
+    label: String(
+      options.label ??
+      i18n("Movimento livre do Mestre", "GM unrestricted movement")
+    )
+  });
+}
+
+async function clearMovementForActor(actor) {
+  const document = findTokenDocumentForActor(actor);
+  if (!document) return false;
+  return clearMovementSession(document);
+}
+
+function getChargeMovementCapacity(actor, bonusSpaces = 0, multiplier = 1) {
+  const movement = landMovementData(actor);
+
+  if (!movement.enabled) return 0;
+
+  return Math.max(
+    0,
+    (num(movement.total) + Math.max(0, num(bonusSpaces))) *
+      Math.max(1, num(multiplier, 1))
+  );
+}
+
+function hasActiveMovementSession(actor) {
+  const document = findTokenDocumentForActor(actor);
+  return Boolean(document && getSession(document)?.state === "active");
+}
+
+function hasActiveChargeApproach(actor) {
+  const document = findTokenDocumentForActor(actor);
+  const session = document ? getSession(document) : null;
+  return Boolean(session?.state === "active" && session.kind === "charge-approach");
+}
+
+async function beginChargeApproach(actor, options = {}) {
+  if (!supported(actor)) return false;
+
+  const document = findTokenDocumentForActor(actor);
+  const combat = game.combat;
+  const combatant = document ? getCombatant(combat, document) : null;
+  const maximum = Math.max(0, num(options.maximum));
+
+  if (!document || !combatant || maximum <= 0) return false;
+  if (!getActiveDDAUnitContext(actor, combat).allowed) return false;
+
+  if (getSession(document)?.state === "active") {
+    warn(i18n(
+      "Encerre ou cancele o Movimento atual antes de iniciar outro [CHARGE].",
+      "Finish or cancel the current Movement before starting another [CHARGE]."
+    ));
+    return false;
+  }
+
+  const actions = Math.max(0, num(actor.system?.combat?.actions?.value));
+
+  if (actions < 1) {
+    warn(i18n(
+      "Esse Digimon não possui Ações suficientes para iniciar [CHARGE].",
+      "This Digimon does not have enough Actions to begin [CHARGE]."
+    ));
+    return false;
+  }
+
+  const previousMovementActions = Math.max(
+    0,
+    num(actor.system?.combat?.movementActionsThisTurn)
+  );
+
+  await actor.update({
+    "system.combat.actions.value": actions - 1,
+    "system.combat.movementActionsThisTurn": previousMovementActions + 1
+  }, {
+    ddaChargeAttackAction: true,
+    ddaMovementAutoStart: true
+  });
+
+  const granted = await grantMovement(actor, maximum, {
+    kind: "charge-approach",
+    actionCost: 1,
+    label: "[CHARGE]",
+    source: "charge",
+    sourceActorUuid: actor.uuid,
+    sourceActorName: actor.name,
+    attackItemUuid: options.attackItemUuid,
+    targetTokenId: options.targetTokenId,
+    targetSceneId: options.targetSceneId,
+    attackReach: options.attackReach,
+    sprintQualityId: options.sprintQualityId,
+    initialTargetDistance: options.initialTargetDistance
+  });
+
+  if (!granted) {
+    await actor.update({
+      "system.combat.actions.value": actions,
+      "system.combat.movementActionsThisTurn": previousMovementActions
+    }, {
+      ddaChargeAttackAction: true,
+      ddaMovementAutoStart: true
+    });
+    return false;
+  }
+
+  refreshTokenHud(document);
+  return true;
+}
+
+async function beginActionMovement(actor, options = {}) {
+  if (!supported(actor)) return false;
+
+  const document = findTokenDocumentForActor(actor);
+  const combat = game.combat;
+  const actionCost = Math.max(1, Math.floor(num(options.actionCost, 1)));
+  const maximum = Math.max(0, num(options.maximum, landMovementData(actor).total));
+
+  if (!document || maximum <= 0) {
+    warn(i18n(
+      "Este token não possui Movimento terrestre disponível.",
+      "This token has no Land Movement available."
+    ));
+    return false;
+  }
+
+  if (!getActiveDDAUnitContext(actor, combat).allowed) {
+    warn(i18n(
+      "Este Digimon não pode agir nesta ativação.",
+      "This Digimon cannot act during this activation."
+    ));
+    return false;
+  }
+
+  if (getSession(document)?.state === "active") {
+    warn(i18n(
+      "Conclua ou cancele o Movimento atual antes de iniciar outro.",
+      "Finish or cancel the current Movement before starting another one."
+    ));
+    return false;
+  }
+
+  const actions = Math.max(0, num(actor.system?.combat?.actions?.value));
+  if (actions < actionCost) {
+    warn(i18n(
+      `Ações insuficientes: ${actionCost} necessárias, ${actions} disponíveis.`,
+      `Not enough Actions: ${actionCost} required, ${actions} available.`
+    ));
+    return false;
+  }
+
+  const previousMovementActions = Math.max(
+    0,
+    num(actor.system?.combat?.movementActionsThisTurn)
+  );
+
+  await actor.update({
+    "system.combat.actions.value": actions - actionCost,
+    "system.combat.movementActionsThisTurn": previousMovementActions + 1
+  }, { ddaMovementAutoStart: true });
+
+  const granted = await grantMovement(actor, maximum, {
+    kind: "paid-action",
+    actionCost,
+    label: options.label ?? i18n("Mover", "Move"),
+    source: options.source ?? "digimonActionMove",
+    sourceActorUuid: actor.uuid,
+    sourceActorName: actor.name,
+    difficultTerrain: Boolean(options.difficultTerrain)
+  });
+
+  if (!granted) {
+    await actor.update({
+      "system.combat.actions.value": actions,
+      "system.combat.movementActionsThisTurn": previousMovementActions
+    }, { ddaMovementAutoStart: true });
+    return false;
+  }
+
+  refreshTokenHud(document);
+  return true;
+}
+
+function isChargeApproachReady(actor, {
+  attackItemUuid = "",
+  targetTokenId = ""
+} = {}) {
+  const document = findTokenDocumentForActor(actor);
+  const session = document ? getSession(document) : null;
+
+  if (!document || session?.kind !== "charge-approach") return false;
+  if (session.state !== "active") return false;
+
+  if (
+    attackItemUuid &&
+    String(session.attackItemUuid ?? "") !== String(attackItemUuid)
+  ) {
+    return false;
+  }
+
+  if (
+    targetTokenId &&
+    String(session.targetTokenId ?? "") !== String(targetTokenId)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function canCombineChargeWithCurrentMove(actor) {
+  const document =
+    findTokenDocumentForActor(actor);
+
+  const session =
+    document
+      ? getSession(document)
+      : null;
+
+  const combat =
+    game.combat;
+
+  const combatant =
+    document
+      ? getCombatant(combat, document)
+      : null;
+
+  return Boolean(
+    document &&
+    combat?.started &&
+    combatant &&
+    getActiveDDAUnitContext(actor, combat).allowed &&
+    session?.state === "active" &&
+    session.combatId === combat.id &&
+    session.combatantId === combatant.id &&
+    num(session.round, -1) ===
+      num(combat.round, -2) &&
+    session.kind !== "granted" &&
+    session.actionSpent &&
+    num(session.spent) > 0 &&
+    isStraightLineSession(session)
+  );
+}
+
+async function completeChargeMovementBeforeAttack(actor) {
+  const document = findTokenDocumentForActor(actor);
+  const currentSession = document ? getSession(document) : null;
+  const isApproach = currentSession?.kind === "charge-approach" &&
+    currentSession?.state === "active";
+
+  if (!isApproach && !canCombineChargeWithCurrentMove(actor)) {
+    return false;
+  }
+
+  const session =
+    clone(getSession(document));
+
+  session.state = "complete";
+  session.kind = "charge-combined";
+  session.source = "charge";
+  session.chargeAttackUsed = true;
+
+  await setSession(
+    document,
+    session
+  );
+
+  refreshTracker(document);
+  refreshTokenHud(document);
+
+  return true;
+}
+
+async function grantChargeMovement(
+  actor,
+  bonusSpaces = 0
+) {
+  const movement =
+    landMovementData(actor);
+
+  const maximum = Math.max(
+    0,
+
+    num(movement.total) +
+    Math.max(
+      0,
+      num(bonusSpaces)
+    )
+  );
+
+  if (
+    !movement.enabled ||
+    maximum <= 0
+  ) {
+    return false;
+  }
+
+  return grantMovement(
+    actor,
+    maximum,
+    {
+      label: "[CHARGE]",
+      source: "charge",
+      sourceActorUuid: actor.uuid,
+      sourceActorName: actor.name
+    }
+  );
+}
+
 function onPreMove(document, movement, operation = {}) {
   if (operation.ddaMovementUndo) return;
   if (!supported(document?.actor)) return;
 
-  const grantedSession = getSession(document);
+  /*
+   * Se uma chamada anterior de preMove não produziu
+   * updateToken, ela deixou uma tentativa incompleta.
+   *
+   * A reserva e o trajeto fantasma são removidos
+   * antes de processar a nova tentativa.
+   */
+  discardPendingMove(document);
+
+  const grantedSession =
+    getSession(document);
 
   if (isGrantedMovementSession(grantedSession, game.combat)) {
     return queueGrantedMove(document, movement, grantedSession)
@@ -653,10 +1421,19 @@ function onPreMove(document, movement, operation = {}) {
   // Tokens fora do Combate permanecem livres.
   if (!combatant) return;
 
-  if (game.combat.combatant?.id !== combatant.id) {
+  const activeUnitContext = getActiveDDAUnitContext(
+    document.actor,
+    game.combat
+  );
+
+  if (!activeUnitContext.allowed) {
     warn(i18n(
-      "Apenas o participante ativo pode se mover agora.",
-      "Only the active participant can move right now."
+      activeUnitContext.ended
+        ? "Esse participante já encerrou sua parte desta ativação."
+        : "Apenas integrantes da unidade ativa podem se mover agora.",
+      activeUnitContext.ended
+        ? "This participant has already ended their part of this activation."
+        : "Only members of the active unit can move right now."
     ));
 
     return false;
@@ -686,7 +1463,9 @@ async function spendReservedMovementAction(
 
       await actor.update(
         {
-          "system.combat.actions.value": actions - 1
+          "system.combat.actions.value": actions - 1,
+          "system.combat.movementActionsThisTurn":
+            Math.max(0, num(actor.system?.combat?.movementActionsThisTurn)) + 1
         },
         {
           ddaMovementAutoStart: true
@@ -738,6 +1517,12 @@ async function onUpdateToken(document, changed) {
 
     await setSession(document, session);
     refreshTracker(document);
+    refreshTokenHud(document);
+
+    const lastSegment = session.segments?.at?.(-1);
+    if (lastSegment?.spaces > 0) {
+      await applyBurnMovementDamage(document.actor, lastSegment.spaces);
+    }
 
     return;
   }
@@ -748,7 +1533,10 @@ async function onUpdateToken(document, changed) {
 }
 
 async function finishMove(document) {
-  const session = getSession(document);
+  discardPendingMove(document);
+
+  const session =
+    getSession(document);
 
   if (!document || !session || session.state !== "active") {
     return false;
@@ -763,9 +1551,84 @@ async function finishMove(document) {
   return true;
 }
 
+async function clearMovementSession(document) {
+  if (!document) return false;
+
+  const pending = pendingMoves.get(document.id);
+
+  if (pending?.reservationKey) {
+    releaseActionReservation(
+      pending.reservationKey
+    );
+  }
+
+  pendingMoves.delete(document.id);
+
+  await unsetSession(document);
+
+  clearTracker(
+    tokenObject(document)
+  );
+
+  return true;
+}
+
+async function resetMovementSession(document) {
+  if (!document) return false;
+
+  const session = getSession(document);
+  if (!session || session.state !== "active") return false;
+
+  const start = session.start ?? {};
+  await document.update({
+    x: num(start.x, document.x),
+    y: num(start.y, document.y),
+    elevation: num(start.elevation, document.elevation)
+  }, {
+    ddaMovementUndo: true
+  });
+
+  if (session.actionSpent && session.kind !== "granted" && document.actor) {
+    const actor = document.actor;
+    const current = Math.max(0, num(actor.system?.combat?.actions?.value));
+    const refund = Math.max(0, num(session.actionCost, 1));
+    const maximum = Math.max(current, num(actor.system?.combat?.actions?.max, current + refund));
+    const movementActions = Math.max(0, num(actor.system?.combat?.movementActionsThisTurn));
+    await actor.update({
+      "system.combat.actions.value": Math.min(maximum, current + refund),
+      "system.combat.movementActionsThisTurn": Math.max(0, movementActions - 1)
+    }, {
+      ddaMovementAutoStart: true
+    });
+  }
+
+  if (
+    session.kind === "charge-approach" &&
+    session.sprintQualityId &&
+    document.actor
+  ) {
+    const quality = document.actor.items?.get(session.sprintQualityId);
+
+    if (quality) {
+      const currentValue = Math.max(0, num(quality.system?.uses?.value));
+      const maximum = Math.max(currentValue, num(quality.system?.uses?.max, 1));
+      const spent = Math.max(0, num(quality.system?.uses?.spent));
+
+      await document.actor.updateEmbeddedDocuments("Item", [{
+        _id: quality.id,
+        "system.uses.value": Math.min(maximum, currentValue + 1),
+        "system.uses.spent": Math.max(0, spent - 1)
+      }]);
+    }
+  }
+
+  return clearMovementSession(document);
+}
+
 async function closeForeignMoves(combat) {
   if (!combat?.started) return;
 
+  const activeUnitId = getCombatantUnitId(combat.combatant);
   const activeCombatantId = combat.combatant?.id ?? "";
 
   for (const document of canvas.scene?.tokens ?? []) {
@@ -780,7 +1643,12 @@ async function closeForeignMoves(combat) {
 
     const combatant = getCombatant(combat, document);
 
-    if (combatant?.id !== activeCombatantId) {
+    const combatantUnitId = getCombatantUnitId(combatant);
+    const belongsToActiveUnit = activeUnitId
+      ? combatantUnitId === activeUnitId
+      : combatant?.id === activeCombatantId;
+
+    if (!belongsToActiveUnit) {
       await finishMove(document);
     }
   }
@@ -801,6 +1669,7 @@ async function closeMovesAfterAnotherAction(
   if (
     !actionChanged ||
     options.ddaMovementAutoStart ||
+    options.ddaChargeAttackAction ||
     !canvas.scene
   ) {
     return;
@@ -821,12 +1690,222 @@ function getHudRoot(html) {
   return document.querySelector("#token-hud");
 }
 
-function removeLegacyMovementHud(hud, html) {
+function getMovementHudToken(hud) {
+  const candidate =
+    hud?.object ??
+    hud?.token ??
+    canvas.tokens?.hud?.object ??
+    null;
+
+  if (!candidate) return null;
+
+  if (candidate.document) {
+    return candidate;
+  }
+
+  return canvas.tokens?.get(
+    candidate.id
+  ) ?? null;
+}
+
+function createMovementHudButton({
+  icon,
+  label,
+  className,
+  disabled = false,
+  onClick
+}) {
+  const button =
+    document.createElement("button");
+
+  button.type = "button";
+
+  button.className = [
+    "control-icon",
+    "dda-movement-hud-controls",
+    className
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  button.title = label;
+  button.dataset.tooltip = label;
+  button.disabled = Boolean(disabled);
+
+  button.innerHTML = `
+    <i class="${icon}"></i>
+  `;
+
+  button.addEventListener(
+    "click",
+    async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      button.disabled = true;
+
+      try {
+        await onClick(button);
+      } finally {
+        button.disabled = false;
+      }
+    }
+  );
+
+  return button;
+}
+
+function renderMovementHud(hud, html) {
   const root = getHudRoot(html);
 
-  root?.querySelector(
-    ".dda-movement-hud-controls"
-  )?.remove();
+  if (!root) return;
+
+  for (
+    const oldControl of
+    root.querySelectorAll(
+      ".dda-movement-hud-controls"
+    )
+  ) {
+    oldControl.remove();
+  }
+
+  const token =
+    getMovementHudToken(hud);
+
+  const tokenDocument =
+    token?.document;
+
+  if (!tokenDocument) return;
+
+  const session =
+    getSession(tokenDocument);
+
+  if (!session) return;
+
+  const mayControl =
+    game.user.isGM ||
+    tokenDocument.isOwner;
+
+  if (!mayControl) return;
+
+  const rightColumn =
+    root.querySelector(".col.right") ??
+    root.querySelector(".right");
+
+  if (!rightColumn) return;
+
+  if (session.state === "active" && session.kind !== "charge-approach") {
+    const finishButton =
+      createMovementHudButton({
+        icon: "fas fa-flag-checkered",
+
+        label: i18n(
+          "Encerrar Movimento",
+          "Finish Movement"
+        ),
+
+        className:
+          "dda-finish-movement",
+
+        onClick: async (button) => {
+          const finished =
+            await finishMove(
+              tokenDocument
+            );
+
+          if (!finished) return;
+
+          ui.notifications.info(
+            i18n(
+              "O Movimento atual foi encerrado.",
+              "The current Movement was finished."
+            )
+          );
+
+          button.remove();
+        }
+      });
+
+    rightColumn.append(
+      finishButton
+    );
+  }
+
+  if (session.state === "active" && session.kind === "charge-approach") {
+    const chargeButton = createMovementHudButton({
+      icon: "fas fa-person-running",
+      label: i18n(
+        "Concluir [CHARGE] e atacar",
+        "Complete [CHARGE] and attack"
+      ),
+      className: "dda-complete-charge",
+      onClick: async () => {
+        const currentSession = getSession(tokenDocument);
+        const targetToken = canvas.tokens?.get(currentSession?.targetTokenId);
+        const attackItem = currentSession?.attackItemUuid
+          ? await fromUuid(currentSession.attackItemUuid)
+          : null;
+
+        if (!targetToken || !attackItem) {
+          warn(i18n(
+            "Não foi possível recuperar o alvo ou o ataque deste [CHARGE]. Cancele o Movimento e tente novamente.",
+            "The target or attack for this [CHARGE] could not be recovered. Cancel the Movement and try again."
+          ));
+          return;
+        }
+
+        const { rollAttack } = await import("../rolls/attack-roll.js");
+
+        await rollAttack(tokenDocument.actor, attackItem, {
+          targetToken,
+          chargeApproachCommit: true
+        });
+      }
+    });
+
+    rightColumn.append(chargeButton);
+  }
+
+  if (session.state === "active") {
+    const resetButton =
+      createMovementHudButton({
+        icon: "fas fa-rotate-left",
+
+        label: i18n(
+          "Resetar Rastreador de Movimento",
+          "Reset Movement Tracker"
+        ),
+
+        className:
+          "dda-reset-movement",
+
+        onClick: async () => {
+          await resetMovementSession(
+            tokenDocument
+          );
+
+          for (
+            const control of
+            root.querySelectorAll(
+              ".dda-movement-hud-controls"
+            )
+          ) {
+            control.remove();
+          }
+
+          ui.notifications.info(
+            i18n(
+              "O Movimento foi cancelado, o token voltou ao início e a Ação foi devolvida quando aplicável.",
+              "Movement was cancelled, the token returned to its start, and its Action was refunded when applicable."
+            )
+          );
+        }
+      });
+
+    rightColumn.append(
+      resetButton
+    );
+  }
 }
 
 function selectedToken() {
@@ -859,7 +1938,10 @@ export function registerMovementTracker() {
     closeMovesAfterAnotherAction
   );
 
-  Hooks.on("renderTokenHUD", removeLegacyMovementHud);
+  Hooks.on(
+  "renderTokenHUD",
+  renderMovementHud
+);
 
   Hooks.on("deleteToken", (document) => {
     const pending = pendingMoves.get(document.id);
@@ -893,22 +1975,39 @@ export function registerMovementTracker() {
 
   game.dda.movementTracker = {
     grantMovement,
+    grantUnrestrictedMovement,
+    clearForActor: clearMovementForActor,
+    beginActionMovement,
+    grantChargeMovement,
+    getChargeMovementCapacity,
+    hasActiveMovementSession,
+    hasActiveChargeApproach,
+    beginChargeApproach,
+    isChargeApproachReady,
+    canCombineChargeWithCurrentMove,
+    completeChargeMovementBeforeAttack,
 
     clearSelected: async () => {
       const token = selectedToken();
 
       if (!token) return false;
 
-      await unsetSession(token.document);
-      clearTracker(token);
-
-      return true;
+      return clearMovementSession(
+        token.document
+      );
     },
 
-    clearAll: () => {
+    clearAll: async () => {
       for (const token of canvas.tokens?.placeables ?? []) {
-        clearTracker(token);
+        await clearMovementSession(
+          token.document
+        );
       }
+
+      actionReservations.clear();
+      actorUpdateQueues.clear();
+
+      return true;
     },
 
     finishForToken: finishMove

@@ -1,6 +1,11 @@
 import {
+  getOfficialTamerTalent,
   hasUnlockedOfficialTamerTalent
 } from "../rules/tamer-resources.js";
+
+import {
+  useTamerTalent
+} from "../rules/tamer-talent-automation.js";
 
 import {
   rollDerivedCheck,
@@ -14,6 +19,21 @@ import {
 import {
   applyLuckyNumberReward
 } from "../rolls/lucky-number.js";
+
+import {
+  getCombatantUnitId
+} from "./initiative.js";
+
+import {
+  getTokenGridDistance,
+  isTokenCombatReady
+} from "./positioning.js";
+
+import {
+  checkActorActionSpend,
+  getActorActionState,
+  spendActorActions
+} from "./action-economy.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const ACTION_USE_PATH = "system.combat.tamerActionUses";
@@ -51,12 +71,25 @@ function number(value, fallback = 0) {
 }
 
 function getActorReferenceKeys(actor) {
+  const baseActorId = String(
+    actor?.parent?.actorId ??
+    actor?.token?.actorId ??
+    ""
+  ).trim();
+
   return new Set(
     [
       actor?.uuid,
       actor?.id,
       actor?.parent?.uuid,
       actor?.parent?.id,
+
+      baseActorId,
+
+      baseActorId
+        ? `Actor.${baseActorId}`
+        : "",
+
       actor?.id
         ? `Actor.${actor.id}`
         : ""
@@ -224,24 +257,6 @@ async function spendOncePerCombatTalent(
     return null;
   }
 
-  const available =
-    getAvailableActions(tamer);
-
-  if (available < cost) {
-    ui.notifications.warn(
-      formatI18n(
-        "DDA.TamerAction.Warning.NotEnoughActions",
-        {
-          required: cost,
-          available
-        },
-        `Ações insuficientes: são necessárias ${cost}, mas apenas ${available} estão disponíveis.`
-      )
-    );
-
-    return null;
-  }
-
   const usage =
     foundry.utils.deepClone(
       tamer.system?.combat
@@ -272,24 +287,15 @@ async function spendOncePerCombatTalent(
       new Date().toISOString()
   };
 
-  await tamer.update({
-    "system.combat.actions.value":
-      available - cost,
-
-    "system.combat.tamerTalentUsage":
-      usage
-  });
-
-  return {
-    actionCost:
-      cost,
-
-    actionsBefore:
-      available,
-
-    actionsAfter:
-      available - cost
-  };
+  return spendActorActions(
+    tamer,
+    cost,
+    {
+      additionalUpdates: {
+        "system.combat.tamerTalentUsage": usage
+      }
+    }
+  );
 }
 
 async function spendOncePerRestTalent(
@@ -308,30 +314,12 @@ async function spendOncePerRestTalent(
     )
   );
 
-  const available =
-    getAvailableActions(tamer);
-
   const uses =
     getOfficialTamerTalentUseValue(
       tamer,
       talentId,
       maximum
     );
-
-  if (available < cost) {
-    ui.notifications.warn(
-      formatI18n(
-        "DDA.TamerAction.Warning.NotEnoughActions",
-        {
-          required: cost,
-          available
-        },
-        `Ações insuficientes: são necessárias ${cost}, mas apenas ${available} estão disponíveis.`
-      )
-    );
-
-    return null;
-  }
 
   if (uses < 1) {
     ui.notifications.warn(
@@ -344,36 +332,25 @@ async function spendOncePerRestTalent(
     return null;
   }
 
-  await tamer.update({
-    "system.combat.actions.value":
-      available - cost,
+  const payment = await spendActorActions(
+    tamer,
+    cost,
+    {
+      additionalUpdates: {
+        [`system.tamerTalentUses.${talentId}.value`]: uses - 1,
+        [`system.tamerTalentUses.${talentId}.max`]: maximum,
+        [`system.tamerTalentUses.${talentId}.recharge`]: "rest"
+      }
+    }
+  );
 
-    [`system.tamerTalentUses.${talentId}.value`]:
-      uses - 1,
-
-    [`system.tamerTalentUses.${talentId}.max`]:
-      maximum,
-
-    [`system.tamerTalentUses.${talentId}.recharge`]:
-      "rest"
-  });
-
-  return {
-    actionCost:
-      cost,
-
-    actionsBefore:
-      available,
-
-    actionsAfter:
-      available - cost,
-
-    usesBefore:
-      uses,
-
-    usesAfter:
-      uses - 1
-  };
+  return payment
+    ? {
+        ...payment,
+        usesBefore: uses,
+        usesAfter: uses - 1
+      }
+    : null;
 }
 
 export async function payPartnerInterruptAction(
@@ -409,25 +386,8 @@ export async function payPartnerInterruptAction(
       partner
     );
 
-  const partnerActions =
-    Math.max(
-      0,
-      number(
-        partner.system?.combat
-          ?.actions?.value,
-        0
-      )
-    );
-
-  const tamerActions =
-    Math.max(
-      0,
-      number(
-        tamer?.system?.combat
-          ?.actions?.value,
-        0
-      )
-    );
+  const partnerActions = getActorActionState(partner).value;
+  const tamerActions = getActorActionState(tamer).value;
 
   const dangerSenseAvailable =
     Boolean(
@@ -560,23 +520,10 @@ export async function payPartnerInterruptAction(
   }
 
   if (payer === "tamer") {
-    const currentActions =
-      Math.max(
-        0,
-        number(
-          tamer.system?.combat
-            ?.actions?.value,
-          0
-        )
-      );
+    const currentActions = getActorActionState(tamer).value;
+    const currentUses = getDangerSenseUses(tamer);
 
-    const currentUses =
-      getDangerSenseUses(tamer);
-
-    if (
-      currentActions < 1 ||
-      currentUses < 1
-    ) {
+    if (currentActions < 1 || currentUses < 1) {
       ui.notifications.warn(
         localize(
           "DDA.TamerTalent.DangerSense.PaymentFailed",
@@ -587,19 +534,29 @@ export async function payPartnerInterruptAction(
       return null;
     }
 
-    await tamer.update({
-      "system.combat.actions.value":
-        currentActions - 1,
+    const payment = await spendActorActions(
+      tamer,
+      1,
+      {
+        requireActiveUnit: false,
+        notify: false,
+        additionalUpdates: {
+          "system.tamerTalentUses.dangerSense.value": currentUses - 1,
+          "system.tamerTalentUses.dangerSense.max": 1,
+          "system.tamerTalentUses.dangerSense.recharge": "rest"
+        }
+      }
+    );
 
-      "system.tamerTalentUses.dangerSense.value":
-        currentUses - 1,
-
-      "system.tamerTalentUses.dangerSense.max":
-        1,
-
-      "system.tamerTalentUses.dangerSense.recharge":
-        "rest"
-    });
+    if (!payment) {
+      ui.notifications.warn(
+        localize(
+          "DDA.TamerTalent.DangerSense.PaymentFailed",
+          "Danger Sense não está mais disponível."
+        )
+      );
+      return null;
+    }
 
     return {
       success: true,
@@ -610,15 +567,7 @@ export async function payPartnerInterruptAction(
     };
   }
 
-  const currentPartnerActions =
-    Math.max(
-      0,
-      number(
-        partner.system?.combat
-          ?.actions?.value,
-        0
-      )
-    );
+  const currentPartnerActions = getActorActionState(partner).value;
 
   if (currentPartnerActions < 1) {
     ui.notifications.warn(
@@ -631,10 +580,24 @@ export async function payPartnerInterruptAction(
     return null;
   }
 
-  await partner.update({
-    "system.combat.actions.value":
-      currentPartnerActions - 1
-  });
+  const payment = await spendActorActions(
+    partner,
+    1,
+    {
+      requireActiveUnit: false,
+      notify: false
+    }
+  );
+
+  if (!payment) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerTalent.DangerSense.PaymentFailed",
+        "A Interrupção não pôde ser paga."
+      )
+    );
+    return null;
+  }
 
   return {
     success: true,
@@ -686,30 +649,13 @@ async function markUsedThisTurn(tamer, actionKey, data = {}) {
 }
 
 function getAvailableActions(tamer) {
-  return Math.max(0, number(tamer?.system?.combat?.actions?.value, 0));
+  return getActorActionState(tamer).value;
 }
 
-async function spendActions(tamer, amount) {
-  const cost = Math.max(0, Math.floor(number(amount, 0)));
-  const available = getAvailableActions(tamer);
-
-  if (available < cost) {
-    ui.notifications.warn(
-      formatI18n(
-        "DDA.TamerAction.Warning.NotEnoughActions",
-        { required: cost, available },
-        `Ações insuficientes: são necessárias ${cost}, mas apenas ${available} estão disponíveis.`
-      )
-    );
-
-    return false;
-  }
-
-  await tamer.update({
-    "system.combat.actions.value": available - cost
-  });
-
-  return true;
+async function spendActions(tamer, amount, options = {}) {
+  return Boolean(
+    await spendActorActions(tamer, amount, options)
+  );
 }
 
 function getAttributeValue(tamer, key) {
@@ -736,26 +682,56 @@ function getHighestAttribute(tamer) {
 }
 
 async function resolvePartnerActor(tamer) {
-  const partnerData = tamer?.system?.partner ?? {};
-  const uuid = String(
-    partnerData.uuid ??
-    partnerData.currentFormUuid ??
-    ""
-  ).trim();
+  const partnerData =
+    tamer?.system?.partner ?? {};
 
-  if (!uuid) return null;
+  /*
+   * A forma atual tem prioridade.
+   * O UUID-base é utilizado como fallback.
+   */
+  const references = [
+    partnerData.currentFormUuid,
+    partnerData.uuid
+  ]
+    .map((value) => {
+      return String(value ?? "").trim();
+    })
+    .filter(Boolean);
 
-  try {
-    const document = await fromUuid(uuid);
+  for (const reference of new Set(references)) {
+    try {
+      const document =
+        await fromUuid(reference);
 
-    if (
-      document?.documentName === "Actor" &&
-      ["digimon", "npc"].includes(document.type)
-    ) {
-      return document;
+      if (
+        document?.documentName !== "Actor" ||
+        !["digimon", "npc"].includes(document.type)
+      ) {
+        continue;
+      }
+
+      /*
+       * Em tokens não vinculados, o ataque utiliza o
+       * Actor sintético do token. O efeito precisa ser
+       * colocado nesse mesmo Actor.
+       */
+      const canvasActor = (
+        canvas?.tokens?.placeables ?? []
+      ).find((token) => {
+        return (
+          token.actor?.uuid === document.uuid ||
+          token.document?.actorId === document.id
+        );
+      })?.actor;
+
+      return canvasActor ?? document;
+    } catch (error) {
+      console.warn(
+        "DDA | Could not resolve a Tamer partner reference for an Action.",
+        error,
+        reference
+      );
     }
-  } catch (error) {
-    console.warn("DDA | Could not resolve the Tamer partner for an Action.", error);
   }
 
   return null;
@@ -854,13 +830,24 @@ async function chooseDigimonTarget(tamer, { partnerOnly = false } = {}) {
 }
 
 function isPartnerActor(tamer, actor) {
-  const partnerData = tamer?.system?.partner ?? {};
-  const uuids = new Set([
+  const partnerData =
+    tamer?.system?.partner ?? {};
+
+  const actorKeys =
+    getActorReferenceKeys(actor);
+
+  const references = [
     partnerData.uuid,
     partnerData.currentFormUuid
-  ].filter(Boolean));
+  ]
+    .map((value) => {
+      return String(value ?? "").trim();
+    })
+    .filter(Boolean);
 
-  return uuids.has(actor?.uuid);
+  return references.some((reference) => {
+    return actorKeys.has(reference);
+  });
 }
 
 function getActionModeOptions(tamer, baseAttributeKey, { allowCalculated = true } = {}) {
@@ -1091,8 +1078,19 @@ async function useDirect(tamer) {
     return null;
   }
 
-  const target = await chooseDigimonTarget(tamer);
-  if (!target) return null;
+  const targetedDigimon = dedupeActors(getTargetedDigimonActors());
+
+  if (targetedDigimon.length !== 1) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerAction.Warning.DirectRequiresOneTarget",
+        "Marque exatamente um Digimon aliado como alvo antes de usar Direcionar."
+      )
+    );
+    return null;
+  }
+
+  const target = targetedDigimon[0];
 
   const partner = isPartnerActor(tamer, target);
   const charisma = getAttributeValue(tamer, "charisma");
@@ -1217,12 +1215,16 @@ async function useDirect(tamer) {
     potency: result.bonus,
     poolStat: result.statKey,
     consumeOn: "matchingPool",
+    expiresOn: "consumed",
+    duration: null,
+    remaining: null,
     targetIsPartner: partner,
     actionMode: result.mode,
     bolstered: result.bolster,
     otherDigimonPenalty: result.otherPenalty
   });
 
+  await removePreviousDirectFromTamer(tamer);
   await addActiveEffect(target, effect);
   await markUsedThisTurn(tamer, "direct", {
     targetUuid: target.uuid,
@@ -1258,6 +1260,35 @@ async function useDirect(tamer) {
   };
 }
 
+async function removePreviousDirectFromTamer(tamer) {
+  const sourceUuid = String(tamer?.uuid ?? "").trim();
+  if (!sourceUuid) return false;
+
+  let changed = false;
+
+  for (const actor of getAllRuntimeActors()) {
+    const effects = foundry.utils.deepClone(
+      actor?.system?.effects?.active ?? []
+    );
+    const remaining = effects.filter((effect) => {
+      return !(
+        String(effect?.tag ?? "") === EFFECT_TAG_DIRECT &&
+        String(effect?.sourceActorUuid ?? "") === sourceUuid
+      );
+    });
+
+    if (remaining.length === effects.length) continue;
+
+    await actor.update({
+      "system.effects.active": remaining
+    });
+    actor.sheet?.render(false);
+    changed = true;
+  }
+
+  return changed;
+}
+
 async function useReposition(tamer) {
   if (wasUsedThisTurn(tamer, "reposition")) {
     ui.notifications.warn(
@@ -1283,10 +1314,7 @@ async function useReposition(tamer) {
     options.automaticSuccesses += 1;
   }
 
-  if (getAvailableActions(tamer) < options.actionCost) {
-    await spendActions(tamer, options.actionCost);
-    return null;
-  }
+  if (!checkActorActionSpend(tamer, options.actionCost)) return null;
 
   const rollResult = await rollAttributePool(tamer, "reposition", options);
 
@@ -1385,10 +1413,7 @@ async function useReinforce(tamer) {
     options.automaticSuccesses += 1;
   }
 
-  if (getAvailableActions(tamer) < options.actionCost) {
-    await spendActions(tamer, options.actionCost);
-    return null;
-  }
+  if (!checkActorActionSpend(tamer, options.actionCost)) return null;
 
   const rollResult = await rollAttributePool(tamer, "reinforce", options);
 
@@ -4716,6 +4741,613 @@ export async function bindTamerActionChatCard(
     });
 }
 
+
+function getTamerCanvasToken(tamer) {
+  return canvas?.tokens?.controlled?.find((token) => token.actor?.uuid === tamer?.uuid)
+    ?? canvas?.tokens?.placeables?.find((token) => token.actor?.uuid === tamer?.uuid)
+    ?? null;
+}
+
+function getSingleTamerAttackTarget(tamer) {
+  const targets = Array.from(game?.user?.targets ?? []);
+
+  if (targets.length !== 1) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerAction.Attack.SelectOneTarget",
+        "Selecione exatamente um alvo para o Ataque do Tamer."
+      )
+    );
+    return null;
+  }
+
+  const targetToken = targets[0];
+  const target = targetToken?.actor;
+
+  if (
+    !target ||
+    !["character", "digimon", "npc"].includes(target.type) ||
+    target.uuid === tamer?.uuid
+  ) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerAction.Attack.InvalidTarget",
+        "O alvo selecionado não pode receber um Ataque de Tamer."
+      )
+    );
+    return null;
+  }
+
+  if (game?.combat?.started && !isTokenCombatReady(targetToken)) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerAction.Attack.TargetUnavailable",
+        "O alvo selecionado não está disponível neste Combate."
+      )
+    );
+    return null;
+  }
+
+  return { target, targetToken };
+}
+
+function getTamerRangedAttackLimit(tamer) {
+  const precision = Math.max(
+    0,
+    number(tamer?.system?.skills?.precision?.value, 0)
+  );
+
+  return 2 + Math.floor(precision / 2);
+}
+
+function getTamerAttackImmunity(target) {
+  if (!target || !["digimon", "npc"].includes(target.type)) {
+    return { immune: false, reason: "" };
+  }
+
+  const sizeKey = String(
+    target.system?.size ??
+    target.system?.derived?.size?.value ??
+    ""
+  ).trim().toLowerCase();
+
+  const immuneSizes = new Set([
+    "huge",
+    "gigantic",
+    "gargantuan",
+    "colossal"
+  ]);
+
+  if (immuneSizes.has(sizeKey)) {
+    return {
+      immune: true,
+      reason: localize(
+        "DDA.TamerAction.Attack.ImmuneSize",
+        "O alvo é grande demais para sofrer Dano de um Ataque humano."
+      )
+    };
+  }
+
+  if (getActorSv(target) >= 5) {
+    return {
+      immune: true,
+      reason: localize(
+        "DDA.TamerAction.Attack.ImmuneStage",
+        "Digimon de Estágio Mega ou superior não sofrem Dano de Ataques humanos comuns."
+      )
+    };
+  }
+
+  return { immune: false, reason: "" };
+}
+
+async function promptTamerAttackOptions(tamer, target, distance) {
+  const heavyForce = hasUnlockedOfficialTamerTalent(tamer, "heavyForce");
+  const rangedLimit = getTamerRangedAttackLimit(tamer);
+  const immunity = getTamerAttackImmunity(target);
+
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: {
+        title: localize("DDA.TamerAction.Attack.Title", "Ataque do Tamer")
+      },
+      content: `
+        <div class="dda-tamer-action-dialog-body dda-tamer-attack-dialog">
+          <p>${formatI18n(
+            "DDA.TamerAction.Attack.TargetSummary",
+            {
+              target: `<strong>${escapeHtml(target.name)}</strong>`,
+              distance,
+              range: rangedLimit
+            },
+            `Alvo: <strong>${escapeHtml(target.name)}</strong>. Distância: ${distance}. Alcance à distância: ${rangedLimit}.`
+          )}</p>
+
+          <label class="form-group">
+            <span>${localize("DDA.TamerAction.Attack.Method", "Método")}</span>
+            <select name="attackType">
+              <option value="melee">${localize("DDA.TamerAction.Attack.Melee", "Corpo a corpo")}</option>
+              <option value="ranged">${localize("DDA.TamerAction.Attack.Ranged", "À distância")}</option>
+            </select>
+          </label>
+
+          ${heavyForce ? `
+            <label class="form-group">
+              <span>${localize("DDA.TamerAction.Attack.Check", "Teste")}</span>
+              <select name="skillKey">
+                <option value="precision">${localize("DDA.TamerSkill.Precision", "Precisão")}</option>
+                <option value="featsOfStrength">${localize("DDA.TamerSkill.FeatsOfStrength", "Proezas de Força")} — ${escapeHtml(localize("DDA.TamerTalent.HeavyForce.Title", "Heavy Force"))}</option>
+              </select>
+            </label>
+          ` : `<input type="hidden" name="skillKey" value="precision">`}
+
+          <label class="form-group">
+            <span>${localize("DDA.TamerAction.Attack.Description", "Descrição do Ataque")}</span>
+            <input type="text" name="description" placeholder="${escapeHtml(localize("DDA.TamerAction.Attack.DescriptionPlaceholder", "Soco, pedra arremessada, objeto improvisado..."))}">
+          </label>
+
+          ${immunity.immune ? `
+            <p class="warning"><i class="fas fa-triangle-exclamation"></i> ${escapeHtml(immunity.reason)}</p>
+          ` : ""}
+        </div>
+      `,
+      ok: {
+        label: localize("DDA.Button.Attack", "Atacar"),
+        callback: (_event, button) => ({
+          attackType: String(button.form.elements.attackType?.value ?? "melee"),
+          skillKey: String(button.form.elements.skillKey?.value ?? "precision"),
+          description: String(button.form.elements.description?.value ?? "").trim()
+        })
+      },
+      rejectClose: false,
+      modal: true
+    });
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function useTamerMove(tamer, difficult = false) {
+  const movementTracker = game?.dda?.movementTracker;
+
+  if (!movementTracker?.beginActionMovement) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerAction.Move.TrackerUnavailable",
+        "O rastreador de Movimento não está disponível."
+      )
+    );
+    return null;
+  }
+
+  const naturalExplorer = hasUnlockedOfficialTamerTalent(tamer, "naturalExplorer");
+  const actionCost = difficult && !naturalExplorer ? 2 : 1;
+
+  return movementTracker.beginActionMovement(tamer, {
+    actionCost,
+    difficultTerrain: difficult && !naturalExplorer,
+    label: difficult
+      ? localize("DDA.TamerAction.DifficultMove.Title", "Movimento Difícil")
+      : localize("DDA.TamerAction.Move.Title", "Mover"),
+    source: difficult ? "tamerDifficultMove" : "tamerMove"
+  });
+}
+
+async function useTamerAttack(tamer) {
+  if (Boolean(tamer.system?.combat?.hasAttackedThisRound)) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerAction.Attack.AlreadyAttacked",
+        "Este Tamer já realizou um Ataque nesta Rodada."
+      )
+    );
+    return null;
+  }
+
+  if (!checkActorActionSpend(tamer, 1)) return null;
+
+  const targetData = getSingleTamerAttackTarget(tamer);
+  if (!targetData) return null;
+
+  const sourceToken = getTamerCanvasToken(tamer);
+  if (!sourceToken) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerAction.Attack.TokenRequired",
+        "O Tamer precisa possuir um token na Cena para atacar."
+      )
+    );
+    return null;
+  }
+
+  const distance = getTokenGridDistance(sourceToken, targetData.targetToken);
+  const options = await promptTamerAttackOptions(
+    tamer,
+    targetData.target,
+    distance
+  );
+  if (!options) return null;
+
+  const rangedLimit = getTamerRangedAttackLimit(tamer);
+
+  if (options.attackType === "melee" && distance > 1) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerAction.Attack.MeleeOutOfRange",
+        "Ataques corpo a corpo do Tamer exigem um alvo adjacente."
+      )
+    );
+    return null;
+  }
+
+  if (options.attackType === "ranged" && distance > rangedLimit) {
+    ui.notifications.warn(
+      formatI18n(
+        "DDA.TamerAction.Attack.RangedOutOfRange",
+        { range: rangedLimit, distance },
+        `O alvo está a ${distance} Espaços, mas o alcance do Tamer é ${rangedLimit}.`
+      )
+    );
+    return null;
+  }
+
+  const payment = await spendActorActions(tamer, 1);
+  if (!payment) return null;
+
+  let attackResult = null;
+  let defenseResult = null;
+  let tn = 0;
+  let hit = false;
+
+  if (targetData.target.type === "character") {
+    attackResult = await rollTamerCheck(tamer, options.skillKey, {
+      title: localize("DDA.TamerAction.Attack.AttackCheck", "Teste de Ataque do Tamer"),
+      skipBusyHands: true
+    });
+
+    if (attackResult) {
+      defenseResult = await rollTamerCheck(targetData.target, "evade", {
+        title: localize("DDA.TamerAction.Attack.DefenseCheck", "Teste de Evasão contra Ataque humano"),
+        skipBusyHands: true
+      });
+    }
+
+    hit = Boolean(
+      attackResult &&
+      defenseResult &&
+      Number(attackResult.total ?? 0) > Number(defenseResult.total ?? 0)
+    );
+  } else {
+    tn = 12 + (getActorSv(targetData.target) * 2);
+    attackResult = await rollTamerCheck(tamer, options.skillKey, {
+      title: localize("DDA.TamerAction.Attack.AttackCheck", "Teste de Ataque do Tamer"),
+      fixedTn: tn,
+      skipBusyHands: true
+    });
+
+    hit = ["success", "criticalSuccess"].includes(
+      String(attackResult?.outcome?.key ?? "")
+    );
+  }
+
+  if (!attackResult || (targetData.target.type === "character" && !defenseResult)) {
+    await tamer.update({
+      "system.combat.actions.value": Math.min(
+        payment.actionsBefore,
+        number(tamer.system?.combat?.actions?.value, 0) + 1
+      )
+    });
+    return null;
+  }
+
+  const criticalSuccess = targetData.target.type === "character"
+    ? Number(attackResult.total ?? 0) >= Number(defenseResult?.total ?? 0) + 5
+    : String(attackResult.outcome?.key ?? "") === "criticalSuccess";
+  const immunity = getTamerAttackImmunity(targetData.target);
+  const damage = hit && !immunity.immune ? (criticalSuccess ? 2 : 1) : 0;
+  const attackLabel = options.description || localize("DDA.TamerAction.Attack.DefaultName", "Ataque improvisado");
+
+  await tamer.update({
+    "system.combat.hasAttackedThisRound": true,
+    "system.combat.attacksMadeThisTurn": Math.max(
+      1,
+      number(tamer.system?.combat?.attacksMadeThisTurn, 0) + 1
+    )
+  });
+
+  const resultLabel = immunity.immune
+    ? localize("DDA.TamerAction.Attack.NoEffect", "Sem efeito")
+    : hit
+      ? localize("DDA.Attack.Result.Hit", "Acerto")
+      : localize("DDA.Attack.Result.Miss", "Erro");
+
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: tamer }),
+    content: `
+      <div class="dda-chat-card dda-effect-card effect-special dda-tamer-attack-card ${hit && !immunity.immune ? "hit" : "miss"}">
+        <h2>${escapeHtml(attackLabel)}</h2>
+        <ul class="dda-effect-list">
+          <li>${localize("DDA.Attack.Attacker", "Atacante")}: <strong>${escapeHtml(tamer.name)}</strong>.</li>
+          <li>${localize("DDA.Attack.Target", "Alvo")}: <strong>${escapeHtml(targetData.target.name)}</strong>.</li>
+          <li>${localize("DDA.TamerAction.Attack.Method", "Método")}: <strong>${escapeHtml(options.attackType === "ranged" ? localize("DDA.TamerAction.Attack.Ranged", "À distância") : localize("DDA.TamerAction.Attack.Melee", "Corpo a corpo"))}</strong>.</li>
+          ${tn ? `<li>${localize("DDA.Roll.TN", "TN")}: <strong>${tn}</strong>.</li>` : ""}
+          ${defenseResult ? `<li>${localize("DDA.TamerAction.Attack.Contested", "Teste resistido")}: <strong>${attackResult.total} × ${defenseResult.total}</strong>.</li>` : ""}
+          <li>${localize("DDA.Roll.Result", "Resultado")}: <strong>${escapeHtml(resultLabel)}</strong>.</li>
+          ${immunity.immune ? `<li class="warning">${escapeHtml(immunity.reason)}</li>` : ""}
+        </ul>
+        ${damage > 0 ? `
+          <button
+            type="button"
+            class="dda-apply-damage"
+            data-defender-uuid="${escapeHtml(targetData.target.uuid)}"
+            data-attacker-uuid="${escapeHtml(tamer.uuid)}"
+            data-damage="${damage}"
+            data-unalterable="true"
+            data-damage-label="${escapeHtml(localize("DDA.TamerAction.Attack.UnalterableDamage", "Dano Inalterável de Tamer"))}"
+          >
+            ${formatI18n(
+              "DDA.TamerAction.Attack.ApplyDamage",
+              { damage },
+              `Aplicar ${damage} de Dano Inalterável`
+            )}
+          </button>
+        ` : ""}
+      </div>
+    `
+  });
+
+  return {
+    tamer,
+    target: targetData.target,
+    attackResult,
+    defenseResult,
+    hit,
+    criticalSuccess,
+    damage,
+    immune: immunity.immune
+  };
+}
+
+async function useTamerCheckAction(tamer) {
+  const skillOptions = getTamerSkillOptions(tamer);
+
+  if (!skillOptions.length) return null;
+
+  let skillKey = "";
+
+  try {
+    skillKey = await foundry.applications.api.DialogV2.prompt({
+      window: {
+        title: localize("DDA.TamerAction.Check.Title", "Teste")
+      },
+      content: `
+        <div class="dda-tamer-action-dialog-body">
+          <p>${localize("DDA.TamerAction.Check.Hint", "Escolha a Perícia usada pelo Teste de 1 Ação.")}</p>
+          <label class="form-group">
+            <span>${localize("DDA.TamerAction.Check.Skill", "Perícia")}</span>
+            <select name="skillKey">
+              ${skillOptions}
+            </select>
+          </label>
+        </div>
+      `,
+      ok: {
+        label: localize("DDA.Button.Roll", "Rolar"),
+        callback: (_event, button) => String(button.form.elements.skillKey?.value ?? "")
+      },
+      rejectClose: false,
+      modal: true
+    }) ?? "";
+  } catch (_error) {
+    skillKey = "";
+  }
+
+  if (!skillKey) return null;
+  const payment = await spendActorActions(tamer, 1);
+  if (!payment) return null;
+
+  const result = await rollTamerCheck(tamer, skillKey, {
+    title: localize("DDA.TamerAction.Check.Title", "Teste")
+  });
+
+  if (!result) {
+    await tamer.update({
+      "system.combat.actions.value": Math.min(
+        payment.actionsBefore,
+        number(tamer.system?.combat?.actions?.value, 0) + 1
+      )
+    });
+  }
+
+  return result;
+}
+
+async function useTamerHoldBreath(tamer) {
+  if (!(await spendActorActions(tamer, 1))) return null;
+
+  await addActiveEffect(tamer, {
+    id: foundry.utils.randomID(),
+    tag: "holdBreath",
+    label: localize("DDA.TamerAction.HoldBreath.Title", "Prender a Respiração"),
+    value: 1,
+    duration: 1,
+    remaining: 1,
+    sourceActorUuid: tamer.uuid
+  });
+
+  await postActionCard(
+    tamer,
+    localize("DDA.TamerAction.HoldBreath.Title", "Prender a Respiração"),
+    `<p>${localize("DDA.TamerAction.HoldBreath.Applied", "O Tamer evita o Dano de afogamento deste turno.")}</p>`
+  );
+
+  return true;
+}
+
+async function useTamerEvolution(tamer) {
+  if (!checkActorActionSpend(tamer, 1)) return null;
+
+  const { evolvePartner } = await import("./evolution.js");
+  const result = await evolvePartner(tamer);
+  if (!result) return null;
+
+  await spendActorActions(tamer, 1);
+  return result;
+}
+
+const TAMER_COMBAT_SPECIAL_ORDER_IDS = [
+  "strikeFast",
+  "energyBurst",
+  "swagger",
+  "purifyPartner",
+  "speedSurge",
+  "revitalize",
+  "signatureVersatility",
+  "autoHit",
+  "vanish",
+  "bullrush",
+  "adrenalineHit",
+  "hackingPride",
+  "nextOrder",
+  "predictable",
+  "hackersMemory",
+  "realization",
+  "takeTheLead",
+  "heroicExemplar"
+];
+
+function getTalentMenuActionCost(talent = {}) {
+  const raw = String(talent.actionCost ?? "").trim().toLowerCase();
+  if (!raw || raw === "passive") return "—";
+  if (raw === "free") return localize("DDA.ActionCost.Free", "Livre");
+  if (raw === "interrupt") return localize("DDA.ActionCost.Interrupt", "Interrupção");
+  if (raw === "special") return localize("DDA.ActionCost.Special", "Especial");
+  return `${raw}A`;
+}
+
+async function useOfficialCombatSpecialOrder(tamer, talentId) {
+  const talent = getOfficialTamerTalent(talentId);
+  if (!talent || !hasUnlockedOfficialTamerTalent(tamer, talentId)) return null;
+
+  const result = await useTamerTalent(tamer, talent, {
+    source: "official"
+  });
+
+  if (!result?.success) {
+    ui.notifications.warn(
+      result?.message ||
+      localize("DDA.TamerTalent.Automation.Failed", "Não foi possível usar esta Ordem Especial.")
+    );
+    return null;
+  }
+
+  const automated = Boolean(talent.automation?.enabled && result.applied);
+  const status = automated
+    ? localize("DDA.Automation.Status.Automated", "Automatizado")
+    : localize("DDA.Automation.Status.Assisted", "Assistido");
+
+  await postActionCard(
+    tamer,
+    talent.specialOrder?.name || talent.name,
+    `
+      <p><strong>${escapeHtml(talent.name)}</strong></p>
+      <p>${escapeHtml(talent.effect ?? "")}</p>
+      <ul class="dda-effect-list">
+        <li>${localize("DDA.Automation.Status.Label", "Estado")}: <strong>${escapeHtml(status)}</strong>.</li>
+        ${result.message ? `<li>${escapeHtml(result.message)}</li>` : ""}
+        ${result.details ? `<li>${escapeHtml(result.details)}</li>` : ""}
+      </ul>
+    `
+  );
+
+  return { talent, ...result };
+}
+
+const TAMER_ACTION_MENU_ENTRIES = [
+  {
+    key: "move",
+    titleKey: "DDA.TamerAction.Move.Title",
+    summaryKey: "DDA.TamerAction.Move.Summary",
+    cost: "1A"
+  },
+  {
+    key: "attack",
+    titleKey: "DDA.TamerAction.Attack.Title",
+    summaryKey: "DDA.TamerAction.Attack.Summary",
+    cost: "1A"
+  },
+  {
+    key: "difficultMove",
+    titleKey: "DDA.TamerAction.DifficultMove.Title",
+    summaryKey: "DDA.TamerAction.DifficultMove.Summary",
+    cost: "1–2A"
+  },
+  {
+    key: "check",
+    titleKey: "DDA.TamerAction.Check.Title",
+    summaryKey: "DDA.TamerAction.Check.Summary",
+    cost: "1A"
+  },
+  {
+    key: "direct",
+    titleKey: "DDA.TamerAction.Direct.Title",
+    summaryKey: "DDA.TamerAction.Direct.Summary",
+    cost: "1–2A"
+  },
+  {
+    key: "reposition",
+    titleKey: "DDA.TamerAction.Reposition.Title",
+    summaryKey: "DDA.TamerAction.Reposition.Summary",
+    cost: "1–2A"
+  },
+  {
+    key: "reinforce",
+    titleKey: "DDA.TamerAction.Reinforce.Title",
+    summaryKey: "DDA.TamerAction.Reinforce.Summary",
+    cost: "1–2A"
+  },
+  {
+    key: "holdBreath",
+    titleKey: "DDA.TamerAction.HoldBreath.Title",
+    summaryKey: "DDA.TamerAction.HoldBreath.Summary",
+    cost: "1A"
+  },
+  {
+    key: "hold",
+    titleKey: "DDA.TamerAction.Hold.Title",
+    summaryKey: "DDA.TamerAction.Hold.Summary",
+    cost: "2A"
+  },
+  {
+    key: "evolution",
+    titleKey: "DDA.TamerAction.Evolution.Title",
+    summaryKey: "DDA.TamerAction.Evolution.Summary",
+    cost: "1A"
+  },
+  {
+    key: "teamwork",
+    titleKey: "DDA.TamerAction.Teamwork.Title",
+    summaryKey: "DDA.TamerAction.Teamwork.Summary",
+    cost: "—"
+  }
+];
+
+function renderTamerActionMenuEntry(entry) {
+  const title = entry.title ?? localize(entry.titleKey, entry.key);
+  const summary = entry.summary ?? localize(entry.summaryKey, "");
+
+  return `
+    <button type="button" data-action-key="${entry.key}">
+      <strong>
+        ${escapeHtml(title)}
+        <span>${escapeHtml(entry.cost)}</span>
+      </strong>
+      <small>${escapeHtml(summary)}</small>
+      ${entry.automationStatus ? `<em class="dda-tamer-action-automation ${entry.automationClass ?? ""}">${escapeHtml(entry.automationStatus)}</em>` : ""}
+    </button>
+  `;
+}
+
 export async function openTamerActionMenu(tamer) {
   if (!tamer || tamer.type !== "character") {
     ui.notifications.warn(
@@ -4724,127 +5356,89 @@ export async function openTamerActionMenu(tamer) {
         "Apenas Tamers podem usar este menu."
       )
     );
-
     return null;
   }
 
-  const peakPerformanceUnlocked =
-    hasUnlockedOfficialTamerTalent(
-      tamer,
-      "peakPerformance"
-    );
+  const menuEntries = [...TAMER_ACTION_MENU_ENTRIES];
 
-  const enemyScanUnlocked =
-    hasUnlockedOfficialTamerTalent(
-      tamer,
-      "enemyScan"
-    );
+  if (hasUnlockedOfficialTamerTalent(tamer, "peakPerformance")) {
+    menuEntries.push({
+      key: "peakPerformance",
+      titleKey: "DDA.TamerTalent.PeakPerformance.Title",
+      summaryKey: "DDA.TamerTalent.PeakPerformance.Summary",
+      cost: "2A"
+    });
+  }
+
+  if (hasUnlockedOfficialTamerTalent(tamer, "enemyScan")) {
+    menuEntries.push({
+      key: "enemyScan",
+      titleKey: "DDA.TamerTalent.EnemyScan.Title",
+      summaryKey: "DDA.TamerTalent.EnemyScan.Summary",
+      cost: "2A"
+    });
+  }
+
+  for (const talentId of TAMER_COMBAT_SPECIAL_ORDER_IDS) {
+    if (!hasUnlockedOfficialTamerTalent(tamer, talentId)) continue;
+
+    const talent = getOfficialTamerTalent(talentId);
+    if (!talent) continue;
+
+    const isAutomated = Boolean(talent.automation?.enabled);
+    menuEntries.push({
+      key: `talent:${talentId}`,
+      title: talent.specialOrder?.name || talent.name,
+      summary: talent.name,
+      cost: getTalentMenuActionCost(talent),
+      automationStatus: isAutomated
+        ? localize("DDA.Automation.Status.Automated", "Automatizado")
+        : localize("DDA.Automation.Status.Assisted", "Assistido"),
+      automationClass: isAutomated ? "is-automated" : "is-assisted"
+    });
+  }
+
+  const handlers = {
+    move: () => useTamerMove(tamer),
+    attack: () => useTamerAttack(tamer),
+    difficultMove: () => useTamerMove(tamer, true),
+    check: () => useTamerCheckAction(tamer),
+    direct: () => useDirect(tamer),
+    reposition: () => useReposition(tamer),
+    reinforce: () => useReinforce(tamer),
+    holdBreath: () => useTamerHoldBreath(tamer),
+    hold: () => useHold(tamer),
+    evolution: () => useTamerEvolution(tamer),
+    teamwork: () => useTeamwork(tamer),
+    peakPerformance: () => usePeakPerformance(tamer),
+    enemyScan: () => useEnemyScan(tamer)
+  };
 
   return await new Promise((resolve) => {
     new Dialog({
       title: localize("DDA.TamerAction.Menu.Title", "Ações do Tamer"),
       content: `
         <div class="dda-tamer-action-menu">
-          <p>${localize("DDA.TamerAction.Menu.Hint", "Escolha uma Ação do Tamer.")}</p>
+          <p>${localize(
+            "DDA.TamerAction.Menu.Hint",
+            "Escolha uma Ação do Tamer."
+          )}</p>
           <div class="dda-tamer-action-menu-grid">
-            <button type="button" data-action-key="direct">
-              <strong>${localize("DDA.TamerAction.Direct.Title", "Direcionar")}</strong>
-              <small>${localize("DDA.TamerAction.Direct.Summary", "Bônus na próxima Precisão ou Esquiva de um Digimon.")}</small>
-            </button>
-            <button type="button" data-action-key="reposition">
-              <strong>${localize("DDA.TamerAction.Reposition.Title", "Reposicionar")}</strong>
-              <small>${localize("DDA.TamerAction.Reposition.Summary", "Concede movimento imediato ao parceiro.")}</small>
-            </button>
-            <button type="button" data-action-key="reinforce">
-              <strong>${localize("DDA.TamerAction.Reinforce.Title", "Reforçar")}</strong>
-              <small>${localize("DDA.TamerAction.Reinforce.Summary", "Concede Ferimentos Temporários ao parceiro.")}</small>
-            </button>
-            <button type="button" data-action-key="hold">
-              <strong>
-                ${localize(
-                  "DDA.TamerAction.Hold.Title",
-                  "Segurar"
-                )}
-              </strong>
-
-              <small>
-                ${localize(
-                  "DDA.TamerAction.Hold.Summary",
-                  "Declara um gatilho e prepara uma resposta do parceiro."
-                )}
-              </small>
-            </button>
-
-            <button type="button" data-action-key="teamwork">
-            <strong>
-              ${localize(
-                "DDA.TamerAction.Teamwork.Title",
-                "Trabalho em Equipe"
-              )}
-            </strong>
-
-            <small>
-              ${localize(
-                "DDA.TamerAction.Teamwork.Summary",
-                "Abre um Teste principal para receber ajuda de outros Digi-Escolhidos."
-              )}
-            </small>
-          </button>
-
-${
-  peakPerformanceUnlocked
-    ? `
-      <button
-        type="button"
-        data-action-key="peakPerformance"
-      >
-        <strong>
-          ${localize(
-            "DDA.TamerTalent.PeakPerformance.Title",
-            "Peak Performance"
-          )}
-        </strong>
-
-        <small>
-          ${localize(
-            "DDA.TamerTalent.PeakPerformance.Summary",
-            "Concede [BASTION 2] a um Digimon aliado."
-          )}
-        </small>
-      </button>
-    `
-    : ""
-}
-
-${
-  enemyScanUnlocked
-    ? `
-      <button
-        type="button"
-        data-action-key="enemyScan"
-      >
-        <strong>
-          ${localize(
-            "DDA.TamerTalent.EnemyScan.Title",
-            "Enemy Scan"
-          )}
-        </strong>
-
-        <small>
-          ${localize(
-            "DDA.TamerTalent.EnemyScan.Summary",
-            "Aplica [DEBILITATE] em um Digimon inimigo."
-          )}
-        </small>
-      </button>
-    `
-    : ""
-}
-
+            ${menuEntries.map(renderTamerActionMenuEntry).join("")}
           </div>
           <p class="dda-tamer-action-bolster-note">
             <strong>${localize("DDA.TamerAction.Bolster", "Fortalecer")}:</strong>
-            ${localize("DDA.TamerAction.BolsterIntegrated", "é oferecido dentro das Ações compatíveis, pois modifica a própria Ação em vez de ocorrer separadamente.")}
+            ${localize(
+              "DDA.TamerAction.BolsterIntegrated",
+              "é oferecido dentro das Ações compatíveis, pois modifica a própria Ação em vez de ocorrer separadamente."
+            )}
+          </p>
+          <p class="dda-tamer-action-bolster-note">
+            <strong>${localize("DDA.TamerAction.Interrupts.Title", "Interrupções")}:</strong>
+            ${localize(
+              "DDA.TamerAction.Interrupts.Automatic",
+              "Interceder, Proteção do Destino e outras respostas aparecem automaticamente quando o gatilho correto acontece."
+            )}
           </p>
         </div>
       `,
@@ -4860,49 +5454,11 @@ ${
         root.find("[data-action-key]").on("click", async (event) => {
           event.preventDefault();
           const actionKey = String(event.currentTarget.dataset.actionKey ?? "");
-          let result = null;
+          const result = actionKey.startsWith("talent:")
+            ? await useOfficialCombatSpecialOrder(tamer, actionKey.slice(7))
+            : await handlers[actionKey]?.();
 
-          if (actionKey === "direct") {
-            result = await useDirect(tamer);
-          }
-
-          if (actionKey === "reposition") {
-            result = await useReposition(tamer);
-          }
-
-          if (actionKey === "reinforce") {
-            result = await useReinforce(tamer);
-          }
-
-          if (actionKey === "hold") {
-            result = await useHold(tamer);
-          }
-
-          if (actionKey === "teamwork") {
-            result = await useTeamwork(tamer);
-          }
-
-          if (
-  actionKey ===
-  "peakPerformance"
-) {
-  result =
-    await usePeakPerformance(
-      tamer
-    );
-}
-
-if (
-  actionKey ===
-  "enemyScan"
-) {
-  result =
-    await useEnemyScan(
-      tamer
-    );
-}
-
-          resolve(result);
+          resolve(result ?? null);
           root.closest(".window-app").find(".window-header .close").trigger("click");
         });
       },
@@ -4989,6 +5545,20 @@ export function prepareTamerActionPoolOptions(
     })
     .filter(Boolean);
 
+  const modifierBreakdown = [
+    ...(Array.isArray(options.modifierBreakdown) ? options.modifierBreakdown : []),
+    ...matching.map((effect) => ({
+      id: effect.id,
+      label: String(effect?.label ?? localize("DDA.TamerAction.Direct.Effect", "Directed")),
+      value: Math.max(0, number(effect?.value ?? effect?.potency, 0)),
+      kind: String(effect?.tag ?? "tamerAction")
+    }))
+  ];
+
+  const directProtectedDice = matching
+    .filter((effect) => String(effect?.tag ?? "") === EFFECT_TAG_DIRECT)
+    .reduce((total, effect) => total + Math.max(0, number(effect?.value ?? effect?.potency, 0)), 0);
+
   return {
     ...options,
 
@@ -5015,6 +5585,11 @@ export function prepareTamerActionPoolOptions(
     ]
       .filter(Boolean)
       .join(" + "),
+
+    modifierBreakdown,
+
+    ddaRerollProtectedDice:
+      number(options.ddaRerollProtectedDice, 0) + directProtectedDice,
 
     ddaTamerActionEffectIds: [
       ...(
@@ -5055,10 +5630,24 @@ export async function consumeTamerActionPoolEffects(actor, options = {}) {
 }
 
 function getTurnSourceTamerUuid(actor) {
-  if (!actor) return "";
-  if (actor.type === "character") return actor.uuid;
+  /*
+   * Efeitos com expiresOn: "sourceTurnStart"
+   * só expiram quando o próprio Tamer inicia
+   * outro turno.
+   *
+   * O turno do parceiro não é o início de um
+   * novo turno do Tamer.
+   */
+  if (
+    !actor ||
+    actor.type !== "character"
+  ) {
+    return "";
+  }
 
-  return String(actor.system?.tamer?.uuid ?? "").trim();
+  return String(
+    actor.uuid ?? ""
+  ).trim();
 }
 
 function getAllRuntimeActors() {
@@ -5103,18 +5692,29 @@ async function removeExpiredSourceTurnEffects(actor, sourceTamerUuid, currentSig
 }
 
 async function expireSourceTurnEffects(combat) {
-  const currentActor = combat?.combatant?.actor;
-  const sourceTamerUuid = getTurnSourceTamerUuid(currentActor);
-
-  if (!sourceTamerUuid) return;
-
   const currentSignature = getCombatTurnSignature();
 
-  for (const actor of getAllRuntimeActors()) {
-    try {
-      await removeExpiredSourceTurnEffects(actor, sourceTamerUuid, currentSignature);
-    } catch (error) {
-      console.warn("DDA | Could not expire a Tamer Action effect.", error, actor);
+  const activeCombatant = combat?.combatant;
+  const activeUnitId = getCombatantUnitId(activeCombatant);
+  const sourceTamers = (combat?.combatants?.contents ?? [])
+    .filter((combatant) => !activeUnitId || getCombatantUnitId(combatant) === activeUnitId)
+    .map((combatant) => combatant.actor)
+    .filter((actor) => actor?.type === "character");
+
+  if (!sourceTamers.length && activeCombatant?.actor?.type === "character") {
+    sourceTamers.push(activeCombatant.actor);
+  }
+
+  for (const sourceTamer of sourceTamers) {
+    const sourceTamerUuid = getTurnSourceTamerUuid(sourceTamer);
+    if (!sourceTamerUuid) continue;
+
+    for (const actor of getAllRuntimeActors()) {
+      try {
+        await removeExpiredSourceTurnEffects(actor, sourceTamerUuid, currentSignature);
+      } catch (error) {
+        console.warn("DDA | Could not expire a Tamer Action effect.", error, actor);
+      }
     }
   }
 }

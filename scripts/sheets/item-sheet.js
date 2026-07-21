@@ -258,7 +258,7 @@ export class DDAItemSheet extends DDAItemSheetBase {
       ?? null;
 
     if (!FilePickerClass) {
-      ui.notifications.warn("DDA | FilePicker implementation is unavailable.");
+      ui.notifications.warn(game.i18n.localize("DDA.ItemSheet.Warning.FilePickerUnavailable"));
       return;
     }
 
@@ -909,7 +909,7 @@ export class DDAItemSheet extends DDAItemSheetBase {
                 `${attack.id}:${effectTag}`,
 
               label:
-                `${attack.name} — [${effectTag.toUpperCase()}]`,
+                `${attack.name} — [${this._getLocalizedQualityAttackTagLabel(effectTag)}]`,
 
               attackId:
                 attack.id,
@@ -1035,7 +1035,7 @@ export class DDAItemSheet extends DDAItemSheetBase {
 
         selectedTagLabel:
           selectedTag
-            ? `[${selectedTag.toUpperCase()}]`
+            ? `[${this._getLocalizedQualityAttackTagLabel(selectedTag)}]`
             : "",
 
         options,
@@ -1059,12 +1059,23 @@ export class DDAItemSheet extends DDAItemSheetBase {
       hasRows:
         rows.length > 0,
 
-      emptyWarning:
-        "Este Digimon ainda não possui ataques compatíveis para esta escolha.",
+      emptyWarning: game.i18n.localize(
+        "DDA.Quality.AttackChoice.EmptyWarning"
+      ),
 
-      missingWarning:
-        "A escolha salva não foi encontrada ou deixou de ser compatível. Selecione outra combinação de Ataque e Tag."
+      missingWarning: game.i18n.localize(
+        "DDA.Quality.AttackChoice.MissingWarning"
+      )
     };
+  }
+
+  _getLocalizedQualityAttackTagLabel(tag = "") {
+    const normalizedTag = this._normalizeQualityAttackTag(tag);
+    const configuredLabel = CONFIG.DDA?.effectTags?.[normalizedTag];
+
+    return String(configuredLabel || normalizedTag)
+      .replace(/^\[|\]$/g, "")
+      .toUpperCase();
   }
 
   _normalizeQualityAttackTag(

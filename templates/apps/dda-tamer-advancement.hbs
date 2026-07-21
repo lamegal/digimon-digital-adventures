@@ -17,6 +17,11 @@
   </header>
 
   <div class="dda-tamer-advancement-body">
+    <section class="dda-tamer-advancement-guide">
+      <div class="dda-tamer-advancement-guide-step"><strong>1</strong><span>{{labels.guideMode}}</span></div>
+      <div class="dda-tamer-advancement-guide-step"><strong>2</strong><span>{{labels.guideSpend}}</span></div>
+      <div class="dda-tamer-advancement-guide-step"><strong>3</strong><span>{{labels.guideApply}}</span></div>
+    </section>
     {{#if hasExperiencedReward}}
       <section class="dda-tamer-advancement-experienced">
         <header>
@@ -103,6 +108,10 @@
         </section>
 
         <section class="dda-tamer-advancement-mode-choice">
+          <header>
+            <h3>{{labels.modeTitle}}</h3>
+            <p>{{labels.modeHint}}</p>
+          </header>
           <label>
             <input
               type="radio"

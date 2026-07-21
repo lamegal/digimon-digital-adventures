@@ -774,10 +774,10 @@
   <span>{{localize "DDA.TamerSheet.DropPartnerHint"}}</span>
 </div>
 
-<div class="combat-actions">
+<div class="combat-actions dda-partner-bond-actions">
   <button type="button" class="open-partner-sheet">{{localize "DDA.Button.OpenPartner"}}</button>
   <button type="button" class="evolution-options-partner">{{localize "DDA.Button.DigivolvePartner"}}</button>
-  <button type="button" class="open-current-form-wizard">{{localize "DDA.Button.CurrentFormWizard"}}</button>
+  <button type="button" class="open-partner-form-planner">{{localize "DDA.Button.PartnerFormPlanner"}}</button>
   <button type="button" class="jogress-partner">{{localize "DDA.Button.Jogress"}}</button>
   {{#if hybridActive}}
   <button type="button" class="end-hybrid-partner">{{localize "DDA.Button.EndHybrid"}}</button>
@@ -807,7 +807,7 @@
     value=""
     {{#unless partnerStartingStage.overrideStage}}selected{{/unless}}
   >
-    {{partnerStartingStage.useDefaultLabel}}
+    {{partnerStartingStage.useDefaultShortLabel}}
   </option>
 
   {{#each partnerStartingStage.options as |label stageKey|}}
@@ -820,9 +820,10 @@
   {{/each}}
 </select>
 
-    <small>{{partnerStartingStage.effectiveHint}}</small>
+    <small>{{partnerStartingStage.overrideHint}} • {{partnerStartingStage.effectiveHint}}</small>
   {{else}}
     <input type="text" value="{{partnerStartingStage.effectiveLabel}}" readonly />
+    <small>{{partnerStartingStage.playerHint}}</small>
   {{/if}}
 </div>
 

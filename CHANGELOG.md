@@ -1,3 +1,593 @@
+# Digimon Digital Adventures V2 — v2.0.6-beta
+
+## Release Highlights
+
+### Player-Controlled Partner Form Planning
+
+This release introduces the new **Partner Form Planner**, allowing players to prepare and review future Digimon forms before those Stages are unlocked.
+
+Players can now:
+
+- review the current form and every prepared form in one place;
+- inspect Attributes, Attacks, Qualities, total DP, spent DP, and remaining DP per form;
+- identify overspent builds before the form becomes available;
+- prepare additional forms through a visual Digimon picker;
+- search forms by name, original name, Type, or Attribute;
+- configure a future form without triggering Digivolution or unlocking its Stage.
+
+Stage unlocking remains a GM responsibility. The Planner only prepares the build and stores it in the partner’s form snapshots.
+
+### Shared Tamer and Partner Combat Activation
+
+Tamer and partner Digimon combatants are now treated as a shared initiative unit when properly linked.
+
+The new combat flow includes:
+
+- paired initiative entries for linked Tamers and Digimon;
+- shared activation tracking;
+- separate participation states for the Tamer and Digimon;
+- Combat Tracker advancement only after both participants have ended their part of the activation;
+- validation that prevents actors outside the active unit from spending restricted combat actions;
+- improved end-turn handling for paired and solo combatants;
+- a dedicated paired-unit presentation in the Combat Tracker.
+
+Existing combats should be ended and recreated after updating so that the new initiative flags and unit data are generated correctly.
+
+### Digimon Action Menu and Unified Action Economy
+
+Added a dedicated **Digimon Actions** menu and a shared Action-spending foundation.
+
+The menu now exposes automated or assisted flows for:
+
+- Move;
+- Attack;
+- Difficult Move;
+- Hold Back;
+- Check;
+- Change Stance;
+- Clash;
+- Resist;
+- Bolster;
+- Aid;
+- Guard;
+- Coordinated Assault;
+- Called Shot;
+- Hold Breath;
+- NPC Evolution.
+
+Action validation now checks the acting combat unit, available Actions, turn participation, and per-turn usage where applicable.
+
+**Aid** and **Guard** now create temporary bonuses that are consumed by compatible Accuracy or Dodge rolls.
+
+**Coordinated Assault** can mark a target and increase the group’s applicable Accuracy bonus against that target.
+
+### Tamer Combat Actions
+
+The Tamer Actions interface has been expanded with direct combat support.
+
+New or expanded actions include:
+
+- Move;
+- Difficult Move;
+- Tamer Attack;
+- Skill Check;
+- Direct;
+- Reposition;
+- Reinforce;
+- Hold Breath;
+- Hold;
+- Evolution declaration;
+- Teamwork;
+- automated and assisted Special Order entries.
+
+#### Tamer Attack
+
+Tamers can now make melee or ranged attacks from the Tamer Actions menu.
+
+Current implementation:
+
+- spends 1 Action;
+- allows one Tamer Attack per Round;
+- uses Precision by default;
+- allows Feats of Strength when Heavy Force is available;
+- requires adjacency for melee attacks;
+- uses a ranged limit of `2 + floor(Precision / 2)` Spaces;
+- resolves Tamer-versus-Tamer attacks as Precision or Feats of Strength versus Evade;
+- resolves Tamer-versus-Digimon attacks against `TN 12 + (2 × SV)`;
+- deals 1 Unalterable Damage on a normal hit;
+- deals 2 Unalterable Damage on a critical hit;
+- prevents ordinary human attacks from damaging sufficiently large targets or Digimon with SV 5 or greater.
+
+Damage is applied from the generated chat card.
+
+### Standard Intercede and Fate’s Protection
+
+Added the first complete standard **Intercede** response flow.
+
+When a valid attack is declared, the system can:
+
+- discover eligible allied Tamers, Digimon, and NPC Digimon on the Scene;
+- verify Movement, Action availability, ownership, combat readiness, and distance;
+- create an interactive chat response window;
+- allow an authorized user or GM to accept the Intercede;
+- pay the required Action or supported free-use exception;
+- move the interceding token adjacent to the protected target;
+- redirect the attack to the interceder;
+- resolve the redirected attack without a Dodge roll.
+
+Implemented interactions include:
+
+- Warden’s supported free Intercede use;
+- Pack Master’s supported free Intercede use;
+- Tamer Intercede damage resolution;
+- Fate’s Protection prompts when an Interceding Tamer would be reduced below the protected threshold;
+- general Fate’s Protection response handling and resource costs.
+
+**Area Intercede is not automated in this release.** The new flow covers standard single-target Intercede only.
+
+### Positioning, Aggressive Flank, and Coordinated Assault
+
+Added shared token-distance and combat-readiness utilities for positioning-based mechanics.
+
+**Aggressive Flank** now activates only when:
+
+- the attacker and target are opponents;
+- a valid ally of the attacker is adjacent to the target;
+- that ally is also an opponent of the target;
+- the ally is visible, not defeated, and has remaining Wound Boxes;
+- the same Actor is not counted more than once.
+
+The attack summary now identifies which ally or allies enabled the flank bonus.
+
+The rule checks adjacency only. It does not require strict opposite-side geometry.
+
+**Current behavior note:** any valid allied combatant can satisfy the condition, including a Tamer. This should be confirmed as the intended final rules interpretation during release testing.
+
+### GM Combat Overrides
+
+The GM Tools window now includes temporary combat overrides for selected participants.
+
+GMs can:
+
+- grant additional Actions;
+- clear spent Actions;
+- clear the per-Round Attack limit;
+- clear spent Movement;
+- clear the “ended participation” marker;
+- grant unrestricted Movement;
+- end unrestricted Movement.
+
+These tools use the existing GM target-selection mode and are intended for exceptional rulings, corrections, and narrative effects.
+
+### Group Sheet Redesign and Jogress Discovery
+
+The Group Sheet has received a major visual and functional redesign.
+
+Changes include:
+
+- a corrected localized window title;
+- compact member cards;
+- Tamer and current partner form displayed side by side;
+- direct buttons for opening the Tamer and current Digimon form;
+- removal of oversized redundant member sections;
+- a renewed visual style closer to the Digimon NPC Wizard;
+- a redesigned Jogress tab and empty state.
+
+Jogress recipe discovery now considers:
+
+- each partner’s current form;
+- prepared future-form snapshots;
+- recipe component UUIDs;
+- species and normalized names;
+- required Stages.
+
+Recipe components identify whether they were matched from a **Current** or **Prepared** form.
+
+A recipe becomes executable only when every component can be assigned to a distinct participant and the result Digimon exists as a World Actor.
+
+### Evolution Interface Cleanup
+
+The Evolution tab on Digimon and NPC sheets has been reorganized into a compact **Evolution Tools** toolbar.
+
+The toolbar now prioritizes:
+
+- Plan / Review Stages;
+- Evolution Map;
+- independent NPC Evolution when available;
+- Clear Graph.
+
+Duplicate or obsolete entry points were removed from the toolbar.
+
+The **Evolution Map** toolbar button now opens the same functional graph pop-out as the existing **Open Evolution Map** button.
+
+The Clear Graph action remains visually distinct and destructive.
+
+### Partner Starting Stage and Tamer Advancement UX
+
+The Partner Starting Stage field on the Tamer sheet has been compacted and clarified.
+
+Changes include:
+
+- shorter campaign-default labels;
+- clearer GM override guidance;
+- a player-facing explanation when the value is inherited;
+- improved field alignment and responsive behavior.
+
+The Tamer Advancement window now includes:
+
+- a three-step visual guide;
+- a clearer Attribute-versus-Skills mode choice;
+- explicit Growth Point package guidance;
+- improved review and confirmation messaging.
+
+### Quality Browser and Attack-Quality Configuration
+
+The Digimon Quality Browser now includes broader category filtering:
+
+- Core;
+- Attack and Offensive;
+- Defense;
+- Clash;
+- Effect and Conjuration;
+- Utility;
+- Stance and Mode;
+- Digizoid.
+
+Added or improved configuration support for:
+
+- Basic Effect;
+- Advanced Effect;
+- Master Effect;
+- compatible Attack selection;
+- compatible Attack Tag selection;
+- missing or invalid saved Attack choices;
+- empty compatible-Attack warnings.
+
+Expanded attack and Quality automation includes visible rule summaries for:
+
+- Natural Weakness;
+- Armor Piercing;
+- Certain;
+- Signature Move Battery interactions;
+- Fumble;
+- Fragile;
+- Aggressive Flank;
+- Coordinated Assault.
+
+### Interface, Localization, and ApplicationV2 Work
+
+- Added English and Brazilian Portuguese localization for the new combat, planning, advancement, Group Sheet, and GM Tool flows.
+- Added dedicated stylesheets for:
+  - Partner Form Planner;
+  - Combat Tracker pairing;
+  - Tamer Advancement.
+- Enabled the system socket channel required by multi-user combat responses and GM-authoritative actions.
+- Added new ApplicationV2-based Partner Form Planner and visual future-form picker.
+- Improved compact layouts across Evolution Tools, Partner Bond controls, Group Sheet cards, Jogress recipes, and advancement windows.
+- Expanded chat-card styling for Intercede, Action bonuses, Tamer attacks, and shared combat results.
+
+## Fixes
+
+- Fixed the Evolution Map toolbar button not opening the graph pop-out.
+- Fixed oversized Evolution Tools buttons and reorganized them into a compact responsive layout.
+- Fixed Group Sheet titles falling back to generic Actor-type labels.
+- Fixed Group Sheet member cards consuming excessive vertical space.
+- Fixed Jogress discovery ignoring prepared partner forms.
+- Fixed the Partner Starting Stage control overlapping or becoming unreadable.
+- Fixed Action restoration leaving stale Attack, Movement, or participation limits.
+- Fixed Direct requiring an invalid or missing allied target.
+- Added clearer messages for actors attempting actions outside the active combat unit.
+- Added combat-readiness checks for hidden, defeated, or depleted tokens in positioning and response mechanics.
+- Added new Actor defaults for incapacitation state, Digimon Action usage, and per-Stage form DP summaries.
+
+## Compatibility and Data Notes
+
+- Minimum Foundry VTT version remains **13**.
+- This release enables `"socket": true` in `system.json`.
+- New Actor data fields are additive and should receive defaults through the system template, but old Actors must be tested after migration.
+- Existing partner form snapshots remain supported, although older snapshots may not contain every field used by the new Planner.
+- Existing combats do not contain the new shared-unit initiative flags and should be recreated after updating.
+- The project continues to use a mixed sheet architecture: new standalone interfaces use ApplicationV2, while some primary Actor sheets still use the existing sheet framework.
+
+## Known Risks and What May Break
+
+### Multi-User and Socket Flows
+
+Intercede, GM-authoritative Combat Tracker advancement, and several chat responses depend on the system socket and an active GM.
+
+Possible failures:
+
+- no active GM is available;
+- the GM client is paused, disconnected, or loading another Scene;
+- ownership differs from the expected Actor owner;
+- a response arrives after its request timeout;
+- two users answer the same request almost simultaneously.
+
+These cases may leave a chat card unresolved or require the GM to correct Actions manually.
+
+### Existing Combats and Stale Actor State
+
+Updating while a Combat is active can leave:
+
+- old initiative ordering;
+- missing unit identifiers;
+- stale “ended participation” flags;
+- stale Attack-per-Round state;
+- old Movement sessions;
+- Action totals that do not match the new shared activation.
+
+End the existing Combat, reload the world, and create a new Combat before testing.
+
+### Movement and Token Placement
+
+The Movement tracker and Intercede relocation use Scene grid coordinates and Foundry collision checks.
+
+Potential edge cases:
+
+- gridless Scenes;
+- hex grids;
+- very large tokens;
+- tokens with non-standard dimensions;
+- narrow corridors;
+- walls, doors, elevation, or multilevel modules;
+- teleportation or external token-movement modules;
+- drag cancellation during a paid movement session.
+
+Intercede may choose an unexpected adjacent square when every ideal destination is blocked.
+
+### Standard Intercede Scope
+
+This release automates standard single-target Intercede.
+
+Not fully covered:
+
+- Area Intercede;
+- every Clash-specific restriction;
+- every third-party reaction or movement replacement;
+- simultaneous Intercede candidates resolving at the exact same moment;
+- uncommon combinations of Fastball, Warden, Pack Master, and external Action modifiers.
+
+These interactions require focused testing and may need GM adjudication.
+
+### Tamer Attack Rules
+
+Tamer Attacks introduce new assumptions that may expose inconsistent Actor data.
+
+Potential issues:
+
+- SV values not matching the intended Stage;
+- custom size labels not matching the supported immunity keys;
+- old Tamers missing expected Skill paths;
+- external modules changing target selection or chat-card buttons;
+- contested checks being canceled after the Action has already been reserved;
+- actor permissions preventing the target’s Evade roll.
+
+The implementation refunds the spent Action when the required roll cannot be completed, but this must be verified in multiplayer.
+
+### Aggressive Flank Interpretation
+
+The current implementation:
+
+- requires adjacency, not opposite-side positioning;
+- ignores hidden, defeated, depleted, duplicate, neutral, or friendly-to-the-target tokens;
+- currently allows a Tamer to count as the adjacent ally.
+
+Confirm the Tamer interaction before publishing. If only Digimon should enable Aggressive Flank, an Actor-type restriction must be added before release.
+
+### Prepared Forms and Form Snapshots
+
+The Planner reads and writes partner form snapshots.
+
+Potential issues:
+
+- snapshots created by much older builds may lack `sourceFormUuid`, Stage, token image, portrait image, or DP summaries;
+- duplicate forms with different aliases may appear as separate choices;
+- a prepared form can be mechanically invalid if its saved Items were manually edited outside the Planner;
+- an overspent form remains saved until the player corrects it;
+- preparing a form does not guarantee that the Actor used by that form still exists.
+
+Test regression and advancement between every prepared Stage, including portrait, token, Attacks, Qualities, and nickname persistence.
+
+### Jogress Recipe Matching
+
+Recipe discovery matches current and prepared forms by UUID, species/name, and Stage.
+
+Potential issues:
+
+- duplicate or ambiguous species names;
+- DUB/original-name mismatches;
+- a recipe result existing only in a Compendium rather than as a World Actor;
+- one Tamer preparing multiple candidate forms;
+- recipes requiring two entries that normalize to the same name;
+- stale snapshots referencing deleted Actors.
+
+The matching code prevents the same candidate entry from filling two components, but unusual recipe sets must be tested.
+
+### UI and CSS Conflicts
+
+The release contains extensive CSS changes.
+
+Potential issues:
+
+- custom themes;
+- browser zoom other than 100%;
+- narrow Actor-sheet widths;
+- translated strings longer than the English labels;
+- modules that modify Actor sheet tabs or window frames;
+- cached CSS after updating.
+
+Perform a full browser reload after installation and test at common desktop widths.
+
+### Compendium and Repository Noise
+
+The submitted working tree contains generated LevelDB artifacts, including rotated manifests and `packs/*/lost/` directories.
+
+Do not blindly commit every file shown by VS Code Source Control.
+
+Possible damage:
+
+- committing recovery files and obsolete manifests;
+- deleting valid `.ldb` files;
+- publishing corrupted or partially recovered Compendium packs;
+- greatly increasing repository and release size;
+- mixing generated pack state from two different Foundry sessions.
+
+Only commit pack changes after opening every affected Compendium in Foundry and confirming that its documents load correctly.
+
+### Mixed Application Frameworks
+
+The Partner Form Planner uses ApplicationV2, while several main Actor sheets still use the prior sheet framework.
+
+Possible issues:
+
+- lifecycle differences between old and new windows;
+- stale jQuery assumptions;
+- window-size persistence differences;
+- modules that patch old sheet methods but not ApplicationV2 actions.
+
+The new Planner and picker must be tested through repeated open, close, refresh, and re-render cycles.
+
+## Required Release Testing
+
+The following checks are release blockers.
+
+### Installation and Migration
+
+- [ ] Install the release ZIP into a clean Foundry VTT v13 data directory.
+- [ ] Update an existing world from v2.0.5-beta.
+- [ ] Open old Tamer, Digimon, NPC, Group, Attack, Quality, Talent, and Torment documents.
+- [ ] Confirm that no migration or data-path errors appear in the console.
+- [ ] Confirm that all configured system stylesheets load.
+- [ ] Confirm that the system socket initializes.
+
+### Multi-User Test
+
+Use at least one GM client and one player client.
+
+- [ ] Player can open the Partner Form Planner.
+- [ ] Player can prepare a locked-Stage form without unlocking the Stage.
+- [ ] Player cannot perform GM-only progression actions.
+- [ ] Chat response buttons respect Actor ownership.
+- [ ] GM receives and resolves authoritative requests.
+- [ ] No request is processed twice.
+
+### Shared Combat Activation
+
+- [ ] Add a linked Tamer and partner to Combat.
+- [ ] Roll initiative and confirm they appear as a shared unit.
+- [ ] End only the Tamer’s participation; Combat must wait for the Digimon.
+- [ ] End the Digimon’s participation; Combat must advance.
+- [ ] Repeat with Digimon ending first.
+- [ ] Test a solo Tamer, solo Digimon, and NPC.
+- [ ] Start a new Round and confirm all participation markers reset.
+
+### Digimon Actions and Action Economy
+
+- [ ] Move spends the expected Actions and Movement.
+- [ ] Difficult Move applies the expected cost.
+- [ ] Attack respects the one-Attack-per-Round limit.
+- [ ] Aid applies only to the next compatible roll and is consumed once.
+- [ ] Guard applies only to the next compatible Dodge and is consumed once.
+- [ ] Bolster, Resist, Stance, Clash, Hold Back, Called Shot, and Hold Breath do not duplicate usage.
+- [ ] Restoring Actions through GM Tools clears the intended temporary limits.
+
+### Tamer Actions
+
+- [ ] Melee Attack rejects non-adjacent targets.
+- [ ] Ranged Attack respects `2 + floor(Precision / 2)`.
+- [ ] Heavy Force allows Feats of Strength.
+- [ ] Tamer-versus-Tamer uses a contested Evade check.
+- [ ] Tamer-versus-Digimon uses the expected TN.
+- [ ] Normal hit deals 1 Unalterable Damage.
+- [ ] Critical hit deals 2 Unalterable Damage.
+- [ ] Size and SV immunities work as intended.
+- [ ] Canceled or failed rolls refund the reserved Action.
+- [ ] One-Attack-per-Round state resets correctly.
+- [ ] Direct requires exactly one allied Digimon target.
+- [ ] Hold and Teamwork chat workflows work across GM and player clients.
+
+### Intercede and Fate’s Protection
+
+- [ ] Eligible candidates are detected by distance, Movement, Actions, alliance, ownership, and readiness.
+- [ ] Hidden, defeated, depleted, neutral, and duplicate Actors are excluded.
+- [ ] Intercede moves the token adjacent to the protected target.
+- [ ] The redirected attack does not request Dodge.
+- [ ] The correct Actor pays the Action.
+- [ ] Warden and Pack Master free uses trigger only at their intended frequency.
+- [ ] A Tamer Intercede can be resolved from the chat card.
+- [ ] Fate’s Protection charges the correct Action and IP costs.
+- [ ] Declining Intercede lets the original attack continue.
+- [ ] Request timeout and disconnected-user behavior are acceptable.
+- [ ] Area attacks are clearly handled manually rather than incorrectly using standard Intercede.
+
+### Aggressive Flank and Positioning
+
+- [ ] No bonus without an adjacent ally.
+- [ ] Bonus with one valid adjacent ally.
+- [ ] Bonus does not require opposite-side geometry.
+- [ ] Hidden, defeated, depleted, neutral, or duplicate tokens do not count.
+- [ ] The chat summary identifies the enabling ally.
+- [ ] Confirm whether a Tamer should count.
+- [ ] Test large targets and large allies.
+- [ ] Test square and hex grids.
+
+### Partner Form Planner and Evolution
+
+- [ ] Current and prepared forms display correct Stage, images, Attributes, Items, and DP.
+- [ ] Locked Stages remain locked after preparing a form.
+- [ ] Visual picker search and Attribute filters work.
+- [ ] Duplicate forms are not added unintentionally.
+- [ ] Overspent forms are clearly identified.
+- [ ] Adjusting a form preserves portrait and token separately.
+- [ ] Digivolution and regression restore Attacks, Qualities, portrait, token, species, and nickname.
+- [ ] Evolution Map toolbar button opens the graph pop-out.
+- [ ] The lower Open Evolution Map button still works.
+- [ ] NPC evolution controls still appear only when appropriate.
+- [ ] Clear Graph remains destructive and requires confirmation.
+
+### Group Sheet and Jogress
+
+- [ ] Group window title is localized correctly.
+- [ ] Tamer and current partner form appear side by side.
+- [ ] Open Tamer and Open Current Form buttons work.
+- [ ] Jogress recipes appear when a current form matches.
+- [ ] Jogress recipes appear when only a prepared form matches.
+- [ ] Current and Prepared source labels are correct.
+- [ ] The same candidate cannot satisfy two recipe components.
+- [ ] Missing components are reported correctly.
+- [ ] Missing result World Actor is reported correctly.
+- [ ] DUB and original-name variants match intended recipes.
+- [ ] Executing and ending Jogress preserves both participants correctly.
+
+### UI and Localization
+
+- [ ] Test English and Brazilian Portuguese.
+- [ ] No raw `DDA.*` localization keys are visible.
+- [ ] Evolution Tools buttons remain compact and side by side.
+- [ ] Group member and Jogress cards fit at normal sheet widths.
+- [ ] Partner Starting Stage does not overlap.
+- [ ] Tamer Actions remains usable at common resolutions.
+- [ ] Test browser zoom at 100%, 90%, and 125%.
+- [ ] Perform a hard reload and confirm no old CSS remains cached.
+
+### Compendiums and Packaging
+
+- [ ] Open every system Compendium.
+- [ ] Open sample Actors from each Stage pack.
+- [ ] Confirm no LevelDB recovery warning appears.
+- [ ] Remove `packs/*/lost/` from the release package.
+- [ ] Exclude `.git`, development reports, tools, temporary files, and old release ZIPs.
+- [ ] Confirm `system.json` version, manifest, download, and changelog URLs.
+- [ ] Confirm the release ZIP contains one top-level `digimon-digital-adventures` folder.
+- [ ] Install the final ZIP and repeat a smoke test before publishing.
+
+## Recommended Release Classification
+
+This build should remain labeled **beta**.
+
+The release introduces substantial combat-state, socket, movement, reaction, snapshot, and UI changes. It is suitable for public beta testing after the blocker checklist passes, but it should not be presented as feature-complete automation of every combat rule.
+
+
 # v2.0.5-beta
 # English
 

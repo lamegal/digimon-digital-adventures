@@ -97,6 +97,13 @@
     </label>
     {{/if}}
 
+    {{#if usesEffectPicker}}
+    <small class="dda-enemy-effect-picker-hint">
+      <i class="fa-solid fa-wand-magic-sparkles"></i>
+      {{../labels.effectPickerHint}}
+    </small>
+    {{/if}}
+
     {{#if hasMainStatOptions}}
     <label>
       <span>{{../labels.mainStat}}</span>

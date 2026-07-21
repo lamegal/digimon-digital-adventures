@@ -167,7 +167,7 @@ export const DDA_PORTRAIT_PATH_BY_KEY = Object.freeze({
   "dark_tyranomon": "assets/digimon/portraits/dark-tyranomon.webm",
   "darkdramon": "assets/digimon/portraits/darkdramon.webm",
   "darumamon": "assets/digimon/portraits/darumamon.webm",
-  "deadly_axemon": "assets/digimon/portraits/deadly-axemon.webm",
+  "deadly_axemon": "assets/digimon/portraits/DeadlyAxemon.webp",
   "death_meramon": "assets/digimon/portraits/death-meramon.webm",
   "death_x_dorugamon": "assets/digimon/portraits/death-x-dorugamon.webm",
   "death_x_dorugoramon": "assets/digimon/portraits/death-x-dorugoramon.webm",
@@ -291,7 +291,10 @@ export const DDA_PORTRAIT_PATH_BY_KEY = Object.freeze({
   "gokumon": "assets/digimon/portraits/gokumon.webm",
   "gokuwmon": "assets/digimon/portraits/gokuwmon.webm",
   "gold_v_dramon": "assets/digimon/portraits/gold-v-dramon.webm",
-  "golemon": "assets/digimon/portraits/golemon.webm",
+  "golemon": "assets/digimon/portraits/Golemon.webp",
+  "golemon_ps": "assets/digimon/portraits/Rockmon.webp",
+  "rockmon_ps": "assets/digimon/portraits/Rockmon.webp",
+  "rockmon_golemon_ps": "assets/digimon/portraits/Rockmon.webp",
   "gomamon": "assets/digimon/portraits/gomamon.webm",
   "gorimon": "assets/digimon/portraits/gorimon.webm",
   "goromon": "assets/digimon/portraits/goromon.webm",
@@ -701,7 +704,7 @@ export const DDA_PORTRAIT_PATH_BY_KEY = Object.freeze({
   "snimon": "assets/digimon/portraits/snimon.webm",
   "snow_goburimon": "assets/digimon/portraits/snow-goblimon.webm",
   "soloogarmon": "assets/digimon/portraits/soloogarmon.webm",
-  "spadamon": "assets/digimon/portraits/spadamon.webm",
+  "spadamon": "assets/digimon/portraits/Spadamon.webp",
   "sparrowmon": "assets/digimon/portraits/sparrowmon.webm",
   "spinomon": "assets/digimon/portraits/spinomon.webm",
   "splashmon": "assets/digimon/portraits/splashmon.webm",
@@ -995,10 +998,12 @@ function makeManualActor({
   attribute,
   type,
   family = "",
+  aliases = [],
+  imageDirectory = stage,
   imageFile,
   wikimonUrl
 }) {
-  const image = imagePath(stage, imageFile);
+  const image = imagePath(imageDirectory, imageFile);
 
   return {
     name,
@@ -1029,7 +1034,11 @@ function makeManualActor({
         canonical: id,
         original: name,
         dub: name,
-        aliases: [name, id]
+        aliases: Array.from(new Set([
+          name,
+          id,
+          ...(Array.isArray(aliases) ? aliases : [])
+        ]))
       },
       evolutionCategory: "normal",
       isSpecialForm: false,
@@ -1106,6 +1115,18 @@ function makeManualActor({
 }
 
 export const DDA_MANUAL_DIGIMON_ACTORS = Object.freeze([
+  makeManualActor({
+    id: "golemon",
+    name: "Golemon",
+    stage: "adult",
+    attribute: "virus",
+    type: "Mineral",
+    family: "",
+    aliases: ["Rockmon"],
+    imageDirectory: "portraits",
+    imageFile: "Golemon.webp",
+    wikimonUrl: "https://wikimon.net/Golemon"
+  }),
   makeManualActor({
     id: "tenkomon",
     name: "Tenkomon",

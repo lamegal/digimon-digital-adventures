@@ -289,6 +289,7 @@ return context;
     html.find(".unlink-partner").on("click", this._onUnlinkPartner.bind(this));
     html.find(".evolution-options-partner").on("click", this._onEvolutionOptionsPartner.bind(this));
     html.find(".open-current-form-wizard").on("click", this._onOpenCurrentFormWizard.bind(this));
+    html.find(".open-partner-form-planner").on("click", this._onOpenPartnerFormPlanner.bind(this));
     html.find(".evolve-partner").on("click", this._onEvolvePartner.bind(this));
     html.find(".jogress-partner").on("click", this._onJogressPartner.bind(this));
     html.find(".end-jogress-partner").on("click", this._onEndJogressPartner.bind(this));
@@ -353,7 +354,7 @@ html.find(".dda-device-button").on("dblclick", (event) => {
   if (combatActions.find(".end-turn-tamer").length) return;
 
   combatActions.prepend(
-    `<button type="button" class="end-turn-tamer">${game.i18n.localize("DDA.EndTurn.Title")}</button>`
+    `<button type="button" class="end-turn-tamer"><i class="fa-solid fa-forward-step"></i> ${game.i18n.localize("DDA.EndTurn.Title")}</button>`
   );
 }
 
@@ -553,6 +554,11 @@ _getPartnerStartingStageViewData() {
     useDefaultLabel: game.i18n.format("DDA.TamerSheet.PartnerStartingStage.UseCampaignDefault", {
       stage: defaultLabel
     }),
+    useDefaultShortLabel: game.i18n.format("DDA.TamerSheet.PartnerStartingStage.UseCampaignDefaultShort", {
+      stage: defaultLabel
+    }),
+    overrideHint: game.i18n.localize("DDA.TamerSheet.PartnerStartingStage.OverrideHint"),
+    playerHint: game.i18n.localize("DDA.TamerSheet.PartnerStartingStage.PlayerHint"),
     effectiveHint: game.i18n.format("DDA.TamerSheet.PartnerStartingStage.EffectiveHint", {
       stage: effectiveLabel
     })
@@ -1828,6 +1834,16 @@ async _onOpenCurrentFormWizard(event) {
 
   const { DDADigimonWizard } = await import("../wizard/dda-digimon-wizard.js");
   await DDADigimonWizard.openCurrentFormWizard(this.actor);
+}
+
+async _onOpenPartnerFormPlanner(event) {
+  event.preventDefault();
+
+  const { DDAPartnerFormPlanner } = await import(
+    "../apps/dda-partner-form-planner.js"
+  );
+
+  await DDAPartnerFormPlanner.open(this.actor);
 }
 
 async _onJogressPartner(event) {

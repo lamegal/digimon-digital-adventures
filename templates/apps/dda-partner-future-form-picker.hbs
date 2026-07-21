@@ -1,0 +1,168 @@
+<section class="dda-partner-future-form-picker__root">
+  <header class="dda-partner-future-form-picker__header">
+    <div class="dda-partner-future-form-picker__device-mark" aria-hidden="true">
+      <img
+        src="systems/digimon-digital-adventures/assets/ui/progress-partner.svg"
+        alt=""
+      >
+    </div>
+
+    <div class="dda-partner-future-form-picker__heading">
+      <span>{{localize "DDA.PartnerFormPlanner.Picker.Kicker"}}</span>
+      <h2>{{stageLabel}}</h2>
+      <p>{{localize "DDA.PartnerFormPlanner.AddStageHint"}}</p>
+    </div>
+
+    <div class="dda-partner-future-form-picker__count">
+      <strong data-form-picker-visible-count>{{count}}</strong>
+      <span>{{localize "DDA.PartnerFormPlanner.Picker.Results"}}</span>
+    </div>
+  </header>
+
+  <div class="dda-partner-future-form-picker__filters">
+    <label class="dda-partner-future-form-picker__search">
+      <span>{{localize "DDA.PartnerFormPlanner.Picker.Search"}}</span>
+      <div>
+        <i class="fas fa-search"></i>
+        <input
+          type="search"
+          data-form-picker-search
+          placeholder="{{localize 'DDA.PartnerFormPlanner.Picker.SearchPlaceholder'}}"
+          autocomplete="off"
+        >
+      </div>
+    </label>
+
+    <label>
+      <span>{{localize "DDA.PartnerFormPlanner.Picker.Attribute"}}</span>
+      <select data-form-picker-attribute>
+        <option value="all">{{localize "DDA.PartnerFormPlanner.Picker.AllAttributes"}}</option>
+        {{#each attributes as |attribute|}}
+          <option value="{{attribute.key}}">{{attribute.label}}</option>
+        {{/each}}
+      </select>
+    </label>
+  </div>
+
+  <div class="dda-partner-future-form-picker__workspace">
+    <div class="dda-partner-future-form-picker__results">
+      <div class="dda-partner-future-form-picker__grid">
+        {{#each entries as |entry|}}
+          <button
+            type="button"
+            class="dda-partner-future-form-card {{#if entry.selected}}selected{{/if}}"
+            data-action="selectForm"
+            data-form-picker-card
+            data-form-reference="{{entry.reference}}"
+            data-search="{{entry.searchText}}"
+            data-attribute="{{entry.attributeKey}}"
+            aria-pressed="{{#if entry.selected}}true{{else}}false{{/if}}"
+          >
+            <span class="dda-partner-future-form-card__portrait">
+              <img
+                src="{{entry.img}}"
+                data-fallback-index="0"
+                data-fallback-srcs="{{entry.imageFallbacks}}"
+                alt="{{entry.name}}"
+              >
+            </span>
+
+            <span class="dda-partner-future-form-card__copy">
+              <strong>{{entry.name}}</strong>
+
+              {{#if entry.originalName}}
+                <small>{{entry.originalName}}</small>
+              {{/if}}
+            </span>
+
+            <span class="dda-partner-future-form-card__tags">
+              <em>{{entry.attributeLabel}}</em>
+              {{#if entry.type}}
+                <em>{{entry.type}}</em>
+              {{/if}}
+            </span>
+
+            <span class="dda-partner-future-form-card__check">
+              <i class="fas fa-check"></i>
+            </span>
+          </button>
+        {{/each}}
+      </div>
+
+      <div class="dda-partner-future-form-picker__empty" data-form-picker-empty hidden>
+        <i class="fas fa-search"></i>
+        <p>{{localize "DDA.PartnerFormPlanner.Picker.NoResults"}}</p>
+      </div>
+    </div>
+
+    <aside class="dda-partner-future-form-picker__preview-shell">
+      <div class="dda-partner-future-form-picker__preview-empty" data-form-picker-preview-empty>
+        <i class="fas fa-hand-pointer"></i>
+        <strong>{{localize "DDA.PartnerFormPlanner.Picker.PreviewEmptyTitle"}}</strong>
+        <p>{{localize "DDA.PartnerFormPlanner.Picker.PreviewEmptyHint"}}</p>
+      </div>
+
+      <article class="dda-partner-future-form-picker__preview" data-form-picker-preview hidden>
+        <div class="dda-partner-future-form-picker__preview-image">
+          <img
+            data-form-picker-preview-image
+            data-fallback-index="0"
+            data-fallback-srcs="icons/svg/mystery-man.svg"
+            src="icons/svg/mystery-man.svg"
+            alt=""
+          >
+        </div>
+
+        <span class="dda-partner-future-form-picker__preview-kicker">
+          {{localize "DDA.PartnerFormPlanner.Picker.Selected"}}
+        </span>
+        <h3 data-form-picker-preview-name></h3>
+        <p data-form-picker-preview-original></p>
+
+        <dl>
+          <div>
+            <dt>{{localize "DDA.Label.Stage"}}</dt>
+            <dd data-form-picker-preview-stage></dd>
+          </div>
+          <div>
+            <dt>{{localize "DDA.PartnerFormPlanner.Picker.Attribute"}}</dt>
+            <dd data-form-picker-preview-attribute></dd>
+          </div>
+          <div>
+            <dt>{{localize "DDA.Label.Type"}}</dt>
+            <dd data-form-picker-preview-type></dd>
+          </div>
+        </dl>
+
+        <p class="dda-partner-future-form-picker__preview-warning">
+          <i class="fas fa-lock"></i>
+          {{localize "DDA.PartnerFormPlanner.Picker.DoesNotUnlock"}}
+        </p>
+      </article>
+    </aside>
+  </div>
+
+  <footer class="dda-partner-future-form-picker__footer">
+    <div class="dda-partner-future-form-picker__selection" data-form-picker-selection hidden>
+      <span>{{localize "DDA.PartnerFormPlanner.Picker.Selected"}}</span>
+      <strong data-form-picker-selected-name></strong>
+    </div>
+
+    <div class="dda-partner-future-form-picker__buttons">
+      <button type="button" data-action="cancelSelection">
+        <i class="fas fa-times"></i>
+        {{localize "DDA.Button.Cancel"}}
+      </button>
+
+      <button
+        type="button"
+        class="dda-partner-future-form-picker__confirm"
+        data-action="confirmSelection"
+        disabled
+      >
+        <i class="fas fa-arrow-right"></i>
+        {{localize "DDA.PartnerFormPlanner.Picker.Continue"}}
+      </button>
+    </div>
+  </footer>
+</section>

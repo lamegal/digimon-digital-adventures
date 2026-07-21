@@ -20016,7 +20016,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "max": 1,
       "recharge": "combat"
     },
-    "effect": "When the Digimon takes an Action which involves its Movement, it can choose to double its Movement for that Action. This affects more than just the Move Action, such as Difficult Move, Intercede or [CHARGE] Attacks.\nThis Quality can be triggered Once per Combat.\n\nElemental Force: How it Works\nGreymon has Naturewalk: Fire, and has chosen to take Elemental Force and adds the [FIRE] Tag to Nova Blast. The Attack now gains +2 Damage, but if used against a Digimon that has Naturewalk: Fire like Meramon, it loses that Damage bonus. If Meramon has Element Master as well, the Attack does absolutely nothing.\nBe careful putting an Element Tag on a Signature Move, as in the right circumstances (as previously showcased) it can be completely invalidated",
+    "effect": "When the Digimon takes an Action which involves its Movement, it can choose to double its Movement for that Action. This affects more than just the Move Action, such as Difficult Move, Intercede or [CHARGE] Attacks.\nThis Quality can be triggered Once per Combat.",
     "description": "When the Digimon takes an Action which involves its Movement, it can choose to double its Movement for that Action. "
   },
   {

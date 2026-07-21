@@ -168,22 +168,31 @@ function getAdaptiveArmorPointsPerRound(item) {
 }
 
 const DDA_NEGATIVE_EFFECT_TAGS = new Set([
-  "root",
-  "slow",
-  "vague",
-
+  "blind",
+  "burn",
   "confuse",
+  "debilitate",
   "distract",
+  "doom",
+  "dot",
   "dull",
+  "exploit",
+  "fear",
   "frail",
+  "freeze",
   "heavy",
-
   "pacify",
+  "paralyze",
+  "poison",
   "rattled",
+  "root",
+  "ruin",
   "shaken",
-  "weak",
-
-  "debilitate"
+  "slow",
+  "stun",
+  "taunt",
+  "vague",
+  "weak"
 ]);
 
 function normalizeDigimonEffectTag(value = "") {
@@ -197,17 +206,43 @@ function normalizeDigimonEffectTag(value = "") {
     .trim();
 }
 
-function isActiveNegativeDigimonEffect(effect = {}) {
-  if (!effect || typeof effect !== "object") return false;
-  if (effect.disabled === true || effect.active === false) return false;
+function isActiveDigimonEffect(effect = {}) {
+  if (!effect || typeof effect !== "object") {
+    return false;
+  }
 
-  const remainingValue = effect.remaining ?? effect.duration;
+  if (
+    effect.disabled === true ||
+    effect.active === false
+  ) {
+    return false;
+  }
+
+  const remainingValue =
+    effect.remaining ??
+    effect.duration;
 
   if (
     remainingValue !== undefined &&
-    Number.isFinite(Number(remainingValue)) &&
-    Number(remainingValue) <= 0
+    remainingValue !== null &&
+    remainingValue !== ""
   ) {
+    const numericRemaining =
+      Number(remainingValue);
+
+    if (
+      Number.isFinite(numericRemaining) &&
+      numericRemaining <= 0
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function isActiveNegativeDigimonEffect(effect = {}) {
+  if (!isActiveDigimonEffect(effect)) {
     return false;
   }
 
@@ -218,11 +253,17 @@ function isActiveNegativeDigimonEffect(effect = {}) {
     ""
   );
 
-  if (explicitType === "negative" || explicitType === "n") {
+  if (
+    explicitType === "negative" ||
+    explicitType === "n"
+  ) {
     return true;
   }
 
-  const tag = normalizeDigimonEffectTag(effect.tag);
+  const tag =
+    normalizeDigimonEffectTag(
+      effect.tag
+    );
 
   return DDA_NEGATIVE_EFFECT_TAGS.has(tag);
 }
@@ -832,10 +873,10 @@ _prepareDigimonQualityResources(system) {
     value,
     max,
 
-    label: "Mastery",
+    label: "DDA.Resource.Mastery",
 
     formula:
-      "BIT + 2 × (Ranks de Conjurador + Ranks de Invocador)",
+      "DDA.Resource.MasteryFormula",
 
     bitContribution: bit,
     conjurerRanks,
@@ -1784,7 +1825,8 @@ if (isNaturewalkQuality(item)) {
 
     if (
       mainStatKey &&
-      mainStats[mainStatKey]
+      mainStats[mainStatKey] &&
+      Number(naturewalk.mainStatBonuses[mainStatKey] ?? 0) < 2
     ) {
       addQualitySourceBonus(
         mainStats[mainStatKey],
@@ -2175,12 +2217,23 @@ if (miscStats.movement) {
 }
 
 _prepareDigimonEffectBonuses(system) {
-  const mainStats = system.mainStats ?? {};
-  const miscStats = system.miscStats ?? {};
-  const activeEffects = Array.isArray(system.effects?.active)
-    ? system.effects.active
-    : [];
+  const mainStats =
+    system.mainStats ?? {};
 
+  const miscStats =
+    system.miscStats ?? {};
+
+  const activeEffects = (
+    Array.isArray(system.effects?.active)
+      ? system.effects.active
+      : []
+  ).filter(isActiveDigimonEffect);
+
+  /*
+   * Todo efeito começa zerado a cada preparação.
+   * Isso impede que os bônus se acumulem a cada
+   * atualização da ficha.
+   */
   for (const stat of Object.values(mainStats)) {
     stat.effectBonus = 0;
     stat.effectBonusSources = [];
@@ -2191,17 +2244,37 @@ _prepareDigimonEffectBonuses(system) {
     miscStats.movement.effectBonusSources = [];
   }
 
+  /*
+   * Cada valor abaixo representa o modificador
+   * causado por 1 ponto de Potência.
+   */
   const effectModifiers = {
-    slow: { dodge: -1 },
-    vague: { accuracy: -1 },
-    dull: { damage: -1 },
-    frail: { armor: -1 },
+    /*
+     * Efeitos positivos simples.
+     */
+    keen: {
+      accuracy: 1
+    },
 
-    keen: { accuracy: 1 },
-    swift: { dodge: 1 },
-    sharpen: { damage: 1 },
-    sturdy: { armor: 1 },
+    sharpen: {
+      damage: 1
+    },
 
+    sturdy: {
+      armor: 1
+    },
+
+    swift: {
+      dodge: 1
+    },
+
+    tailwind: {
+      movement: 1
+    },
+
+    /*
+     * Efeitos positivos combinados.
+     */
     nimble: {
       accuracy: 1,
       dodge: 1
@@ -2237,85 +2310,252 @@ _prepareDigimonEffectBonuses(system) {
       movement: 1
     },
 
-    root: { movement: -1 },
-    tailwind: { movement: 1 }
+    /*
+     * Efeitos negativos simples.
+     */
+    vague: {
+      accuracy: -1
+    },
+
+    dull: {
+      damage: -1
+    },
+
+    frail: {
+      armor: -1
+    },
+
+    slow: {
+      dodge: -1
+    },
+
+    root: {
+      movement: -1
+    },
+
+    /*
+     * Blind continua com a implementação que
+     * já existia no attack-roll: -Accuracy e
+     * -Dodge.
+     */
+    blind: {
+      accuracy: -1,
+      dodge: -1
+    },
+
+    /*
+     * Efeitos negativos combinados.
+     */
+    confuse: {},
+
+    distract: {
+      accuracy: -1,
+      dodge: -1
+    },
+
+    exploit: {
+      dodge: -1,
+      armor: -1
+    },
+
+    pacify: {
+      accuracy: -1,
+      damage: -1
+    },
+
+    paralyze: {
+      dodge: -1
+    },
+
+    rattled: {
+      damage: -1,
+      dodge: -1
+    },
+
+    shaken: {
+      accuracy: -1,
+      armor: -1
+    },
+
+    weak: {
+      damage: -1,
+      armor: -1
+    },
+
+    /*
+     * Bastion e Debilitate usam magnitude
+     * variável, mas o multiplicador é aplicado
+     * apenas uma vez.
+     */
+    bastion: {
+      accuracy: 1,
+      damage: 1,
+      dodge: 1,
+      armor: 1
+    },
+
+    debilitate: {
+      accuracy: -1,
+      damage: -1,
+      dodge: -1,
+      armor: -1
+    }
   };
 
-  for (const effect of activeEffects) {
-    const tag = String(effect.tag ?? "")
-      .replace("[", "")
-      .replace("]", "")
-      .trim()
-      .toLowerCase();
+  const strongestNegativeByStat = new Map();
 
+  for (const effect of activeEffects) {
+    const tag =
+      normalizeDigimonEffectTag(
+        effect.tag
+      );
+
+    if (!tag) continue;
+
+    /*
+     * Advanced Mobility: Climb concede
+     * imunidade a Root.
+     */
     if (
       tag === "root" &&
-      system.qualityFeatures?.advancedMobility?.climb?.rootImmunity
+      system.qualityFeatures
+        ?.advancedMobility
+        ?.climb
+        ?.rootImmunity
     ) {
       continue;
     }
 
-    const potency = Math.max(0, Number(
-      effect.potency ??
-      effect.value ??
-      1
-    ));
+    let modifiers =
+      effectModifiers[tag];
 
-    const variableModifiers = {
-      bastion: {
-        accuracy: potency,
-        damage: potency,
-        dodge: potency,
-        armor: potency
-      },
-      debilitate: {
-        accuracy: -potency,
-        damage: -potency,
-        dodge: -potency,
-        armor: -potency
-      }
-    };
+    if (tag === "confuse" && effect.affectedStat) {
+      modifiers = { [String(effect.affectedStat)]: -1 };
+    }
 
-    const modifiers = variableModifiers[tag] ?? effectModifiers[tag];
+    if (tag === "dot") {
+      modifiers = {
+        dodge: Math.max(0, Number(system.derivedStats?.ram?.value ?? 0))
+      };
+    }
 
-    if (!modifiers) continue;
+    /*
+     * Alguns efeitos não alteram diretamente
+     * os atributos da ficha. Burn, Poison,
+     * Fear, Taunt etc. são resolvidos por seus
+     * próprios fluxos.
+     */
+    if (!modifiers || !Object.keys(modifiers).length) continue;
 
-    const potencyMultiplier =
-      effect.usePotencyValue
-        ? potency
-        : 1;
+    const hasStoredPotency =
+      effect.potency !== undefined &&
+      effect.potency !== null &&
+      effect.potency !== "";
+
+    const hasStoredValue =
+      effect.value !== undefined &&
+      effect.value !== null &&
+      effect.value !== "";
+
+    const rawPotency =
+      Number(effect.potency);
+
+    const potency = hasStoredPotency &&
+      Number.isFinite(rawPotency)
+        ? Math.max(0, rawPotency)
+        : 0;
+
+    let potencyMultiplier = 1;
+
+    /*
+     * Efeitos criados pelo attack-roll novo
+     * informam explicitamente quando sua
+     * Potência deve multiplicar o modificador.
+     */
+    if (effect.usePotencyValue === true && tag !== "dot") {
+      potencyMultiplier = potency;
+    }
+
+    /*
+     * Compatibilidade com Bastion e Debilitate.
+     *
+     * Versões novas podem salvar a magnitude em
+     * value. Versões antigas salvavam em potency
+     * sem possuir usePotencyValue.
+     */
+    if (
+      tag === "bastion" ||
+      tag === "debilitate"
+    ) {
+      const rawMagnitude = hasStoredValue
+        ? Number(effect.value)
+        : hasStoredPotency
+          ? Number(effect.potency)
+          : 1;
+
+      potencyMultiplier =
+        Number.isFinite(rawMagnitude)
+          ? Math.max(0, rawMagnitude)
+          : 1;
+    }
 
     for (
-      const [statKey, value] of
+      const [statKey, modifierPerPotency] of
       Object.entries(modifiers)
     ) {
       const numericValue =
-        Number(value ?? 0) *
+        Number(modifierPerPotency ?? 0) *
         potencyMultiplier;
 
       if (numericValue === 0) continue;
 
+      const sourceData = {
+        name: effect.label ?? effect.tag ?? tag,
+        value: numericValue,
+        tag,
+        potency: potencyMultiplier
+      };
+
+      /* Penalidades não somam: por atributo vale somente a maior Potência. */
+      if (numericValue < 0) {
+        const previous = strongestNegativeByStat.get(statKey);
+        if (!previous || numericValue < previous.value) {
+          strongestNegativeByStat.set(statKey, sourceData);
+        }
+        continue;
+      }
+
       if (statKey === "movement") {
         if (!miscStats.movement) continue;
 
-        miscStats.movement.effectBonus += numericValue;
-        miscStats.movement.effectBonusSources.push({
-          name: effect.label ?? effect.tag ?? tag,
-          value: numericValue,
-          tag
-        });
+        miscStats.movement.effectBonus +=
+          numericValue;
+
+        miscStats.movement.effectBonusSources.push(sourceData);
+
         continue;
       }
 
       if (!mainStats[statKey]) continue;
 
-      mainStats[statKey].effectBonus += numericValue;
-      mainStats[statKey].effectBonusSources.push({
-        name: effect.label ?? effect.tag ?? tag,
-        value: numericValue,
-        tag
-      });
+      mainStats[statKey].effectBonus +=
+        numericValue;
+
+      mainStats[statKey].effectBonusSources.push(sourceData);
     }
+  }
+
+  for (const [statKey, source] of strongestNegativeByStat) {
+    if (statKey === "movement") {
+      if (!miscStats.movement) continue;
+      miscStats.movement.effectBonus += source.value;
+      miscStats.movement.effectBonusSources.push(source);
+      continue;
+    }
+
+    if (!mainStats[statKey]) continue;
+    mainStats[statKey].effectBonus += source.value;
+    mainStats[statKey].effectBonusSources.push(source);
   }
 }
 
@@ -2956,6 +3196,7 @@ _prepareDigimonMovementTypes(system) {
       isExtraMovement: false,
       advanced: false,
       disabledByLowHealth: false,
+      disabledByHeavy: false,
       disabledReason: ""
     };
   }
@@ -3064,6 +3305,47 @@ for (const movementType of extraMovementTypes) {
     movementTypes[movementType].advanced = advancedMovementTypes.has(movementType);
   }
 
+  const hasHeavyEffect = (
+  Array.isArray(system.effects?.active)
+    ? system.effects.active
+    : []
+).some((effect) => {
+  return (
+    isActiveDigimonEffect(effect) &&
+    normalizeDigimonEffectTag(effect.tag) === "heavy"
+  );
+});
+
+/*
+ * Heavy remove somente opções adicionais.
+ * Land permanece disponível.
+ */
+if (hasHeavyEffect) {
+  if (advancedMovementTypes.size > 0) {
+    for (const movementType of advancedMovementTypes) {
+      if (!movementTypes[movementType]) continue;
+      movementTypes[movementType].advanced = false;
+      movementTypes[movementType].advancedDisabledByHeavy = true;
+      movementTypes[movementType].disabledReason =
+        "[HEAVY] suppresses Advanced Mobility before suppressing Extra Movement.";
+    }
+  } else {
+    for (
+      const [movementType, movementData] of
+      Object.entries(movementTypes)
+    ) {
+      if (movementType === "land") continue;
+      if (!movementData?.isExtraMovement) continue;
+
+      movementData.enabled = false;
+      movementData.total = 0;
+      movementData.disabledByHeavy = true;
+      movementData.disabledReason =
+        "[HEAVY] removes additional Movement options.";
+    }
+  }
+}
+
   if (movementTypes.fly?.enabled && extraMovementTypes.has("fly")) {
     const woundsValue = Number(system.miscStats?.wounds?.value ?? 0);
     const woundsMax = Number(system.miscStats?.wounds?.max ?? 0);
@@ -3086,25 +3368,25 @@ for (const movementType of extraMovementTypes) {
     }
   }
 
-  if (movementTypes.jump && advancedMovementTypes.has("jump")) {
+  if (movementTypes.jump && advancedMovementTypes.has("jump") && !hasHeavyEffect) {
     movementTypes.jump.advanced = true;
     movementTypes.jump.canCurveTrajectory = true;
     movementTypes.jump.canUseToEnterAndExitDifficultTerrain = true;
   }
 
-  if (movementTypes.swim && advancedMovementTypes.has("swim")) {
+  if (movementTypes.swim && advancedMovementTypes.has("swim") && !hasHeavyEffect) {
     movementTypes.swim.advanced = true;
     movementTypes.swim.canBreatheUnderwater = true;
     movementTypes.swim.indefiniteBreath = true;
   }
 
-  if (movementTypes.dig && advancedMovementTypes.has("dig")) {
+  if (movementTypes.dig && advancedMovementTypes.has("dig") && !hasHeavyEffect) {
     movementTypes.dig.advanced = true;
     movementTypes.dig.canDigHardMaterials = true;
     movementTypes.dig.leavesTunnel = true;
   }
 
-  if (movementTypes.climb && advancedMovementTypes.has("climb")) {
+  if (movementTypes.climb && advancedMovementTypes.has("climb") && !hasHeavyEffect) {
     movementTypes.climb.advanced = true;
     movementTypes.climb.canMoveOnCeilings = true;
     movementTypes.climb.rootImmunity = true;
@@ -3120,12 +3402,22 @@ _prepareDigimonDp(system) {
     Number(dp.base ?? creation.baseDp ?? 0)
   );
 
-  const bonusDp = Math.max(
+  const globalBonusDp = Math.max(
     0,
     Number(system.advancement?.bonusDp?.total ?? 0),
     Number(dp.bonus ?? 0),
     Number(creation.bonusDp ?? 0)
   );
+
+  const stageKey = String(system.stage ?? "child");
+  const stageBonusDp = Number(
+    system.advancement?.bonusDp?.byStage?.[stageKey]?.total
+  );
+  const bonusDp = stageKey === "baby1"
+    ? 0
+    : Number.isFinite(stageBonusDp)
+      ? Math.max(0, stageBonusDp)
+      : globalBonusDp;
 
   const stageValue = Math.max(
     1,
@@ -3313,14 +3605,9 @@ _prepareDigimonDp(system) {
     spentQualityDp - spentBaseQualities
   );
 
-  const sharedBonusSpent = Math.max(
+  const formBonusRemaining = Math.max(
     0,
-    Number(system.advancement?.bonusDp?.sharedSpent ?? 0)
-  );
-
-  const sharedBonusRemaining = Math.max(
-    0,
-    bonusDp - sharedBonusSpent
+    bonusDp - spentBonusStats - spentBonusQualities
   );
 
   const remainingDp = Math.max(
@@ -3330,7 +3617,7 @@ _prepareDigimonDp(system) {
       spentBaseStats -
       spentBaseQualities
     ) +
-    sharedBonusRemaining
+    formBonusRemaining
   );
 
   const totalDp = (
@@ -3478,7 +3765,17 @@ _prepareDigimonQualityRequirements(system) {
 
 const rankValue = Math.max(0, Number(itemSystem.rank?.value ?? 0));
 const rankLimitData = getQualityRankLimitForStage(itemSystem, stageKey, system);
-const effectiveRankMax = rankLimitData.max;
+let effectiveRankMax = rankLimitData.max;
+
+if (isNaturewalkQualitySystem(itemSystem)) {
+  const hasElementalMyriad = ownedQualities.some((quality) => {
+    const identity = normalizeQualityName(
+      quality.system?.sourceId ?? quality.system?.originalName ?? quality.name
+    );
+    return identity === "miriade elemental" || identity === "elemental myriad";
+  });
+  effectiveRankMax = hasElementalMyriad ? 10 : 2;
+}
 
 if (itemSystem.rank) {
   itemSystem.rank.effectiveMax = effectiveRankMax;
@@ -3502,10 +3799,23 @@ if (statRankRequirement.enabled && rankValue > 0) {
 }
 
 const requiredQualityNames = parseQualityNameList(itemSystem.requirements?.qualityNames);
+const anyRequiredQuality = itemSystem.requirements?.mode === "any" ||
+  /\b(or|ou)\b/i.test(String(itemSystem.requirements?.text ?? ""));
 
-for (const requiredName of requiredQualityNames) {
-  if (!ownedQualityNames.has(normalizeQualityName(requiredName))) {
-    unmet.push(game.i18n.format("DDA.QualityRequirement.RequiredQuality", { quality: requiredName }));
+if (anyRequiredQuality && requiredQualityNames.length) {
+  const hasAny = requiredQualityNames.some((requiredName) => {
+    return ownedQualityNames.has(normalizeQualityName(requiredName));
+  });
+  if (!hasAny) {
+    unmet.push(game.i18n.format("DDA.QualityRequirement.RequiredQuality", {
+      quality: requiredQualityNames.join(" / ")
+    }));
+  }
+} else {
+  for (const requiredName of requiredQualityNames) {
+    if (!ownedQualityNames.has(normalizeQualityName(requiredName))) {
+      unmet.push(game.i18n.format("DDA.QualityRequirement.RequiredQuality", { quality: requiredName }));
+    }
   }
 }
 

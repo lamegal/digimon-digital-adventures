@@ -20,6 +20,9 @@ export const QUALITY_ALIASES = {
   secondWind: ["segundofolêgo", "segundoflego", "secondwind", "second wind"],
   packMaster: ["mestrealcateia", "packmaster", "pack master"],
   elementalForce: ["forcaelemental", "elementalforce", "elemental force"],
+  elementalMyriad: ["miriadeelemental", "elementalmyriad", "elemental myriad"],
+  naturalWeakness: ["fraquezanatural", "naturalweakness", "natural weakness"],
+  naturewalk: ["passonatural", "naturewalk", "nature walk"],
   mightyBlow: ["golpepoderoso", "mightyblow", "mighty blow"],
   preciseFocus: ["focopreciso", "precisefocus", "precise focus"],
   feintAttack: ["ataquefinta", "feintattack", "feint attack"],
@@ -46,7 +49,7 @@ export const QUALITY_ALIASES = {
   omnievoker: ["omnievocador", "omnievoker"],
   algorithm: ["algoritmo", "algorithm"],
   advancedMobility: ["mobilidadeavancada", "advancedmobility", "advanced mobility"],
-  sprint: ["sprint", "disparada"],
+  sprint: ["arrancada", "sprint", "disparada"],
   elementMaster: ["mestreelemental", "elementmaster", "element master"],
   adaptiveElement: ["elementoadaptativo", "adaptiveelement", "adaptive element"],
   alteredElement: ["elementoalterado", "alteredelement", "altered element"],
@@ -58,6 +61,7 @@ export const QUALITY_ALIASES = {
   giantHijacker: ["sequestradordegigantes", "gianthijacker", "giant hijacker"],
   basicEffect: ["efeitobasico", "basiceffect", "basic effect"],
   advancedEffect: ["efeitoavancado", "advancedeffect", "advanced effect"],
+  masterEffect: ["efeitomestre", "mastereffect", "master effect"],
   inspiringGuidance: ["orientacaoinspiradora", "inspiringguidance", "inspiring guidance"],
 
   overclock: [
@@ -102,17 +106,34 @@ export const EFFECT_TAGS = {
   distract: { type: "negative", stat: "accuracyDodge", potency: "ram", duration: true, extraActionCost: 1 },
   dull: { type: "negative", stat: "damage", potency: "cpu", duration: true },
   frail: { type: "negative", stat: "armor", potency: "dos", duration: true },
-  heavy: { type: "negative", stat: "movement", potency: "dos", duration: true },
+  heavy: { type: "negative", stat: "movementOptions", potency: "dos", duration: true },
   nimble: { type: "positive", stat: "accuracyDodge", potency: "bit", duration: true, extraActionCost: 1 },
   sharpen: { type: "positive", stat: "damage", potency: "ram", duration: true },
   sturdy: { type: "positive", stat: "armor", potency: "dos", duration: true },
   burn: { type: "damage", duration: true, requiresDamage: true },
   freeze: { type: "damage", duration: true, requiresDamage: true },
-  poison: { type: "damage", duration: true, requiresDamage: true },
+  poison: { type: "damage", potency: "special", duration: true },
   haste: { type: "unique", duration: "special", extraActionCost: 1, alliesOnly: true },
   immune: { type: "unique", duration: true, alliesOnly: true },
   shield: { type: "positive", duration: true, potency: "bit" },
-  stun: { type: "unique", duration: true },
+  exploit: { type: "negative", stat: "dodgeArmor", potency: "bit", duration: true, extraActionCost: 1 },
+  pacify: { type: "negative", stat: "accuracyDamage", potency: "bit", duration: true, extraActionCost: 1 },
+  paralyze: { type: "negative", stat: "dodge", potency: "cpu", duration: true, extraActionCost: 1 },
+  rattled: { type: "negative", stat: "damageDodge", potency: "cpu", duration: true, extraActionCost: 1 },
+  shaken: { type: "negative", stat: "accuracyArmor", potency: "dos", duration: true, extraActionCost: 1 },
+  weak: { type: "negative", stat: "damageArmor", potency: "dos", duration: true, extraActionCost: 1 },
+  daring: { type: "positive", stat: "accuracyArmor", potency: "bit", duration: true, extraActionCost: 1 },
+  fury: { type: "positive", stat: "accuracyDamage", potency: "dos", duration: true, extraActionCost: 1 },
+  regen: { type: "positive", potency: "bit", duration: true },
+  steady: { type: "positive", stat: "damageDodge", potency: "cpu", duration: true, extraActionCost: 1 },
+  strength: { type: "positive", stat: "damageArmor", potency: "dos", duration: true, extraActionCost: 1 },
+  vigil: { type: "positive", stat: "dodgeArmor", potency: "bit", duration: true, extraActionCost: 1 },
+  vigor: { type: "positive", stat: "dodgeMovement", potency: "ram", duration: true, extraActionCost: 1 },
+  ruin: { type: "damage", potency: "bit", duration: true },
+  blind: { type: "unique", duration: true },
+  deny: { type: "unique", duration: true },
+  dot: { type: "unique", duration: true, requiresDamage: true },
+  stun: { type: "unique", duration: "special", extraActionCost: 1 },
   bastion: { type: "positive", duration: true, stat: "accuracyDamageDodgeArmor" },
   drain: { type: "unique" }
 };
@@ -166,7 +187,8 @@ export function getQualityRank(quality) {
   if (!quality) return 0;
   const rank = Math.max(0, Number(quality.system?.rank?.value ?? 1));
   const effectiveMax = Number(quality.system?.rank?.effectiveMax ?? Number.NaN);
-  return Number.isFinite(effectiveMax) && effectiveMax >= 0 ? Math.min(rank, effectiveMax) : rank;
+  /* effectiveMax = 0 representa uma Qualidade sem limite fixo. */
+  return Number.isFinite(effectiveMax) && effectiveMax > 0 ? Math.min(rank, effectiveMax) : rank;
 }
 
 export function getActorMainStat(actor, statKey, fallback = 0) {
@@ -601,8 +623,36 @@ export function getEffectTagData(tag) {
 export function areActorsAllies(actorA, actorB) {
   if (!actorA || !actorB) return false;
   if (actorA.uuid === actorB.uuid) return true;
-  const dispositionA = Number(actorA.prototypeToken?.disposition ?? actorA.token?.disposition ?? 0);
-  const dispositionB = Number(actorB.prototypeToken?.disposition ?? actorB.token?.disposition ?? 0);
+
+  const combatantFor = (actor) => game?.combat?.combatants?.find((combatant) =>
+    combatant.actor?.uuid === actor.uuid || combatant.actor?.id === actor.id
+  );
+  const combatantA = combatantFor(actorA);
+  const combatantB = combatantFor(actorB);
+  const sideA = String(
+    combatantA?.getFlag?.(game.system.id, "initiative.side")
+      ?? combatantA?.flags?.[game.system.id]?.initiative?.side
+      ?? actorA.system?.combat?.initiative?.side
+      ?? ""
+  );
+  const sideB = String(
+    combatantB?.getFlag?.(game.system.id, "initiative.side")
+      ?? combatantB?.flags?.[game.system.id]?.initiative?.side
+      ?? actorB.system?.combat?.initiative?.side
+      ?? ""
+  );
+  if (sideA && sideB) return sideA === sideB;
+
+  const tokenDisposition = (actor, combatant) => Number(
+    combatant?.token?.disposition
+      ?? combatant?.token?.document?.disposition
+      ?? canvas?.tokens?.placeables?.find((token) => token.actor?.uuid === actor.uuid)?.document?.disposition
+      ?? actor.prototypeToken?.disposition
+      ?? actor.token?.disposition
+      ?? 0
+  );
+  const dispositionA = tokenDisposition(actorA, combatantA);
+  const dispositionB = tokenDisposition(actorB, combatantB);
   return dispositionA !== 0 && dispositionA === dispositionB;
 }
 

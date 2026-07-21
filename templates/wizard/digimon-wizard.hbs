@@ -690,13 +690,15 @@
       {{#each buildTemplates as |template|}}
         <button
           type="button"
-          class="dda-build-template-card {{#if template.selected}}selected{{/if}}"
+          class="dda-build-template-card role-{{template.role}} {{#if template.selected}}selected{{/if}}"
           data-action="select-build-template"
           data-template-id="{{template.id}}"
           {{#if template.disabled}}disabled{{/if}}
         >
           <header>
-            <span class="dda-build-template-icon">{{template.icon}}</span>
+            <span class="dda-build-template-icon">
+              {{template.icon}}
+            </span>
 
             <div>
               <strong>{{template.nameLabel}}</strong>
@@ -733,8 +735,26 @@
             </div>
           </dl>
 
-          <div class="dda-build-template-quality-count">
-            {{template.qualities.length}} {{localize "DDA.DigimonWizard.BuildTemplate.QualityCount"}}
+          <div class="dda-build-template-quality-block">
+            <div class="dda-build-template-quality-count">
+              <span aria-hidden="true">✦</span>
+
+              {{template.qualityCount}}
+              {{localize "DDA.DigimonWizard.BuildTemplate.QualityCount"}}
+            </div>
+
+            <ul class="dda-build-template-quality-list">
+              {{#each template.qualityRows as |quality|}}
+                <li
+                  class="{{#if quality.missing}}missing{{/if}}"
+                  data-tooltip="{{quality.description}}"
+                  data-tooltip-direction="UP"
+                >
+                  <span aria-hidden="true"></span>
+                  <strong>{{quality.name}}</strong>
+                </li>
+              {{/each}}
+            </ul>
           </div>
         </button>
       {{/each}}
@@ -809,6 +829,19 @@
     {{#if (eq step "stats")}}
       <section class="dda-wizard-step dda-stats-step">
         <h2>{{localize "DDA.DigimonWizard.Stats.Title"}}</h2>
+
+                {{#if reviewAdjustmentView.active}}
+          <aside class="dda-review-adjustment-banner">
+            <span class="dda-review-adjustment-banner__icon">
+              <i class="fas fa-sliders-h"></i>
+            </span>
+
+            <div>
+              <strong>{{reviewAdjustmentView.title}}</strong>
+              <p>{{reviewAdjustmentView.help}}</p>
+            </div>
+          </aside>
+        {{/if}}
 
         <aside class="dda-wizard-guide">
           <div class="dda-wizard-guide-portrait" aria-label="Wizardmon"><img src="systems/digimon-digital-adventures/assets/ui/wizardmon%20-%20portrait.webp" alt="Wizardmon"></div>
@@ -978,7 +1011,18 @@
 {{#if (eq step "qualities")}}
   <section class="dda-wizard-step">
     <h2>{{localize "DDA.DigimonWizard.Qualities.Title"}}</h2>
+    {{#if reviewAdjustmentView.active}}
+      <aside class="dda-review-adjustment-banner">
+        <span class="dda-review-adjustment-banner__icon">
+          <i class="fas fa-sliders-h"></i>
+        </span>
 
+        <div>
+          <strong>{{reviewAdjustmentView.title}}</strong>
+          <p>{{reviewAdjustmentView.help}}</p>
+        </div>
+      </aside>
+    {{/if}}
     <p>
       {{localize "DDA.DigimonWizard.Qualities.Help"}}
     </p>
@@ -1498,7 +1542,7 @@
 
     <div class="dda-form-build-summary-grid">
       {{#each formBuildSummary.forms as |form|}}
-        <article class="dda-form-build-summary-card {{#if form.active}}main-form{{/if}} {{#if form.locked}}locked{{/if}}">
+        <article class="dda-form-build-summary-card stage-{{form.stageKey}} {{form.dp.statusClass}} {{#if form.active}}main-form{{/if}} {{#if form.locked}}locked{{/if}}">
           <header>
             <img src="{{form.img}}" alt="{{form.species}}">
             <div>
@@ -1515,10 +1559,42 @@
             </div>
           </header>
 
-          <dl>
-            <dt>{{localize "DDA.Resource.DP.Short"}}</dt>
-            <dd>{{form.dp.spent}} / {{form.dp.totalAvailable}} — {{form.dp.remaining}} {{localize "DDA.Creation.RemainingDP"}}</dd>
+          <div class="dda-form-build-summary-budget {{form.dp.statusClass}}">
+            <span>
+              {{localize "DDA.Resource.DP.Short"}}
+            </span>
 
+            <strong>
+              {{form.dp.spent}} / {{form.dp.totalAvailable}}
+            </strong>
+
+            <small>
+              {{form.dp.remaining}}
+              {{localize "DDA.Creation.RemainingDP"}}
+            </small>
+          </div>
+          {{#if form.adjustment.enabled}}
+            <button
+              type="button"
+              class="dda-form-build-adjust-button {{form.adjustment.className}}"
+              data-action="adjust-form-build"
+              data-stage="{{form.stageKey}}"
+              data-tooltip="{{form.adjustment.hint}}"
+              data-tooltip-direction="UP"
+            >
+              <span class="dda-form-build-adjust-button__icon">
+                <i class="fas fa-sliders-h"></i>
+              </span>
+
+              <span class="dda-form-build-adjust-button__copy">
+                <strong>{{form.adjustment.label}}</strong>
+                <small>{{form.adjustment.caption}}</small>
+              </span>
+
+              <i class="fas fa-chevron-right"></i>
+            </button>
+          {{/if}}
+          <dl>
             <dt>{{localize "DDA.MainStat.Accuracy"}}</dt>
             <dd>{{form.statAllocation.accuracy.total}}</dd>
 
@@ -1569,7 +1645,14 @@
             {{#if form.qualitiesPositive.length}}
               <ul>
                 {{#each form.qualitiesPositive as |quality|}}
-                  <li>{{quality.name}} — {{quality.cost}} {{localize "DDA.Resource.DP.Short"}}</li>
+                  <li
+                    data-tooltip="{{quality.description}}"
+                    data-tooltip-direction="UP"
+                  >
+                    {{quality.name}} —
+                    {{quality.cost}}
+                    {{localize "DDA.Resource.DP.Short"}}
+                  </li>
                 {{/each}}
               </ul>
             {{else}}
@@ -1581,7 +1664,14 @@
             {{#if form.qualitiesNegative.length}}
               <ul>
                 {{#each form.qualitiesNegative as |quality|}}
-                  <li>{{quality.name}} — +{{quality.cost}} {{localize "DDA.Resource.DP.Short"}}</li>
+                  <li
+                    data-tooltip="{{quality.description}}"
+                    data-tooltip-direction="UP"
+                  >
+                    {{quality.name}} —
+                    +{{quality.cost}}
+                    {{localize "DDA.Resource.DP.Short"}}
+                  </li>
                 {{/each}}
               </ul>
             {{else}}
@@ -1752,17 +1842,45 @@
     </div>
 
     <div class="dda-wizard-buttons">
-      <button type="button" data-action="back" {{#if isFirstStep}}disabled{{/if}}>
-        {{localize "DDA.Wizard.Back"}}
+      <button
+        type="button"
+        data-action="back"
+        {{#if isFirstStep}}disabled{{/if}}
+      >
+        {{#if reviewAdjustmentView.active}}
+          {{#if (eq step "stats")}}
+            {{reviewAdjustmentView.returnLabel}}
+          {{else}}
+            {{localize "DDA.Wizard.Back"}}
+          {{/if}}
+        {{else}}
+          {{localize "DDA.Wizard.Back"}}
+        {{/if}}
       </button>
 
       {{#if isLastStep}}
-        <button type="button" class="primary" data-action="create">
+        <button
+          type="button"
+          class="primary"
+          data-action="create"
+        >
           {{createButtonLabel}}
         </button>
       {{else}}
-        <button type="button" class="primary" data-action="next">
-          {{localize "DDA.Wizard.Next"}}
+        <button
+          type="button"
+          class="primary"
+          data-action="next"
+        >
+          {{#if reviewAdjustmentView.active}}
+            {{#if (eq step "qualities")}}
+              {{reviewAdjustmentView.returnLabel}}
+            {{else}}
+              {{localize "DDA.Wizard.Next"}}
+            {{/if}}
+          {{else}}
+            {{localize "DDA.Wizard.Next"}}
+          {{/if}}
         </button>
       {{/if}}
     </div>

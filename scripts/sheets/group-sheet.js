@@ -68,6 +68,83 @@ function matchesRequirement(actor, requirement = {}) {
   return Boolean(requiredUuid || requiredStage);
 }
 
+function getMemberCandidateForms(member = {}) {
+  const candidates = [];
+  const pushCandidate = (entry) => {
+    if (!entry?.species && !entry?.name) return;
+    const stage = String(entry.stage ?? "").trim();
+    const species = String(entry.species ?? entry.name ?? "").trim();
+    const key = `${normalizeUuid(entry.uuid ?? "")}|${normalizeName(species)}|${stage}|${entry.source ?? ""}`;
+    if (candidates.some((candidate) => candidate.key === key)) return;
+    candidates.push({ ...entry, key, stage, species });
+  };
+
+  if (member.digimonActor) {
+    pushCandidate({
+      uuid: member.digimonActor.uuid,
+      species: member.digimonActor.system?.species ?? member.currentFormName ?? member.digimonActor.name,
+      name: member.currentFormName ?? member.digimonActor.name,
+      stage: member.digimonActor.system?.stage ?? member.currentFormStage ?? "",
+      source: "current",
+      memberName: member.name,
+      digimonName: member.currentFormName ?? member.digimonActor.name,
+      tamerUuid: member.uuid
+    });
+  }
+
+  const snapshots = Array.isArray(member.formSnapshots) ? member.formSnapshots : [];
+  for (const snapshot of snapshots) {
+    pushCandidate({
+      uuid: snapshot.sourceFormUuid ?? snapshot.uuid ?? "",
+      species: snapshot.species ?? snapshot.sourceFormName ?? snapshot.name ?? "",
+      name: snapshot.name ?? snapshot.sourceFormName ?? snapshot.species ?? "",
+      stage: snapshot.stage ?? "",
+      source: "prepared",
+      memberName: member.name,
+      digimonName: snapshot.species ?? snapshot.sourceFormName ?? snapshot.name ?? "",
+      tamerUuid: member.uuid
+    });
+  }
+
+  return candidates;
+}
+
+function matchRecipeComponentsToMembers(components = [], members = []) {
+  const usedKeys = new Set();
+
+  return components.map((component) => {
+    let matchedCandidate = null;
+
+    for (const member of members) {
+      const candidates = getMemberCandidateForms(member);
+      const candidate = candidates.find((entry) => !usedKeys.has(entry.key) && matchesRequirement({
+        uuid: entry.uuid,
+        name: entry.name,
+        system: { species: entry.species, stage: entry.stage }
+      }, component));
+
+      if (candidate) {
+        usedKeys.add(candidate.key);
+        matchedCandidate = candidate;
+        break;
+      }
+    }
+
+    return {
+      label: component.species || component.name || component.uuid || localize("DDA.Group.UnknownRequirement"),
+      role: component.role || "component",
+      matched: Boolean(matchedCandidate),
+      memberName: matchedCandidate?.memberName ?? "",
+      digimonName: matchedCandidate?.digimonName ?? "",
+      tamerUuid: matchedCandidate?.tamerUuid ?? "",
+      matchSource: matchedCandidate?.source ?? "",
+      matchLabel: matchedCandidate?.source === "prepared"
+        ? localize("DDA.Group.ComponentSource.Prepared")
+        : (matchedCandidate ? localize("DDA.Group.ComponentSource.Current") : "")
+    };
+  });
+}
+
 async function resolveActorFromDropData(data) {
   if (!data) return null;
 
@@ -93,6 +170,22 @@ const { HandlebarsApplicationMixin } = foundry.applications.api;
 const DDAGroupSheetBase = HandlebarsApplicationMixin(ActorSheetV2);
 
 export class DDAGroupSheet extends DDAGroupSheetBase {
+  get title() {
+    const sheetTitle = localize("DDA.Group.SheetTitle");
+    const actorName = String(this.actor?.name ?? "").trim();
+    const genericNames = new Set([
+      "group",
+      "grupo",
+      normalizeName(localize("DDA.Actor.Group"))
+    ]);
+
+    if (!actorName || genericNames.has(normalizeName(actorName))) {
+      return sheetTitle;
+    }
+
+    return `${actorName} — ${sheetTitle}`;
+  }
+
   static DEFAULT_OPTIONS = {
     classes: [
       "dda",
@@ -283,6 +376,9 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
       const currentFormTemplate = await resolveActor(currentFormTemplateUuid);
       const currentFormActor = partner ?? currentFormTemplate;
       const evolutionData = await this._getEvolutionGraphSummary(currentFormTemplate ?? partner);
+      const formSnapshots = Object.values(partner?.system?.evolution?.formSnapshots ?? {}).filter((snapshot) => {
+        return snapshot && typeof snapshot === "object";
+      });
 
       members.push({
         uuid: tamer.uuid,
@@ -304,7 +400,8 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
         evolutionCount: evolutionData.count,
         hasEvolutionGraph: evolutionData.hasGraph,
         nextForms: evolutionData.nextForms,
-        digimonActor: currentFormActor ?? null
+        digimonActor: currentFormActor ?? null,
+        formSnapshots
       });
     }
 
@@ -399,22 +496,12 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
     for (const recipe of recipeMap.values()) {
       if (recipe.hidden) continue;
 
-      const components = recipe.components.map((component) => {
-        const match = members.find((member) => {
-          return member.digimonActor && matchesRequirement(member.digimonActor, component);
-        });
-
-        return {
-          label: component.species || component.name || component.uuid || localize("DDA.Group.UnknownRequirement"),
-          role: component.role || "component",
-          matched: Boolean(match),
-          memberName: match?.name ?? "",
-          digimonName: match?.currentFormName ?? "",
-          tamerUuid: match?.uuid ?? ""
-        };
-      });
+      const components = matchRecipeComponentsToMembers(recipe.components, members);
 
       const resultActor = await this._resolveJogressResultActor(recipe);
+      const matchedComponentCount = components.filter((component) => component.matched).length;
+      const discovered = matchedComponentCount > 0;
+      if (!discovered) continue;
       const allComponentsMatched = components.length > 0 && components.every((component) => component.matched);
       const primaryComponent = components.find((component) => component.role === "primary" && component.tamerUuid) ?? components.find((component) => component.tamerUuid);
 

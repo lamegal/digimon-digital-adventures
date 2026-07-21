@@ -30,6 +30,8 @@ import {
   registerEnemyDigimonWizardDirectoryButton
 } from "./apps/dda-digimon-enemy-wizard.js";
 import { registerMovementTracker } from "./canvas/movement-tracker.js";
+import { registerDigimonActions } from "./combat/digimon-actions.js";
+import { registerIntercede } from "./combat/intercede.js";
 import { registerDdaHealthPips } from "./canvas/health-pips.js";
 function registerDdaDefaultTokenDispositions() {
   Hooks.on("preCreateActor", (actor, data) => {
@@ -461,6 +463,8 @@ Hooks.once("ready", () => {
 });
 Hooks.once("ready", () => {
   registerMovementTracker();
+  registerDigimonActions();
+  registerIntercede();
   registerDdaHealthPips();
   registerDdaDefaultTokenDispositions();
 });
