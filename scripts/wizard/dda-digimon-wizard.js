@@ -2022,7 +2022,8 @@ async _preloadWizardDatabase() {
   static async openFutureFormWizard(tamerActor, formTemplateActor, options = {}) {
     const formContext = await getFuturePartnerFormWizardContext(
       tamerActor,
-      formTemplateActor
+      formTemplateActor,
+      options
     );
 
     if (!formContext) return null;
@@ -4463,7 +4464,20 @@ const preservedAttacks = this._isFutureFormWizard()
 
   const snapshot = {
     ...(existingSnapshot ?? {}),
-    sourceFormUuid: formTemplateActor?.uuid || existingSnapshot.sourceFormUuid || partnerActor.uuid,
+    /*
+     * Database-backed Planner entries are raw Actor data and may not have a
+     * Foundry UUID. Preserve the stable database reference created when the
+     * Picker opened instead of falling back to the persistent partner UUID.
+     * Falling back to partnerActor.uuid caused unrelated Stages to overwrite
+     * each other in the Planner and Evolution Map.
+     */
+    sourceFormUuid:
+      existingSnapshot.sourceFormUuid ||
+      formTemplateActor?.uuid ||
+      formTemplateActor?.databaseId ||
+      formTemplateActor?.system?.databaseId ||
+      formTemplateActor?.system?.sourceId ||
+      partnerActor.uuid,
     sourceFormName: formTemplateActor?.name || existingSnapshot.sourceFormName || this.data.identity.name,
     name: this.data.identity.name || formTemplateActor?.name || partnerActor.name,
     img: this.data.identity.img || formTemplateActor?.img || partnerActor.img,

@@ -7,7 +7,12 @@
   {{else}}
     <header class="dda-partner-form-planner__header">
       <div class="dda-partner-form-planner__identity">
-        <img src="{{partner.img}}" alt="{{partner.name}}">
+        <img
+          src="{{partner.img}}"
+          alt="{{partner.name}}"
+          data-fallback-index="0"
+          data-fallback-srcs="{{partner.imageFallbacks}}"
+        >
         <div>
           <span>{{tamer.name}}</span>
           <h2>{{partner.name}}</h2>
@@ -15,10 +20,25 @@
         </div>
       </div>
 
-      <button type="button" data-action="refresh">
-        <i class="fas fa-sync-alt"></i>
-        {{localize "DDA.PartnerFormPlanner.Refresh"}}
-      </button>
+      <div class="dda-partner-form-planner__header-actions">
+        {{#if isGM}}
+          <button
+            type="button"
+            class="dda-partner-form-planner__release-button"
+            data-action="releaseUnlockedForms"
+            {{#unless hasReleaseableForms}}disabled{{/unless}}
+          >
+            <i class="fas fa-unlock-alt"></i>
+            <span>{{localize "DDA.PartnerFormPlanner.Release.Button"}}</span>
+            <strong>{{releaseableCount}}</strong>
+          </button>
+        {{/if}}
+
+        <button type="button" data-action="refresh">
+          <i class="fas fa-sync-alt"></i>
+          {{localize "DDA.PartnerFormPlanner.Refresh"}}
+        </button>
+      </div>
     </header>
 
     <div class="dda-partner-form-planner__body">
@@ -26,6 +46,16 @@
         <i class="fas fa-info-circle"></i>
         <p>{{localize "DDA.PartnerFormPlanner.Help"}}</p>
       </section>
+
+      {{#if darkEvolutionMode}}
+        <section class="dda-partner-form-planner__dark-mode-banner">
+          <i class="fas fa-moon"></i>
+          <div>
+            <strong>{{localize "DDA.PartnerFormPlanner.Dark.ModeLabel"}}</strong>
+            <p>{{localize "DDA.PartnerFormPlanner.Dark.ModeHint"}}</p>
+          </div>
+        </section>
+      {{/if}}
 
       {{#if hasForms}}
         <section class="dda-partner-form-planner__forms">
@@ -53,11 +83,34 @@
                     <div class="dda-partner-form-planner__badges">
                       {{#if form.isCurrent}}
                         <em>{{localize "DDA.PartnerFormPlanner.CurrentForm"}}</em>
+                      {{else if form.released}}
+                        <em class="is-released">
+                          <i class="fas fa-check-circle"></i>
+                          {{localize "DDA.PartnerFormPlanner.Release.Released"}}
+                        </em>
+                      {{else if form.canRelease}}
+                        <em class="is-ready-release">
+                          <i class="fas fa-unlock-alt"></i>
+                          {{localize "DDA.PartnerFormPlanner.Release.Ready"}}
+                        </em>
                       {{else if form.prepared}}
                         <em>{{localize "DDA.PartnerFormPlanner.PreparedForm"}}</em>
                       {{else if form.createdByInitialLine}}
                         <em>{{localize "DDA.PartnerFormPlanner.InitialLineForm"}}</em>
                       {{/if}}
+
+                      {{#each form.categories as |category|}}
+                        <em class="is-category category-{{category.key}}">
+                          {{category.label}}
+                        </em>
+                      {{/each}}
+
+                      {{#unless (eq form.plannedEvolutionMethod "normal")}}
+                        <em class="is-method method-{{form.plannedEvolutionMethod}}">
+                          <i class="fas fa-random"></i>
+                          {{form.plannedEvolutionMethodLabel}}
+                        </em>
+                      {{/unless}}
 
                       {{#if form.unlocked}}
                         <em class="is-unlocked">
@@ -84,23 +137,38 @@
                 </div>
 
                 {{#if form.canEdit}}
-                  <button
-                    type="button"
-                    class="dda-form-build-adjust-button {{form.adjustment.className}}"
-                    data-action="adjustForm"
-                    data-form-uuid="{{form.sourceFormUuid}}"
-                  >
-                    <span class="dda-form-build-adjust-button__icon">
-                      <i class="fas fa-sliders-h"></i>
-                    </span>
+                  <div class="dda-form-build-card-actions">
+                    <button
+                      type="button"
+                      class="dda-form-build-adjust-button {{form.adjustment.className}}"
+                      data-action="adjustForm"
+                      data-form-uuid="{{form.sourceFormUuid}}"
+                    >
+                      <span class="dda-form-build-adjust-button__icon">
+                        <i class="fas fa-sliders-h"></i>
+                      </span>
 
-                    <span class="dda-form-build-adjust-button__copy">
-                      <strong>{{form.adjustment.label}}</strong>
-                      <small>{{localize "DDA.PartnerFormPlanner.AdjustCaption"}}</small>
-                    </span>
+                      <span class="dda-form-build-adjust-button__copy">
+                        <strong>{{form.adjustment.label}}</strong>
+                        <small>{{localize "DDA.PartnerFormPlanner.AdjustCaption"}}</small>
+                      </span>
 
-                    <i class="fas fa-chevron-right"></i>
-                  </button>
+                      <i class="fas fa-chevron-right"></i>
+                    </button>
+
+                    {{#if form.canRemove}}
+                      <button
+                        type="button"
+                        class="dda-form-build-remove-button"
+                        data-action="removeForm"
+                        data-form-uuid="{{form.sourceFormUuid}}"
+                        title="{{localize 'DDA.PartnerFormPlanner.Remove.ButtonHint'}}"
+                      >
+                        <i class="fas fa-trash-alt"></i>
+                        <span>{{localize "DDA.PartnerFormPlanner.Remove.Button"}}</span>
+                      </button>
+                    {{/if}}
+                  </div>
                 {{/if}}
 
                 <dl>

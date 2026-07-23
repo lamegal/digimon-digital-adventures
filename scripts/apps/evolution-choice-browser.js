@@ -5,7 +5,6 @@ import {
   isHybridRulesEnabled
 } from "../data/digimon-database.js";
 import { getDdaPortraitPath } from "../data/dda-portrait-and-manual-digimon-data.js";
-import { DDA_DIGIMON_IMAGE_PATH_BY_KEY, DDA_DIGIMON_IMAGE_PATH_BY_STAGE_KEY } from "../data/digimon-image-manifest.generated.js";
 import {
   getDigimonAliases,
   getDigimonDisplayName,
@@ -13,6 +12,9 @@ import {
   getDigimonNameData,
   getDigimonOriginalName
 } from "../helpers/digimon-terms.js";
+import {
+  resolveDigimonPortrait
+} from "../helpers/digimon-portrait-resolver.js";
 const STAGE_ORDER = ["baby1", "baby2", "child", "adult", "perfect", "ultimate", "ultimatePlus"];
 
 const DDA_EVOLUTION_CARD_STATIC_IMAGE_OVERRIDES = Object.freeze({
@@ -443,121 +445,32 @@ function resolveDigimonImagePath({
   stage = ""
 } = {}) {
   const cleanPath = String(path ?? "").trim();
-  const stageKey = String(stage ?? "").trim();
 
-  const isFallbackIcon = cleanPath.includes(
-    "icons/svg/mystery-man.svg"
-  );
-
-  const isStaticImage = /\.(?:webp|png|jpe?g|gif)(?:$|[?#])/i.test(
-    cleanPath
-  );
-
-  const isSystemDigimonAsset =
-    /^systems\/digimon-digital-adventures\/assets\/digimon\//i.test(
-      cleanPath
-    );
-
-  const toStaticPortraitPath = (candidatePath = "") => {
-    const rawPath = String(candidatePath ?? "").trim();
-
-    if (!rawPath) return "";
-
-    if (!/\.(?:webp|png|jpe?g|gif)(?:$|[?#])/i.test(rawPath)) {
-      return "";
-    }
-
-    const match = rawPath.match(
-      /^(systems\/digimon-digital-adventures\/assets\/digimon)\/([^?#]+?)([?#].*)?$/i
-    );
-
-    // Imagem externa ou upload manual: mantém o caminho original.
-    if (!match) return rawPath;
-
-    const [, root, relativePath, suffix = ""] = match;
-    const cleanRelativePath = String(relativePath ?? "");
-
-    // Portraits e tokens já usam pastas reais.
-    if (/^(?:portraits|tokens)\//i.test(cleanRelativePath)) {
-      return rawPath;
-    }
-
-    const fileName = cleanRelativePath.split("/").pop();
-
-    return fileName
-      ? `${root}/portraits/${fileName}${suffix}`
-      : "";
-  };
-
-  // Imagem manual externa deve sempre vencer.
+  /* Preserve user-provided artwork outside the system asset library. */
   if (
-    isStaticImage &&
-    !isFallbackIcon &&
-    !isSystemDigimonAsset
+    cleanPath &&
+    !cleanPath.startsWith("systems/digimon-digital-adventures/assets/digimon/") &&
+    !cleanPath.includes("icons/svg/mystery-man.svg")
   ) {
     return cleanPath;
   }
 
-  const staticOverrideKeys = [key, species, name]
-    .map((value) => imageLookupKey(value))
-    .filter(Boolean)
-    .map((lookup) => `${stageKey}:${lookup}`);
-
-  for (const overrideKey of staticOverrideKeys) {
-    const overridePath =
-      DDA_EVOLUTION_CARD_STATIC_IMAGE_OVERRIDES[overrideKey];
-
-    if (overridePath) return overridePath;
-  }
-
-  // Corrige diretamente paths legados como adult/Ankylomon.webp.
-  const directStaticPath = toStaticPortraitPath(cleanPath);
-
-  if (directStaticPath && !isFallbackIcon) {
-    return directStaticPath;
-  }
-
-  const candidates = [key, species, name].filter(Boolean);
-
-  for (const candidate of candidates) {
-    const lookup = imageLookupKey(candidate);
-
-    if (!lookup) continue;
-
-    const stagePath = stageKey
-      ? DDA_DIGIMON_IMAGE_PATH_BY_STAGE_KEY?.[
-          `${stageKey}:${lookup}`
-        ]
-      : "";
-
-    const staticStagePath = toStaticPortraitPath(stagePath);
-
-    if (staticStagePath) return staticStagePath;
-
-    const anyPath = DDA_DIGIMON_IMAGE_PATH_BY_KEY?.[lookup];
-    const staticAnyPath = toStaticPortraitPath(anyPath);
-
-    if (staticAnyPath) return staticAnyPath;
-  }
-
-  // Casos curados manualmente, como Red V-Dramon.
-  const approvedPortraitPath = getDdaPortraitPath({
-    key,
-    name,
-    species
+  return resolveDigimonPortrait({
+    name: name || species || key || "Digimon",
+    img: cleanPath,
+    system: {
+      sourceId: key,
+      databaseId: stage && key ? `${stage}:${key}` : "",
+      species: species || name || key,
+      stage,
+      names: {
+        canonical: key,
+        original: species || name || key,
+        dub: name || species || key,
+        aliases: [name, species, key].filter(Boolean)
+      }
+    }
   });
-
-  const approvedStaticPath = toStaticPortraitPath(
-    approvedPortraitPath
-  );
-
-  if (approvedStaticPath) return approvedStaticPath;
-
-  if (isStaticImage && !isFallbackIcon) {
-    return cleanPath;
-  }
-
-  return "icons/svg/mystery-man.svg";
 }
 
 function stageLabel(stageKey = "") {

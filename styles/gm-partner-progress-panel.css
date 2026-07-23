@@ -1134,3 +1134,55 @@
   }
 }
 
+
+/* DDA22 — Dark Evolution planning from Progress Manager */
+.dda-gm-progress-stage-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.dda-gm-progress-stage-panel__header h4 {
+  margin: 0;
+}
+
+.dda-gm-progress-dark-plan-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: auto;
+  min-width: 190px;
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid rgba(220, 111, 255, 0.52);
+  border-radius: 9px;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(183, 64, 228, 0.3), transparent 52%),
+    linear-gradient(180deg, rgba(91, 34, 119, 0.96), rgba(49, 19, 68, 0.98));
+  color: #f8e8ff;
+  font-weight: 800;
+}
+
+.dda-gm-progress-dark-plan-button:not(:disabled):hover {
+  border-color: rgba(239, 176, 255, 0.9);
+  filter: brightness(1.12);
+}
+
+.dda-gm-progress-dark-plan-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .dda-gm-progress-stage-panel__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dda-gm-progress-dark-plan-button {
+    width: 100%;
+  }
+}

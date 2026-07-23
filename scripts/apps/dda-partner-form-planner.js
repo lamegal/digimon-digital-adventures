@@ -1,10 +1,17 @@
 import {
   getCurrentPartnerFormWizardContext
 } from "../combat/evolution.js";
+import {
+  getBestPlannedFormCompatibility,
+  getPlannedFormCompatibility,
+  releaseUnlockedPlannedPartnerForms,
+  removePlannedPartnerForm,
+  repairPlannedPartnerFormData
+} from "./dda-partner-form-release.js";
 import { DDADigimonDatabase } from "../data/digimon-database.js";
 import {
-  getDdaPortraitPath
-} from "../data/dda-portrait-and-manual-digimon-data.js";
+  resolveDigimonPortraitSources
+} from "../helpers/digimon-portrait-resolver.js";
 import {
   DDA_STAGE_ORDER,
   getDigimonStageLabel
@@ -37,164 +44,40 @@ function normalizeSearchText(value = "") {
 }
 
 function getActorPortraitSources(actor = null) {
-  const system = actor?.system ?? {};
-  const names = system.names ?? {};
-  const aliases = [
-    names.original,
-    ...(Array.isArray(names.aliases) ? names.aliases : [])
-  ].filter(Boolean);
-
-  const indexedPortrait = getDdaPortraitPath({
-    key: system.sourceId ?? system.databaseId ?? actor?.databaseId ?? "",
-    name: names.dub ?? actor?.name ?? "",
-    species: system.species ?? names.original ?? "",
-    aliases
-  });
-
-  const databaseImageSources = [
-    system?.images?.portrait,
-    system?.images?.portraitImagePath,
-    system?.images?.localImagePath,
-    actor?.img,
-    actor?.prototypeToken?.texture?.src,
-    system?.evolution?.portraitImg,
-    system?.portraitImg,
-    system?.img,
-    indexedPortrait
-  ]
-    .map((value) => String(value ?? "").trim())
-    .filter(Boolean);
-
-  const staticPortraitFallbacks = [];
-
-  for (const source of databaseImageSources) {
-    const cleanSource = source.split(/[?#]/, 1)[0];
-    const fileName = cleanSource.split("/").at(-1) ?? "";
-
-    if (fileName) {
-      staticPortraitFallbacks.push(
-        `systems/digimon-digital-adventures/assets/digimon/portraits/${fileName.replace(/\.webm$/i, ".webp")}`
-      );
-    }
-
-    if (/\.webm$/i.test(cleanSource)) {
-      staticPortraitFallbacks.push(cleanSource.replace(/\.webm$/i, ".webp"));
-    }
-  }
-
-  const tokenSources = [
-    system?.images?.token,
-    system?.images?.tokenImagePath,
-    system?.evolution?.tokenImg,
-    system?.tokenImg
-  ]
-    .map((value) => String(value ?? "").trim())
-    .filter(Boolean);
-
-  const staticTokenFallbacks = tokenSources.map((source) => {
-    const cleanSource = source.split(/[?#]/, 1)[0];
-    const fileName = cleanSource.split("/").at(-1) ?? "";
-    return fileName
-      ? `systems/digimon-digital-adventures/assets/digimon/tokens/${fileName.replace(/\.webm$/i, ".webp")}`
-      : "";
-  });
-
-  /*
-   * A base de Digimon ainda possui vários `actor.img` apontando para antigas
-   * pastas por Estágio. Os retratos estáticos reais ficam em
-   * assets/digimon/portraits. Por isso os equivalentes WEBP entram antes dos
-   * caminhos legados e dos tokens.
-   */
-  const sources = [
-    ...staticPortraitFallbacks,
-    ...databaseImageSources,
-    ...staticTokenFallbacks,
-    ...tokenSources
-  ]
-    .map((value) => String(value ?? "").trim())
-    .filter((value) => {
-      return value &&
-        !value.endsWith("mystery-man.svg") &&
-        !/\.webm(?:$|[?#])/i.test(value);
-    });
-
-  return Array.from(new Set([
-    ...sources,
-    "icons/svg/mystery-man.svg"
-  ]));
+  return resolveDigimonPortraitSources(actor);
 }
 
 function getSnapshotPortraitSources(snapshot = {}) {
-  const species = String(
-    snapshot?.species ??
-    snapshot?.sourceFormName ??
-    snapshot?.name ??
-    ""
-  ).trim();
-
-  const indexedPortrait = getDdaPortraitPath({
-    key: snapshot?.sourceFormUuid ?? snapshot?.key ?? "",
-    name: snapshot?.sourceFormName ?? snapshot?.name ?? species,
-    species
+  return resolveDigimonPortraitSources(snapshot, {
+    manualPortrait: snapshot?.portraitImg ?? "",
+    manualPortraitSelected: Boolean(
+      snapshot?.wizard?.portraitManuallySelected ||
+      snapshot?.wizard?.portraitSource === "manual"
+    )
   });
+}
 
-  const rawSources = [
-    snapshot?.portraitImg,
-    snapshot?.img,
-    snapshot?.tokenImg,
-    indexedPortrait
-  ]
-    .map((value) => String(value ?? "").trim())
-    .filter(Boolean);
-
-  const staticPortraitFallbacks = [];
-
-  for (const source of rawSources) {
-    const cleanSource = source.split(/[?#]/, 1)[0];
-    const fileName = cleanSource.split("/").at(-1) ?? "";
-
-    if (fileName) {
-      staticPortraitFallbacks.push(
-        `systems/digimon-digital-adventures/assets/digimon/portraits/${fileName.replace(/\.webm$/i, ".webp")}`
-      );
-    }
-  }
-
-  const stageKey = String(snapshot?.stage ?? "").trim();
-  const stageFolder = {
-    baby1: "baby1",
-    baby2: "baby2",
-    child: "child",
-    adult: "adult",
-    perfect: "perfect",
-    ultimate: "ultimate",
-    ultimatePlus: "ultimatePlus"
-  }[stageKey];
-
-  const speciesStageFallback = species && stageFolder
-    ? `systems/digimon-digital-adventures/assets/digimon/${stageFolder}/${species}.webp`
-    : "";
-
-  const sources = [
-    ...staticPortraitFallbacks,
-    ...rawSources,
-    speciesStageFallback
-  ]
-    .map((value) => String(value ?? "").trim())
-    .filter((value) => {
-      return value &&
-        !value.endsWith("mystery-man.svg") &&
-        !/\.webm(?:$|[?#])/i.test(value);
-    });
-
-  return Array.from(new Set([
-    ...sources,
-    "icons/svg/mystery-man.svg"
-  ]));
+function getApplicationRoot(root) {
+  if (root instanceof HTMLElement) return root;
+  if (root?.[0] instanceof HTMLElement) return root[0];
+  return null;
 }
 
 function attachImageFallbacks(root) {
-  for (const image of root?.querySelectorAll?.("img[data-fallback-srcs]") ?? []) {
+  const element = getApplicationRoot(root);
+
+  for (const image of element?.querySelectorAll?.("img[data-fallback-srcs]") ?? []) {
+    if (image.dataset.ddaFallbackBound === "true") continue;
+    image.dataset.ddaFallbackBound = "true";
+    const rememberResolvedSource = () => {
+      image.dataset.resolvedSrc = String(
+        image.getAttribute("src") || image.src || ""
+      ).trim();
+    };
+
+    image.addEventListener("load", rememberResolvedSource);
+    rememberResolvedSource();
+
     image.addEventListener("error", () => {
       const fallbacks = String(image.dataset.fallbackSrcs ?? "")
         .split("|")
@@ -204,12 +87,12 @@ function attachImageFallbacks(root) {
 
       if (index < fallbacks.length) {
         image.dataset.fallbackIndex = String(index + 1);
-        image.src = fallbacks[index];
+        image.setAttribute("src", fallbacks[index]);
         return;
       }
 
       image.removeAttribute("data-fallback-srcs");
-      image.src = "icons/svg/mystery-man.svg";
+      image.setAttribute("src", "icons/svg/mystery-man.svg");
     });
   }
 }
@@ -304,6 +187,217 @@ function getUnlockedStages(tamerActor = null) {
   return unlockedStages;
 }
 
+function normalizeEvolutionCategoryKey(value = "") {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/x[\s_-]*antibody/g, "antibody")
+    .replace(/bio[\s_-]*merge/g, "biomerge")
+    .replace(/mode[\s_-]*change/g, "mode")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function getEvolutionCategoryViewData(source = {}) {
+  const specialForm = source?.specialForm ?? {};
+  const keys = Array.from(new Set([
+    source?.evolutionCategory,
+    source?.primarySpecialCategory,
+    ...(Array.isArray(source?.specialCategories) ? source.specialCategories : []),
+    specialForm?.kind,
+    specialForm?.method
+  ]
+    .map(normalizeEvolutionCategoryKey)
+    .filter(Boolean)));
+
+  if (!keys.length) keys.push("normal");
+  if (source?.isSpecialForm && keys.every((key) => key === "normal")) {
+    keys.push("special");
+  }
+
+  const labels = {
+    normal: ["DDA.PartnerFormPlanner.Category.Normal", "Normal"],
+    antibody: ["DDA.PartnerFormPlanner.Category.Antibody", "X-Antibody"],
+    armor: ["DDA.PartnerFormPlanner.Category.Armor", "Armor"],
+    mode: ["DDA.PartnerFormPlanner.Category.Mode", "Mode Change"],
+    burst: ["DDA.PartnerFormPlanner.Category.Burst", "Burst"],
+    blast: ["DDA.PartnerFormPlanner.Category.Burst", "Burst"],
+    hybrid: ["DDA.PartnerFormPlanner.Category.Hybrid", "Hybrid"],
+    spirit: ["DDA.PartnerFormPlanner.Category.Hybrid", "Hybrid"],
+    biomerge: ["DDA.PartnerFormPlanner.Category.BioMerge", "Bio-Merge"],
+    jogress: ["DDA.PartnerFormPlanner.Category.Jogress", "Jogress"],
+    variant: ["DDA.PartnerFormPlanner.Category.Variant", "Variant"],
+    dark: ["DDA.PartnerFormPlanner.Category.Dark", "Dark Evolution"],
+    special: ["DDA.PartnerFormPlanner.Category.Special", "Special"]
+  };
+
+  return keys.map((key) => {
+    const [localizationKey, fallback] = labels[key] ?? [
+      "",
+      key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+    ];
+
+    return {
+      key,
+      label: localizationKey ? localize(localizationKey, fallback) : fallback
+    };
+  });
+}
+
+function hasGraphReference(graph = {}, reference = "") {
+  const wanted = String(reference ?? "").trim();
+
+  return Boolean(wanted) && (graph?.nodes ?? []).some((node) => [
+    node?.actorUuid,
+    node?.uuid,
+    node?.formUuid,
+    node?.sourceFormUuid
+  ].some((value) => String(value ?? "").trim() === wanted));
+}
+
+function hasLineReference(line = {}, reference = "") {
+  const wanted = String(reference ?? "").trim();
+  if (!wanted) return false;
+
+  return Object.values(line?.forms ?? {}).some((slot) => {
+    const forms = [
+      ...(Array.isArray(slot) ? slot : []),
+      ...(Array.isArray(slot?.forms) ? slot.forms : []),
+      ...(slot?.uuid || slot?.actorUuid ? [slot] : [])
+    ];
+
+    return forms.some((form) => [
+      form?.uuid,
+      form?.actorUuid,
+      form?.formUuid,
+      form?.sourceFormUuid
+    ].some((value) => String(value ?? "").trim() === wanted));
+  });
+}
+
+function isReferenceUnlockedForTamer(tamerActor = null, reference = "") {
+  const unlockedForms = Array.isArray(tamerActor?.system?.partner?.unlockedForms)
+    ? tamerActor.system.partner.unlockedForms
+    : [];
+
+  if (!unlockedForms.length) return true;
+
+  const wanted = String(reference ?? "").trim();
+
+  return unlockedForms.some((entry) => {
+    if (typeof entry === "string") return entry === wanted;
+
+    return [
+      entry?.uuid,
+      entry?.actorUuid,
+      entry?.formUuid,
+      entry?.sourceFormUuid
+    ].some((value) => String(value ?? "").trim() === wanted) &&
+      entry?.unlocked !== false;
+  });
+}
+
+function isSnapshotReleased(partnerActor, tamerActor, snapshot = {}) {
+  const reference = String(snapshot?.sourceFormUuid ?? "").trim();
+
+  return hasGraphReference(
+    partnerActor?.system?.evolutionGraph,
+    reference
+  ) && hasLineReference(
+    partnerActor?.system?.evolutionLine,
+    reference
+  ) && isReferenceUnlockedForTamer(
+    tamerActor,
+    reference
+  );
+}
+
+
+function getPlannerRecordReference(record = {}) {
+  return String(
+    record?.sourceFormUuid || record?.formUuid || record?.actorUuid ||
+    record?.uuid || record?.databaseId || record?.system?.databaseId ||
+    record?.sourceId || record?.system?.sourceId || ""
+  ).trim();
+}
+
+function collectPlannerSourceForms(partnerActor = null) {
+  if (!partnerActor) return [];
+
+  const snapshots = Object.values(
+    partnerActor.system?.evolution?.formSnapshots ?? {}
+  ).filter((entry) => entry && typeof entry === "object");
+  const nodes = Array.isArray(partnerActor.system?.evolutionGraph?.nodes)
+    ? partnerActor.system.evolutionGraph.nodes
+    : [];
+  const currentReference = String(
+    partnerActor.system?.evolution?.currentFormUuid ||
+    partnerActor.system?.evolution?.sourceFormUuid ||
+    partnerActor.uuid
+  ).trim();
+  const records = [
+    ...snapshots,
+    ...nodes,
+    {
+      actorUuid: partnerActor.uuid,
+      uuid: partnerActor.uuid,
+      sourceFormUuid: currentReference,
+      name: partnerActor.name,
+      species: partnerActor.system?.species || partnerActor.name,
+      stage: partnerActor.system?.stage || "child",
+      sourceId: partnerActor.system?.sourceId || "",
+      databaseId: partnerActor.system?.databaseId || "",
+      system: partnerActor.system,
+      isCurrent: true
+    }
+  ];
+  const byReference = new Map();
+
+  for (const record of records) {
+    const reference = getPlannerRecordReference(record);
+    if (!reference) continue;
+    const stage = String(record?.stage ?? record?.system?.stage ?? "child").trim() || "child";
+    const name = String(
+      record?.displayName || record?.species || record?.sourceFormName ||
+      record?.name || record?.system?.species || "Digimon"
+    ).trim();
+    const existing = byReference.get(reference);
+
+    byReference.set(reference, {
+      ...(existing ?? {}),
+      reference,
+      name,
+      stage,
+      stageLabel: getDigimonStageLabel(stage),
+      record: { ...(existing?.record ?? {}), ...record },
+      isCurrent: Boolean(
+        record?.isCurrent || reference === currentReference || reference === partnerActor.uuid
+      )
+    });
+  }
+
+  return Array.from(byReference.values()).sort((left, right) => {
+    return DDA_STAGE_ORDER.indexOf(left.stage) - DDA_STAGE_ORDER.indexOf(right.stage) ||
+      left.name.localeCompare(right.name, game.i18n?.lang);
+  });
+}
+
+function evolutionMethodLabel(method = "normal") {
+  const keys = {
+    normal: "DDA.Evolution.Method.Normal",
+    slide: "DDA.Evolution.Method.Slide",
+    dark: "DDA.Evolution.Method.Dark"
+  };
+  const fallbacks = {
+    normal: "Normal",
+    slide: "Slide Evolution",
+    dark: "Dark Evolution"
+  };
+  return localize(keys[method] ?? keys.normal, fallbacks[method] ?? method);
+}
+
 export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
   static DEFAULT_OPTIONS = {
     id: "dda-partner-form-planner",
@@ -318,7 +412,9 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
     },
     actions: {
       refresh: DDAPartnerFormPlanner._onActionRefresh,
+      releaseUnlockedForms: DDAPartnerFormPlanner._onActionReleaseUnlockedForms,
       adjustForm: DDAPartnerFormPlanner._onActionAdjustForm,
+      removeForm: DDAPartnerFormPlanner._onActionRemoveForm,
       addForm: DDAPartnerFormPlanner._onActionAddForm
     }
   };
@@ -331,24 +427,54 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
   };
 
   constructor(sourceActor, options = {}) {
-    super(options);
+    const {
+      darkEvolutionMode = false,
+      ...applicationOptions
+    } = options ?? {};
+
+    super(applicationOptions);
     this.sourceActor = sourceActor ?? null;
     this.formContext = null;
+    this.darkEvolutionMode = Boolean(
+      darkEvolutionMode && game.user?.isGM
+    );
   }
 
   static async open(sourceActor, options = {}) {
     if (!sourceActor) return null;
 
+    await repairPlannedPartnerFormData(sourceActor);
+
     const application = new this(sourceActor, options);
-    application.render(true);
+    await application.render({ force: true });
     return application;
   }
 
+  static async openDarkEvolution(sourceActor, options = {}) {
+    if (!game.user?.isGM) {
+      ui.notifications.warn(localize(
+        "DDA.PartnerFormPlanner.Dark.GMOnly",
+        "Only the GM can plan a Dark Evolution."
+      ));
+      return null;
+    }
+
+    return this.open(sourceActor, {
+      ...options,
+      darkEvolutionMode: true
+    });
+  }
+
   get title() {
-    return localize(
-      "DDA.PartnerFormPlanner.Title",
-      "Planejamento de Formas"
-    );
+    return this.darkEvolutionMode
+      ? game.i18n.format(
+          "DDA.PartnerFormPlanner.Dark.Title",
+          { name: this.sourceActor?.name ?? "Digimon" }
+        )
+      : localize(
+          "DDA.PartnerFormPlanner.Title",
+          "Planejamento de Formas"
+        );
   }
 
   async _prepareContext(options = {}) {
@@ -394,7 +520,20 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
 
     const snapshots = Object.values(
       partnerActor.system.evolution?.formSnapshots ?? {}
-    ).filter((snapshot) => snapshot && typeof snapshot === "object");
+    ).filter((snapshot) => {
+      if (!snapshot || typeof snapshot !== "object") return false;
+
+      /* Unreleased Dark Evolution plans are GM secrets. */
+      if (
+        !game.user?.isGM &&
+        snapshot?.wizard?.darkEvolution &&
+        !isSnapshotReleased(partnerActor, tamerActor, snapshot)
+      ) {
+        return false;
+      }
+
+      return true;
+    });
 
     if (
       currentSnapshot &&
@@ -435,22 +574,47 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
         formCount: forms.filter((form) => form.stageKey === stageKey).length
       }));
 
+    /*
+     * O mesmo botão também repara formas já liberadas. Isso permite corrigir
+     * retratos, metadados e vínculos sem apagar o planejamento existente.
+     */
+    const releaseableCount = forms.filter((form) => {
+      return game.user?.isGM && form.prepared && form.unlocked;
+    }).length;
+    const releasedCount = forms.filter((form) => form.released).length;
+
+    this.releaseableCount = releaseableCount;
+
     return {
       ...context,
       ready: true,
       canEdit,
+      isGM: Boolean(game.user?.isGM),
+      darkEvolutionMode: this.darkEvolutionMode,
+      plannerModeLabel: this.darkEvolutionMode
+        ? localize("DDA.PartnerFormPlanner.Dark.ModeLabel", "Dark Evolution")
+        : localize("DDA.PartnerFormPlanner.Mode.Standard", "Evolution Plan"),
       tamer: {
         uuid: tamerActor?.uuid ?? "",
         name: tamerActor?.name ?? ""
       },
-      partner: {
-        uuid: partnerActor.uuid,
-        name: partnerActor.name,
-        img: partnerActor.img
-      },
+      partner: (() => {
+        const portraitSources = getActorPortraitSources(partnerActor);
+
+        return {
+          uuid: partnerActor.uuid,
+          name: partnerActor.name,
+          img: portraitSources[0],
+          imageFallbacks: portraitSources.slice(1).join("|")
+        };
+      })(),
       forms,
       stages,
-      hasForms: forms.length > 0
+      hasForms: forms.length > 0,
+      isGM: Boolean(game.user?.isGM),
+      releaseableCount,
+      releasedCount,
+      hasReleaseableForms: releaseableCount > 0
     };
   }
 
@@ -498,6 +662,13 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
 
     const adjustmentAmount = Math.abs(dp.remaining);
     const portraitSources = getSnapshotPortraitSources(snapshot);
+    const unlocked = Boolean(unlockedStages[stageKey]);
+    const prepared = Boolean(snapshot.wizard?.preparedFutureForm);
+    const released = isSnapshotReleased(
+      this.formContext?.partnerActor,
+      this.formContext?.tamerActor,
+      snapshot
+    );
 
     return {
       key: String(snapshot.key ?? sourceFormUuid),
@@ -513,11 +684,33 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       imageFallbacks: portraitSources.slice(1).join("|"),
       stageKey,
       stageLabel: getDigimonStageLabel(stageKey),
-      unlocked: Boolean(unlockedStages[stageKey]),
+      unlocked,
       isCurrent,
-      prepared: Boolean(snapshot.wizard?.preparedFutureForm),
+      prepared,
+      released,
+      canRelease: Boolean(
+        game.user?.isGM &&
+        prepared &&
+        unlocked &&
+        !released
+      ),
+      categories: getEvolutionCategoryViewData(snapshot),
+      plannedEvolutionMethod: String(
+        snapshot.wizard?.plannedEvolutionMethod || "normal"
+      ),
+      plannedEvolutionMethodLabel: evolutionMethodLabel(
+        String(snapshot.wizard?.plannedEvolutionMethod || "normal")
+      ),
+      plannedFromReference: String(
+        snapshot.wizard?.plannedFromReference || ""
+      ),
       createdByInitialLine: Boolean(snapshot.wizard?.createdByInitialLine),
       canEdit: canEdit && stageKey !== "baby1",
+      canRemove: Boolean(
+        canEdit &&
+        prepared &&
+        !isCurrent
+      ),
       dp,
       adjustment: {
         className: dp.statusClass,
@@ -551,7 +744,219 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
 
   static async _onActionRefresh(event) {
     event.preventDefault();
+    event.stopPropagation();
+    await repairPlannedPartnerFormData(this.sourceActor);
     await this.render();
+  }
+
+  static async _onActionReleaseUnlockedForms(event) {
+    event.preventDefault();
+
+    if (!game.user?.isGM) {
+      ui.notifications.warn(
+        localize(
+          "DDA.PartnerFormPlanner.Release.GMOnly",
+          "Only the GM can release planned forms."
+        )
+      );
+      return;
+    }
+
+    const count = Math.max(0, number(this.releaseableCount, 0));
+
+    if (!count) {
+      ui.notifications.info(
+        localize(
+          "DDA.PartnerFormPlanner.Release.NoneAvailable",
+          "There are no unlocked planned forms waiting for release."
+        )
+      );
+      return;
+    }
+
+    const confirmed = await Dialog.confirm({
+      title: localize(
+        "DDA.PartnerFormPlanner.Release.ConfirmTitle",
+        "Release Planned Forms"
+      ),
+      content: `<p>${game.i18n.format(
+        "DDA.PartnerFormPlanner.Release.ConfirmText",
+        { count }
+      )}</p>`,
+      yes: () => true,
+      no: () => false,
+      defaultYes: true
+    });
+
+    if (!confirmed) {
+      if (target) target.disabled = false;
+      return;
+    }
+
+    const result = await releaseUnlockedPlannedPartnerForms(
+      this.sourceActor
+    );
+
+    const released = result?.released?.length ?? 0;
+    const repaired = result?.repaired?.length ?? 0;
+    const blocked = result?.blocked?.length ?? 0;
+    const manualLinks = result?.manualLinks?.length ?? 0;
+
+    if (released || repaired) {
+      ui.notifications.info(
+        game.i18n.format(
+          "DDA.PartnerFormPlanner.Release.Completed",
+          { released, repaired }
+        )
+      );
+    } else {
+      ui.notifications.info(
+        localize(
+          "DDA.PartnerFormPlanner.Release.NothingChanged",
+          "No planned form required a release update."
+        )
+      );
+    }
+
+    if (blocked) {
+      ui.notifications.warn(
+        game.i18n.format(
+          "DDA.PartnerFormPlanner.Release.BlockedSummary",
+          { count: blocked }
+        )
+      );
+    }
+
+    if (manualLinks) {
+      ui.notifications.warn(
+        game.i18n.format(
+          "DDA.PartnerFormPlanner.Release.ManualLinks",
+          { count: manualLinks }
+        )
+      );
+    }
+
+    await this.render();
+  }
+
+  static async _onActionRemoveForm(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+
+    if (target) target.disabled = true;
+
+    if (!this.formContext) {
+      if (target) target.disabled = false;
+      return;
+    }
+
+    const sourceFormUuid = String(
+      target?.dataset?.formUuid ?? ""
+    ).trim();
+
+    if (!sourceFormUuid) {
+      if (target) target.disabled = false;
+      return;
+    }
+
+    const partnerActor = this.formContext.partnerActor;
+    const snapshot = Object.values(
+      partnerActor.system?.evolution?.formSnapshots ?? {}
+    ).find((entry) => {
+      return String(entry?.sourceFormUuid ?? "").trim() === sourceFormUuid;
+    });
+
+    const currentReferences = new Set([
+      partnerActor.uuid,
+      partnerActor.system?.evolution?.currentFormUuid,
+      partnerActor.system?.evolution?.sourceFormUuid,
+      this.formContext.tamerActor?.system?.partner?.currentFormUuid
+    ]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean));
+
+    const canRemove = Boolean(
+      snapshot?.wizard?.preparedFutureForm &&
+      !currentReferences.has(sourceFormUuid) &&
+      (
+        game.user?.isGM ||
+        partnerActor?.isOwner ||
+        this.formContext.tamerActor?.isOwner
+      )
+    );
+
+    if (!canRemove) {
+      ui.notifications.warn(
+        localize(
+          "DDA.PartnerFormPlanner.Remove.NotAllowed",
+          "This form cannot be removed from the Planner."
+        )
+      );
+      if (target) target.disabled = false;
+      return;
+    }
+
+    const formName = String(
+      snapshot?.species ||
+      snapshot?.sourceFormName ||
+      snapshot?.name ||
+      "Digimon"
+    ).trim();
+
+    const confirmed = await Dialog.confirm({
+      title: localize(
+        "DDA.PartnerFormPlanner.Remove.ConfirmTitle",
+        "Remove Planned Form"
+      ),
+      content: `<p>${game.i18n.format(
+        "DDA.PartnerFormPlanner.Remove.ConfirmText",
+        { form: foundry.utils.escapeHTML(formName) }
+      )}</p>`,
+      yes: () => true,
+      no: () => false,
+      defaultYes: false
+    });
+
+    if (!confirmed) {
+      if (target) target.disabled = false;
+      return;
+    }
+
+    const result = await removePlannedPartnerForm(
+      this.sourceActor,
+      sourceFormUuid
+    );
+
+    if (!result?.removed) {
+      const reasonKey = {
+        currentForm: "DDA.PartnerFormPlanner.Remove.CurrentForm",
+        permission: "DDA.PartnerFormPlanner.Remove.Permission",
+        notPlanned: "DDA.PartnerFormPlanner.Remove.NotPlanned",
+        persistenceFailed: "DDA.PartnerFormPlanner.Remove.PersistenceFailed"
+      }[result?.reason];
+
+      ui.notifications.warn(
+        localize(
+          reasonKey || "DDA.PartnerFormPlanner.Remove.Failed",
+          "The planned form could not be removed."
+        )
+      );
+      if (target) target.disabled = false;
+      return;
+    }
+
+    ui.notifications.info(
+      game.i18n.format(
+        "DDA.PartnerFormPlanner.Remove.Completed",
+        { form: formName }
+      )
+    );
+
+    /* The removal action already writes the complete graph/line cleanup.
+       Do not run the repair pass here, because a stale client-side graph must
+       never recreate the form that was just deleted. */
+    await this.render({ force: true });
   }
 
   static async _onActionAdjustForm(event, target) {
@@ -587,17 +992,17 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
 
     if (!stageKey) return;
 
-    await this._openFormPicker(stageKey);
+    await this._openFormPicker(stageKey, {
+      forcedMethod: this.darkEvolutionMode ? "dark" : ""
+    });
   }
 
-  async _openFormPicker(stageKey) {
-    const actors = (await DDADigimonDatabase.getAll())
+  async _openFormPicker(stageKey, { forcedMethod = "" } = {}) {
+    const actors = (await DDADigimonDatabase.getAll({
+      includeVirtualSpecialForms: true
+    }))
       .filter((actor) => actor?.type === "digimon")
       .filter((actor) => String(actor.system?.stage ?? "") === stageKey)
-      .filter((actor) => {
-        return String(actor.system?.evolutionCategory ?? "normal") === "normal";
-      })
-      .filter((actor) => !actor.system?.isSpecialForm)
       .sort((left, right) => {
         const leftName = left.system?.names?.dub || left.system?.species || left.name || "";
         const rightName = right.system?.names?.dub || right.system?.species || right.name || "";
@@ -641,13 +1046,21 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
     const picker = new DDAPartnerFutureFormPicker(
       this,
       stageKey,
-      availableActors
+      availableActors,
+      { forcedMethod }
     );
 
-    picker.render(true);
+    await picker.render({ force: true });
   }
 
-  async _openFutureFormWizard(formTemplateActor) {
+  async _openFutureFormWizard(
+    formTemplateActor,
+    {
+      portraitImg = "",
+      plannedEvolutionMethod = "normal",
+      plannedFromReference = ""
+    } = {}
+  ) {
     if (!formTemplateActor || !this.formContext) return null;
 
     const { DDADigimonWizard } = await import(
@@ -657,7 +1070,14 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
     return DDADigimonWizard.openFutureFormWizard(
       this.formContext.tamerActor,
       formTemplateActor,
-      { returnApplication: this }
+      {
+        returnApplication: this,
+        portraitImg: String(portraitImg ?? "").trim(),
+        plannedEvolutionMethod: String(plannedEvolutionMethod || "normal"),
+        plannedFromReference: String(plannedFromReference || ""),
+        plannedByGM: Boolean(game.user?.isGM),
+        darkEvolution: plannedEvolutionMethod === "dark"
+      }
     );
   }
 }
@@ -689,26 +1109,104 @@ class DDAPartnerFutureFormPicker extends DDAPartnerFormPlannerBase {
   };
 
   constructor(planner, stageKey, actors = [], options = {}) {
-    super(options);
+    const {
+      forcedMethod = "",
+      ...applicationOptions
+    } = options ?? {};
+
+    super(applicationOptions);
     this.planner = planner;
     this.stageKey = String(stageKey ?? "").trim();
     this.actors = Array.isArray(actors) ? actors : [];
     this.selectedReference = "";
+    this.forcedMethod = ["dark"].includes(String(forcedMethod ?? ""))
+      ? String(forcedMethod)
+      : "";
+    this.selectedMethod = this.forcedMethod || "normal";
+    this.selectedFromReference = "";
     this.actorByReference = new Map(
       this.actors.map((actor) => [getTemplateReference(actor), actor])
     );
+    this.sourceForms = [];
+    this.sourceByReference = new Map();
   }
 
   get title() {
+    if (this.forcedMethod === "dark") {
+      return game.i18n.format(
+        "DDA.PartnerFormPlanner.Dark.PickerTitle",
+        { stage: getDigimonStageLabel(this.stageKey) }
+      );
+    }
+
     return game.i18n.format(
       "DDA.PartnerFormPlanner.Picker.Title",
       { stage: getDigimonStageLabel(this.stageKey) }
     );
   }
 
+  _getAllowedSourceForms(method = this.selectedMethod) {
+    const targetIndex = DDA_STAGE_ORDER.indexOf(this.stageKey);
+
+    return this.sourceForms.filter((entry) => {
+      const sourceIndex = DDA_STAGE_ORDER.indexOf(entry.stage);
+
+      if (method === "slide") {
+        return entry.stage === this.stageKey;
+      }
+
+      if (method === "dark") {
+        return sourceIndex >= 0 && sourceIndex <= targetIndex;
+      }
+
+      return sourceIndex >= 0 && sourceIndex < targetIndex;
+    });
+  }
+
+  _ensurePlanningSource() {
+    if (this.forcedMethod) this.selectedMethod = this.forcedMethod;
+
+    if (
+      this.selectedMethod === "slide" &&
+      !this._getAllowedSourceForms("slide").length
+    ) {
+      this.selectedMethod = "normal";
+    }
+
+    const allowed = this._getAllowedSourceForms(this.selectedMethod);
+    if (allowed.some((entry) => entry.reference === this.selectedFromReference)) {
+      return;
+    }
+
+    const current = allowed.find((entry) => entry.isCurrent);
+    if (current) {
+      this.selectedFromReference = current.reference;
+      return;
+    }
+
+    const sorted = [...allowed].sort((left, right) => {
+      return DDA_STAGE_ORDER.indexOf(right.stage) - DDA_STAGE_ORDER.indexOf(left.stage) ||
+        left.name.localeCompare(right.name, game.i18n?.lang);
+    });
+
+    this.selectedFromReference = sorted[0]?.reference ?? "";
+  }
+
   async _prepareContext(options = {}) {
     const context = await super._prepareContext(options);
-    const entries = this.actors.map((actor) => {
+    const partnerActor = this.planner?.formContext?.partnerActor ?? null;
+
+    this.sourceForms = collectPlannerSourceForms(partnerActor);
+    this.sourceByReference = new Map(
+      this.sourceForms.map((entry) => [entry.reference, entry])
+    );
+    this._ensurePlanningSource();
+
+    const selectedParent = this.sourceByReference.get(
+      this.selectedFromReference
+    ) ?? null;
+
+    const entries = await Promise.all(this.actors.map(async (actor) => {
       const system = actor.system ?? {};
       const names = system.names ?? {};
       const reference = getTemplateReference(actor);
@@ -719,6 +1217,17 @@ class DDAPartnerFutureFormPicker extends DDAPartnerFormPlannerBase {
       const portraitSources = getActorPortraitSources(actor);
       const attribute = getActorAttributeLabel(actor);
       const type = String(system.type ?? "").trim();
+      const categories = getEvolutionCategoryViewData(system);
+      const compatibility = selectedParent
+        ? await getPlannedFormCompatibility({
+            candidate: actor,
+            parent: selectedParent.record
+          })
+        : await getBestPlannedFormCompatibility({
+            candidate: actor,
+            partnerActor,
+            stageKey: this.stageKey
+          });
 
       return {
         reference,
@@ -732,23 +1241,44 @@ class DDAPartnerFutureFormPicker extends DDAPartnerFormPlannerBase {
         attributeKey: attribute.key,
         attributeLabel: attribute.label,
         type,
+        categories,
+        categoryText: categories.map((category) => category.label).join(", "),
+        compatibilityScore: compatibility.score,
+        compatibilityTier: compatibility.tier,
+        compatibilityLabel: compatibility.label,
+        compatibilityParent: selectedParent?.name || compatibility.parentName,
+        compatibilityReason: compatibility.reasons.join(" • "),
+        compatibilityTitle: [
+          `${compatibility.score}% — ${compatibility.label}`,
+          selectedParent?.name || compatibility.parentName
+            ? `${localize("DDA.PartnerFormPlanner.Picker.CompatibilityFrom", "A partir de")}: ${selectedParent?.name || compatibility.parentName}`
+            : "",
+          ...compatibility.reasons
+        ].filter(Boolean).join(" • "),
         searchText: normalizeSearchText([
           name,
           originalName,
           type,
           attribute.label,
+          compatibility.score,
+          compatibility.label,
+          selectedParent?.name,
+          compatibility.parentName,
+          ...compatibility.reasons,
+          ...categories.map((category) => category.label),
           ...(Array.isArray(names.aliases) ? names.aliases : [])
         ].join(" ")),
         selected: reference === this.selectedReference
       };
-    });
+    }));
+
+    this.compatibilityByReference = new Map(
+      entries.map((entry) => [entry.reference, entry])
+    );
 
     const attributes = Array.from(
       new Map(
-        entries.map((entry) => [
-          entry.attributeKey,
-          entry.attributeLabel
-        ])
+        entries.map((entry) => [entry.attributeKey, entry.attributeLabel])
       ).entries()
     )
       .map(([key, label]) => ({ key, label }))
@@ -756,12 +1286,56 @@ class DDAPartnerFutureFormPicker extends DDAPartnerFormPlannerBase {
         return left.label.localeCompare(right.label, game.i18n?.lang);
       });
 
+    const allowedSourceReferences = new Set(
+      this._getAllowedSourceForms(this.selectedMethod)
+        .map((entry) => entry.reference)
+    );
+
+    const sourceForms = this.sourceForms.map((entry) => ({
+      ...entry,
+      allowed: allowedSourceReferences.has(entry.reference),
+      selected: entry.reference === this.selectedFromReference
+    }));
+
+    const canPlanSlide = this._getAllowedSourceForms("slide").length > 0;
+    const methodOptions = this.forcedMethod
+      ? [{
+          key: this.forcedMethod,
+          label: evolutionMethodLabel(this.forcedMethod),
+          selected: true,
+          disabled: false
+        }]
+      : [
+          {
+            key: "normal",
+            label: evolutionMethodLabel("normal"),
+            selected: this.selectedMethod === "normal",
+            disabled: false
+          },
+          {
+            key: "slide",
+            label: evolutionMethodLabel("slide"),
+            selected: this.selectedMethod === "slide",
+            disabled: !canPlanSlide
+          }
+        ];
+
     return {
       ...context,
       stageLabel: getDigimonStageLabel(this.stageKey),
       entries,
       attributes,
-      count: entries.length
+      count: entries.length,
+      methodOptions,
+      selectedMethod: this.selectedMethod,
+      selectedMethodLabel: evolutionMethodLabel(this.selectedMethod),
+      sourceForms,
+      hasSourceForms: sourceForms.some((entry) => entry.allowed),
+      selectedFromReference: this.selectedFromReference,
+      selectedFromName: selectedParent?.name ?? "",
+      canPlanSlide,
+      forcedMethod: this.forcedMethod,
+      darkEvolutionMode: this.forcedMethod === "dark"
     };
   }
 
@@ -774,12 +1348,28 @@ class DDAPartnerFutureFormPicker extends DDAPartnerFormPlannerBase {
     const attributeSelect = this.element?.querySelector?.(
       "[data-form-picker-attribute]"
     );
+    const methodSelect = this.element?.querySelector?.(
+      "[data-form-picker-method]"
+    );
+    const sourceSelect = this.element?.querySelector?.(
+      "[data-form-picker-source]"
+    );
 
     searchInput?.addEventListener("input", () => this._applyFilters());
     attributeSelect?.addEventListener("change", () => this._applyFilters());
 
-    attachImageFallbacks(this.element);
+    methodSelect?.addEventListener("change", async (event) => {
+      this.selectedMethod = String(event.currentTarget?.value || "normal");
+      this.selectedFromReference = "";
+      await this.render({ force: true });
+    });
 
+    sourceSelect?.addEventListener("change", async (event) => {
+      this.selectedFromReference = String(event.currentTarget?.value || "");
+      await this.render({ force: true });
+    });
+
+    attachImageFallbacks(this.element);
     this._applyFilters();
   }
 
@@ -864,21 +1454,36 @@ class DDAPartnerFutureFormPicker extends DDAPartnerFormPlannerBase {
       const attribute = getActorAttributeLabel(selectedActor);
       const originalName = String(names.original ?? "").trim();
       const type = String(system.type ?? "").trim();
+      const categories = getEvolutionCategoryViewData(system);
+      const compatibility = this.compatibilityByReference?.get(reference) ?? {};
       const image = preview.querySelector("[data-form-picker-preview-image]");
+
+      this.selectedPortraitPath = portraitSources[0] ?? "";
 
       if (image) {
         image.dataset.fallbackIndex = "0";
         image.dataset.fallbackSrcs = portraitSources.slice(1).join("|");
-        image.src = portraitSources[0];
+        image.dataset.resolvedSrc = portraitSources[0] ?? "";
+        image.setAttribute("src", portraitSources[0]);
         image.alt = selectedName;
       }
+
+      const compatibilityText = compatibility.compatibilityScore
+        ? `${compatibility.compatibilityScore}% — ${compatibility.compatibilityLabel}`
+        : "";
 
       const values = {
         "[data-form-picker-preview-name]": selectedName,
         "[data-form-picker-preview-original]": originalName && originalName !== selectedName ? originalName : "",
         "[data-form-picker-preview-stage]": getDigimonStageLabel(this.stageKey),
         "[data-form-picker-preview-attribute]": attribute.label,
-        "[data-form-picker-preview-type]": type || localize("DDA.Label.None", "—")
+        "[data-form-picker-preview-type]": type || localize("DDA.Label.None", "—"),
+        "[data-form-picker-preview-categories]": categories
+          .map((category) => category.label)
+          .join(", "),
+        "[data-form-picker-preview-compatibility]": compatibilityText,
+        "[data-form-picker-preview-compatibility-from]": compatibility.compatibilityParent || "",
+        "[data-form-picker-preview-compatibility-reason]": compatibility.compatibilityReason || ""
       };
 
       for (const [selector, value] of Object.entries(values)) {
@@ -911,8 +1516,41 @@ class DDAPartnerFutureFormPicker extends DDAPartnerFormPlannerBase {
       return;
     }
 
+    const previewImage = this.element?.querySelector?.(
+      "[data-form-picker-preview-image]"
+    );
+
+    const portraitImg = String(
+      previewImage?.dataset?.resolvedSrc ||
+      previewImage?.getAttribute?.("src") ||
+      this.selectedPortraitPath ||
+      ""
+    ).trim();
+
+    const plannedEvolutionMethod = String(
+      this.forcedMethod || this.selectedMethod || "normal"
+    ).trim();
+    const plannedFromReference = String(
+      this.selectedFromReference || ""
+    ).trim();
+
+    if (
+      ["slide", "dark"].includes(plannedEvolutionMethod) &&
+      !plannedFromReference
+    ) {
+      ui.notifications.warn(localize(
+        "DDA.PartnerFormPlanner.Picker.SourceRequired",
+        "Select the form from which this evolution begins."
+      ));
+      return;
+    }
+
     await this.close();
-    await this.planner?._openFutureFormWizard(actor);
+    await this.planner?._openFutureFormWizard(actor, {
+      portraitImg,
+      plannedEvolutionMethod,
+      plannedFromReference
+    });
   }
 
   static async _onActionCancelSelection(event) {

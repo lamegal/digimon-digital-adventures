@@ -44,7 +44,10 @@ import {
 import {
   getDigimonStageLabel as getConfiguredDigimonStageLabel
 } from "../helpers/digimon-stage-labels.js";
-import { getDdaPortraitPath } from "../data/dda-portrait-and-manual-digimon-data.js";
+import {
+  resolveDigimonPortraitSources,
+  shouldTreatStoredPortraitAsManual
+} from "../helpers/digimon-portrait-resolver.js";
 import { DDAEvolutionChoiceBrowser } from "../apps/evolution-choice-browser.js";
 
 const ActorSheetV1 = foundry.appv1.sheets.ActorSheet;
@@ -62,8 +65,34 @@ function isVideoPath(path = "") {
   return /\.(webm|mp4|m4v|ogg|ogv)$/i.test(cleanPath);
 }
 
+let DDA_SAFE_FILE_PICKER_CLASS = null;
+let DDA_SAFE_FILE_PICKER_BASE = null;
+
 function getDdaFilePickerClass() {
-  return globalThis.foundry?.applications?.apps?.FilePicker?.implementation ?? null;
+  const BaseFilePicker =
+    globalThis.foundry?.applications?.apps?.FilePicker?.implementation ??
+    null;
+
+  if (!BaseFilePicker) return null;
+
+  if (
+    DDA_SAFE_FILE_PICKER_CLASS &&
+    DDA_SAFE_FILE_PICKER_BASE === BaseFilePicker
+  ) {
+    return DDA_SAFE_FILE_PICKER_CLASS;
+  }
+
+  class DDASafeFilePicker extends BaseFilePicker {
+    _onSearchFilter(...args) {
+      const element = this.element;
+      if (!(element instanceof HTMLElement) || !element.isConnected) return;
+      return super._onSearchFilter(...args);
+    }
+  }
+
+  DDA_SAFE_FILE_PICKER_BASE = BaseFilePicker;
+  DDA_SAFE_FILE_PICKER_CLASS = DDASafeFilePicker;
+  return DDA_SAFE_FILE_PICKER_CLASS;
 }
 
 function getDdaDocumentSheetConfigClass() {
@@ -503,66 +532,32 @@ async getData(options = {}) {
     rawGroup: this.actor.system.group ?? ""
   };
   const storedDigivicePortrait = String(
-    this.actor.getFlag(game.system?.id ?? "digimon-digital-adventures", "digivicePortrait") || ""
+    this.actor.getFlag(
+      game.system?.id ?? "digimon-digital-adventures",
+      "digivicePortrait"
+    ) || ""
   );
-  const storedEvolutionPortrait = String(this.actor.system?.evolution?.portraitImg || "");
-  const mappedPortrait = getDdaPortraitPath({
-    key: this.actor.system?.sourceId || this.actor.system?.names?.canonical || "",
-    name: this.actor.name,
-    species: this.actor.system?.species || this.actor.name,
-    aliases: digimonAliases
+
+  /*
+   * A identidade atual da forma é sempre a fonte de verdade. Retratos antigos
+   * gravados no Actor só recebem prioridade quando foram escolhidos manualmente.
+   * Isso impede que uma evolução superior contamine visualmente uma forma de
+   * Estágio inferior que reutiliza o mesmo Actor parceiro persistente.
+   */
+  const portraitSources = resolveDigimonPortraitSources(this.actor, {
+    manualPortrait: storedDigivicePortrait,
+    manualPortraitSelected: shouldTreatStoredPortraitAsManual(
+      this.actor,
+      storedDigivicePortrait
+    ),
+    allowVideo: true
   });
 
-  const isAlgomonPerfect =
-    String(this.actor.system?.stage ?? "").trim() === "perfect" &&
-    [
-      this.actor.system?.sourceId,
-      this.actor.system?.names?.canonical,
-      this.actor.system?.species,
-      this.actor.name,
-      ...digimonAliases
-    ].some((value) => {
-      const key = String(value ?? "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "");
+  const digivicePortrait = portraitSources[0] ||
+    this.actor.img ||
+    "icons/svg/mystery-man.svg";
 
-      return [
-        "algomonperfect",
-        "argomonultimate"
-      ].includes(key);
-    });
-
-  const isKnownWrongAlgomonPortrait = (path = "") => {
-    return /(?:argomon[-_ ]?mega|algomon[-_ ]?ultimate)\.(?:webp|webm)$/i.test(
-      String(path ?? "")
-    );
-  };
-
-  const correctedDigivicePortrait =
-    isAlgomonPerfect &&
-    isKnownWrongAlgomonPortrait(storedDigivicePortrait)
-      ? ""
-      : storedDigivicePortrait;
-
-  const correctedEvolutionPortrait =
-    isAlgomonPerfect &&
-    isKnownWrongAlgomonPortrait(storedEvolutionPortrait)
-      ? ""
-      : storedEvolutionPortrait;
-
-  const digivicePortrait =
-    (correctedDigivicePortrait && correctedDigivicePortrait !== this.actor.img
-      ? correctedDigivicePortrait
-      : "") ||
-    (correctedEvolutionPortrait && correctedEvolutionPortrait !== this.actor.img
-      ? correctedEvolutionPortrait
-      : "") ||
-    mappedPortrait ||
-    correctedDigivicePortrait ||
-    correctedEvolutionPortrait ||
-    this.actor.img;
+  this._ddaDigivicePortraitFallbacks = portraitSources.slice(1);
   context.digivicePortrait = digivicePortrait;
   context.portraitIsVideo = isVideoPath(digivicePortrait);
 
@@ -876,12 +871,33 @@ _getEvolutionGraphData() {
     const name = node.name || species || formActor?.name || localize("DDA.Evolution.UnknownForm");
     const displayName = node.displayName || species || name;
 
+    const imageSources = resolveDigimonPortraitSources(
+      {
+        ...node,
+        stage: resolvedStage,
+        species,
+        displayName,
+        name
+      },
+      {
+        fallbackRecords: formActor ? [formActor] : [],
+        manualPortrait: node?.portraitImg ?? "",
+        manualPortraitSelected: Boolean(
+          node?.wizard?.portraitManuallySelected ||
+          node?.wizard?.portraitSource === "manual"
+        ),
+        allowVideo: false
+      }
+    );
+
     return {
       ...node,
       name,
       displayName,
       species,
-      img: node.img || formActor?.img || "icons/svg/mystery-man.svg",
+      img: imageSources[0] || "icons/svg/mystery-man.svg",
+      portraitImg: imageSources[0] || node.portraitImg || node.img || "",
+      imageFallbacks: imageSources.slice(1).join("|"),
       stage: resolvedStage,
       stageIndex: getEvolutionStageIndex(resolvedStage),
       stageLabel: getDigimonStageLabel(resolvedStage),
@@ -1094,6 +1110,7 @@ _getEvolutionGraphData() {
 
     html.find('[data-action="edit-digimon-portrait"]').on("click", this._onEditDigimonPortrait.bind(this));
     this._ensureAnimatedPortraitPlayback(html);
+    this._attachDigivicePortraitFallback(html);
 
     requestAnimationFrame(() => {
       const root = this.element?.[0];
@@ -3134,6 +3151,50 @@ async _onSelectMovementType(event) {
 }
 
 
+_attachDigivicePortraitFallback(html = this.element) {
+  const root = html instanceof jQuery ? html[0] : html;
+  const media = root?.querySelector?.(".dda-device-portrait");
+  if (!media || media.dataset.ddaPortraitFallbackBound === "true") return;
+
+  media.dataset.ddaPortraitFallbackBound = "true";
+  const fallbacks = Array.isArray(this._ddaDigivicePortraitFallbacks)
+    ? [...this._ddaDigivicePortraitFallbacks]
+    : [];
+
+  const nextStaticFallback = () => {
+    return fallbacks.find((path) => !isVideoPath(path)) ||
+      "icons/svg/mystery-man.svg";
+  };
+
+  if (media instanceof HTMLVideoElement) {
+    media.addEventListener("error", () => {
+      const image = document.createElement("img");
+      image.className = media.className;
+      image.src = nextStaticFallback();
+      image.alt = this.actor?.name ?? "Digimon";
+      image.title = media.title || this.actor?.name || "Digimon";
+      image.dataset.action = "edit-digimon-portrait";
+      image.dataset.ddaPortraitFallbackBound = "true";
+      image.addEventListener(
+        "click",
+        this._onEditDigimonPortrait.bind(this)
+      );
+      media.replaceWith(image);
+    }, { once: true });
+    return;
+  }
+
+  if (!(media instanceof HTMLImageElement)) return;
+
+  media.addEventListener("error", () => {
+    const next = fallbacks.shift();
+    media.setAttribute(
+      "src",
+      next || "icons/svg/mystery-man.svg"
+    );
+  });
+}
+
 _ensureAnimatedPortraitPlayback(html = this.element) {
   const root = html instanceof jQuery ? html[0] : html;
   if (!root) return;
@@ -3153,7 +3214,7 @@ _ensureAnimatedPortraitPlayback(html = this.element) {
   }
 }
 
-_onEditDigimonPortrait(event) {
+async _onEditDigimonPortrait(event) {
   event.preventDefault();
   event.stopPropagation();
 
@@ -3168,12 +3229,14 @@ _onEditDigimonPortrait(event) {
       // Foundry valida actor.img como imagem estática/animada, mas não como vídeo.
       // Por isso vídeos do Digivice ficam em flag própria e não quebram o schema do ator.
       await this.actor.setFlag(flagScope, "digivicePortrait", path);
+      await this.actor.setFlag(flagScope, "digivicePortraitManual", true);
       this.render(false);
       return;
     }
 
     await this.actor.update({ img: path });
     await this.actor.unsetFlag(flagScope, "digivicePortrait");
+    await this.actor.setFlag(flagScope, "digivicePortraitManual", true);
     this.render(false);
   };
 
@@ -3184,25 +3247,51 @@ if (!FilePickerClass) {
   return;
 }
 
-const openPicker = (type) => {
+const openPicker = async (type) => {
+  if (this._ddaPortraitFilePicker?.rendered) {
+    this._ddaPortraitFilePicker.bringToFront?.();
+    return this._ddaPortraitFilePicker;
+  }
+
+  if (this._ddaPortraitFilePicker) {
+    try {
+      await this._ddaPortraitFilePicker.close({ force: true });
+    } catch (_error) {
+      // A instância ApplicationV2 antiga pode já ter removido seu elemento.
+    }
+  }
+
   const picker = new FilePickerClass({
     type,
     current: this.actor.img,
-    callback: updatePortrait,
-    top: this.position.top + 40,
-    left: this.position.left + 40
+    callback: async (path) => {
+      await updatePortrait(path);
+      this._ddaPortraitFilePicker = null;
+    },
+    position: {
+      top: Number(this.position?.top ?? 0) + 40,
+      left: Number(this.position?.left ?? 0) + 40
+    }
   });
 
-  picker.render(true);
+  this._ddaPortraitFilePicker = picker;
+
+  try {
+    await picker.render({ force: true });
+    return picker;
+  } catch (error) {
+    if (this._ddaPortraitFilePicker === picker) {
+      this._ddaPortraitFilePicker = null;
+    }
+    throw error;
+  }
 };
 
   try {
-    // imagevideo permite escolher imagens animadas/estáticas e vídeos curtos
-    // como .gif, .webm e .mp4 para o retrato do Digivice.
-    openPicker("imagevideo");
+    await openPicker("imagevideo");
   } catch (error) {
     console.warn("DDA | FilePicker imagevideo indisponível; usando image como fallback.", error);
-    openPicker("image");
+    await openPicker("image");
   }
 }
 
@@ -3409,9 +3498,14 @@ function buildEvolutionLineUpdatesFromGraph(graph = {}) {
         return String(node.stage ?? "child") === stageKey;
       })
       .map((node) => normalizeEvolutionFormData({
+        ...foundry.utils.deepClone(node),
         name: node.name ?? "",
         uuid: node.actorUuid ?? node.uuid ?? "",
-        stage: node.stage ?? stageKey
+        actorUuid: node.actorUuid ?? node.uuid ?? "",
+        stage: node.stage ?? stageKey,
+        img: node.img ?? node.portraitImg ?? "",
+        portraitImg: node.portraitImg ?? node.img ?? "",
+        tokenImg: node.tokenImg ?? node.img ?? ""
       }, stageKey));
 
     Object.assign(updates, buildEvolutionSlotUpdate(stageKey, stageForms));
@@ -3508,6 +3602,7 @@ function getNormalizedEvolutionGraph(actor) {
     if (graph.nodes.some((node) => (node.actorUuid ?? node.uuid) === actorUuid)) return;
 
     graph.nodes.push({
+      ...foundry.utils.deepClone(formData),
       id: formData.id ?? generateEvolutionNodeId(actorUuid),
       actorUuid,
       name: formData.name ?? "",
@@ -3516,7 +3611,9 @@ function getNormalizedEvolutionGraph(actor) {
       stage: formData.stage ?? "child",
       unlocked: formData.unlocked ?? true,
       hidden: formData.hidden ?? false,
-      img: formData.img ?? ""
+      img: formData.img ?? formData.portraitImg ?? "",
+      portraitImg: formData.portraitImg ?? formData.img ?? "",
+      tokenImg: formData.tokenImg ?? formData.img ?? ""
     });
   };
 
@@ -3564,6 +3661,7 @@ function getNormalizedEvolutionGraph(actor) {
     if (actorUuid !== actor.uuid && removedActorUuids.has(actorUuid)) continue;
 
     const normalizedNode = {
+      ...foundry.utils.deepClone(node),
       id: node.id ?? generateEvolutionNodeId(actorUuid),
       actorUuid,
       name: node.name ?? "",
@@ -3572,7 +3670,9 @@ function getNormalizedEvolutionGraph(actor) {
       stage: node.stage ?? "child",
       unlocked: node.unlocked ?? true,
       hidden: node.hidden ?? false,
-      img: node.img ?? ""
+      img: node.img ?? node.portraitImg ?? "",
+      portraitImg: node.portraitImg ?? node.img ?? "",
+      tokenImg: node.tokenImg ?? node.img ?? ""
     };
 
     nodeByActorUuid.set(actorUuid, {
@@ -4317,6 +4417,25 @@ class DDAEvolutionGraphPopout extends Application {
     const root = html instanceof jQuery ? html[0] : html;
     if (!root) return;
 
+    for (const image of root.querySelectorAll(".dda-evolution-node img[data-fallback-srcs]")) {
+      image.addEventListener("error", () => {
+        const fallbacks = String(image.dataset.fallbackSrcs ?? "")
+          .split("|")
+          .map((value) => value.trim())
+          .filter(Boolean);
+        const index = Math.max(0, Number(image.dataset.fallbackIndex ?? 0));
+
+        if (index < fallbacks.length) {
+          image.dataset.fallbackIndex = String(index + 1);
+          image.setAttribute("src", fallbacks[index]);
+          return;
+        }
+
+        image.removeAttribute("data-fallback-srcs");
+        image.setAttribute("src", "icons/svg/mystery-man.svg");
+      });
+    }
+
     this.sheet._applyEvolutionSolarDynamicStyles(root);
 
     html.find("[data-evolution-popout-close]").on("click", (event) => {
@@ -4370,7 +4489,7 @@ class DDAEvolutionGraphPopout extends Application {
     this._pendingGraphRefresh = setTimeout(() => {
       if (!this.rendered) return;
       this.actor = actor;
-      this.sheet.actor = actor;
+      /* ActorSheet#actor is read-only in Foundry V13. */
       this.sheet._ddaEvolutionGraphView = {
         ...preservedView,
         actorUuid: actor.uuid,
@@ -4476,7 +4595,12 @@ class DDAEvolutionGraphPopout extends Application {
                 data-node-stage="${escape(node.stage ?? "")}" 
                 data-evolution-tooltip="${escape(node.tooltip ?? "")}" 
               >
-                <img src="${escape(node.img ?? "")}" alt="" />
+                <img
+                  src="${escape(node.img ?? "")}" 
+                  data-fallback-index="0"
+                  data-fallback-srcs="${escape(node.imageFallbacks ?? "icons/svg/mystery-man.svg")}" 
+                  alt=""
+                />
                 <strong>${escape(node.displayName ?? node.name ?? "")}</strong>
                 <span>${escape(node.stageLabel ?? "")}</span>
                 <div class="dda-evolution-node-actions">
