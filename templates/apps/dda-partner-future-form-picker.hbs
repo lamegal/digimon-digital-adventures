@@ -44,6 +44,61 @@
     </label>
   </div>
 
+  <section class="dda-partner-future-form-picker__planning {{#if darkEvolutionMode}}is-dark{{/if}}">
+    <div class="dda-partner-future-form-picker__planning-copy">
+      <i class="fas {{#if darkEvolutionMode}}fa-moon{{else}}fa-random{{/if}}"></i>
+      <div>
+        <strong>
+          {{#if darkEvolutionMode}}
+            {{localize "DDA.PartnerFormPlanner.Dark.ModeLabel"}}
+          {{else}}
+            {{localize "DDA.PartnerFormPlanner.Picker.EvolutionMethod"}}
+          {{/if}}
+        </strong>
+        <p>
+          {{#if darkEvolutionMode}}
+            {{localize "DDA.PartnerFormPlanner.Dark.PickerHint"}}
+          {{else}}
+            {{localize "DDA.PartnerFormPlanner.Picker.MethodHint"}}
+          {{/if}}
+        </p>
+      </div>
+    </div>
+
+    <label>
+      <span>{{localize "DDA.PartnerFormPlanner.Picker.EvolutionMethod"}}</span>
+      <select data-form-picker-method {{#if forcedMethod}}disabled{{/if}}>
+        {{#each methodOptions as |method|}}
+          <option
+            value="{{method.key}}"
+            {{#if method.selected}}selected{{/if}}
+            {{#if method.disabled}}disabled{{/if}}
+          >{{method.label}}</option>
+        {{/each}}
+      </select>
+    </label>
+
+    <label>
+      <span>{{localize "DDA.PartnerFormPlanner.Picker.SourceForm"}}</span>
+      <select data-form-picker-source {{#unless hasSourceForms}}disabled{{/unless}}>
+        {{#each sourceForms as |source|}}
+          {{#if source.allowed}}
+            <option value="{{source.reference}}" {{#if source.selected}}selected{{/if}}>
+              {{source.name}} — {{source.stageLabel}}
+            </option>
+          {{/if}}
+        {{/each}}
+      </select>
+    </label>
+
+    {{#if (eq selectedMethod "slide")}}
+      <p class="dda-partner-future-form-picker__planning-note">
+        <i class="fas fa-exchange-alt"></i>
+        {{localize "DDA.PartnerFormPlanner.Picker.SlideHint"}}
+      </p>
+    {{/if}}
+  </section>
+
   <div class="dda-partner-future-form-picker__workspace">
     <div class="dda-partner-future-form-picker__results">
       <div class="dda-partner-future-form-picker__grid">
@@ -76,10 +131,19 @@
             </span>
 
             <span class="dda-partner-future-form-card__tags">
+              <em
+                class="dda-partner-future-form-card__compatibility compatibility-{{entry.compatibilityTier}}"
+                title="{{entry.compatibilityTitle}}"
+              >
+                {{entry.compatibilityScore}}%
+              </em>
               <em>{{entry.attributeLabel}}</em>
               {{#if entry.type}}
                 <em>{{entry.type}}</em>
               {{/if}}
+              {{#each entry.categories as |category|}}
+                <em class="category-{{category.key}}">{{category.label}}</em>
+              {{/each}}
             </span>
 
             <span class="dda-partner-future-form-card__check">
@@ -132,7 +196,24 @@
             <dt>{{localize "DDA.Label.Type"}}</dt>
             <dd data-form-picker-preview-type></dd>
           </div>
+          <div>
+            <dt>{{localize "DDA.PartnerFormPlanner.Picker.Categories"}}</dt>
+            <dd data-form-picker-preview-categories></dd>
+          </div>
+          <div>
+            <dt>{{localize "DDA.PartnerFormPlanner.Picker.Compatibility"}}</dt>
+            <dd data-form-picker-preview-compatibility></dd>
+          </div>
+          <div>
+            <dt>{{localize "DDA.PartnerFormPlanner.Picker.CompatibilityFrom"}}</dt>
+            <dd data-form-picker-preview-compatibility-from></dd>
+          </div>
         </dl>
+
+        <p
+          class="dda-partner-future-form-picker__compatibility-reason"
+          data-form-picker-preview-compatibility-reason
+        ></p>
 
         <p class="dda-partner-future-form-picker__preview-warning">
           <i class="fas fa-lock"></i>

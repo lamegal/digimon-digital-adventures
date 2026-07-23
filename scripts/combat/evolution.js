@@ -4,6 +4,9 @@ import { syncPartnerOwnershipFromTamer } from "../utils/ownership.js";
 import { runDigimonTokenEvolutionTransition } from "../tokens/digimon-token-scale.js";
 import { clearClashStateForActor } from "./clash.js";
 import { getDdaTokenPath } from "../data/dda-portrait-and-manual-digimon-data.js";
+import {
+  resolveDigimonPortraitSources
+} from "../helpers/digimon-portrait-resolver.js";
 
 import {
   getPartnerFormBonusDpAvailable,
@@ -1242,7 +1245,8 @@ export async function getStoredPartnerFormWizardContext(
 
 export async function getFuturePartnerFormWizardContext(
   tamerActor,
-  formTemplateActor
+  formTemplateActor,
+  options = {}
 ) {
   if (!tamerActor || tamerActor.type !== "character") {
     ui.notifications.warn(localize("DDA.Warning.DigivolutionOnlyForTamers"));
@@ -1269,50 +1273,141 @@ export async function getFuturePartnerFormWizardContext(
   }
 
   const formTemplateReference = getFormTemplateReference(formTemplateActor);
-
   const existingSnapshot = getPartnerFormSnapshot(
     partnerActor,
     formTemplateReference
   );
+  const templateSystem = formTemplateActor.system ?? {};
+  const templateNames = templateSystem.names ?? {};
+  const staticPortraitSources = resolveDigimonPortraitSources(
+    formTemplateActor,
+    { allowVideo: false }
+  );
+  const actorPortraitSources = resolveDigimonPortraitSources(
+    formTemplateActor,
+    { allowVideo: true }
+  );
+  const staticImage = String(
+    staticPortraitSources[0] ||
+    options?.portraitImg ||
+    formTemplateActor.img ||
+    "icons/svg/mystery-man.svg"
+  ).trim();
+  const actorPortrait = String(
+    actorPortraitSources[0] ||
+    staticImage
+  ).trim();
+  const plannedEvolutionMethod = String(
+    options?.plannedEvolutionMethod ||
+    existingSnapshot?.wizard?.plannedEvolutionMethod ||
+    "normal"
+  ).trim() || "normal";
+  const plannedFromReference = String(
+    options?.plannedFromReference ||
+    existingSnapshot?.wizard?.plannedFromReference ||
+    ""
+  ).trim();
 
-  const snapshot = existingSnapshot ?? {
+  const snapshot = {
+    ...(existingSnapshot ?? {}),
     sourceFormUuid: formTemplateReference,
-    sourceFormName: formTemplateActor.name,
-
-    // O apelido pertence ao parceiro e acompanha toda a linha.
-    name: partnerActor.name,
-
-    img: formTemplateActor.img || partnerActor.img,
-    portraitImg: "",
-    tokenImg: await getEvolutionTokenTextureSource(
-      formTemplateActor,
-      partnerActor
+    sourceFormName: String(
+      formTemplateActor.name ||
+      templateSystem.species ||
+      existingSnapshot?.sourceFormName ||
+      "Digimon"
     ),
+    sourceId: String(
+      templateSystem.sourceId ||
+      templateNames.canonical ||
+      existingSnapshot?.sourceId ||
+      ""
+    ),
+    databaseId: String(
+      templateSystem.databaseId ||
+      formTemplateActor.databaseId ||
+      existingSnapshot?.databaseId ||
+      ""
+    ),
+    originalName: String(
+      templateNames.original ||
+      templateSystem.species ||
+      formTemplateActor.name ||
+      ""
+    ),
+    dubName: String(
+      templateNames.dub ||
+      templateSystem.species ||
+      formTemplateActor.name ||
+      ""
+    ),
+    aliases: Array.isArray(templateNames.aliases)
+      ? foundry.utils.deepClone(templateNames.aliases)
+      : [],
+    names: foundry.utils.deepClone(templateNames),
 
-    species: formTemplateActor.system?.species || formTemplateActor.name,
-    stage: formTemplateActor.system?.stage || "child",
-    type: formTemplateActor.system?.type || "",
-    attribute: formTemplateActor.system?.attribute || "data",
-    field: formTemplateActor.system?.field || "none",
-    family: formTemplateActor.system?.family || "none",
-    group: formTemplateActor.system?.group || "",
+    // The nickname belongs to the persistent partner and follows every form.
+    name: existingSnapshot?.name || partnerActor.name,
+
+    img: staticImage,
+    portraitImg: actorPortrait,
+    imageFallbacks: staticPortraitSources.slice(1).join("|"),
+    tokenImg: existingSnapshot?.tokenImg ||
+      await getEvolutionTokenTextureSource(formTemplateActor, null),
+
+    species: templateSystem.species || formTemplateActor.name,
+    stage: templateSystem.stage || "child",
+    stageValue: Number(templateSystem.stageValue ?? 2),
+    size: templateSystem.size || "medium",
+    type: templateSystem.type || "",
+    attribute: templateSystem.attribute || "data",
+    field: templateSystem.field || "none",
+    family: templateSystem.family || "none",
+    group: templateSystem.group || "",
+    evolutionCategory: templateSystem.evolutionCategory || "normal",
+    specialCategories: foundry.utils.deepClone(
+      templateSystem.specialCategories ?? []
+    ),
+    primarySpecialCategory: String(
+      templateSystem.primarySpecialCategory || ""
+    ),
+    isSpecialForm: Boolean(templateSystem.isSpecialForm),
+    specialForm: foundry.utils.deepClone(
+      templateSystem.specialForm ?? {}
+    ),
 
     profile: foundry.utils.deepClone(
-      formTemplateActor.system?.profile ?? {}
+      existingSnapshot?.profile ?? templateSystem.profile ?? {}
     ),
-
-    mainStats: {},
-    miscStats: {},
-    creation: {},
-    qualityLimits: {},
-
+    mainStats: foundry.utils.deepClone(
+      existingSnapshot?.mainStats ?? {}
+    ),
+    miscStats: foundry.utils.deepClone(
+      existingSnapshot?.miscStats ?? {}
+    ),
+    creation: foundry.utils.deepClone(
+      existingSnapshot?.creation ?? {}
+    ),
+    qualityLimits: foundry.utils.deepClone(
+      existingSnapshot?.qualityLimits ?? {}
+    ),
     wizard: {
+      ...(existingSnapshot?.wizard ?? {}),
       preparedFutureForm: true,
-      openedAt: new Date().toISOString()
+      openedAt: existingSnapshot?.wizard?.openedAt || new Date().toISOString(),
+      plannedEvolutionMethod,
+      plannedFromReference,
+      plannedByGM: Boolean(options?.plannedByGM),
+      darkEvolution: Boolean(
+        options?.darkEvolution || plannedEvolutionMethod === "dark"
+      ),
+      plannerImageResolved: true
     },
 
-    // Nunca puxar ataques ou Qualidades da forma atualmente ativa.
-    items: []
+    // Never pull Attacks or Qualities from the currently active form.
+    items: Array.isArray(existingSnapshot?.items)
+      ? foundry.utils.deepClone(existingSnapshot.items)
+      : []
   };
 
   const totalBonusDp = Math.max(
@@ -1324,9 +1419,7 @@ export async function getFuturePartnerFormWizardContext(
 
   const formBonusDp = getPartnerFormBonusDpAvailable(
     partnerActor,
-    snapshot?.sourceFormUuid ||
-      formTemplateReference ||
-      "",
+    snapshot.sourceFormUuid || formTemplateReference || "",
     totalBonusDp
   );
 
@@ -1336,7 +1429,8 @@ export async function getFuturePartnerFormWizardContext(
     formTemplateActor,
     snapshot,
     bonusDp: formBonusDp,
-    bonusDpTotal: totalBonusDp
+    bonusDpTotal: totalBonusDp,
+    plannerOptions: foundry.utils.deepClone(options ?? {})
   };
 }
 
@@ -1388,10 +1482,11 @@ export async function savePartnerFutureFormSnapshot({
 
 
   storedSnapshot.tokenImg = await resolveEvolutionTokenImage({
-  snapshot: storedSnapshot,
-  formTemplateActor,
-  fallbackActor: partnerActor
-});
+    snapshot: storedSnapshot,
+    formTemplateActor,
+    // A future form must never borrow the currently active partner artwork.
+    fallbackActor: formTemplateActor ?? null
+  });
 
   await upsertPartnerFormSnapshot(partnerActor, storedSnapshot);
 
@@ -1584,6 +1679,34 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
       );
   }
 
+  const portraitManual = Boolean(
+    snapshot?.wizard?.portraitManuallySelected ||
+    snapshot?.wizard?.portraitSource === "manual"
+  );
+  const portraitFallbacks = fallbackActor ? [fallbackActor] : [];
+  const staticPortraitSources = resolveDigimonPortraitSources(snapshot ?? {}, {
+    fallbackRecords: portraitFallbacks,
+    manualPortrait: snapshot?.portraitImg ?? "",
+    manualPortraitSelected: portraitManual,
+    allowVideo: false
+  });
+  const actorPortraitSources = resolveDigimonPortraitSources(snapshot ?? {}, {
+    fallbackRecords: portraitFallbacks,
+    manualPortrait: snapshot?.portraitImg ?? "",
+    manualPortraitSelected: portraitManual,
+    allowVideo: true
+  });
+  const resolvedStaticImg = String(
+    staticPortraitSources[0] ||
+    snapshot?.img ||
+    fallbackActor?.img ||
+    "icons/svg/mystery-man.svg"
+  );
+  const resolvedPortraitImg = String(
+    actorPortraitSources[0] ||
+    resolvedStaticImg
+  );
+
   return {
     key,
     sourceFormUuid,
@@ -1712,23 +1835,15 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
       "Digimon"
     ),
 
-    img: String(snapshot?.img || fallbackActor?.img || "icons/svg/mystery-man.svg"),
-    portraitImg: String(
-      snapshot?.portraitImg ||
-      fallbackActor?.system?.evolution?.portraitImg ||
-      fallbackActor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait ||
-      fallbackActor?.img ||
-      snapshot?.img ||
-      "icons/svg/mystery-man.svg"
-    ),
+    img: resolvedStaticImg,
+    portraitImg: resolvedPortraitImg,
+    imageFallbacks: staticPortraitSources.slice(1).join("|"),
     tokenImg: String(
       snapshot?.tokenImg ||
       fallbackActor?.system?.evolution?.tokenImg ||
       fallbackActor?.prototypeToken?.texture?.src ||
-      snapshot?.img ||
-      fallbackActor?.img ||
-      snapshot?.portraitImg ||
-      fallbackActor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait ||
+      resolvedStaticImg ||
+      resolvedPortraitImg ||
       "icons/svg/mystery-man.svg"
     ),
     species: String(snapshot?.species || fallbackActor?.system?.species || fallbackActor?.name || snapshot?.name || "Digimon"),

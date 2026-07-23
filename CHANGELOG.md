@@ -1,3 +1,49 @@
+# Digimon Digital Adventures V2 — v2.0.7-beta
+
+## Partner Form Planner
+
+- Added support for preparing future Partner forms before their Evolution Stages are unlocked.
+- Added support for Normal, special, Side Evolution and Dark Evolution planning.
+- Added compatibility percentages and compatibility explanations to form selection.
+- Added controls for removing planned forms.
+- Added GM controls for releasing planned forms whose Stages are already unlocked.
+- Added stable identities for planned forms, preventing forms from overwriting entries in other Stages.
+- Added visual states for planned, available and released forms.
+- Improved category pills and card layout.
+
+## Evolution
+
+- Added Side Evolution selection to the Partner Form Planner.
+- Added Dark Evolution planning through the GM Partner Progress Manager.
+- Added automatic Evolution Map registration for released planned forms.
+- Added automatic evolution links when a valid and unambiguous origin is available.
+- Improved preservation of snapshots, portraits, tokens and special-form metadata.
+- Fixed higher-Stage forms appearing in lower-Stage slots.
+- Fixed removal of planned forms from snapshots, the Evolution Map, evolution links and unlocked-form records.
+- Fixed an Evolution Map refresh error caused by assigning to the read-only `ActorSheet.actor` getter.
+
+## Images
+
+- Reworked Digimon image resolution around assets that actually exist in the system.
+- Added generated static portrait and token manifests.
+- Fixed repeated image `404` errors caused by obsolete Stage-folder paths.
+- Improved image fallbacks across Actors, the Planner, Wizard, Evolution Map and Evolution Browser.
+- Fixed old snapshots overriding the portrait of the selected form.
+- Fixed portraits leaking between different forms and Stages.
+
+## Localization and stability
+
+- Fixed localization key collisions in English and Brazilian Portuguese.
+- Improved repeated release and repair operations to avoid duplicate forms, nodes and links.
+- Improved compatibility with existing Actors and snapshots created before this release.
+
+## Planned for v2.0.8-beta
+
+- Add the Prevent combat reaction through the pending Dodge chat card context menu.
+
+---
+
+
 # Digimon Digital Adventures V2 — v2.0.6-beta
 
 ## Release Highlights

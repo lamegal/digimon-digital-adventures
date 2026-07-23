@@ -4,6 +4,9 @@ import {
   getDdaPortraitPath
 } from "./dda-portrait-and-manual-digimon-data.js";
 import { DDA } from "../config.js";
+import {
+  resolveDigimonPortrait
+} from "../helpers/digimon-portrait-resolver.js";
 
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 const DDA_DIGIMON_DATABASE_PATH = `systems/${DDA_SYSTEM_ID}/data/digimon/all_digimon_with_evolution_index_v6.json`;
@@ -177,23 +180,22 @@ function stageIdentity(stage = "", key = "") {
 }
 
 function getLocalImagePath(stage = "", key = "", actor = {}) {
-  const candidates = [
-    stageIdentity(stage, key),
-    stageIdentity(stage, actor.system?.sourceId),
-    stageIdentity(stage, actor.system?.species),
-    stageIdentity(stage, actor.system?.names?.original),
-    stageIdentity(stage, actor.system?.names?.dub),
-    stageIdentity(stage, actor.name),
-    ...(Array.isArray(actor.system?.names?.aliases) ? actor.system.names.aliases.map((alias) => stageIdentity(stage, alias)) : [])
-  ].filter(Boolean);
+  const system = actor.system ?? {};
+  const names = system.names ?? {};
 
-  for (const candidate of candidates) {
-    const fileName = IMAGE_FILE_OVERRIDES[candidate];
-    if (fileName) return `systems/${DDA_SYSTEM_ID}/assets/digimon/${stage}/${fileName}`;
-  }
-
-  const cleanName = String(actor.name || actor.system?.species || key || "").replace(/[^a-zA-Z0-9]+/g, "");
-  return cleanName ? `systems/${DDA_SYSTEM_ID}/assets/digimon/${stage}/${cleanName}.webp` : "";
+  return resolveDigimonPortrait({
+    ...actor,
+    system: {
+      ...system,
+      stage: stage || system.stage || "",
+      sourceId: system.sourceId || key || names.canonical || "",
+      databaseId: system.databaseId || (stage && key ? `${stage}:${key}` : ""),
+      names: {
+        ...names,
+        canonical: names.canonical || system.sourceId || key || ""
+      }
+    }
+  });
 }
 
 function hasSuspiciousRemoteImage(path = "") {
@@ -201,6 +203,19 @@ function hasSuspiciousRemoteImage(path = "") {
   if (!clean) return true;
   if (clean === PLACEHOLDER_IMAGE) return true;
   return /^https?:\/\//i.test(clean);
+}
+
+function hasUnsupportedLegacyImage(path = "") {
+  const clean = String(path ?? "").trim();
+  if (!clean.startsWith(`systems/${DDA_SYSTEM_ID}/assets/digimon/`)) {
+    return false;
+  }
+
+  return !/\/assets\/digimon\/(?:portraits|tokens)\//i.test(clean);
+}
+
+function shouldRepairImage(path = "") {
+  return hasSuspiciousRemoteImage(path) || hasUnsupportedLegacyImage(path);
 }
 
 function cloneActor(actor = {}) {
@@ -257,16 +272,20 @@ if (isKaiserGreymon) {
     system.species = "Kaiser Greymon";
   }
 
-  const hybridImage = `systems/${DDA_SYSTEM_ID}/assets/digimon/hybrid/EmperorGreymon.webp`;
+  const hybridImage = getLocalImagePath(
+    "ultimate",
+    "kaisergreymon",
+    next
+  );
 
-  if (hasSuspiciousRemoteImage(next.img) || /\/adult\/KaiserGreymon\.webp$/i.test(String(next.img ?? ""))) {
+  if (shouldRepairImage(next.img) || /\/adult\/KaiserGreymon\.webp$/i.test(String(next.img ?? ""))) {
     next.img = hybridImage;
   }
 
   next.prototypeToken = next.prototypeToken ?? {};
   next.prototypeToken.texture = next.prototypeToken.texture ?? {};
 
-  if (hasSuspiciousRemoteImage(next.prototypeToken.texture.src) || /\/adult\/KaiserGreymon\.webp$/i.test(String(next.prototypeToken.texture.src ?? ""))) {
+  if (shouldRepairImage(next.prototypeToken.texture.src) || /\/adult\/KaiserGreymon\.webp$/i.test(String(next.prototypeToken.texture.src ?? ""))) {
     next.prototypeToken.texture.src = hybridImage;
   }
 }
@@ -286,8 +305,8 @@ if (isKaiserGreymon) {
   }
 
   const localImage = getLocalImagePath(stage, key, next);
-  if (localImage && hasSuspiciousRemoteImage(next.img)) next.img = localImage;
-  if (localImage && hasSuspiciousRemoteImage(next.prototypeToken?.texture?.src)) {
+  if (localImage && shouldRepairImage(next.img)) next.img = localImage;
+  if (localImage && shouldRepairImage(next.prototypeToken?.texture?.src)) {
     next.prototypeToken = next.prototypeToken ?? {};
     next.prototypeToken.texture = next.prototypeToken.texture ?? {};
     next.prototypeToken.texture.src = localImage;
@@ -498,14 +517,22 @@ function makeVirtualHybridActor(recipe = {}) {
     ...(Array.isArray(result.aliases) ? result.aliases : [])
   ]);
 
-  const portraitPath = getDdaPortraitPath({
-    key: sourceId,
-    name: displayName,
-    species: displayName,
-    aliases
-  });
-
   const databaseId = stageIdentity(stage, sourceId);
+  const portraitPath = resolveDigimonPortrait({
+    name: displayName,
+    system: {
+      sourceId,
+      databaseId,
+      species: displayName,
+      stage,
+      names: {
+        canonical: sourceId,
+        original: displayName,
+        dub: displayName,
+        aliases
+      }
+    }
+  });
 
   return {
     name: displayName,

@@ -6,6 +6,11 @@ import {
   getTamerProgressSummary,
   releasePendingCampaignMilestones
 } from "../rules/tamer-progression.js";
+import { DDAPartnerFormPlanner } from "./dda-partner-form-planner.js";
+import {
+  resolveDigimonPortraitSources,
+  shouldTreatStoredPortraitAsManual
+} from "../helpers/digimon-portrait-resolver.js";
 
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -51,6 +56,59 @@ function stageLabel(stageKey = "") {
   return fallbackKey
     ? localize(fallbackKey, stageKey)
     : stageKey;
+}
+
+function getDarkEvolutionEnabled() {
+  try {
+    return Boolean(
+      game.settings.get(DDA_SYSTEM_ID, "enableDarkEvolution")
+    );
+  } catch (_error) {
+    return false;
+  }
+}
+
+function getProgressPortraitSources(actor = null) {
+  if (!actor) return ["icons/svg/mystery-man.svg"];
+
+  const storedPortrait = String(
+    actor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait || ""
+  );
+
+  return resolveDigimonPortraitSources(actor, {
+    manualPortrait: storedPortrait,
+    manualPortraitSelected: shouldTreatStoredPortraitAsManual(
+      actor,
+      storedPortrait
+    ),
+    allowVideo: false
+  });
+}
+
+function attachImageFallbacks(root = null) {
+  if (!(root instanceof HTMLElement)) return;
+
+  for (const image of root.querySelectorAll("img[data-fallback-srcs]")) {
+    if (image.dataset.ddaFallbackBound === "true") continue;
+    image.dataset.ddaFallbackBound = "true";
+
+    image.addEventListener("error", () => {
+      const fallbacks = String(image.dataset.fallbackSrcs ?? "")
+        .split("|")
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      const index = Math.max(0, Number(image.dataset.fallbackIndex ?? 0));
+
+      if (index < fallbacks.length) {
+        image.dataset.fallbackIndex = String(index + 1);
+        image.src = fallbacks[index];
+        return;
+      }
+
+      image.removeAttribute("data-fallback-srcs");
+      image.src = "icons/svg/mystery-man.svg";
+    });
+  }
 }
 
 function formatDateTime(value = "") {
@@ -243,7 +301,11 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
 
       toggleCrestDigivice:
         DDAGMPartnerProgressPanel
-          ._onActionToggleCrestDigivice
+          ._onActionToggleCrestDigivice,
+
+      planDarkEvolution:
+        DDAGMPartnerProgressPanel
+          ._onActionPlanDarkEvolution
     }
   };
 
@@ -271,6 +333,7 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
   async _prepareContext(options = {}) {
     const context = await super._prepareContext(options);
     const isGM = Boolean(game.user?.isGM);
+    const darkEvolutionEnabled = getDarkEvolutionEnabled();
 
     if (!isGM) {
       return {
@@ -283,7 +346,8 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
         selectedGroupUuid: this.selectedGroupUuid,
         selectedTamerUuid: this.selectedTamerUuid,
         targetMode: this.targetMode,
-        hasTamers: false
+        hasTamers: false,
+        darkEvolutionEnabled: false
       };
     }
 
@@ -344,6 +408,10 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
 
       const tamerProgress = getTamerProgressSummary(tamer);
       const bonusDp = getDigimonBonusDpSummary(tamer, partner);
+      const partnerPortraitSources = getProgressPortraitSources(partner);
+      const currentFormPortraitSources = getProgressPortraitSources(
+        currentForm ?? partner
+      );
 
       tamers.push({
         uuid: tamer.uuid,
@@ -358,8 +426,9 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
           tamer.system?.partner?.name ??
           "",
 
-        partnerImg: partner?.img ??
+        partnerImg: partnerPortraitSources[0] ??
           "icons/svg/mystery-man.svg",
+        partnerImageFallbacks: partnerPortraitSources.slice(1).join("|"),
 
         currentFormUuid: currentForm?.uuid ??
           tamer.system?.partner?.currentFormUuid ??
@@ -370,9 +439,11 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
           partner?.name ??
           "",
 
-        currentFormImg: currentForm?.img ??
-          partner?.img ??
+        currentFormImg: currentFormPortraitSources[0] ??
+          partnerPortraitSources[0] ??
           "icons/svg/mystery-man.svg",
+        currentFormImageFallbacks:
+          currentFormPortraitSources.slice(1).join("|"),
 
         currentStageLabel: stageLabel(
           currentForm?.system?.stage ??
@@ -384,6 +455,7 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
         hasCrest: Boolean(crestKey),
         questionnaireEnabled,
         digiviceRevealed,
+        darkEvolutionEnabled,
 
         milestonesCompleted: tamerProgress.milestonesCompleted,
         attributeCap: tamerProgress.attributeCap,
@@ -417,6 +489,7 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
       selectedGroupUuid: this.selectedGroupUuid,
       selectedTamerUuid: this.selectedTamerUuid,
       hasTamers: tamers.length > 0,
+      darkEvolutionEnabled,
       selectedTargetCount: visibleTamerActors.length,
       selectedTargetLabel: this._getSelectedTargetLabel(
         visibleTamerActors,
@@ -515,6 +588,8 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
     const root = this.element;
     if (!root) return;
 
+    attachImageFallbacks(root);
+
     root.querySelector(
       "[data-progress-control='target-mode']"
     )?.addEventListener(
@@ -599,6 +674,10 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
 
   static async _onActionToggleCrestDigivice(event, target) {
     return this._onToggleCrestDigivice(event, target);
+  }
+
+  static async _onActionPlanDarkEvolution(event, target) {
+    return this._onPlanDarkEvolution(event, target);
   }
 
   async _onRefresh(event) {
@@ -830,6 +909,44 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
         )
       );
     }
+  }
+
+  async _onPlanDarkEvolution(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!game.user?.isGM) {
+      ui.notifications.warn(
+        localize("DDA.GMPartnerProgress.OnlyGM")
+      );
+      return;
+    }
+
+    if (!getDarkEvolutionEnabled()) {
+      ui.notifications.warn(
+        localize(
+          "DDA.GMPartnerProgress.DarkEvolutionDisabled",
+          "Enable Dark Evolution in the system settings first."
+        )
+      );
+      return;
+    }
+
+    const tamer = await resolveActor(
+      target?.dataset?.tamerUuid ?? ""
+    );
+
+    if (!tamer || tamer.type !== "character") {
+      ui.notifications.warn(
+        localize(
+          "DDA.GMPartnerProgress.NoTamers",
+          "No linked Tamer was found."
+        )
+      );
+      return;
+    }
+
+    await DDAPartnerFormPlanner.openDarkEvolution(tamer);
   }
 
   async _onOpenActor(event, target) {

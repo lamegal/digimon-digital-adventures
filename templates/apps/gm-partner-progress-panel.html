@@ -225,7 +225,12 @@
               <label>{{localize "DDA.GMPartnerProgress.Partner"}}</label>
 
               <div>
-                <img src="{{tamer.partnerImg}}" alt="{{tamer.partnerName}}" />
+                <img
+                  src="{{tamer.partnerImg}}"
+                  data-fallback-index="0"
+                  data-fallback-srcs="{{tamer.partnerImageFallbacks}}"
+                  alt="{{tamer.partnerName}}"
+                />
                 <strong>{{tamer.partnerName}}</strong>
               </div>
 
@@ -240,7 +245,12 @@
               <label>{{localize "DDA.GMPartnerProgress.CurrentForm"}}</label>
 
               <div>
-                <img src="{{tamer.currentFormImg}}" alt="{{tamer.currentFormName}}" />
+                <img
+                  src="{{tamer.currentFormImg}}"
+                  data-fallback-index="0"
+                  data-fallback-srcs="{{tamer.currentFormImageFallbacks}}"
+                  alt="{{tamer.currentFormName}}"
+                />
                 <strong>{{tamer.currentFormName}}</strong>
                 <span>{{tamer.currentStageLabel}}</span>
               </div>
@@ -314,7 +324,21 @@
           </div>
 
           <section class="dda-gm-progress-stage-panel">
-            <h4>{{localize "DDA.GMPartnerProgress.UnlockedStages"}}</h4>
+            <div class="dda-gm-progress-stage-panel__header">
+              <h4>{{localize "DDA.GMPartnerProgress.UnlockedStages"}}</h4>
+
+              <button
+                type="button"
+                class="dda-gm-progress-dark-plan-button"
+                data-action="planDarkEvolution"
+                data-tamer-uuid="{{tamer.uuid}}"
+                title="{{localize 'DDA.GMPartnerProgress.PlanDarkEvolutionHint'}}"
+                {{#unless tamer.darkEvolutionEnabled}}disabled{{/unless}}
+              >
+                <i class="fas fa-moon"></i>
+                <span>{{localize "DDA.GMPartnerProgress.PlanDarkEvolution"}}</span>
+              </button>
+            </div>
 
             <div class="dda-gm-progress-stage-list">
               {{#each tamer.stages as |stage|}}
