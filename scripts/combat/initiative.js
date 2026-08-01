@@ -696,38 +696,70 @@ function orderUnits(units) {
     });
   }
 
-  const largerSide =
-    players.length > enemies.length
-      ? "players"
-      : "enemies";
+  /*
+   * The Outnumbered Initiative example distributes extra Player units between
+   * Enemy activations. The reverse case is intentionally not symmetrical:
+   * when Enemies outnumber Players, alternate one unit from each side for as
+   * long as possible, then append the remaining Enemy units at the end.
+   *
+   * This prevents an Enemy chunk from appearing before every Player unit has
+   * received its available alternating position.
+   */
+  if (enemies.length > players.length) {
+    const result = [];
 
-  const larger =
-    largerSide === "players"
-      ? players
-      : enemies;
+    let playerIndex = 0;
+    let enemyIndex = 0;
 
-  const smaller =
-    largerSide === "players"
-      ? enemies
-      : players;
+    while (
+      playerIndex < players.length &&
+      enemyIndex < enemies.length
+    ) {
+      if (firstSide === "players") {
+        result.push(
+          players[playerIndex],
+          enemies[enemyIndex]
+        );
+      } else {
+        result.push(
+          enemies[enemyIndex],
+          players[playerIndex]
+        );
+      }
 
-  const largerChunks = splitIntoChunks(
-    larger,
-    smaller.length
+      playerIndex += 1;
+      enemyIndex += 1;
+    }
+
+    result.push(
+      ...enemies.slice(enemyIndex)
+    );
+
+    return result;
+  }
+
+  /*
+   * When Players outnumber Enemies, preserve the official proportional
+   * distribution by dividing Player units as evenly as possible between Enemy
+   * activations.
+   */
+  const playerChunks = splitIntoChunks(
+    players,
+    enemies.length
   );
 
   const result = [];
 
-  for (let index = 0; index < smaller.length; index += 1) {
-    if (firstSide === largerSide) {
+  for (let index = 0; index < enemies.length; index += 1) {
+    if (firstSide === "players") {
       result.push(
-        ...largerChunks[index],
-        smaller[index]
+        ...playerChunks[index],
+        enemies[index]
       );
     } else {
       result.push(
-        smaller[index],
-        ...largerChunks[index]
+        enemies[index],
+        ...playerChunks[index]
       );
     }
   }
