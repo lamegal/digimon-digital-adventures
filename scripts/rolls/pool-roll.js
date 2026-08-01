@@ -1,5 +1,10 @@
 import {
+  findQuality,
   getLowRerollDeclaration,
+  getQualityRank,
+  hasQuality,
+  maybeUseVariableReroll,
+  setUseState,
   spendQualityUse
 } from "../rules/quality-automation.js";
 
@@ -14,6 +19,14 @@ import {
   consumeDigimonActionPoolEffects,
   prepareDigimonActionPoolOptions
 } from "../combat/digimon-actions.js";
+import {
+  consumeGuidingDice,
+  prepareGuidingDicePoolOptions
+} from "../combat/effect-qualities.js";
+import {
+  consumeOmniscientHoldDodge,
+  prepareOmniscientHoldPoolOptions
+} from "../combat/digizoid-gain-force.js";
 
 function getEvasiveManeuversReserve(
   actor
@@ -121,6 +134,7 @@ async function consumeEvasiveManeuversReserve(
 }
 
 export async function rollPool(actor, statKey, options = {}) {
+  options = prepareOmniscientHoldPoolOptions(actor, statKey, options);
   options = prepareTamerActionPoolOptions(
     actor,
     statKey,
@@ -131,6 +145,7 @@ export async function rollPool(actor, statKey, options = {}) {
     statKey,
     options
   );
+  options = prepareGuidingDicePoolOptions(actor, options);
 
   const system = actor.system;
   const stat = system.mainStats?.[statKey];
@@ -159,10 +174,13 @@ const preparedOptions =
     }
   );
 
-  const lowRerollDeclaration = await getLowRerollDeclaration(actor, statKey);
+  let lowRerollDeclaration = null;
 
   const dialogData = await getPoolDialogData(actor, statKey, stat, preparedOptions);
   if (!dialogData) return;
+  if (options.omniscientHoldDodgeId) {
+    await consumeOmniscientHoldDodge(actor, options.omniscientHoldDodgeId);
+  }
 
   const baseDice = Math.max(0, Number(stat.total ?? 0));
   const manualDiceModifier = Number(dialogData.manualDiceModifier ?? 0);
@@ -194,6 +212,7 @@ const evasiveManeuversDice =
     )
   );
 
+const guidingDice = Math.max(0, Number(dialogData.guidingDice ?? 0));
 const resultModifier = Number(dialogData.resultModifier ?? 0);
 const resultModifierSummary = String(
   dialogData.resultModifierSummary ??
@@ -234,7 +253,8 @@ const dice = Math.max(
   manualDiceModifier +
   externalDiceModifier +
   stanceDiceModifier +
-  evasiveManeuversDice -
+  evasiveManeuversDice +
+  guidingDice -
   dodgePenalty
 );
 
@@ -281,7 +301,12 @@ content: `
   return;
 }
 
-  const roll = dice > 0 ? await new Roll(`${dice}d6`).evaluate() : null;
+  let roll = dice > 0 ? await new Roll(`${dice}d6`).evaluate() : null;
+  const variableReroll = await maybeUseVariableReroll(actor, roll, {
+    source: `mainStatPool:${statKey}`,
+    title: statLabel
+  });
+  roll = variableReroll.roll;
 
   const diceResults = roll?.dice[0]?.results ?? [];
   const rerollLimit = Math.max(
@@ -289,7 +314,7 @@ content: `
     Number(options.rerollResultsUpTo ?? 0),
     Number(lowRerollDeclaration?.rerollResultsUpTo ?? 0)
   );
-  const rerollLabel = lowRerollDeclaration?.label ?? options.rerollLabel ?? "Reroll";
+  let rerollLabel = options.rerollLabel ?? "Reroll";
   const rerolledDice = [];
   const rerollProtectedDice = Math.min(
     diceResults.length,
@@ -297,7 +322,21 @@ content: `
   );
   const protectedDiceStart = Math.max(0, diceResults.length - rerollProtectedDice);
 
-  if (rerollLimit > 0 && diceResults.length) {
+  lowRerollDeclaration = await getLowRerollDeclaration(actor, statKey, {
+    diceResults,
+    protectedDiceStart
+  });
+
+  if (lowRerollDeclaration?.label) {
+    rerollLabel = lowRerollDeclaration.label;
+  }
+
+  const effectiveRerollLimit = Math.max(
+    rerollLimit,
+    Number(lowRerollDeclaration?.rerollResultsUpTo ?? 0)
+  );
+
+  if (effectiveRerollLimit > 0 && diceResults.length) {
     /*
      * Congelamos a lista de dados elegíveis antes
      * de realizar qualquer rerrolagem.
@@ -316,7 +355,7 @@ content: `
         return (
           entry.index < protectedDiceStart &&
           entry.original > 0 &&
-          entry.original <= rerollLimit
+          entry.original <= effectiveRerollLimit
         );
       });
 
@@ -378,7 +417,12 @@ const rolledSuccesses = adjustedDiceResults
   .filter((result) => result.success)
   .length;
 
-const totalSuccesses = rolledSuccesses + automaticSuccesses;
+const negativeRerollPenalty = lowRerollDeclaration?.bucket === "reroll-dodge" && hasQuality(actor, "broadside")
+  ? getQualityRank(findQuality(actor, "broadside"))
+  : lowRerollDeclaration?.bucket === "reroll-health" && hasQuality(actor, "illness")
+    ? getQualityRank(findQuality(actor, "illness"))
+    : 0;
+const totalSuccesses = Math.max(0, rolledSuccesses + automaticSuccesses - negativeRerollPenalty);
 
 const resultsHtml = adjustedDiceResults
   .map((result) => {
@@ -487,9 +531,16 @@ ${
         <div class="dda-dice-results">${resultsHtml}</div>
       </li>
 
+      ${variableReroll.used ? `
+        <li class="pool-variable-reroll-note">
+          <strong>Variable:</strong>
+          ${localize("DDA.QualityAutomation.VariableRerollUsed")}
+        </li>
+      ` : ""}
+
       ${rerollHtml}
 
-      ${rerollProtectedDice > 0 && rerollLimit > 0 ? `
+      ${rerollProtectedDice > 0 && effectiveRerollLimit > 0 ? `
         <li class="pool-reroll-protected-note">
           <i class="fas fa-lock"></i>
           ${formatI18n("DDA.Pool.RerollProtectedDirect", { dice: rerollProtectedDice })}
@@ -555,11 +606,15 @@ if (evasiveManeuversDice > 0) {
     );
 }
 
-if (lowRerollDeclaration?.quality) {
-    await spendQualityUse(actor, lowRerollDeclaration.quality, {
-      bucket: lowRerollDeclaration.bucket,
-      key: lowRerollDeclaration.quality.id
-    });
+if (lowRerollDeclaration?.quality && rerolledDice.length > 0) {
+    if (lowRerollDeclaration.spendItemUse === false) {
+      await setUseState(actor, lowRerollDeclaration.bucket, lowRerollDeclaration.quality.id);
+    } else {
+      await spendQualityUse(actor, lowRerollDeclaration.quality, {
+        bucket: lowRerollDeclaration.bucket,
+        key: lowRerollDeclaration.quality.id
+      });
+    }
   }
 
   await consumeTamerActionPoolEffects(
@@ -571,6 +626,10 @@ if (lowRerollDeclaration?.quality) {
     actor,
     options
   );
+
+  const guidingDiceAfter = guidingDice > 0
+    ? await consumeGuidingDice(actor, guidingDice)
+    : options.guidingDiceState ?? null;
 
 return {
   roll,
@@ -589,7 +648,11 @@ return {
     evasiveManeuversReserve?.current ??
     0,
 
-  luckyNumberResult
+  guidingDiceUsed: guidingDice,
+  guidingDiceRemaining: guidingDiceAfter?.current ?? 0,
+
+  luckyNumberResult,
+  variableReroll
 };
 }
 
@@ -673,6 +736,24 @@ const evasiveManeuversControl =
       />
     `;
 
+const guidingDiceState = options.guidingDiceState ?? null;
+const guidingDiceCurrent = Math.max(0, Number(guidingDiceState?.current ?? 0));
+const guidingDiceControl = guidingDiceCurrent > 0
+  ? `
+    <section class="dda-guiding-dice-control">
+      <div class="form-group">
+        <label>${game.i18n?.lang?.startsWith("en") ? "Guiding Dice" : "Dados de Orientação"}</label>
+        <input type="number" name="guidingDice" value="0" min="0" max="${guidingDiceCurrent}" />
+      </div>
+      <p class="hint">
+        ${game.i18n?.lang?.startsWith("en")
+          ? `Available: ${guidingDiceCurrent}/${Number(guidingDiceState?.max ?? guidingDiceCurrent)} — ${guidingDiceState?.sourceQualityName ?? "Inspiring Guidance"}`
+          : `Disponíveis: ${guidingDiceCurrent}/${Number(guidingDiceState?.max ?? guidingDiceCurrent)} — ${guidingDiceState?.sourceQualityName ?? "Orientação Inspiradora"}`}
+      </p>
+    </section>
+  `
+  : `<input type="hidden" name="guidingDice" value="0" />`;
+
 const content = `
   <form class="dda-roll-dialog">
     <div class="form-group">
@@ -744,6 +825,7 @@ ${
 }
     </div>
     ${evasiveManeuversControl}
+    ${guidingDiceControl}
     ${
       statKey === "dodge"
         ? `
@@ -810,6 +892,12 @@ evasiveManeuversDice:
         )
       )
     )
+  ),
+
+guidingDice:
+  Math.min(
+    guidingDiceCurrent,
+    Math.max(0, Math.floor(Number(form.elements.guidingDice?.value ?? 0)))
   ),
 
 qualityBaseDicePenalty:

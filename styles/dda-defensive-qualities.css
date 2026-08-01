@@ -1,0 +1,111 @@
+/* =====================================================
+   DDA — Qualidades Defensivas / DialogV2
+   Visual alinhado aos fluxos de Ataque em Área e Wizard
+   ===================================================== */
+
+.dda-defensive-quality-window {
+  --dda-defense-ink: #eaf8ff;
+  --dda-defense-muted: rgba(210, 235, 247, 0.76);
+  --dda-defense-line: rgba(112, 207, 255, 0.34);
+  --dda-defense-panel: rgba(6, 30, 50, 0.94);
+  --dda-defense-accent: #7de7ff;
+  --dda-defense-success: #77efb4;
+  --dda-defense-danger: #ff9ca8;
+
+  border: 1px solid rgba(121, 216, 255, 0.48) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.58),
+    0 0 28px rgba(67, 190, 255, 0.15) !important;
+}
+
+.dda-defensive-quality-window .window-header {
+  min-height: 40px !important;
+  padding: 0 12px !important;
+  color: var(--dda-defense-ink) !important;
+  background:
+    linear-gradient(90deg, rgba(2, 18, 34, 1), rgba(11, 70, 105, 0.98)) !important;
+  border-bottom: 1px solid var(--dda-defense-line) !important;
+}
+
+.dda-defensive-quality-window .window-title {
+  color: var(--dda-defense-ink) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em !important;
+}
+
+.dda-defensive-quality-window .window-content {
+  padding: 0 !important;
+  color: var(--dda-defense-ink) !important;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(66, 188, 255, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(8, 39, 64, 0.99), rgba(3, 18, 34, 0.99)) !important;
+}
+
+.dda-defensive-quality-dialog {
+  padding: 16px;
+  color: var(--dda-defense-ink);
+}
+
+.dda-defensive-quality-dialog p {
+  margin: 0 0 10px;
+  color: var(--dda-defense-muted);
+  line-height: 1.45;
+}
+
+.dda-defensive-quality-dialog strong {
+  color: #fff;
+}
+
+.dda-defensive-quality-dialog .form-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--dda-defense-line);
+  border-radius: 11px;
+  background: rgba(13, 61, 92, 0.48);
+}
+
+.dda-defensive-quality-dialog input,
+.dda-defensive-quality-dialog select {
+  min-height: 34px;
+  color: #f4fbff !important;
+  background: rgba(3, 20, 35, 0.82) !important;
+  border: 1px solid rgba(126, 219, 255, 0.48) !important;
+  border-radius: 8px !important;
+}
+
+.dda-defensive-quality-window .dialog-buttons,
+.dda-defensive-quality-window footer {
+  gap: 8px !important;
+  padding: 10px 14px 14px !important;
+}
+
+.dda-defensive-quality-window button {
+  min-height: 36px;
+  border-radius: 9px !important;
+  font-weight: 800 !important;
+}
+
+.dda-defensive-quality-window button[data-action="yes"],
+.dda-defensive-quality-window button[data-action="ok"] {
+  color: #042031 !important;
+  background: linear-gradient(180deg, #96edff, #51bde4) !important;
+  border-color: rgba(176, 241, 255, 0.9) !important;
+}
+
+.dda-defensive-quality-window .cleanse-resolve-choice {
+  border-color: rgba(255, 199, 105, 0.52);
+  background: rgba(117, 72, 13, 0.18);
+}
+
+.dda-defensive-quality-card h2 {
+  border-bottom-color: rgba(112, 207, 255, 0.42);
+}
+
+.dda-defensive-quality-card .dda-effect-list strong {
+  color: #dff8ff;
+}

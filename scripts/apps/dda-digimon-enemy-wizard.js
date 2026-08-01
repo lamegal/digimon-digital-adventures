@@ -4122,7 +4122,12 @@ if (
     return [];
   }
 
-  return this.getEnemyAttackChoiceOptions().map(
+  const qualityIdentity = normalizeEnemyQualityName(quality.id ?? quality.originalName ?? quality.name ?? "");
+  return this.getEnemyAttackChoiceOptions().filter((attack) => {
+    if (!["armamentodedigizoidepuro", "puredigizoidweaponry"].includes(qualityIdentity)) return true;
+    const tags = this._getEnemyAttackSelectedPositiveTags(attack.key);
+    return !tags.includes("weapon") || attack.isSignature;
+  }).map(
     (attack) => ({
       key: attack.key,
 
@@ -6114,6 +6119,35 @@ if (
       );
     }
 
+    const selectedRows = this._getEnemySelectedQualityRows();
+    const familyOf = (entry = {}) => {
+      const section = normalizeEnemyQualityName(entry.section ?? entry.system?.section ?? "");
+      if (["digizoidarmor", "armadurasdedigizoide"].includes(section)) return "armor";
+      if (["digizoidweaponry", "armamentosdedigizoide"].includes(section)) return "weaponry";
+      if (["gainforcequalities", "qualidadesgainforce"].includes(section)) return "gainForce";
+      return "";
+    };
+    const family = familyOf(quality);
+    const familyConflict = family ? selectedRows.find((row) => familyOf(row.quality) === family && row.id !== quality.id) : null;
+    if (familyConflict) {
+      return text(`Incompatível com ${familyConflict.name}.`, `Incompatible with ${familyConflict.name}.`);
+    }
+    const selectedRank = (aliases) => {
+      const wanted = new Set(aliases.map(normalizeEnemyQualityName));
+      const row = selectedRows.find((entry) => getEnemyQualityNameKeys(entry.quality).some((key) => wanted.has(key)));
+      return Math.max(0, Number(row?.rank ?? 0));
+    };
+    if (family === "weaponry" && selectedRank(["arma", "weapon"]) < 1) {
+      return text("Requer 1 Rank de Arma.", "Requires 1 Rank of Weapon.");
+    }
+    if (family === "gainForce" && selectedRank(["instinto", "instinct"]) < 1) {
+      return text("Requer 1 Rank de Instinto.", "Requires 1 Rank of Instinct.");
+    }
+    const identity = normalizeEnemyQualityName(quality.id ?? quality.originalName ?? quality.name ?? "");
+    if (["armamentodedigizoidepuro", "puredigizoidweaponry", "overwritepuro", "pureoverwrite"].includes(identity) && selectedRank(["algoritmo", "algorithm"]) < 3) {
+      return text("Requer 3 Ranks de Algoritmo.", "Requires 3 Ranks of Algorithm.");
+    }
+
     const requirementNames = parseEnemyQualityNameList(
       quality.requirements?.qualityNames
     );
@@ -6150,7 +6184,6 @@ if (
       }
     }
 
-    const selectedRows = this._getEnemySelectedQualityRows();
     const nextQualityNameKeys = new Set(
       getEnemyQualityNameKeys(quality)
     );

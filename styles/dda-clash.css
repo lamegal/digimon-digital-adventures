@@ -1,0 +1,185 @@
+/* DDA34 — Clash and Clash Quality presentation */
+.application.dda-clash-dialog,
+.application.dda-clash-quality-window,
+.application.dda-clash-attack-window {
+  --dda-clash-deep: #071827;
+  --dda-clash-panel: rgba(9, 31, 49, 0.96);
+  --dda-clash-panel-soft: rgba(15, 49, 73, 0.82);
+  --dda-clash-line: rgba(58, 210, 236, 0.42);
+  --dda-clash-glow: rgba(71, 225, 246, 0.22);
+  --dda-clash-text: #e9fbff;
+  --dda-clash-muted: #a8c9d4;
+  color: var(--dda-clash-text);
+  border: 1px solid var(--dda-clash-line);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.48), 0 0 26px var(--dda-clash-glow);
+}
+
+.application.dda-clash-dialog .window-header,
+.application.dda-clash-quality-window .window-header,
+.application.dda-clash-attack-window .window-header {
+  background: linear-gradient(115deg, #071827 0%, #0b3f5a 58%, #087b92 100%);
+  border-bottom: 1px solid rgba(90, 226, 245, 0.5);
+}
+
+.application.dda-clash-dialog .window-content,
+.application.dda-clash-quality-window .window-content,
+.application.dda-clash-attack-window .window-content {
+  background:
+    linear-gradient(rgba(5, 20, 32, 0.94), rgba(5, 20, 32, 0.94)),
+    repeating-linear-gradient(90deg, transparent 0 21px, rgba(52, 207, 232, 0.035) 21px 22px),
+    repeating-linear-gradient(0deg, transparent 0 21px, rgba(52, 207, 232, 0.035) 21px 22px);
+  color: var(--dda-clash-text);
+  padding: 0;
+}
+
+.dda-clash-quality-form,
+.dda-clash-attack-dialog,
+.dda-clash-action-dialog {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.dda-clash-quality-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--dda-clash-line, rgba(58, 210, 236, 0.42));
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(12, 58, 82, 0.96), rgba(6, 24, 38, 0.96));
+  box-shadow: inset 0 0 22px rgba(59, 214, 240, 0.08);
+}
+
+.dda-clash-quality-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -12% -62% 35%;
+  height: 120px;
+  transform: rotate(-9deg);
+  background: linear-gradient(90deg, transparent, rgba(62, 223, 246, 0.13), transparent);
+  pointer-events: none;
+}
+
+.dda-clash-quality-hero > span {
+  display: block;
+  color: #6ee9fa;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dda-clash-quality-hero h2 {
+  margin: 0.25rem 0 0.35rem;
+  color: #fff;
+  border: 0;
+  font-size: 1.35rem;
+}
+
+.dda-clash-quality-hero p {
+  margin: 0;
+  color: var(--dda-clash-muted, #a8c9d4);
+  line-height: 1.45;
+}
+
+.dda-clash-choice {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.72rem 0.8rem;
+  border: 1px solid rgba(83, 195, 216, 0.28);
+  border-radius: 8px;
+  background: var(--dda-clash-panel-soft, rgba(15, 49, 73, 0.82));
+  cursor: pointer;
+  transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+
+.dda-clash-choice:hover,
+.dda-clash-choice:has(input:checked) {
+  border-color: rgba(91, 230, 248, 0.72);
+  box-shadow: 0 0 18px rgba(55, 215, 239, 0.12);
+  transform: translateY(-1px);
+}
+
+.dda-clash-choice input {
+  margin-top: 0.17rem;
+  accent-color: #39cfe7;
+}
+
+.dda-clash-quality-form .form-group,
+.dda-clash-attack-dialog .form-group,
+.dda-clash-action-dialog .form-group {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(180px, 1.4fr);
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(83, 195, 216, 0.25);
+  border-radius: 8px;
+  background: rgba(8, 32, 49, 0.82);
+}
+
+.dda-clash-quality-form select,
+.dda-clash-quality-form input,
+.dda-clash-attack-dialog select,
+.dda-clash-action-dialog select {
+  min-height: 2rem;
+  color: var(--dda-clash-text, #e9fbff);
+  border: 1px solid rgba(92, 213, 232, 0.38);
+  background: rgba(3, 18, 29, 0.9);
+}
+
+.dda-clash-card {
+  --clash-accent: #35cce5;
+  border: 1px solid color-mix(in srgb, var(--clash-accent) 55%, transparent);
+  background:
+    linear-gradient(135deg, rgba(7, 31, 48, 0.97), rgba(11, 55, 76, 0.94)),
+    repeating-linear-gradient(90deg, transparent 0 20px, rgba(76, 217, 237, 0.035) 20px 21px);
+  box-shadow: inset 4px 0 0 var(--clash-accent), 0 4px 18px rgba(0, 0, 0, 0.24);
+}
+
+.dda-clash-card h2 {
+  color: #eaffff;
+  border-bottom-color: rgba(73, 215, 236, 0.32);
+}
+
+.dda-clash-card.dda-clash-ended-card { --clash-accent: #8da2b1; }
+.dda-clash-card.dda-clash-slippery-card { --clash-accent: #78e8a4; }
+.dda-clash-card.dda-clash-contest-card { --clash-accent: #f1c85c; }
+.dda-clash-card.dda-clash-action-result-card { --clash-accent: #52d6f0; }
+.dda-clash-quality-card.is-success { --clash-accent: #77e099; }
+.dda-clash-quality-card.is-failure { --clash-accent: #ef8e86; }
+
+.dda-clash-chat-actions,
+.dda-fastball-card .dda-card-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.dda-clash-chat-actions button,
+.dda-fastball-card button,
+.dda-clash-card button {
+  min-height: 2.2rem;
+  border: 1px solid rgba(78, 215, 236, 0.48);
+  color: #effdff;
+  background: linear-gradient(180deg, rgba(18, 87, 111, 0.96), rgba(8, 44, 65, 0.96));
+}
+
+.dda-clash-chat-actions button:hover,
+.dda-fastball-card button:hover,
+.dda-clash-card button:hover {
+  border-color: #78ecfb;
+  box-shadow: 0 0 12px rgba(70, 222, 243, 0.22);
+}
+
+@media (max-width: 620px) {
+  .dda-clash-quality-form .form-group,
+  .dda-clash-attack-dialog .form-group,
+  .dda-clash-action-dialog .form-group {
+    grid-template-columns: 1fr;
+  }
+}

@@ -10,6 +10,18 @@ import {
 } from "../combat/evolution.js";
 import { initiateDigimonClash, endDigimonClash } from "../combat/clash.js";
 import { openDigimonActionMenu } from "../combat/digimon-actions.js";
+import { useOffensiveQualityAction } from "../combat/offensive-qualities.js";
+import { useDefensiveQualityAction } from "../combat/defensive-qualities.js";
+import { useStanceQualityAction } from "../combat/stance-qualities.js";
+import { usePreservationQualityAction } from "../combat/preservation-qualities.js";
+import { useUtilityQualityAction } from "../combat/utility-qualities.js";
+import { useEvokerQualityAction } from "../combat/evoker-qualities.js";
+import { useDigizoidGainForceQualityAction } from "../combat/digizoid-gain-force.js";
+import { useFreeNegativeQualityAction } from "../combat/free-negative-qualities.js";
+import {
+  reconcileDotAttacks,
+  useEffectResistanceAction
+} from "../combat/effect-qualities.js";
 import { syncTamerAndPartnerOwnership } from "../utils/ownership.js";
 import {
   qualityMatches,
@@ -1152,6 +1164,7 @@ html.find(".dda-device-button").on("dblclick", (event) => {
   event.stopPropagation();
 });
 
+    html.find(".resist-active-effect").on("click", this._onResistActiveEffect.bind(this));
     html.find(".remove-active-effect").on("click", this._onRemoveActiveEffect.bind(this));
   }
 
@@ -1887,6 +1900,65 @@ async #onQualityToggleActive(event) {
       item
     );
 
+    return;
+  }
+
+  const evokerQualityUse = await useEvokerQualityAction(this.actor, item);
+  if (evokerQualityUse?.handled) return;
+
+  const digizoidGainForceUse = await useDigizoidGainForceQualityAction(this.actor, item);
+  if (digizoidGainForceUse?.handled) return;
+
+  const freeNegativeUse = await useFreeNegativeQualityAction(this.actor, item);
+  if (freeNegativeUse?.handled) return;
+
+  const stanceQualityUse =
+    await useStanceQualityAction(
+      this.actor,
+      item
+    );
+
+  if (stanceQualityUse?.handled) {
+    return;
+  }
+
+  const preservationQualityUse =
+    await usePreservationQualityAction(
+      this.actor,
+      item
+    );
+
+  if (preservationQualityUse?.handled) {
+    return;
+  }
+
+  const utilityQualityUse =
+    await useUtilityQualityAction(
+      this.actor,
+      item
+    );
+
+  if (utilityQualityUse?.handled) {
+    return;
+  }
+
+  const defensiveQualityUse =
+    await useDefensiveQualityAction(
+      this.actor,
+      item
+    );
+
+  if (defensiveQualityUse?.handled) {
+    return;
+  }
+
+  const offensiveQualityUse =
+    await useOffensiveQualityAction(
+      this.actor,
+      item
+    );
+
+  if (offensiveQualityUse?.handled) {
     return;
   }
 
@@ -2636,6 +2708,16 @@ async _onEnergizeAction(event) {
   await energizeDigimon(this.actor);
 }
 
+async _onResistActiveEffect(event) {
+  event.preventDefault();
+
+  const effectId = String(event.currentTarget.dataset.effectId ?? "");
+  if (!effectId) return;
+
+  await useEffectResistanceAction(this.actor, effectId, { mode: "action" });
+  this.render(false);
+}
+
 async _onRemoveActiveEffect(event) {
   event.preventDefault();
 
@@ -2648,6 +2730,8 @@ async _onRemoveActiveEffect(event) {
   await this.actor.update({
     "system.effects.active": updatedEffects
   });
+
+  await reconcileDotAttacks(this.actor);
 }
 
 _onEvolutionDragOver(event) {

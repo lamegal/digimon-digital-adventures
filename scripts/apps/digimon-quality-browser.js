@@ -1,4 +1,23 @@
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+import { EFFECT_TAGS } from "../rules/quality-automation.js";
+import {
+  CORE_QUALITY_IDS,
+  getCoreQualityId,
+  findCoreQuality,
+  hasCoreQuality,
+  getDataOptimizationKey,
+  getDataSpecializationEntries,
+  getAvailableDataSpecializationOptions,
+  getDataOptimizationForSpecialization,
+  getAvailableAdvancedMobilityOptions,
+  getWeaponInstinctEffectiveMax,
+  isWeaponInstinctConflict,
+  getCoreDiscountPreview,
+  getFirstPurchaseDiscount,
+  getMarginalQualityDpCost,
+  normalizeCoreKey,
+  getMissingDataSpecializationFreeGrants
+} from "../rules/core-qualities.js";
 const NATUREWALK_MAIN_STATS = [
   {
     key: "accuracy",
@@ -21,6 +40,8 @@ const NATUREWALK_MAIN_STATS = [
     labelKey: "DDA.MainStat.Health"
   }
 ];
+
+const STATUS_WARLORD_DISCOUNT_KEY = "dataSpecialization:statusWarlord";
 
 function normalizeNaturewalkIdentity(
   value = ""
@@ -66,6 +87,39 @@ function normalizeQualityBrowserIdentity(value = "") {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "")
     .trim();
+}
+
+function getOffensiveRankStatRequirement(quality = {}, rank = 1) {
+  const key = normalizeQualityBrowserIdentity(
+    quality?.id ?? quality?.originalName ?? quality?.name ?? ""
+  );
+  const required = Math.max(0, Number(rank ?? 1)) * 4;
+
+  if (["perfuracaodearmadura", "armorpiercing"].includes(key)) {
+    return { stat: "damage", required };
+  }
+
+  if (["golpecerteiro", "certainstrike"].includes(key)) {
+    return { stat: "accuracy", required };
+  }
+
+  if (["evasaoabsoluta", "absoluteevasion"].includes(key)) {
+    return { stat: "dodge", required };
+  }
+
+  return null;
+}
+
+function getActorMainStatTotalForBrowser(actor, stat = "") {
+  const data = actor?.system?.mainStats?.[stat] ?? {};
+  const value = Number(data.total ?? data.value ?? data.base ?? 0);
+  return Math.max(0, Number.isFinite(value) ? value : 0);
+}
+
+function actorMeetsOffensiveRankStatRequirement(actor, quality, rank = 1) {
+  const requirement = getOffensiveRankStatRequirement(quality, rank);
+  if (!requirement) return true;
+  return getActorMainStatTotalForBrowser(actor, requirement.stat) >= requirement.required;
 }
 
 function qualityBrowserMatches(quality = {}, ownedItem = null, aliases = []) {
@@ -152,7 +206,8 @@ const QUALITY_BROWSER_CATEGORY_FILTERS = [
   { key: "effect", labelKey: "DDA.QualityBrowser.Category.Effect" },
   { key: "utility", labelKey: "DDA.QualityBrowser.Category.Utility" },
   { key: "stanceMode", labelKey: "DDA.QualityBrowser.Category.StanceMode" },
-  { key: "digizoid", labelKey: "DDA.QualityBrowser.Category.Digizoid" }
+  { key: "digizoid", labelKey: "DDA.QualityBrowser.Category.Digizoid" },
+  { key: "gainForce", labelKey: "DDA.QualityBrowser.Category.GainForce" }
 ];
 
 const QUALITY_BROWSER_SECTION_GROUPS = {
@@ -199,8 +254,33 @@ const QUALITY_BROWSER_SECTION_GROUPS = {
     "Armaduras de Digizoide",
     "Digizoid Weaponry",
     "Armamentos de Digizoide"
+  ],
+
+  gainForce: [
+    "Gain Force Qualities",
+    "Qualidades Gain Force"
   ]
 };
+
+function getDigizoidGainForceFamily(quality = {}) {
+  const section = normalizeQualityBrowserIdentity(quality?.section ?? quality?.system?.section ?? "");
+  if (section === "digizoidarmor" || section === "armadurasdedigizoide") return "digizoidArmor";
+  if (section === "digizoidweaponry" || section === "armamentosdedigizoide") return "digizoidWeaponry";
+  if (section === "gainforcequalities" || section === "qualidadesgainforce") return "gainForce";
+  return "";
+}
+
+function getDigizoidGainForceRankRequirements(quality = {}) {
+  const family = getDigizoidGainForceFamily(quality);
+  const id = normalizeQualityBrowserIdentity(quality?.id ?? quality?.system?.sourceId ?? quality?.originalName ?? quality?.name ?? "");
+  const requirements = [];
+  if (family === "digizoidWeaponry") requirements.push({ aliases: ["arma", "weapon"], label: isQualityBrowserEnglish() ? "Weapon" : "Arma", rank: 1 });
+  if (family === "gainForce") requirements.push({ aliases: ["instinto", "instinct"], label: isQualityBrowserEnglish() ? "Instinct" : "Instinto", rank: 1 });
+  if (["armamentodedigizoidepuro", "puredigizoidweaponry", "overwritepuro", "pureoverwrite"].includes(id)) {
+    requirements.push({ aliases: ["algoritmo", "algorithm"], label: isQualityBrowserEnglish() ? "Algorithm" : "Algoritmo", rank: 3 });
+  }
+  return requirements;
+}
 
 function isQualityBrowserEnglish() {
   const language = String(
@@ -597,8 +677,169 @@ _matchesQualitySearch(quality, searchTerm) {
       activeTier: this.activeTier,
       activeCategory: this.activeCategory,
       searchTerm: this.searchTerm,
-      qualities
+      qualities,
+      coreReview: this._getCoreReviewData()
     };
+  }
+
+  _getCoreReviewData() {
+    const english = isQualityBrowserEnglish();
+    const actor = this.actor;
+    if (!actor) return { visible: false };
+
+    const discount = actor.system?.creation?.coreDiscount ?? actor.system?.coreDiscount ?? {};
+    const base = Math.max(0, Number(discount.base ?? actor.system?.stageValue ?? 0));
+    const used = Math.max(0, Number(discount.used ?? discount.spent ?? 0));
+    const remaining = Math.max(0, Number(discount.remaining ?? Math.max(0, base - used)));
+
+    const optimizationKey = getDataOptimizationKey(actor);
+    const optimizationDefinition = DDA_DIGIMON_QUALITIES.find((entry) => {
+      return getCoreQualityId(entry) === CORE_QUALITY_IDS.dataOptimization;
+    });
+    const optimizationOption = optimizationDefinition?.choices?.options?.find((option) => {
+      return normalizeCoreKey(option?.key) === normalizeCoreKey(optimizationKey);
+    });
+
+    const specializationDefinition = DDA_DIGIMON_QUALITIES.find((entry) => {
+      return getCoreQualityId(entry) === CORE_QUALITY_IDS.dataSpecialization;
+    });
+    const specializationOptions = new Map(
+      (specializationDefinition?.choices?.options ?? []).map((option) => [
+        normalizeCoreKey(option?.key),
+        option
+      ])
+    );
+    const specializations = getDataSpecializationEntries(actor).map((entry) => {
+      const option = specializationOptions.get(normalizeCoreKey(entry.key));
+      return {
+        key: entry.key,
+        label: entry.label ?? option?.label ?? entry.originalLabel ?? entry.key,
+        viaHybridDrive: Boolean(entry.viaHybridDrive),
+        hybridLabel: entry.viaHybridDrive
+          ? (english ? "Hybrid Drive" : "Impulso Híbrido")
+          : ""
+      };
+    });
+
+    const missingGrants = getMissingDataSpecializationFreeGrants(actor);
+    const warnings = [
+      ...(actor.system?.qualityFeatures?.coreValidation?.warnings ?? [])
+    ].map((warning) => String(warning ?? "").trim()).filter(Boolean);
+
+    if (!optimizationKey && specializations.length) {
+      warnings.push(english
+        ? "Data Specialization requires a configured Data Optimization."
+        : "Especialização de Dados exige uma Otimização de Dados configurada.");
+    }
+
+    const uniqueWarnings = [...new Set(warnings)];
+    const coreCount = actor.items?.filter?.((item) => {
+      return item.type === "quality" && Boolean(getCoreQualityId(item));
+    })?.length ?? 0;
+
+    const statusWarlordOwned = specializations.some((entry) => entry.key === "statusWarlord");
+    const statusWarlordDiscountUsed = Boolean(this._getStatusWarlordDiscountUse());
+
+    return {
+      visible: true,
+      valid: uniqueWarnings.length === 0,
+      stateClass: uniqueWarnings.length ? "has-warnings" : "is-valid",
+      statusIcon: uniqueWarnings.length ? "fa-triangle-exclamation" : "fa-circle-check",
+      title: english ? "Core Build Review" : "Revisão da Build Core",
+      statusLabel: uniqueWarnings.length
+        ? (english ? "Review required" : "Revisão necessária")
+        : (english ? "Automation healthy" : "Automação íntegra"),
+      actorName: actor.name,
+      coreCount,
+      coreCountLabel: english ? "Core Qualities" : "Qualidades Core",
+      discountLabel: english ? "Core Discount" : "Desconto Core",
+      discountBaseLabel: english ? "Base" : "Base",
+      discountUsedLabel: english ? "Used" : "Usado",
+      discountRemainingLabel: english ? "Remaining" : "Restante",
+      discount: { base, used, remaining },
+      optimizationLabel: english ? "Data Optimization" : "Otimização de Dados",
+      optimizationValue: optimizationOption?.label ?? optimizationKey ?? (english ? "Not selected" : "Não selecionada"),
+      specializationLabel: english ? "Data Specializations" : "Especializações de Dados",
+      noSpecializationsLabel: english ? "None selected" : "Nenhuma selecionada",
+      specializations,
+      warningsLabel: english ? "Checks" : "Verificações",
+      warnings: uniqueWarnings.map((message) => ({ message })),
+      missingGrantCount: missingGrants.length,
+      canRepair: Boolean(actor.isOwner && missingGrants.length),
+      repairLabel: english ? "Apply missing free grants" : "Aplicar concessões gratuitas pendentes",
+      repairHint: english
+        ? "Repairs free Quality Ranks from Data Specialization without charging DP."
+        : "Repara Ranks gratuitos de Qualidades concedidos por Especialização de Dados, sem cobrar PD.",
+      statusWarlord: statusWarlordOwned ? {
+        label: english ? "Status Warlord discount" : "Desconto de Senhor da Guerra de Status",
+        value: statusWarlordDiscountUsed
+          ? (english ? "Used" : "Usado")
+          : (english ? "Available: 1 DP" : "Disponível: 1 PD")
+      } : null
+    };
+  }
+
+  async _repairCoreAutomation() {
+    const english = isQualityBrowserEnglish();
+    const dataSpecializationItem = findCoreQuality(this.actor, CORE_QUALITY_IDS.dataSpecialization);
+    const missing = getMissingDataSpecializationFreeGrants(this.actor);
+    let repaired = 0;
+
+    if (dataSpecializationItem && missing.length) {
+      const choices = Array.isArray(dataSpecializationItem.system?.choices?.selectedRanks)
+        ? foundry.utils.deepClone(dataSpecializationItem.system.choices.selectedRanks)
+        : [];
+
+      for (const entry of missing) {
+        const index = choices.findIndex((choice) => {
+          return normalizeCoreKey(choice?.key ?? choice?.specialization ?? choice) === normalizeCoreKey(entry.key);
+        });
+        if (index < 0) continue;
+
+        const choice = {
+          ...choices[index],
+          key: entry.key,
+          specialization: entry.key,
+          label: choices[index]?.label ?? entry.label ?? entry.originalLabel ?? entry.key
+        };
+        let freeGrant = choice.freeGrant;
+        if (!freeGrant?.qualityId || !freeGrant?.sourceKey) {
+          freeGrant = await this._prepareDataSpecializationFreeGrant(choice);
+        }
+        if (freeGrant === false || !freeGrant?.qualityId) continue;
+
+        choice.freeGrant = freeGrant;
+        choices[index] = choice;
+        await dataSpecializationItem.update({
+          "system.choices.selectedRanks": choices
+        });
+        await this._applyDataSpecializationFreeGrant(dataSpecializationItem, choice);
+        repaired += 1;
+      }
+    }
+
+    // Re-apply persisted attack Tags for old Actors. The operation is idempotent.
+    for (const item of this.actor?.items ?? []) {
+      if (item.type !== "quality") continue;
+      const selected = Array.isArray(item.system?.choices?.selectedRanks)
+        ? item.system.choices.selectedRanks
+        : [];
+      for (const choice of selected) {
+        await this._applyAttackChoiceToAttack(item, choice);
+      }
+    }
+
+    if (repaired > 0) {
+      ui.notifications.info(english
+        ? `${repaired} Core automation grant(s) repaired.`
+        : `${repaired} concessão(ões) da automação Core reparada(s).`);
+    } else if (!missing.length) {
+      ui.notifications.info(english
+        ? "The Core automation is already healthy."
+        : "A automação Core já está íntegra.");
+    }
+
+    this.render();
   }
 
   activateListeners(html) {
@@ -654,6 +895,17 @@ _matchesQualitySearch(quality, searchTerm) {
   await this._addQualityToActor(quality);
       });
 
+    html.find("[data-repair-core-automation]").on("click", async (event) => {
+      event.preventDefault();
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await this._repairCoreAutomation();
+      } finally {
+        button.disabled = false;
+      }
+    });
+
     html.find("[data-close-quality-browser]").on("click", (event) => {
   event.preventDefault();
   this.close();
@@ -684,6 +936,7 @@ _matchesQualitySearch(quality, searchTerm) {
     }
 
     const itemData = buildQualityItemData(quality);
+    this._attachStatusWarlordDiscountToItemData(quality, itemData);
 
     if (quality.choices?.required) {
       const choice = await this._promptQualityChoice(quality, 1, []);
@@ -694,6 +947,28 @@ _matchesQualitySearch(quality, searchTerm) {
         ...(itemData.system.choices ?? {}),
         selectedRanks: [choice]
       };
+
+      if (quality.choices?.type === "positiveCasterDerivedEffect") {
+        const totalCost = this._getQualityDpCost(quality) + Math.max(0, Number(choice.effectDpCost ?? 0));
+        if (this._getActorRemainingDp() < totalCost) {
+          ui.notifications.warn(isQualityBrowserEnglish()
+            ? `${quality.name} and the selected Effect cost ${totalCost} DP, but only ${this._getActorRemainingDp()} remain.`
+            : `${quality.name} e o Efeito escolhido custam ${totalCost} PD, mas restam apenas ${this._getActorRemainingDp()}.`);
+          return;
+        }
+
+        itemData.system.overclock = {
+          sourceQualityId: String(choice.sourceQualityId ?? ""),
+          sourceQualityName: String(choice.sourceQualityName ?? ""),
+          effectTag: String(choice.effectTag ?? ""),
+          effectLabel: String(choice.originalLabel ?? choice.label ?? choice.effectTag ?? ""),
+          effectType: "positive",
+          potencyStat: String(choice.potencyStat ?? ""),
+          duration: choice.duration ?? true,
+          extraActionRequired: Boolean(choice.extraActionRequired),
+          effectDpCost: Math.max(0, Number(choice.effectDpCost ?? 0))
+        };
+      }
     }
 
 const [createdQuality] =
@@ -702,7 +977,36 @@ const [createdQuality] =
     [itemData]
   );
 
+if (quality.id === "mudancaDeModoSuperior") {
+  const { configureSuperiorModeChange } = await import("./superior-mode-config.js");
+  const configured = await configureSuperiorModeChange(this.actor, createdQuality, this);
+  if (!configured) {
+    await this.actor.deleteEmbeddedDocuments("Item", [createdQuality.id]);
+    ui.notifications.warn(isQualityBrowserEnglish()
+      ? "Superior Mode Change was not added because its configuration was not completed."
+      : "Mudança de Modo Superior não foi adicionada porque a configuração não foi concluída.");
+    return;
+  }
+}
+
+if (["conjurador", "invocador"].includes(quality.id)) {
+  const { configureEvokerQualityAppearance } = await import("../combat/evoker-qualities.js");
+  const configured = await configureEvokerQualityAppearance(this.actor, createdQuality);
+  if (!configured) {
+    await this.actor.deleteEmbeddedDocuments("Item", [createdQuality.id]);
+    ui.notifications.warn(isQualityBrowserEnglish()
+      ? `${quality.name} was not added because its appearance was not defined.`
+      : `${quality.name} não foi adicionada porque sua aparência não foi definida.`);
+    return;
+  }
+}
+
 await this._applyAttackChoiceToAttack(
+  createdQuality,
+  itemData.system?.choices?.selectedRanks?.[0]
+);
+
+await this._applyDataSpecializationFreeGrant(
   createdQuality,
   itemData.system?.choices?.selectedRanks?.[0]
 );
@@ -747,11 +1051,656 @@ await this._applyAttackChoiceToAttack(
       : matches.every(Boolean);
   }
 
+  async _promptDataSpecializationChoice(quality, rankNumber, existingChoices = []) {
+    const english = isQualityBrowserEnglish();
+    const options = getAvailableDataSpecializationOptions(
+      this.actor,
+      Array.isArray(quality?.choices?.options) ? quality.choices.options : [],
+      existingChoices
+    );
+
+    if (!options.length) {
+      ui.notifications.warn(english
+        ? "No valid Data Specialization remains for this Digimon."
+        : "Não resta nenhuma Especialização de Dados válida para este Digimon.");
+      return null;
+    }
+
+    const optimizationKey = getDataOptimizationKey(this.actor);
+    const nativeOptions = options.filter((option) => !option.eligibility.viaHybridDrive);
+    const hybridOptions = options.filter((option) => option.eligibility.viaHybridDrive);
+    const defaultKey = nativeOptions[0]?.key ?? hybridOptions[0]?.key ?? "";
+
+    const renderOption = (option, hybrid = false) => {
+      const label = option.label ?? option.originalLabel ?? option.key;
+      const optimizationLabel = option.dataOptimizationLabel ?? option.dataOptimization ?? "";
+      return `
+        <label class="dda-core-specialization-card ${hybrid ? "is-hybrid" : ""}">
+          <input
+            type="radio"
+            name="specializationKey"
+            value="${escapeNaturewalkHtml(option.key)}"
+            ${option.key === defaultKey ? "checked" : ""}
+          >
+          <span class="dda-core-specialization-card__body">
+            <span class="dda-core-specialization-card__heading">
+              <strong>${escapeNaturewalkHtml(label)}</strong>
+              <span class="dda-core-specialization-card__badges">
+                <span class="dda-core-specialization-card__role">${escapeNaturewalkHtml(optimizationLabel)}</span>
+                ${hybrid ? `<span class="dda-core-specialization-card__hybrid">${english ? "Hybrid Drive" : "Impulso Híbrido"}</span>` : ""}
+              </span>
+            </span>
+            <span class="dda-core-specialization-card__effect">${escapeNaturewalkHtml(option.effect ?? "")}</span>
+          </span>
+        </label>
+      `;
+    };
+
+    const section = (title, hint, entries, hybrid = false) => entries.length
+      ? `
+        <section class="dda-core-specialization-section ${hybrid ? "is-hybrid" : ""}">
+          <header>
+            <h3>${escapeNaturewalkHtml(title)}</h3>
+            <p>${escapeNaturewalkHtml(hint)}</p>
+          </header>
+          <div class="dda-core-specialization-grid">
+            ${entries.map((option) => renderOption(option, hybrid)).join("")}
+          </div>
+        </section>
+      `
+      : "";
+
+    const result = await foundry.applications.api.DialogV2.wait({
+      classes: ["dda", "dda-core-quality-dialog", "dda-data-specialization-dialog"],
+      position: { width: 720, height: "auto" },
+      window: {
+        title: english
+          ? `${quality.name} — Rank ${rankNumber}`
+          : `${quality.name} — Rank ${rankNumber}`
+      },
+      modal: true,
+      content: `
+        <form class="dda-core-choice-dialog">
+          <header class="dda-core-choice-dialog__hero">
+            <span>${english ? `Core Quality · Rank ${rankNumber}` : `Qualidade Core · Rank ${rankNumber}`}</span>
+            <h2>${escapeNaturewalkHtml(quality.name)}</h2>
+            <p>${english
+              ? "Choose one specialization. The system only displays choices your Data Optimization can legally purchase."
+              : "Escolha uma especialização. O sistema mostra apenas opções que sua Otimização de Dados pode adquirir legalmente."}</p>
+          </header>
+          ${section(
+            english ? "Your Data Optimization" : "Sua Otimização de Dados",
+            english
+              ? `Native choices for ${optimizationKey || "the selected role"}.`
+              : `Opções naturais de ${optimizationKey || "sua função escolhida"}.`,
+            nativeOptions,
+            false
+          )}
+          ${section(
+            english ? "Hybrid Drive option" : "Opção de Impulso Híbrido",
+            english
+              ? "You may purchase exactly one specialization outside your original Data Optimization."
+              : "Você pode adquirir exatamente uma especialização fora de sua Otimização de Dados original.",
+            hybridOptions,
+            true
+          )}
+        </form>
+      `,
+      buttons: [
+        {
+          action: "confirm",
+          label: game.i18n.localize("DDA.Button.Confirm"),
+          icon: "fa-solid fa-check",
+          default: true,
+          callback: (_event, button) => String(
+            button.form?.elements?.specializationKey?.value ?? ""
+          ).trim()
+        },
+        {
+          action: "cancel",
+          label: game.i18n.localize("DDA.Button.Cancel"),
+          icon: "fa-solid fa-xmark",
+          callback: () => null
+        }
+      ],
+      rejectClose: false,
+      close: () => null
+    });
+
+    if (!result) return null;
+
+    const selected = options.find((option) => option.key === result);
+    if (!selected) return null;
+
+    const freeGrant = await this._prepareDataSpecializationFreeGrant(selected);
+    if (freeGrant === false) return null;
+
+    return {
+      rank: rankNumber,
+      key: selected.key,
+      specialization: selected.key,
+      label: selected.label ?? selected.originalLabel ?? selected.key,
+      originalLabel: selected.originalLabel ?? "",
+      dataOptimization: selected.dataOptimization || getDataOptimizationForSpecialization(selected.key),
+      dataOptimizationLabel: selected.dataOptimizationLabel ?? "",
+      viaHybridDrive: Boolean(selected.eligibility.viaHybridDrive),
+      freeGrant,
+      effect: selected.effect ?? ""
+    };
+  }
+
+  _getOwnedQualityBySourceId(qualityId) {
+    return this.actor?.items?.find((item) => {
+      return item.type === "quality" && item.system?.sourceId === qualityId;
+    }) ?? null;
+  }
+
+  _getFreeRankSourceTotal(item, excludedKey = "") {
+    const sources = Array.isArray(item?.system?.cost?.freeRankSources)
+      ? item.system.cost.freeRankSources
+      : [];
+
+    return sources.reduce((total, entry) => {
+      const key = String(entry?.key ?? entry ?? "");
+      if (excludedKey && key === excludedKey) return total;
+      return total + Math.max(0, Number(entry?.ranks ?? 1));
+    }, 0);
+  }
+
+  async _chooseFreeGrantDefinition({ title, hint, definitions = [] } = {}) {
+    const english = isQualityBrowserEnglish();
+    const options = definitions.filter(Boolean);
+    if (!options.length) return null;
+
+    const result = await foundry.applications.api.DialogV2.wait({
+      classes: ["dda", "dda-core-quality-dialog", "dda-core-free-grant-dialog"],
+      position: { width: 640, height: "auto" },
+      window: { title },
+      modal: true,
+      content: `
+        <form class="dda-core-choice-dialog">
+          <header class="dda-core-choice-dialog__hero">
+            <span>${english ? "Free Quality" : "Qualidade Gratuita"}</span>
+            <h2>${escapeNaturewalkHtml(title)}</h2>
+            <p>${escapeNaturewalkHtml(hint ?? "")}</p>
+          </header>
+          <div class="dda-core-specialization-grid">
+            ${options.map((definition, index) => `
+              <label class="dda-core-specialization-card">
+                <input type="radio" name="freeGrantQualityId" value="${escapeNaturewalkHtml(definition.id)}" ${index === 0 ? "checked" : ""} />
+                <span class="dda-core-specialization-card__body">
+                  <strong>${escapeNaturewalkHtml(definition.name)}</strong>
+                  <small>${escapeNaturewalkHtml(definition.originalName ?? "")}</small>
+                  <span>${escapeNaturewalkHtml(definition.effect ?? definition.description ?? "")}</span>
+                </span>
+              </label>
+            `).join("")}
+          </div>
+        </form>
+      `,
+      buttons: [
+        {
+          action: "confirm",
+          label: game.i18n.localize("DDA.Button.Confirm"),
+          icon: "fa-solid fa-check",
+          default: true,
+          callback: (_event, button) => String(
+            button.form?.elements?.freeGrantQualityId?.value ?? ""
+          ).trim()
+        },
+        {
+          action: "cancel",
+          label: game.i18n.localize("DDA.Button.Cancel"),
+          icon: "fa-solid fa-xmark",
+          callback: () => null
+        }
+      ],
+      rejectClose: false,
+      close: () => null
+    });
+
+    return options.find((definition) => definition.id === result) ?? null;
+  }
+
+  async _promptModeChangePair(rankNumber, existingChoices = []) {
+    const english = isQualityBrowserEnglish();
+    const usedStats = new Set(
+      existingChoices.flatMap((choice) => {
+        return Array.isArray(choice?.stats)
+          ? choice.stats
+          : [choice?.leftStat, choice?.rightStat];
+      }).map((stat) => String(stat ?? "").trim()).filter(Boolean)
+    );
+
+    const statOptions = ["accuracy", "damage", "dodge", "armor"]
+      .filter((stat) => !usedStats.has(stat));
+
+    if (statOptions.length < 2) return null;
+
+    const labelFor = (stat) => game.i18n.localize({
+      accuracy: "DDA.MainStat.Accuracy",
+      damage: "DDA.MainStat.Damage",
+      dodge: "DDA.MainStat.Dodge",
+      armor: "DDA.MainStat.Armor"
+    }[stat]);
+
+    const optionsHtml = statOptions.map((stat) => {
+      return `<option value="${stat}">${escapeNaturewalkHtml(labelFor(stat))}</option>`;
+    }).join("");
+
+    const sizeOrder = ["small", "medium", "large", "huge", "gigantic", "colossal"];
+    const defaultSize = String(this.actor?.system?.size ?? "medium");
+    const defaultSizeIndex = sizeOrder.indexOf(defaultSize);
+    const stage = String(this.actor?.system?.stage ?? "child");
+    const maximumSize = String(CONFIG.DDA?.stages?.[stage]?.maxSize ?? "colossal");
+    const maximumSizeIndex = sizeOrder.indexOf(maximumSize);
+    const alreadySelectedSize = existingChoices.some((choice) => String(choice?.modeSize ?? "").trim());
+    const adjacentSizes = alreadySelectedSize || defaultSizeIndex < 0
+      ? []
+      : [defaultSizeIndex - 1, defaultSizeIndex + 1]
+          .filter((index) => index >= 0 && index < sizeOrder.length)
+          .filter((index) => maximumSizeIndex < 0 || index <= maximumSizeIndex)
+          .map((index) => sizeOrder[index]);
+    const sizeLabel = (size) => {
+      const configured = CONFIG.DDA?.sizes?.[size] ?? size;
+      const localized = game.i18n.localize(configured);
+      return localized && localized !== configured ? localized : configured;
+    };
+    const sizeOptionsHtml = [
+      `<option value="">${english ? "Keep the default Size" : "Manter o Tamanho padrão"}</option>`,
+      ...adjacentSizes.map((size) => `<option value="${size}">${escapeNaturewalkHtml(sizeLabel(size))}</option>`)
+    ].join("");
+
+    const result = await foundry.applications.api.DialogV2.wait({
+      classes: ["dda", "dda-core-quality-dialog", "dda-mode-change-pair-dialog"],
+      position: { width: 520, height: "auto" },
+      window: {
+        title: english
+          ? `Mode Change — Rank ${rankNumber}`
+          : `Mudança de Modo — Rank ${rankNumber}`
+      },
+      modal: true,
+      content: `
+        <form class="dda-core-choice-dialog dda-mode-change-pair-form">
+          <header class="dda-core-choice-dialog__hero">
+            <span>${english ? `Rank ${rankNumber}` : `Rank ${rankNumber}`}</span>
+            <h2>${english ? "Choose the linked Core Stats" : "Escolha as Estatísticas Centrais vinculadas"}</h2>
+            <p>${english
+              ? "The two stats swap their values whenever the Digimon changes Mode. A stat cannot be selected twice."
+              : "As duas estatísticas trocam seus valores quando o Digimon muda de Modo. Uma estatística não pode ser escolhida duas vezes."}</p>
+          </header>
+          <div class="dda-mode-change-pair-grid">
+            <label>
+              <span>${english ? "First stat" : "Primeira estatística"}</span>
+              <select name="leftStat">${optionsHtml}</select>
+            </label>
+            <span class="dda-mode-change-pair-grid__arrow">↔</span>
+            <label>
+              <span>${english ? "Second stat" : "Segunda estatística"}</span>
+              <select name="rightStat">${optionsHtml}</select>
+            </label>
+          </div>
+          ${alreadySelectedSize ? "" : `
+            <label class="dda-mode-change-size-choice">
+              <span>${english ? "Optional Mode Size" : "Tamanho opcional do Modo"}</span>
+              <select name="modeSize">${sizeOptionsHtml}</select>
+              <small>${english
+                ? "Only a Size one step larger or smaller and available at this Stage is offered."
+                : "Somente um Tamanho um passo maior ou menor e disponível neste Estágio é oferecido."}</small>
+            </label>
+          `}
+        </form>
+      `,
+      buttons: [
+        {
+          action: "confirm",
+          label: game.i18n.localize("DDA.Button.Confirm"),
+          icon: "fa-solid fa-check",
+          default: true,
+          callback: (_event, button) => ({
+            leftStat: String(button.form?.elements?.leftStat?.value ?? "").trim(),
+            rightStat: String(button.form?.elements?.rightStat?.value ?? "").trim(),
+            modeSize: String(button.form?.elements?.modeSize?.value ?? "").trim()
+          })
+        },
+        {
+          action: "cancel",
+          label: game.i18n.localize("DDA.Button.Cancel"),
+          icon: "fa-solid fa-xmark",
+          callback: () => null
+        }
+      ],
+      rejectClose: false,
+      close: () => null
+    });
+
+    if (!result?.leftStat || !result?.rightStat || result.leftStat === result.rightStat) {
+      if (result) {
+        ui.notifications.warn(english
+          ? "Mode Change requires two different Core Stats."
+          : "Mudança de Modo exige duas Estatísticas Centrais diferentes.");
+      }
+      return null;
+    }
+
+    const stats = [result.leftStat, result.rightStat];
+    return {
+      rank: rankNumber,
+      key: stats.join(":"),
+      label: `${labelFor(stats[0])} ↔ ${labelFor(stats[1])}`,
+      originalLabel: stats.join(" ↔ "),
+      stats,
+      leftStat: stats[0],
+      rightStat: stats[1],
+      modeSize: result.modeSize,
+      sizeDirection: result.modeSize
+        ? (sizeOrder.indexOf(result.modeSize) > defaultSizeIndex ? "larger" : "smaller")
+        : "same"
+    };
+  }
+
+  async _buildFreeGrant({
+    qualityId,
+    sourceKey,
+    entitlementRanks = 1,
+    mode = "add",
+    targetRank = 0
+  } = {}) {
+    const definition = DDA_DIGIMON_QUALITIES.find((entry) => entry.id === qualityId);
+    if (!definition) return false;
+
+    const ownedItem = this._getOwnedQualityBySourceId(qualityId);
+    const currentRank = Math.max(0, Number(ownedItem?.system?.rank?.value ?? 0));
+    const existingChoices = Array.isArray(ownedItem?.system?.choices?.selectedRanks)
+      ? foundry.utils.deepClone(ownedItem.system.choices.selectedRanks)
+      : [];
+    const maximum = Math.max(1, this._getQualityEffectiveMax(definition, ownedItem));
+    const otherFreeRanks = this._getFreeRankSourceTotal(ownedItem, sourceKey);
+
+    let desiredRank = currentRank;
+    if (mode === "ensure") {
+      desiredRank = Math.max(currentRank, Math.min(maximum, Math.max(1, Number(targetRank ?? entitlementRanks))));
+    } else if (otherFreeRanks < currentRank) {
+      // Convert an already-paid Rank into the granted free Rank before adding a new one.
+      desiredRank = currentRank;
+    } else {
+      desiredRank = Math.min(maximum, currentRank + Math.max(1, Number(entitlementRanks ?? 1)));
+    }
+
+    const assignableFreeRanks = Math.max(0, desiredRank - otherFreeRanks);
+    const sourceRanks = Math.min(
+      Math.max(1, Number(entitlementRanks ?? 1)),
+      assignableFreeRanks
+    );
+
+    if (sourceRanks <= 0) {
+      return {
+        qualityId,
+        sourceKey,
+        ranks: 0,
+        targetRank: currentRank,
+        choices: []
+      };
+    }
+
+    const choices = [];
+    const ranksToCreate = Math.max(0, desiredRank - currentRank);
+    const combinedChoices = [...existingChoices];
+
+    for (let offset = 0; offset < ranksToCreate; offset += 1) {
+      const rankNumber = currentRank + offset + 1;
+      let choice = null;
+
+      if (definition.choices?.type === "modeChangePairsPerRank") {
+        choice = await this._promptModeChangePair(rankNumber, combinedChoices);
+      } else if (definition.choices?.required) {
+        choice = await this._promptQualityChoice(definition, rankNumber, combinedChoices);
+      }
+
+      if (definition.choices?.required && !choice) return false;
+      if (choice) {
+        choices.push(choice);
+        combinedChoices.push(choice);
+      }
+    }
+
+    return {
+      qualityId,
+      sourceKey,
+      ranks: sourceRanks,
+      targetRank: desiredRank,
+      choices
+    };
+  }
+
+  async _prepareDataSpecializationFreeGrant(selected = {}) {
+    const english = isQualityBrowserEnglish();
+    const sourceKey = `dataSpecialization:${selected.key}`;
+    const directGrantId = {
+      fistfulOfForce: "areaDeAtaque",
+      mobileArtillery: "areaDeAtaque",
+      trySomething: "contraAtaque",
+      wrestlemania: "periciaProdigiosa"
+    }[selected.key] ?? "";
+
+    if (directGrantId) {
+      return this._buildFreeGrant({
+        qualityId: directGrantId,
+        sourceKey,
+        entitlementRanks: 1,
+        mode: "add"
+      });
+    }
+
+    if (selected.key === "hitAndRun") {
+      const definition = await this._chooseFreeGrantDefinition({
+        title: selected.label,
+        hint: english
+          ? "Choose the Quality granted for free. If you already own it, its paid Rank is converted into the free Rank."
+          : "Escolha a Qualidade concedida gratuitamente. Se você já a possuir, o Rank pago é convertido em Rank gratuito.",
+        definitions: ["ataqueDeInvestida", "recuoPesado"].map((id) => {
+          return DDA_DIGIMON_QUALITIES.find((entry) => entry.id === id);
+        })
+      });
+      if (!definition) return false;
+      return this._buildFreeGrant({
+        qualityId: definition.id,
+        sourceKey,
+        entitlementRanks: 1,
+        mode: "ensure",
+        targetRank: 1
+      });
+    }
+
+    if (selected.key === "tacticalAdaptation") {
+      const modeDefinition = DDA_DIGIMON_QUALITIES.find((entry) => entry.id === "mudancaDeModo");
+      const stanceDefinitions = DDA_DIGIMON_QUALITIES.filter((entry) => {
+        return ["Stance Qualities", "Qualidades de Postura"].includes(entry.section);
+      });
+      const grantDefinitions = [
+        ...stanceDefinitions,
+        modeDefinition && {
+          ...modeDefinition,
+          name: english ? "Mode Change — 2 Ranks" : "Mudança de Modo — 2 Ranks",
+          originalName: "Mode Change — 2 Ranks"
+        }
+      ].filter(Boolean);
+
+      const definition = await this._chooseFreeGrantDefinition({
+        title: selected.label,
+        hint: english
+          ? "Choose one Stance Quality for free, or take both Ranks of Mode Change for free."
+          : "Escolha uma Qualidade de Postura gratuitamente ou receba os dois Ranks de Mudança de Modo gratuitamente.",
+        definitions: grantDefinitions
+      });
+      if (!definition) return false;
+
+      const isModeChange = definition.id === "mudancaDeModo";
+      return this._buildFreeGrant({
+        qualityId: definition.id,
+        sourceKey,
+        entitlementRanks: isModeChange ? 2 : 1,
+        mode: "ensure",
+        targetRank: isModeChange ? 2 : 1
+      });
+    }
+
+    return null;
+  }
+
+  async _applyDataSpecializationFreeGrant(dataSpecializationItem, choice = null) {
+    const grant = choice?.freeGrant;
+    if (!grant?.qualityId || !grant?.sourceKey || Number(grant.ranks ?? 0) <= 0) return;
+
+    const definition = DDA_DIGIMON_QUALITIES.find((entry) => entry.id === grant.qualityId);
+    if (!definition) return;
+
+    let ownedItem = this._getOwnedQualityBySourceId(grant.qualityId);
+    const existingSources = Array.isArray(ownedItem?.system?.cost?.freeRankSources)
+      ? foundry.utils.deepClone(ownedItem.system.cost.freeRankSources)
+      : [];
+
+    if (existingSources.some((entry) => String(entry?.key ?? entry) === grant.sourceKey)) return;
+
+    const sourceRecord = {
+      key: grant.sourceKey,
+      sourceItemId: dataSpecializationItem?.id ?? "",
+      sourceItemName: dataSpecializationItem?.name ?? "",
+      specialization: choice.key,
+      ranks: Math.max(1, Number(grant.ranks ?? 1))
+    };
+    const grantedChoices = Array.isArray(grant.choices)
+      ? foundry.utils.deepClone(grant.choices)
+      : grant.choice
+        ? [foundry.utils.deepClone(grant.choice)]
+        : [];
+
+    if (!ownedItem) {
+      const itemData = buildQualityItemData(definition);
+      const targetRank = Math.max(1, Number(grant.targetRank ?? sourceRecord.ranks));
+      itemData.system.rank = {
+        ...(itemData.system.rank ?? {}),
+        value: targetRank
+      };
+      itemData.system.cost = {
+        ...(itemData.system.cost ?? {}),
+        freeRanks: Math.min(targetRank, sourceRecord.ranks),
+        freeRankSources: [sourceRecord]
+      };
+
+      if (grantedChoices.length) {
+        itemData.system.choices = {
+          ...(itemData.system.choices ?? {}),
+          selectedRanks: grantedChoices
+        };
+      }
+
+      [ownedItem] = await this.actor.createEmbeddedDocuments("Item", [itemData]);
+    } else {
+      const existingChoices = Array.isArray(ownedItem.system?.choices?.selectedRanks)
+        ? foundry.utils.deepClone(ownedItem.system.choices.selectedRanks)
+        : [];
+      existingChoices.push(...grantedChoices);
+
+      const nextSources = [...existingSources, sourceRecord];
+      const nextRank = Math.max(
+        Number(ownedItem.system?.rank?.value ?? 0),
+        Number(grant.targetRank ?? 0)
+      );
+      const sourceTotal = nextSources.reduce((total, entry) => {
+        return total + Math.max(0, Number(entry?.ranks ?? 1));
+      }, 0);
+      const update = {
+        "system.rank.value": nextRank,
+        "system.cost.freeRanks": Math.min(nextRank, sourceTotal),
+        "system.cost.freeRankSources": nextSources
+      };
+      if (grantedChoices.length) update["system.choices.selectedRanks"] = existingChoices;
+      await ownedItem.update(update);
+    }
+
+    for (const grantedChoice of grantedChoices) {
+      await this._applyAttackChoiceToAttack(ownedItem, grantedChoice);
+    }
+
+    const rankLabel = sourceRecord.ranks === 1
+      ? (isQualityBrowserEnglish() ? "1 free Rank" : "1 Rank gratuito")
+      : (isQualityBrowserEnglish()
+        ? `${sourceRecord.ranks} free Ranks`
+        : `${sourceRecord.ranks} Ranks gratuitos`);
+    ui.notifications.info(isQualityBrowserEnglish()
+      ? `${definition.name} gained ${rankLabel} from ${choice.label}.`
+      : `${definition.name} recebeu ${rankLabel} de ${choice.label}.`);
+  }
+
+  _getOverclockChoiceOptions() {
+    const allowedPotencyStats = new Set(["bit", "dos", "ram", "cpu"]);
+    const actorStageValue = Number(this.actor?.system?.stageValue ?? 0);
+
+    const purchasedEffectTags = new Set();
+    for (const item of this.actor?.items ?? []) {
+      if (item.type !== "quality") continue;
+      for (const choice of item.system?.choices?.selectedRanks ?? []) {
+        const key = String(choice?.key ?? "");
+        const tag = String(
+          choice?.effectTag ??
+          choice?.attackTag ??
+          (key.includes(":") ? key.slice(key.indexOf(":") + 1) : "")
+        ).trim().replace(/^\[|\]$/g, "").toLowerCase();
+        if (tag && EFFECT_TAGS[tag]) purchasedEffectTags.add(tag);
+      }
+    }
+
+    const sourceIds = ["efeitoBasico", "efeitoAvancado", "efeitoMestre"];
+    const options = [];
+
+    for (const sourceId of sourceIds) {
+      const sourceQuality = DDA_DIGIMON_QUALITIES.find((entry) => entry.id === sourceId);
+      if (!sourceQuality) continue;
+      if (actorStageValue < this._getQualityMinimumStageValue(sourceQuality)) continue;
+
+      const effectDpCost = Math.max(0, Number(sourceQuality.cost?.dp ?? 0));
+      for (const effect of sourceQuality.choices?.options ?? []) {
+        const effectTag = String(effect.key ?? "").trim().toLowerCase();
+        const potencyStat = String(effect.potency ?? "").trim().toLowerCase();
+        const effectType = String(effect.type ?? EFFECT_TAGS[effectTag]?.type ?? "").toLowerCase();
+
+        if (effectType !== "positive" || !allowedPotencyStats.has(potencyStat)) continue;
+        if (purchasedEffectTags.has(effectTag)) continue;
+
+        options.push({
+          ...foundry.utils.deepClone(effect),
+          key: `overclock:${sourceId}:${effectTag}`,
+          label: `${effect.label ?? effect.originalLabel ?? effectTag.toUpperCase()} · ${potencyStat.toUpperCase()} · ${effectDpCost} PD${effect.extraActionRequired ? ` · +1 ${isQualityBrowserEnglish() ? "Action" : "Ação"}` : ""}`,
+          originalLabel: String(effect.originalLabel ?? effect.label ?? effectTag),
+          sourceQualityId: sourceId,
+          sourceQualityName: sourceQuality.name,
+          effectTag,
+          effectType: "positive",
+          potencyStat,
+          duration: effect.duration ?? true,
+          extraActionRequired: Boolean(effect.extraActionRequired),
+          effectDpCost
+        });
+      }
+    }
+
+    return options;
+  }
+
 async _promptQualityChoice(quality, rankNumber, existingChoices = []) {
   const choices = quality.choices ?? {};
 
   if (!choices.required) {
     return null;
+  }
+
+  if (choices.type === "modeChangePairsPerRank") {
+    return this._promptModeChangePair(rankNumber, existingChoices);
+  }
+
+  if (getCoreQualityId(quality) === CORE_QUALITY_IDS.dataSpecialization) {
+    return this._promptDataSpecializationChoice(quality, rankNumber, existingChoices);
   }
 
 const modifier =
@@ -788,28 +1737,40 @@ const isAttackChoice =
   [
     "singleAttack",
     "attackTag",
-    "effectTagPerRank"
+    "effectTagPerRank",
+    "attackWithPiercing",
+    "attackWithCertain",
+    "signatureMove"
   ].includes(
     choices.type
   );
 
-  const options = (
-    isAttackChoice
-      ? this._getAttackChoiceOptionsForQuality(
-          quality,
-          existingChoices
-        )
+  const isOverclockChoice = choices.type === "positiveCasterDerivedEffect";
+
+  let rawOptions = isAttackChoice
+    ? this._getAttackChoiceOptionsForQuality(quality, existingChoices)
+    : isOverclockChoice
+      ? this._getOverclockChoiceOptions()
       : Array.isArray(choices.options)
         ? choices.options
-        : []
-  ).map((option) => {
+        : [];
+
+  const isAdvancedMobility = getCoreQualityId(quality) === CORE_QUALITY_IDS.advancedMobility;
+
+  if (isAdvancedMobility) {
+    rawOptions = getAvailableAdvancedMobilityOptions(
+      this.actor,
+      rawOptions,
+      existingChoices
+    );
+  }
+
+  const options = rawOptions.map((option) => {
     return typeof option === "string"
       ? { key: normalizeQualityBrowserIdentity(option), label: option, originalLabel: option }
       : option;
   }).filter((option) => {
-    return this._actorMeetsChoiceOptionRequirements(
-      option
-    );
+    return isAdvancedMobility || this._actorMeetsChoiceOptionRequirements(option);
   });
 
   if (!options.length) {
@@ -1114,6 +2075,7 @@ const availableOptions =
       let selectedKeys = null;
       try {
         selectedKeys = await foundry.applications.api.DialogV2.prompt({
+      classes: ["dda", "dda-area-attack-dialog", "dda-offensive-quality-window"],
           window: { title: `${quality.name} — Rank ${rankNumber}` },
           content: `<div class="dda-quality-choice-form">
             <p>${isQualityBrowserEnglish() ? "Choose exactly two non-Naturewalk Elements." : "Escolha exatamente dois Elementos que não sejam Naturewalk."}</p>
@@ -1999,44 +2961,51 @@ const availableOptions =
       })
       .join("");
 
-    const selectedKey = await new Promise((resolve) => {
-      new Dialog({
+    const selectedKey = await foundry.applications.api.DialogV2.wait({
+      classes: ["dda", "dda-area-attack-dialog", "dda-offensive-quality-window"],
+      position: { width: 520, height: "auto" },
+      window: {
         title: game.i18n.format("DDA.QualityBrowser.ChoiceDialogTitle", {
           quality: quality.name,
           rank: rankNumber
-        }),
-        content: `
-          <form class="dda-quality-choice-form">
-            <div class="form-group">
-              <label>${choices.label ?? game.i18n.localize("DDA.QualityBrowser.Choice")}</label>
-              <select name="choiceKey">
-                ${optionHtml}
-              </select>
-            </div>
+        })
+      },
+      modal: true,
+      content: `
+        <form class="dda-quality-choice-form dda-offensive-quality-dialog">
+          <div class="form-group">
+            <label>${choices.label ?? game.i18n.localize("DDA.QualityBrowser.Choice")}</label>
+            <select name="choiceKey">
+              ${optionHtml}
+            </select>
+          </div>
 
-            <p class="notes">
-              ${game.i18n.format("DDA.QualityBrowser.ChoiceRegisteredRank", {
-                rank: rankNumber
-              })}
-            </p>
-          </form>
-        `,
-        buttons: {
-          confirm: {
-            label: game.i18n.localize("DDA.Button.Confirm"),
-            callback: (html) => {
-              const value = html.find("[name='choiceKey']").val();
-              resolve(value);
-            }
-          },
-          cancel: {
-            label: game.i18n.localize("DDA.Button.Cancel"),
-            callback: () => resolve(null)
-          }
+          <p class="notes">
+            ${game.i18n.format("DDA.QualityBrowser.ChoiceRegisteredRank", {
+              rank: rankNumber
+            })}
+          </p>
+        </form>
+      `,
+      buttons: [
+        {
+          action: "confirm",
+          label: game.i18n.localize("DDA.Button.Confirm"),
+          icon: "fa-solid fa-check",
+          default: true,
+          callback: (_event, button) => String(
+            button.form?.elements?.choiceKey?.value ?? ""
+          ) || null
         },
-        close: () => resolve(null),
-        default: "confirm"
-      }).render(true);
+        {
+          action: "cancel",
+          label: game.i18n.localize("DDA.Button.Cancel"),
+          icon: "fa-solid fa-xmark",
+          callback: () => null
+        }
+      ],
+      rejectClose: false,
+      close: () => null
     });
 
     if (!selectedKey) return null;
@@ -2044,6 +3013,41 @@ const availableOptions =
     const selectedOption = availableOptions.find((option) => option.key === selectedKey);
 
     if (!selectedOption) return null;
+
+    let signatureBatteryAsUnalterable = false;
+    const qualityKey = normalizeQualityBrowserIdentity(
+      quality.id ?? quality.originalName ?? quality.name ?? ""
+    );
+    const selectedAttack = selectedOption.attackId
+      ? this.actor?.items?.get(selectedOption.attackId)
+      : null;
+
+    if (
+      ["perfuracaodearmadura", "armorpiercing"].includes(qualityKey) &&
+      selectedAttack?.system?.isSignature
+    ) {
+      try {
+        signatureBatteryAsUnalterable = Boolean(
+          await foundry.applications.api.DialogV2.confirm({
+          classes: ["dda", "dda-area-attack-dialog", "dda-offensive-quality-window"],
+            window: {
+              title: isQualityBrowserEnglish()
+                ? "Armor Piercing — Signature Move"
+                : "Perfuração de Armadura — Movimento Assinatura"
+            },
+            content: `<div class="dda-confirm-dialog dda-offensive-quality-dialog"><p>${isQualityBrowserEnglish()
+              ? "Convert Signature Move Battery damage into Unalterable Damage, up to this Quality's Ranks? This choice is stored on the selected Attack binding."
+              : "Converter o Dano da Bateria do Movimento Assinatura em Dano Inalterável, até o limite de Ranks desta Qualidade? Esta escolha ficará registrada no vínculo com o Ataque."}</p></div>`,
+            yes: { label: isQualityBrowserEnglish() ? "Convert" : "Converter" },
+            no: { label: isQualityBrowserEnglish() ? "Keep normal Damage" : "Manter Dano normal" },
+            rejectClose: false,
+            modal: true
+          })
+        );
+      } catch (_error) {
+        signatureBatteryAsUnalterable = false;
+      }
+    }
 
 return {
   rank:
@@ -2109,6 +3113,8 @@ return {
       selectedOption.onlyAffectsAllies
     ),
 
+  signatureBatteryAsUnalterable,
+
   effect:
     selectedOption.effect ??
     ""
@@ -2141,7 +3147,10 @@ _getAttackChoiceOptionsForQuality(
   const attacks =
     this.actor?.items?.filter(
       (item) => {
-        return item.type === "attack";
+        return item.type === "attack" && (
+          !(this._superiorModeAttackIds instanceof Set) ||
+          this._superiorModeAttackIds.has(item.id)
+        );
       }
     ) ?? [];
 
@@ -2223,6 +3232,13 @@ _getAttackChoiceOptionsForQuality(
         .filter(Boolean)
     );
 
+  const reservedOverclockEffectTags = new Set(
+    (this.actor?.items ?? [])
+      .filter((item) => item.type === "quality")
+      .map((item) => normalizeTag(item.system?.overclock?.effectTag ?? ""))
+      .filter(Boolean)
+  );
+
   const actorHasCodeWizard = (this.actor?.items ?? []).some((item) => {
     const selected = [
       ...(item.system?.choices?.selectedRanks ?? []),
@@ -2238,7 +3254,7 @@ _getAttackChoiceOptionsForQuality(
   const getAttackTags = (
     attack
   ) => {
-    return [
+    const tags = [
       ...(
         Array.isArray(
           attack.system?.qualityTags
@@ -2253,8 +3269,16 @@ _getAttackChoiceOptionsForQuality(
         )
           ? attack.system.tags
           : []
+      ),
+
+      ...(
+        attack.system?.effectTag?.enabled && attack.system.effectTag?.tag
+          ? [attack.system.effectTag.tag]
+          : []
       )
-    ].map(normalizeTag);
+    ].map(normalizeTag).filter(Boolean);
+
+    return [...new Set(tags)];
   };
 
   /*
@@ -2515,7 +3539,8 @@ _getAttackChoiceOptionsForQuality(
          */
         return (
           effectTag &&
-          !usedTags.has(effectTag)
+          !usedTags.has(effectTag) &&
+          !reservedOverclockEffectTags.has(effectTag)
         );
       })
       .flatMap((option) => {
@@ -2531,6 +3556,29 @@ _getAttackChoiceOptionsForQuality(
             );
           })
           .filter((attack) => {
+            return new Set(getAttackTags(attack)).size < 3;
+          })
+          .filter((attack) => {
+            const functionType = String(
+              attack.system?.baseTags?.functionType ?? ""
+            ).trim().toLowerCase();
+            const effectType = String(
+              option.type ?? EFFECT_TAGS[effectTag]?.type ?? ""
+            ).trim().toLowerCase();
+
+            if (effectType === "positive" && functionType !== "support") {
+              return false;
+            }
+
+            const hasAreaTag = getAttackTags(attack).some((tag) => tag.startsWith("t:"));
+            const areaRestrictedEffects = new Set([
+              "haste", "paralyze", "weak", "regen", "strength", "stun"
+            ]);
+
+            if (hasAreaTag && areaRestrictedEffects.has(effectTag)) {
+              return Boolean(attack.system?.isSignature) && functionType === "support";
+            }
+
             if (
               !option.requiresDamageTag ||
               actorHasCodeWizard
@@ -2538,17 +3586,7 @@ _getAttackChoiceOptionsForQuality(
               return true;
             }
 
-            return (
-              String(
-                attack.system
-                  ?.baseTags
-                  ?.functionType ??
-                ""
-              )
-                .trim()
-                .toLowerCase() ===
-              "damage"
-            );
+            return functionType === "damage";
           })
           .filter((attack) => {
             if (
@@ -2639,6 +3677,59 @@ _getAttackChoiceOptionsForQuality(
       "oneAttack"
     );
 
+  const offensiveQualityKey = normalizeQualityBrowserIdentity(
+    quality.id ?? quality.originalName ?? quality.name ?? ""
+  );
+
+  const attackIsLegalForOffensiveQuality = (attack) => {
+    const tags = new Set(getAttackTags(attack));
+    const isSignature = Boolean(attack.system?.isSignature);
+    const hasEffect = attackHasEffectTag(attack);
+
+    if (["armamentodedigizoidepuro", "puredigizoidweaponry"].includes(offensiveQualityKey)) {
+      if (tags.has("weapon") && !isSignature) return false;
+    }
+
+    if (["municao", "ammo"].includes(offensiveQualityKey) && isSignature) {
+      return false;
+    }
+
+    if (["perfuracaodearmadura", "armorpiercing"].includes(offensiveQualityKey)) {
+      if (tags.has("certain") && !isSignature) return false;
+    }
+
+    if (["golpecerteiro", "certainstrike"].includes(offensiveQualityKey)) {
+      if (tags.has("piercing") && !isSignature) return false;
+    }
+
+    if (["venenoso", "venomous"].includes(offensiveQualityKey)) {
+      if (tags.has("poison")) return false;
+    }
+
+    if (["roubodevida", "lifesteal"].includes(offensiveQualityKey)) {
+      if (hasEffect) return false;
+    }
+
+    if (["ataquefinta", "feintattack"].includes(offensiveQualityKey)) {
+      if (tags.has("piercing") || tags.has("stun")) return false;
+    }
+
+    if (["golpepoderoso", "mightyblow"].includes(offensiveQualityKey)) {
+      if (["burn", "freeze", "poison", "ruin"].some((tag) => tags.has(tag))) {
+        return false;
+      }
+    }
+
+    if (["escudoprotetor", "protectingshield"].includes(offensiveQualityKey)) {
+      const hasAreaTag = [...tags].some((tag) => tag.startsWith("t:"));
+      const functionType = String(attack.system?.baseTags?.functionType ?? "").toLowerCase();
+      if (hasEffect) return false;
+      if (hasAreaTag && (!isSignature || functionType !== "support")) return false;
+    }
+
+    return true;
+  };
+
   return attacks
     .filter((attack) => {
       return this
@@ -2646,6 +3737,12 @@ _getAttackChoiceOptionsForQuality(
           attack,
           appliesTo
         );
+    })
+    .filter((attack) => {
+      return new Set(getAttackTags(attack)).size < 3;
+    })
+    .filter((attack) => {
+      return attackIsLegalForOffensiveQuality(attack);
     })
     .filter((attack) => {
       return !usedAttackIds.has(
@@ -2728,12 +3825,23 @@ _getAttackChoiceOptionsForQuality(
   }
 
   _attackMatchesQualityAppliesTo(attack, appliesTo = "") {
-    const rangeType = String(attack.system?.baseTags?.rangeType ?? "");
-    const functionType = String(attack.system?.baseTags?.functionType ?? "");
+    const rangeType = String(attack.system?.baseTags?.rangeType ?? "").toLowerCase();
+    const functionType = String(attack.system?.baseTags?.functionType ?? "").toLowerCase();
+    const rule = String(appliesTo ?? "").trim();
 
-    if (appliesTo === "oneDamageAttack" || appliesTo === "damage") return functionType === "damage";
-    if (appliesTo === "oneMeleeAttack" || appliesTo === "melee") return rangeType === "melee";
-    if (appliesTo === "oneRangedAttack" || appliesTo === "range" || appliesTo === "ranged") return ["range", "ranged"].includes(rangeType);
+    if (rule === "oneDamageAttack" || rule === "damage") return functionType === "damage";
+    if (rule === "oneSupportAttack" || rule === "support") return functionType === "support";
+    if (rule === "oneMeleeAttack" || rule === "melee") return rangeType === "melee";
+    if (rule === "oneRangedAttack" || rule === "range" || rule === "ranged") return ["range", "ranged"].includes(rangeType);
+
+    if (rule === "oneSupportAttackWithPositiveEffect") {
+      if (functionType !== "support") return false;
+      const tags = new Set([
+        ...(attack.system?.qualityTags ?? []),
+        attack.system?.effectTag?.enabled ? attack.system.effectTag.tag : ""
+      ].map((entry) => String(entry?.tag ?? entry?.key ?? entry?.value ?? entry ?? "").trim().toLowerCase()).filter(Boolean));
+      return [...tags].some((tag) => String(EFFECT_TAGS[tag]?.type ?? "").toLowerCase() === "positive" || tag === "shield");
+    }
 
     return true;
   }
@@ -2750,6 +3858,11 @@ _getAttackChoiceOptionsForQuality(
       return entry.id === item.system?.sourceId || entry.name === item.name;
     });
 
+    if (!quality) {
+      ui.notifications.warn(game.i18n.localize("DDA.Warning.QualityNotFound"));
+      return;
+    }
+
     const currentRank = Number(item.system?.rank?.value ?? 1);
     const effectiveMax = this._getQualityEffectiveMax(quality, item);
 
@@ -2761,6 +3874,41 @@ _getAttackChoiceOptionsForQuality(
     }
 
     const nextRank = currentRank + 1;
+
+    if (!actorMeetsOffensiveRankStatRequirement(this.actor, quality, nextRank)) {
+      const requirement = getOffensiveRankStatRequirement(quality, nextRank);
+      const statLabel = requirement?.stat === "damage"
+        ? (isQualityBrowserEnglish() ? "Damage" : "Dano")
+        : requirement?.stat === "dodge"
+          ? (isQualityBrowserEnglish() ? "Dodge" : "Esquiva")
+          : (isQualityBrowserEnglish() ? "Accuracy" : "Precisão");
+      ui.notifications.warn(isQualityBrowserEnglish()
+        ? `${quality.name} Rank ${nextRank} requires ${requirement?.required ?? 0} Total ${statLabel}.`
+        : `${quality.name} Rank ${nextRank} exige ${requirement?.required ?? 0} de ${statLabel} Total.`);
+      return;
+    }
+
+    const rankCost = this._getQualityDpCost(quality, { ranks: 1, ownedItem: item });
+    const remainingDp = this._getActorRemainingDp();
+
+    if (rankCost > remainingDp) {
+      ui.notifications.warn(game.i18n.format("DDA.QualityBrowser.BlockedReason.NotEnoughDP", {
+        cost: rankCost,
+        remaining: remainingDp
+      }));
+      return;
+    }
+
+    if (!this._actorHasRequiredQualities(quality)) {
+      ui.notifications.warn(this._getBlockedReason(quality));
+      return;
+    }
+
+    if (this._actorHasIncompatibleQualities(quality)) {
+      ui.notifications.warn(this._getBlockedReason(quality));
+      return;
+    }
+
     const existingChoices = Array.isArray(item.system?.choices?.selectedRanks)
       ? foundry.utils.deepClone(item.system.choices.selectedRanks)
       : [];
@@ -2785,15 +3933,24 @@ _getAttackChoiceOptionsForQuality(
       updateData["system.choices.selectedRanks"] = existingChoices;
     }
 
+this._attachStatusWarlordDiscountToUpdate(quality, item, updateData);
+
 await item.update(
   updateData
 );
 
+const addedChoice = updateData[
+  "system.choices.selectedRanks"
+]?.at?.(-1);
+
 await this._applyAttackChoiceToAttack(
   item,
-  updateData[
-    "system.choices.selectedRanks"
-  ]?.at?.(-1)
+  addedChoice
+);
+
+await this._applyDataSpecializationFreeGrant(
+  item,
+  addedChoice
 );
 
     ui.notifications.info(game.i18n.format("DDA.QualityBrowser.RankIncreased", {
@@ -2818,10 +3975,135 @@ await this._applyAttackChoiceToAttack(
     );
   }
 
+  _getInspiringGuidanceEffectiveMax(quality, ownedItem = null) {
+    const identity = normalizeQualityBrowserIdentity(
+      ownedItem?.system?.sourceId ??
+      ownedItem?.system?.id ??
+      quality?.id ??
+      ownedItem?.name ??
+      quality?.name ??
+      ""
+    );
+
+    const configured = Boolean(
+      quality?.attackModifier?.maxRanksEqualDpSpentOnPositiveEffect ??
+      ownedItem?.system?.attackModifier?.maxRanksEqualDpSpentOnPositiveEffect
+    );
+
+    if (!configured && !["orientacaoinspiradora", "inspiringguidance"].includes(identity)) {
+      return null;
+    }
+
+    const selected = [
+      ...(Array.isArray(ownedItem?.system?.choices?.selectedRanks)
+        ? ownedItem.system.choices.selectedRanks
+        : []),
+      ...(Array.isArray(ownedItem?.system?.choices?.selected)
+        ? ownedItem.system.choices.selected
+        : [])
+    ];
+
+    const firstChoice = selected[0] ?? {};
+    const choiceKey = String(firstChoice?.key ?? "").trim();
+    const attackId = String(
+      firstChoice?.attackId ??
+      firstChoice?.attackItemId ??
+      firstChoice?.itemId ??
+      firstChoice?.attackKey ??
+      (choiceKey.includes(":") ? choiceKey.split(":")[0] : choiceKey) ??
+      ""
+    ).trim();
+
+    /*
+     * Antes da primeira compra o Browser ainda não possui um Ataque salvo.
+     * O teto provisório continua 3; após a escolha, o limite é recalculado
+     * com base no PD do Efeito Positivo daquele mesmo Ataque.
+     */
+    if (!attackId) return 3;
+
+    const positiveTags = new Set(
+      Object.entries(EFFECT_TAGS)
+        .filter(([, data]) => String(data?.type ?? "").toLowerCase() === "positive")
+        .map(([tag]) => String(tag).toLowerCase())
+    );
+
+    let maximum = 0;
+
+    for (const item of this.actor?.items ?? []) {
+      if (item.type !== "quality" || item.id === ownedItem?.id) continue;
+
+      const itemIdentity = normalizeQualityBrowserIdentity(
+        item.system?.sourceId ??
+        item.system?.id ??
+        item.system?.originalName ??
+        item.name ??
+        ""
+      );
+
+      const choices = [
+        ...(Array.isArray(item.system?.choices?.selectedRanks)
+          ? item.system.choices.selectedRanks
+          : []),
+        ...(Array.isArray(item.system?.choices?.selected)
+          ? item.system.choices.selected
+          : [])
+      ];
+
+      const matchingChoice = choices.find((rawChoice) => {
+        const choice = rawChoice && typeof rawChoice === "object"
+          ? rawChoice
+          : { key: rawChoice };
+        const key = String(choice.key ?? "").trim();
+        const boundAttackId = String(
+          choice.attackId ??
+          choice.attackItemId ??
+          choice.itemId ??
+          choice.attackKey ??
+          (key.includes(":") ? key.split(":")[0] : "")
+        ).trim();
+        if (boundAttackId !== attackId) return false;
+
+        const tag = String(
+          choice.effectTag ??
+          choice.attackTag ??
+          (key.includes(":") ? key.slice(key.indexOf(":") + 1) : "")
+        ).trim().replace(/^\[|\]$/g, "").toLowerCase();
+
+        return positiveTags.has(tag) || tag === "shield";
+      });
+
+      if (!matchingChoice) continue;
+
+      if (["efeitobasico", "basiceffect"].includes(itemIdentity)) maximum = Math.max(maximum, 1);
+      else if (["efeitoavancado", "advancedeffect"].includes(itemIdentity)) maximum = Math.max(maximum, 2);
+      else if (["efeitomestre", "mastereffect"].includes(itemIdentity)) maximum = Math.max(maximum, 3);
+      else if (["escudoprotetor", "protectingshield"].includes(itemIdentity)) maximum = Math.max(maximum, 2);
+    }
+
+    return Math.max(1, Math.min(3, maximum || 1));
+  }
+
 _getQualityEffectiveMax(
   quality,
   ownedItem = null
 ) {
+  const coreQualityId = getCoreQualityId(ownedItem ?? quality);
+
+  const inspiringGuidanceMaximum = this._getInspiringGuidanceEffectiveMax(quality, ownedItem);
+  if (inspiringGuidanceMaximum !== null) return inspiringGuidanceMaximum;
+
+  if ([CORE_QUALITY_IDS.weapon, CORE_QUALITY_IDS.instinct].includes(coreQualityId)) {
+    return getWeaponInstinctEffectiveMax(this.actor, ownedItem ?? quality);
+  }
+
+  if (coreQualityId === CORE_QUALITY_IDS.advancedMobility) {
+    const extraMovement = findCoreQuality(this.actor, CORE_QUALITY_IDS.extraMovement);
+    const selected = Array.isArray(extraMovement?.system?.choices?.selectedRanks)
+      ? extraMovement.system.choices.selectedRanks
+      : [];
+    return Math.min(5, selected.length);
+  }
+
   /*
    * Algumas Naturewalks antigas foram salvas com
    * rank.max = 1. A definição oficial é sempre 2.
@@ -2999,6 +4281,36 @@ _isAccelerateQuality(quality, ownedItem = null) {
       .filter(Boolean);
   }
 
+  _actorHasQualityReference(reference = "") {
+    const normalizedReference = normalizeCoreKey(reference);
+    if (!normalizedReference || !this.actor) return false;
+
+    if (["dataspecializationuncatchabletarget", "especializacaodedadosalvoinalcancavel", "uncatchabletarget", "alvoinalcancavel"].includes(normalizedReference)) {
+      return this._actorHasDataSpecializationChoice("uncatchableTarget");
+    }
+
+    const definition = DDA_DIGIMON_QUALITIES.find((entry) => {
+      return [entry.id, entry.name, entry.originalName]
+        .some((candidate) => normalizeCoreKey(candidate) === normalizedReference);
+    });
+
+    const canonicalCoreId = getCoreQualityId(definition ?? { name: reference });
+    if (canonicalCoreId && hasCoreQuality(this.actor, canonicalCoreId)) return true;
+
+    const expected = new Set([
+      reference,
+      definition?.id,
+      definition?.name,
+      definition?.originalName
+    ].map(normalizeCoreKey).filter(Boolean));
+
+    return this.actor.items.some((item) => {
+      if (item.type !== "quality") return false;
+      return [item.system?.sourceId, item.system?.originalName, item.name]
+        .some((candidate) => expected.has(normalizeCoreKey(candidate)));
+    });
+  }
+
   _parseRequiredQualityNames(quality) {
     const raw = quality.requirements?.qualityNames ?? "";
 
@@ -3016,16 +4328,8 @@ _isAccelerateQuality(quality, ownedItem = null) {
 
     if (!requiredNames.length) return true;
 
-    const actorQualityNames = new Set(
-      this._getActorQualityNames().map((name) => {
-        return this._normalizeSearchText(name);
-      })
-    );
-
     const matches = requiredNames.map((requiredName) => {
-      return actorQualityNames.has(
-        this._normalizeSearchText(requiredName)
-      );
+      return this._actorHasQualityReference(requiredName);
     });
 
     const anyMode = quality.requirements?.mode === "any" ||
@@ -3042,16 +4346,8 @@ _isAccelerateQuality(quality, ownedItem = null) {
 
     if (!requiredNames.length) return [];
 
-    const actorQualityNames = new Set(
-      this._getActorQualityNames().map((name) => {
-        return this._normalizeSearchText(name);
-      })
-    );
-
     const missing = requiredNames.filter((requiredName) => {
-      return !actorQualityNames.has(
-        this._normalizeSearchText(requiredName)
-      );
+      return !this._actorHasQualityReference(requiredName);
     });
 
     const anyMode = quality.requirements?.mode === "any" ||
@@ -3078,19 +4374,117 @@ _isAccelerateQuality(quality, ownedItem = null) {
   }
 
   _getConflictingQualities(quality) {
+    const coreId = getCoreQualityId(quality);
+
+    if ([CORE_QUALITY_IDS.weapon, CORE_QUALITY_IDS.instinct].includes(coreId)) {
+      if (!isWeaponInstinctConflict(this.actor, quality)) return [];
+      return [coreId === CORE_QUALITY_IDS.weapon
+        ? (isQualityBrowserEnglish() ? "Instinct" : "Instinto")
+        : (isQualityBrowserEnglish() ? "Weapon" : "Arma")];
+    }
+
+    const family = getDigizoidGainForceFamily(quality);
+    const familyConflicts = family ? this.actor.items.filter((item) => (
+      item.type === "quality" &&
+      getDigizoidGainForceFamily(item) === family &&
+      normalizeQualityBrowserIdentity(item.system?.sourceId ?? item.name) !== normalizeQualityBrowserIdentity(quality.id ?? quality.name)
+    )).map((item) => item.name) : [];
+
     const incompatibleNames = this._parseIncompatibleQualityNames(quality);
+    if (!incompatibleNames.length) return familyConflicts;
 
-    if (!incompatibleNames.length) return [];
+    const qualityKey = normalizeCoreKey(
+      quality?.id ?? quality?.originalName ?? quality?.name ?? ""
+    );
+    const hasChaoticBalance = this._actorHasQualityReference("Chaotic Balance") ||
+      this._actorHasQualityReference("Equilíbrio Caótico");
+    const isWardEmblemPair = [
+      "holyward",
+      "protecaosagrada",
+      "darkemblem",
+      "emblemasombrio"
+    ].includes(qualityKey);
 
-    const actorQualityNames = this._getActorQualityNames();
-
-    return incompatibleNames.filter((incompatibleName) => {
-      return actorQualityNames.includes(incompatibleName);
-    });
+    return [...new Set([...familyConflicts, ...incompatibleNames.filter((incompatibleName) => {
+      const incompatibleKey = normalizeCoreKey(incompatibleName);
+      if (
+        hasChaoticBalance &&
+        isWardEmblemPair &&
+        ["holyward", "protecaosagrada", "darkemblem", "emblemasombrio"].includes(incompatibleKey)
+      ) {
+        return false;
+      }
+      return this._actorHasQualityReference(incompatibleName);
+    })])];
   }
 
   _actorHasIncompatibleQualities(quality) {
     return this._getConflictingQualities(quality).length > 0;
+  }
+
+  _actorHasDataSpecializationChoice(choiceKey) {
+    return getDataSpecializationEntries(this.actor).some((entry) => {
+      return normalizeCoreKey(entry?.key ?? entry?.specialization ?? "") === normalizeCoreKey(choiceKey);
+    });
+  }
+
+  _getStatusWarlordDiscountUse() {
+    for (const item of this.actor?.items ?? []) {
+      if (item.type !== "quality") continue;
+      const sources = Array.isArray(item.system?.cost?.dpDiscountSources)
+        ? item.system.cost.dpDiscountSources
+        : [];
+      const source = sources.find((entry) => {
+        return String(entry?.key ?? entry ?? "") === STATUS_WARLORD_DISCOUNT_KEY;
+      });
+      if (source) return { item, source };
+    }
+    return null;
+  }
+
+  _statusWarlordDiscountAvailable(quality, ownedItem = null) {
+    if (!this._actorHasDataSpecializationChoice("statusWarlord")) return false;
+    if (!isEffectPurchaseQualityData(quality, ownedItem)) return false;
+    return !this._getStatusWarlordDiscountUse();
+  }
+
+  _getStatusWarlordMarginalDiscount(quality, ownedItem = null) {
+    if (!this._statusWarlordDiscountAvailable(quality, ownedItem)) return 0;
+    const baseCost = Math.max(0, Number(quality?.cost?.dp ?? ownedItem?.system?.cost?.dp ?? 0));
+    return Math.min(1, baseCost);
+  }
+
+  _attachStatusWarlordDiscountToItemData(quality, itemData) {
+    const amount = this._getStatusWarlordMarginalDiscount(quality, null);
+    if (amount <= 0) return;
+
+    const existing = Array.isArray(itemData?.system?.cost?.dpDiscountSources)
+      ? foundry.utils.deepClone(itemData.system.cost.dpDiscountSources)
+      : [];
+    existing.push({
+      key: STATUS_WARLORD_DISCOUNT_KEY,
+      amount,
+      specialization: "statusWarlord"
+    });
+    itemData.system.cost = {
+      ...(itemData.system.cost ?? {}),
+      dpDiscountSources: existing
+    };
+  }
+
+  _attachStatusWarlordDiscountToUpdate(quality, item, updateData) {
+    const amount = this._getStatusWarlordMarginalDiscount(quality, item);
+    if (amount <= 0) return;
+
+    const existing = Array.isArray(item?.system?.cost?.dpDiscountSources)
+      ? foundry.utils.deepClone(item.system.cost.dpDiscountSources)
+      : [];
+    existing.push({
+      key: STATUS_WARLORD_DISCOUNT_KEY,
+      amount,
+      specialization: "statusWarlord"
+    });
+    updateData["system.cost.dpDiscountSources"] = existing;
   }
 
   _getActorRemainingDp() {
@@ -3099,13 +4493,10 @@ _isAccelerateQuality(quality, ownedItem = null) {
     return Number(this.actor.system?.creation?.dp?.remaining ?? 0);
   }
 
-  _getQualityDpCost(quality) {
-    const dp = Number(quality.cost?.dp ?? 0);
-
-    if (quality.tier === "free") return 0;
-    if (quality.tier === "negative") return 0;
-
-    return Math.max(dp, 0);
+  _getQualityDpCost(quality, { ranks = 1, ownedItem = null } = {}) {
+    const baseCost = getMarginalQualityDpCost(this.actor, quality, { ranks });
+    const statusDiscount = this._getStatusWarlordMarginalDiscount(quality, ownedItem);
+    return Math.max(0, baseCost - statusDiscount);
   }
 
 
@@ -3171,9 +4562,33 @@ _isAccelerateQuality(quality, ownedItem = null) {
 
     if (actorStageValue < minimumStageValue) return false;
 
+    if (!actorMeetsOffensiveRankStatRequirement(this.actor, quality, 1)) {
+      return false;
+    }
+
     if (!this._actorHasRequiredQualities(quality)) return false;
 
+    if (getDigizoidGainForceRankRequirements(quality).some((requirement) => {
+      const item = this.actor.items.find((entry) => entry.type === "quality" && requirement.aliases.some((alias) => (
+        normalizeQualityBrowserIdentity(entry.system?.sourceId ?? entry.system?.originalName ?? entry.name) === normalizeQualityBrowserIdentity(alias)
+      )));
+      return Math.max(0, Number(item?.system?.rank?.value ?? 0)) < requirement.rank;
+    })) return false;
+
     if (this._actorHasIncompatibleQualities(quality)) return false;
+
+    const coreId = getCoreQualityId(quality);
+    if ([CORE_QUALITY_IDS.weapon, CORE_QUALITY_IDS.instinct].includes(coreId)) {
+      const counterpartId = coreId === CORE_QUALITY_IDS.weapon
+        ? CORE_QUALITY_IDS.instinct
+        : CORE_QUALITY_IDS.weapon;
+      const counterpart = findCoreQuality(this.actor, counterpartId);
+      if (counterpart) {
+        const cap = getWeaponInstinctEffectiveMax(this.actor, quality, { counterpartWillExist: true });
+        const counterpartRank = Number(counterpart.system?.rank?.value ?? 0);
+        if (cap <= 0 || counterpartRank > cap) return false;
+      }
+    }
 
     if (!this._actorHasEnoughDp(quality)) return false;
 
@@ -3197,6 +4612,21 @@ _isAccelerateQuality(quality, ownedItem = null) {
       });
     }
 
+    const offensiveRequirement = getOffensiveRankStatRequirement(quality, 1);
+    if (
+      offensiveRequirement &&
+      !actorMeetsOffensiveRankStatRequirement(this.actor, quality, 1)
+    ) {
+      const statLabel = offensiveRequirement.stat === "damage"
+        ? (isQualityBrowserEnglish() ? "Damage" : "Dano")
+        : offensiveRequirement.stat === "dodge"
+          ? (isQualityBrowserEnglish() ? "Dodge" : "Esquiva")
+          : (isQualityBrowserEnglish() ? "Accuracy" : "Precisão");
+      return isQualityBrowserEnglish()
+        ? `Requires ${offensiveRequirement.required} Total ${statLabel}.`
+        : `Exige ${offensiveRequirement.required} de ${statLabel} Total.`;
+    }
+
     const missing = this._getMissingRequiredQualities(quality);
 
     if (missing.length) {
@@ -3205,12 +4635,41 @@ _isAccelerateQuality(quality, ownedItem = null) {
       });
     }
 
+    const missingRank = getDigizoidGainForceRankRequirements(quality).find((requirement) => {
+      const item = this.actor.items.find((entry) => entry.type === "quality" && requirement.aliases.some((alias) => (
+        normalizeQualityBrowserIdentity(entry.system?.sourceId ?? entry.system?.originalName ?? entry.name) === normalizeQualityBrowserIdentity(alias)
+      )));
+      return Math.max(0, Number(item?.system?.rank?.value ?? 0)) < requirement.rank;
+    });
+    if (missingRank) {
+      return isQualityBrowserEnglish()
+        ? `Requires ${missingRank.rank} Rank${missingRank.rank === 1 ? "" : "s"} of ${missingRank.label}.`
+        : `Exige ${missingRank.rank} Rank${missingRank.rank === 1 ? "" : "s"} de ${missingRank.label}.`;
+    }
+
     const conflicts = this._getConflictingQualities(quality);
 
     if (conflicts.length) {
       return game.i18n.format("DDA.QualityBrowser.BlockedReason.IncompatibleWith", {
         qualities: conflicts.join(", ")
       });
+    }
+
+    const coreId = getCoreQualityId(quality);
+    if ([CORE_QUALITY_IDS.weapon, CORE_QUALITY_IDS.instinct].includes(coreId)) {
+      const counterpartId = coreId === CORE_QUALITY_IDS.weapon
+        ? CORE_QUALITY_IDS.instinct
+        : CORE_QUALITY_IDS.weapon;
+      const counterpart = findCoreQuality(this.actor, counterpartId);
+      if (counterpart) {
+        const cap = getWeaponInstinctEffectiveMax(this.actor, quality, { counterpartWillExist: true });
+        const counterpartRank = Number(counterpart.system?.rank?.value ?? 0);
+        if (cap <= 0 || counterpartRank > cap) {
+          return isQualityBrowserEnglish()
+            ? `Algorithm must be high enough to support both Weapon and Instinct. Current shared cap: ${cap}.`
+            : `Algoritmo precisa ter Ranks suficientes para sustentar Arma e Instinto. Limite compartilhado atual: ${cap}.`;
+        }
+      }
     }
 
     if (!this._actorHasEnoughDp(quality)) {
@@ -3250,14 +4709,31 @@ _isAccelerateQuality(quality, ownedItem = null) {
 
   _getCostLabel(quality) {
     const cost = quality.cost ?? {};
-    const dp = Number(cost.dp ?? 0);
+    const dp = Math.max(0, Number(cost.dp ?? 0));
 
     if (quality.tier === "free") return game.i18n.localize("DDA.QualityBrowser.Cost.Free");
     if (quality.tier === "negative") return `${Math.abs(dp)} PD`;
 
     const suffix = cost.perRank ? ` / ${game.i18n.localize("DDA.QualitySheet.Rank")}` : "";
+    const preview = getCoreDiscountPreview(this.actor, quality);
+
+    if (preview.eligible && preview.discount > 0) {
+      return `${preview.raw} PD → ${preview.payable} PD${suffix} (${isQualityBrowserEnglish() ? "Core Discount" : "Desconto Core"})`;
+    }
+
+    const statusDiscount = this._getStatusWarlordMarginalDiscount(quality, null);
+    if (statusDiscount > 0) {
+      return `${dp} PD → ${Math.max(0, dp - statusDiscount)} PD${suffix} (${isQualityBrowserEnglish() ? "Status Warlord discount" : "desconto de Senhor da Guerra de Status"})`;
+    }
+
+    const firstPurchaseDiscount = getFirstPurchaseDiscount(this.actor, quality);
+    if (firstPurchaseDiscount > 0) {
+      return `${dp} PD → ${Math.max(0, dp - firstPurchaseDiscount)} PD${suffix} (${isQualityBrowserEnglish() ? "first-purchase discount" : "desconto da primeira compra"})`;
+    }
+
     return `${dp} PD${suffix}`;
   }
+
 
   _getTierLabel(quality) {
     const labels = {

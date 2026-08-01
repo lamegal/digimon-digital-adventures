@@ -1,7 +1,5 @@
 import {
-  hasQuality,
   getCombatId,
-  areActorsAllies,
   getActorSv
 } from "../rules/quality-automation.js";
 
@@ -14,6 +12,19 @@ import {
   checkActorActionSpend,
   spendActorActions
 } from "../combat/action-economy.js";
+import {
+  applyCombatMonsterResolveFromDamage
+} from "../combat/defensive-qualities.js";
+import {
+  resolveBraveHeartAfterIntercede
+} from "../combat/stance-qualities.js";
+import {
+  shouldNegateFallCrashDamage
+} from "../combat/preservation-qualities.js";
+import {
+  reduceEnemyUnalterableDamageWithShiningArmor
+} from "../combat/digizoid-gain-force.js";
+
 const DAMAGE_TYPE_LABEL_KEYS = {
   crash: "DDA.Damage.Type.Crash",
   burn: "DDA.Damage.Type.Burn",
@@ -28,15 +39,68 @@ const DAMAGE_REDUCTION_LABEL_KEYS = {
   poison: "DDA.Damage.Reduction.Poison"
 };
 
-export async function bindDamageApplicationButtons(root) {
+function getAreaDamageEntryFromMessage(message) {
+  return message?.getFlag?.(game.system.id, "areaAttackDamageEntry")
+    ?? message?.flags?.[game.system.id]?.areaAttackDamageEntry
+    ?? null;
+}
+
+function isAreaDamageAppliedInProgress(entry = {}) {
+  const requestId = String(entry?.requestId ?? "");
+  const defenderUuid = String(entry?.defenderUuid ?? "");
+  if (!requestId || !defenderUuid) return false;
+
+  const progressMessage = game.messages?.find?.((candidate) => {
+    const request = candidate?.getFlag?.(
+      game.system.id,
+      "areaAttackRequest"
+    ) ?? candidate?.flags?.[game.system.id]?.areaAttackRequest;
+
+    return String(request?.requestId ?? "") === requestId;
+  }) ?? null;
+  const request = progressMessage?.getFlag?.(
+    game.system.id,
+    "areaAttackRequest"
+  ) ?? progressMessage?.flags?.[game.system.id]?.areaAttackRequest;
+  const target = request?.targets?.find?.((candidate) => {
+    const candidateUuid = String(
+      candidate?.damageApplication?.defenderUuid ??
+      candidate?.actorUuid ??
+      ""
+    );
+    return candidateUuid === defenderUuid;
+  });
+
+  return Boolean(target?.damageApplication?.applied);
+}
+
+export async function bindDamageApplicationButtons(root, message = null) {
   if (!root?.querySelectorAll) return;
 
   const buttons = Array.from(root.querySelectorAll(".dda-apply-damage"));
+  const areaDamageEntry = getAreaDamageEntryFromMessage(message);
 
   for (const button of buttons) {
     if (button.dataset.ddaDamageBound === "true") continue;
 
     button.dataset.ddaDamageBound = "true";
+
+    if (message?.id) {
+      button.dataset.ddaMessageId = String(message.id);
+    }
+
+    if (
+      areaDamageEntry?.applied ||
+      isAreaDamageAppliedInProgress(areaDamageEntry)
+    ) {
+      button.dataset.ddaDamageApplied = "true";
+      button.disabled = true;
+      button.innerText = localizeWithFallback(
+        "DDA.Damage.Applied",
+        "Dano Aplicado"
+      );
+      continue;
+    }
 
     const defender = await resolveDamageTargetActor(
       button.dataset.defenderUuid
@@ -53,6 +117,7 @@ export async function bindDamageApplicationButtons(root) {
     button.addEventListener("click", applyDamageFromChat);
   }
 }
+
 
 async function resolveDamageTargetActor(uuid = "") {
   if (!uuid) return null;
@@ -96,7 +161,18 @@ export async function applyDamageFromChat(event) {
   const damageLabel = String(button.dataset.damageLabel ?? "").trim();
   const holdBack = button.dataset.holdBack === "true";
   const tamerIntercede = button.dataset.tamerIntercede === "true";
+  const digimonIntercede = button.dataset.digimonIntercede === "true";
   const unalterable = button.dataset.unalterable === "true";
+  const unalterablePortion = Math.max(0, Number(button.dataset.unalterablePortion ?? 0));
+  const focusTempMultiplier = Math.max(
+    1,
+    Number(button.dataset.focusTempMultiplier ?? 1)
+  );
+  const lifestealCap = Math.max(
+    0,
+    Number(button.dataset.lifestealCap ?? 0)
+  );
+  const lifestealKey = String(button.dataset.lifestealKey ?? "").trim();
 
   if (!defenderUuid) {
     warnLocalized(
@@ -143,11 +219,20 @@ export async function applyDamageFromChat(event) {
       damageLabel,
       holdBack,
       tamerIntercede,
+      digimonIntercede,
       unalterable,
-      attacker
+      unalterablePortion,
+      attacker,
+      focusTempMultiplier,
+      lifestealCap,
+      lifestealKey
     });
 
     if (!result) return;
+
+    if (digimonIntercede) {
+      await resolveBraveHeartAfterIntercede(defender, result, { interceded: true });
+    }
 
     button.dataset.ddaDamageApplied = "true";
     button.disabled = true;
@@ -155,6 +240,42 @@ export async function applyDamageFromChat(event) {
       "DDA.Damage.Applied",
       "Dano Aplicado"
     );
+
+    const messageId = String(button.dataset.ddaMessageId ?? "");
+    const message = messageId ? game.messages?.get(messageId) : null;
+    const areaDamageEntry = getAreaDamageEntryFromMessage(message);
+
+    if (message && areaDamageEntry?.requestId) {
+      const appliedAt = Date.now();
+      const updatedEntry = foundry.utils.deepClone(areaDamageEntry);
+
+      updatedEntry.applied = true;
+      updatedEntry.appliedAt = appliedAt;
+      updatedEntry.appliedByUserId = String(game.user?.id ?? "");
+
+      try {
+        await message.update({
+          [`flags.${game.system.id}.areaAttackDamageEntry`]: updatedEntry
+        });
+
+        const areaController = await import(
+          "../combat/area-attacks/area-attack-controller.js"
+        );
+
+        await areaController.markAreaAttackDamageApplied?.({
+          requestId: updatedEntry.requestId,
+          defenderUuid: updatedEntry.defenderUuid,
+          messageId: message.id,
+          appliedAt,
+          appliedByUserId: game.user?.id ?? ""
+        });
+      } catch (error) {
+        console.warn(
+          "DDA | Damage was applied, but the Area Attack summary could not be synchronized.",
+          error
+        );
+      }
+    }
   } catch (error) {
     console.error("DDA | Could not apply damage from attack card.", error);
 
@@ -181,8 +302,10 @@ export async function applyDamage(actor, damage, options = {}) {
 }
 
 export async function applyCrashDamage(actor, damage, options = {}) {
-  return applyDamage(actor, damage, {
+  const negatedByTumbler = shouldNegateFallCrashDamage(actor, options);
+  return applyDamage(actor, negatedByTumbler ? 0 : damage, {
     ...options,
+    negatedByTumbler,
     damageType: "crash",
     damageLabel: options.damageLabel ?? localizeWithFallback(
       "DDA.Damage.Type.Crash",
@@ -638,13 +761,32 @@ async function applyDamageToActor(actor, damage, options = {}, config = {}) {
   const currentWounds = Number(wounds.value ?? 0);
   const currentTemp = Number(wounds.temp?.value ?? 0);
 
-  const damageInfo = getDamageApplicationInfo(actor, damage, options);
-  const effectiveDamage = damageInfo.effectiveDamage;
+  const shiningDigizoid = await reduceEnemyUnalterableDamageWithShiningArmor(actor, damage, options);
+  const damageInfo = getDamageApplicationInfo(actor, shiningDigizoid.damage, options);
+  damageInfo.shiningDigizoidReduction = shiningDigizoid.reduction;
+  let effectiveDamage = damageInfo.effectiveDamage;
+  const evokerCreation = actor.flags?.["digimon-digital-adventures"]?.evokerCreation;
+  const damageThreshold = evokerCreation?.kind === "structure"
+    ? Math.max(0, Number(evokerCreation.damageThreshold ?? 0))
+    : 0;
+  if (damageThreshold > 0 && effectiveDamage < damageThreshold) {
+    damageInfo.beforeDamageThreshold = effectiveDamage;
+    damageInfo.damageThreshold = damageThreshold;
+    damageInfo.blockedByDamageThreshold = true;
+    damageInfo.effectiveDamage = 0;
+    effectiveDamage = 0;
+  }
+
+const focusTempMultiplier = Math.max(
+  1,
+  Number(options.focusTempMultiplier ?? 1)
+);
 
 const result = calculateWoundLoss(
   currentWounds,
   currentTemp,
-  effectiveDamage
+  effectiveDamage,
+  { tempDamageMultiplier: focusTempMultiplier }
 );
 
 const intercedePending = actor.type === "character" && Boolean(options.tamerIntercede);
@@ -804,7 +946,24 @@ if (currentTemp > 0 && result.temp <= 0) {
   shieldBroken = await removeShieldEffectIfTempDepleted(actor);
 }
 
-const combatMonsterResolve = await forceAddCombatMonsterResolveFromDamage(actor, result.healthDamage);
+const combatMonsterResolve = options.suppressCombatMonsterResolve
+  ? null
+  : await applyCombatMonsterResolveFromDamage({
+      actor,
+      healthDamage: result.healthDamage,
+      attacker: options.attacker ?? null,
+      sourceKind: options.damageSourceKind ?? "attack"
+    });
+
+const lifesteal = await applyLifestealFromDamage({
+  attacker: options.attacker,
+  defender: actor,
+  damageResult: result,
+  effectiveDamage,
+  tempDamageMultiplier: focusTempMultiplier,
+  cap: Math.max(0, Number(options.lifestealCap ?? 0)),
+  key: String(options.lifestealKey ?? "")
+});
 
 const applicationResult = {
   actor,
@@ -812,6 +971,7 @@ const applicationResult = {
   result,
 shieldBroken,
 combatMonsterResolve,
+lifesteal,
 gritSurvival,
 undefeatedEndurance,
 regenSurvival,
@@ -843,6 +1003,7 @@ content: buildDamageChatContent({
   combatMonsterResolve,
   gritSurvival,
   fatesProtection,
+  lifesteal,
   currentWounds,
   currentTemp,
   effectiveDamage
@@ -862,28 +1023,6 @@ content: buildDamageChatContent({
 }
 
 
-async function maybeGainCombatMonsterResolve(actor, applicationResult, options = {}) {
-  if (!actor || !hasQuality(actor, "combatMonster")) return;
-
-  const healthDamage = Number(applicationResult?.result?.healthDamage ?? 0);
-  if (healthDamage <= 0) return;
-
-  const attacker = options.attacker ?? null;
-  if (attacker && (attacker.uuid === actor.uuid || areActorsAllies(actor, attacker))) return;
-
-  const qualityAttackUses = foundry.utils.deepClone(actor.system?.combat?.qualityAttackUses ?? {});
-  qualityAttackUses.combatMonster ??= {};
-
-  const currentResolve = Number(qualityAttackUses.combatMonster.resolve ?? 0);
-  const nextResolve = Math.min(4, Math.max(0, currentResolve + healthDamage));
-
-  qualityAttackUses.combatMonster.resolve = nextResolve;
-  qualityAttackUses.combatMonster.combatId = getCombatId();
-
-  await actor.update({
-    "system.combat.qualityAttackUses": qualityAttackUses
-  });
-}
 
 function buildDamageChatContent({
   actor,
@@ -893,6 +1032,7 @@ function buildDamageChatContent({
   combatMonsterResolve,
   gritSurvival,
   fatesProtection,
+  lifesteal,
   currentWounds,
   currentTemp,
   effectiveDamage
@@ -940,6 +1080,17 @@ function buildDamageChatContent({
           ${escapeHtml(localizeWithFallback("DDA.Damage.Final", "Dano Final"))}:
           <strong>${effectiveDamage}</strong>.
         </li>
+
+        ${
+          lifesteal?.healed > 0
+            ? `<li class="damage-healing"><strong>${escapeHtml(lifesteal.attackerName)}</strong> ${escapeHtml(localizeWithFallback("DDA.Damage.LifestealHealed", "recuperou {value} Caixa(s) de Ferimento com [DRAIN].", { value: lifesteal.healed }))}</li>`
+            : ""
+        }
+        ${
+          lifesteal?.absorbedByDoom > 0
+            ? `<li class="damage-healing damage-healing-absorbed">${escapeHtml(localizeWithFallback("DDA.Damage.LifestealDoomAbsorbed", "[DOOM] absorveu {value} ponto(s) da cura de [DRAIN].", { value: lifesteal.absorbedByDoom }))}</li>`
+            : ""
+        }
 
         ${
           result.absorbedByTemp > 0
@@ -1192,18 +1343,29 @@ function getDamageReductionData(actor, damageType = "") {
   };
 }
 
-function calculateWoundLoss(currentWounds, currentTemp, damage) {
-  let remainingDamage = damage;
-  let temp = currentTemp;
-  let wounds = currentWounds;
+function calculateWoundLoss(
+  currentWounds,
+  currentTemp,
+  damage,
+  { tempDamageMultiplier = 1 } = {}
+) {
+  let remainingDamage = Math.max(0, Number(damage ?? 0));
+  let temp = Math.max(0, Number(currentTemp ?? 0));
+  let wounds = Math.max(0, Number(currentWounds ?? 0));
 
+  const multiplier = Math.max(1, Number(tempDamageMultiplier ?? 1));
   let absorbedByTemp = 0;
+  let damageSpentOnTemp = 0;
   let healthDamage = 0;
 
-  if (temp > 0) {
-    absorbedByTemp = Math.min(temp, remainingDamage);
+  if (temp > 0 && remainingDamage > 0) {
+    absorbedByTemp = Math.min(temp, remainingDamage * multiplier);
+    damageSpentOnTemp = Math.min(
+      remainingDamage,
+      Math.ceil(absorbedByTemp / multiplier)
+    );
     temp -= absorbedByTemp;
-    remainingDamage -= absorbedByTemp;
+    remainingDamage -= damageSpentOnTemp;
   }
 
   if (remainingDamage > 0) {
@@ -1216,7 +1378,122 @@ function calculateWoundLoss(currentWounds, currentTemp, damage) {
     wounds,
     temp,
     absorbedByTemp,
-    healthDamage
+    damageSpentOnTemp,
+    healthDamage,
+    tempDamageMultiplier: multiplier
+  };
+}
+
+async function applyLifestealFromDamage({
+  attacker,
+  defender,
+  damageResult = {},
+  effectiveDamage = 0,
+  tempDamageMultiplier = 1,
+  cap = 0,
+  key = ""
+} = {}) {
+  if (!attacker || !defender || cap <= 0 || !key) return null;
+  if (attacker.uuid === defender.uuid) return null;
+
+  const attackDamageActuallyDealt = Math.max(
+    0,
+    Math.min(
+      Number(effectiveDamage ?? 0),
+      Number(damageResult.healthDamage ?? 0) +
+        Math.ceil(
+          Number(damageResult.absorbedByTemp ?? 0) /
+          Math.max(1, Number(tempDamageMultiplier ?? 1))
+        )
+    )
+  );
+
+  if (attackDamageActuallyDealt <= 0) return null;
+
+  const offensive = foundry.utils.deepClone(
+    attacker.system?.combat?.offensiveQualities ?? {}
+  );
+  offensive.lifesteal ??= {};
+  const previous = offensive.lifesteal[key] ?? {};
+  const alreadyHealed = Math.max(0, Number(previous.healed ?? 0));
+  const alreadySpent = Math.max(alreadyHealed, Number(previous.spent ?? alreadyHealed));
+  const requestedHeal = Math.max(
+    0,
+    Math.min(
+      attackDamageActuallyDealt,
+      Math.max(0, Number(cap ?? 0) - alreadySpent)
+    )
+  );
+
+  if (requestedHeal <= 0) return {
+    attackerName: attacker.name,
+    healed: 0,
+    absorbedByDoom: 0,
+    totalHealed: alreadyHealed,
+    cap
+  };
+
+  const path = attacker.type === "character"
+    ? "system.derived.wounds"
+    : "system.miscStats.wounds";
+  const wounds = foundry.utils.getProperty(attacker, path) ?? {};
+  const current = Math.max(0, Number(wounds.value ?? 0));
+  const maximum = Math.max(current, Number(wounds.max ?? current));
+
+  /*
+   * [DOOM] absorbs gains before Wound Boxes are restored. The absorbed
+   * amount still consumes this Attack's [DRAIN] ceiling, preventing an
+   * Area Attack from bypassing DOS by resolving additional targets.
+   */
+  const effects = foundry.utils.deepClone(attacker.system?.effects?.active ?? []);
+  const doomIndex = effects.findIndex((effect) => getEffectTagKey(effect?.tag) === "doom");
+  let absorbedByDoom = 0;
+  let remainingHeal = requestedHeal;
+
+  if (doomIndex >= 0 && remainingHeal > 0) {
+    const doom = effects[doomIndex] ?? {};
+    const doomValue = Math.max(0, Number(doom.value ?? doom.potency ?? 0));
+    absorbedByDoom = Math.min(doomValue, remainingHeal);
+    remainingHeal -= absorbedByDoom;
+    const nextDoomValue = doomValue - absorbedByDoom;
+
+    if (nextDoomValue <= 0) {
+      effects.splice(doomIndex, 1);
+    } else {
+      effects[doomIndex] = {
+        ...doom,
+        value: nextDoomValue,
+        potency: doom.potency === undefined
+          ? doom.potency
+          : nextDoomValue
+      };
+    }
+  }
+
+  const actualHeal = Math.max(0, Math.min(remainingHeal, maximum - current));
+  const spentThisApplication = absorbedByDoom + actualHeal;
+
+  offensive.lifesteal[key] = {
+    healed: alreadyHealed + actualHeal,
+    spent: alreadySpent + spentThisApplication,
+    cap,
+    combatId: String(game.combat?.id ?? ""),
+    round: Number(game.combat?.round ?? 0),
+    turn: Number(game.combat?.turn ?? -1)
+  };
+
+  await attacker.update({
+    [`${path}.value`]: current + actualHeal,
+    "system.combat.offensiveQualities": offensive,
+    ...(absorbedByDoom > 0 ? { "system.effects.active": effects } : {})
+  });
+
+  return {
+    attackerName: attacker.name,
+    healed: actualHeal,
+    absorbedByDoom,
+    totalHealed: alreadyHealed + actualHeal,
+    cap
   };
 }
 
@@ -1288,140 +1565,6 @@ function areDamageActorsAllies(attacker, defender) {
   }
 
   return false;
-}
-
-async function addCombatMonsterResolveFromDamage(actor, healthDamage, options = {}) {
-  const damageToWounds = Math.max(0, Number(healthDamage ?? 0));
-
-  if (!actor || damageToWounds <= 0) return null;
-
-  const quality = findCombatMonsterQuality(actor);
-
-  if (!quality) return null;
-
-  const attacker = options.attacker ?? null;
-
-  if (attacker && areDamageActorsAllies(attacker, actor)) {
-    return null;
-  }
-
-  const resolveMax = Math.max(
-    1,
-    Number(actor.system?.resources?.resolve?.max ?? quality.system?.grants?.resource?.max ?? 4)
-  );
-
-  const visibleBefore = Number(actor.system?.resources?.resolve?.value ?? 0);
-
-  const qualityAttackUses = foundry.utils.deepClone(actor.system?.combat?.qualityAttackUses ?? {});
-  qualityAttackUses.combatMonster ??= {};
-
-  const hiddenBefore = Number(qualityAttackUses.combatMonster.resolve ?? 0);
-  const before = Math.max(0, visibleBefore, hiddenBefore);
-  const after = Math.min(resolveMax, before + damageToWounds);
-
-  qualityAttackUses.combatMonster.resolve = after;
-  qualityAttackUses.combatMonster.combatId = game.combat?.id ?? "";
-  qualityAttackUses.combatMonster.round = Number(game.combat?.round ?? 0);
-  qualityAttackUses.combatMonster.turn = Number(game.combat?.turn ?? -1);
-
-  await actor.update({
-    "system.resources.resolve.enabled": true,
-    "system.resources.resolve.value": after,
-    "system.resources.resolve.max": resolveMax,
-    "system.combat.qualityAttackUses": qualityAttackUses
-  });
-
-  return {
-    qualityName: quality.name,
-    before,
-    after,
-    gained: Math.max(0, after - before),
-    healthDamage: damageToWounds
-  };
-}
-
-function actorHasCombatMonsterForDamage(actor) {
-  return Boolean(actor?.items?.some((item) => {
-    if (item.type !== "quality") return false;
-
-    const text = [
-      item.name,
-      item.system?.sourceId,
-      item.system?.originalName
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    const key = normalizeQualityKeyForDamage(text);
-
-    return (
-      key.includes("combatmonster") ||
-      key.includes("monstrodecombate")
-    );
-  }));
-}
-
-function getCombatMonsterQualityNameForDamage(actor) {
-  const quality = actor?.items?.find((item) => {
-    if (item.type !== "quality") return false;
-
-    const text = [
-      item.name,
-      item.system?.sourceId,
-      item.system?.originalName
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    const key = normalizeQualityKeyForDamage(text);
-
-    return (
-      key.includes("combatmonster") ||
-      key.includes("monstrodecombate")
-    );
-  });
-
-  return quality?.name ?? "Combat Monster";
-}
-
-async function forceAddCombatMonsterResolveFromDamage(actor, healthDamage) {
-  const damageToWounds = Math.max(0, Number(healthDamage ?? 0));
-
-  if (!actor || damageToWounds <= 0) return null;
-  if (!actorHasCombatMonsterForDamage(actor)) return null;
-
-  const resolveMax = Math.max(1, Number(actor.system?.resources?.resolve?.max ?? 4));
-  const visibleBefore = Math.max(0, Number(actor.system?.resources?.resolve?.value ?? 0));
-
-  const qualityAttackUses = foundry.utils.deepClone(actor.system?.combat?.qualityAttackUses ?? {});
-  qualityAttackUses.combatMonster ??= {};
-
-  const hiddenBefore = Math.max(0, Number(qualityAttackUses.combatMonster.resolve ?? 0));
-  const before = Math.max(visibleBefore, hiddenBefore);
-  const after = Math.min(resolveMax, before + damageToWounds);
-
-  qualityAttackUses.combatMonster = {
-    ...qualityAttackUses.combatMonster,
-    resolve: after,
-    combatId: game.combat?.id ?? "",
-    round: Number(game.combat?.round ?? 0),
-    turn: Number(game.combat?.turn ?? -1)
-  };
-
-  await actor.update({
-    "system.resources.resolve.enabled": true,
-    "system.resources.resolve.value": after,
-    "system.resources.resolve.max": resolveMax,
-    "system.combat.qualityAttackUses": qualityAttackUses
-  });
-
-  return {
-    qualityName: getCombatMonsterQualityNameForDamage(actor),
-    before,
-    after,
-    gained: Math.max(0, after - before),
-    healthDamage: damageToWounds
-  };
 }
 
 function warnLocalized(key, fallback) {

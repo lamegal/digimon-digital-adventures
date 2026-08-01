@@ -34,6 +34,7 @@ import {
   getActorActionState,
   spendActorActions
 } from "./action-economy.js";
+import { openCompactActionMenu } from "./compact-action-menu.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const ACTION_USE_PATH = "system.combat.tamerActionUses";
@@ -5332,22 +5333,6 @@ const TAMER_ACTION_MENU_ENTRIES = [
   }
 ];
 
-function renderTamerActionMenuEntry(entry) {
-  const title = entry.title ?? localize(entry.titleKey, entry.key);
-  const summary = entry.summary ?? localize(entry.summaryKey, "");
-
-  return `
-    <button type="button" data-action-key="${entry.key}">
-      <strong>
-        ${escapeHtml(title)}
-        <span>${escapeHtml(entry.cost)}</span>
-      </strong>
-      <small>${escapeHtml(summary)}</small>
-      ${entry.automationStatus ? `<em class="dda-tamer-action-automation ${entry.automationClass ?? ""}">${escapeHtml(entry.automationStatus)}</em>` : ""}
-    </button>
-  `;
-}
-
 export async function openTamerActionMenu(tamer) {
   if (!tamer || tamer.type !== "character") {
     ui.notifications.warn(
@@ -5414,59 +5399,34 @@ export async function openTamerActionMenu(tamer) {
     enemyScan: () => useEnemyScan(tamer)
   };
 
-  return await new Promise((resolve) => {
-    new Dialog({
-      title: localize("DDA.TamerAction.Menu.Title", "Ações do Tamer"),
-      content: `
-        <div class="dda-tamer-action-menu">
-          <p>${localize(
-            "DDA.TamerAction.Menu.Hint",
-            "Escolha uma Ação do Tamer."
-          )}</p>
-          <div class="dda-tamer-action-menu-grid">
-            ${menuEntries.map(renderTamerActionMenuEntry).join("")}
-          </div>
-          <p class="dda-tamer-action-bolster-note">
-            <strong>${localize("DDA.TamerAction.Bolster", "Fortalecer")}:</strong>
-            ${localize(
-              "DDA.TamerAction.BolsterIntegrated",
-              "é oferecido dentro das Ações compatíveis, pois modifica a própria Ação em vez de ocorrer separadamente."
-            )}
-          </p>
-          <p class="dda-tamer-action-bolster-note">
-            <strong>${localize("DDA.TamerAction.Interrupts.Title", "Interrupções")}:</strong>
-            ${localize(
-              "DDA.TamerAction.Interrupts.Automatic",
-              "Interceder, Proteção do Destino e outras respostas aparecem automaticamente quando o gatilho correto acontece."
-            )}
-          </p>
-        </div>
-      `,
-      buttons: {
-        close: {
-          label: localize("DDA.Button.Close", "Fechar"),
-          callback: () => resolve(null)
-        }
+  return await openCompactActionMenu({
+    actor: tamer,
+    kind: "tamer",
+    title: localize("DDA.TamerAction.Menu.Title", "Ações do Tamer"),
+    hint: localize(
+      "DDA.TamerAction.Menu.Hint",
+      "Escolha uma Ação do Tamer."
+    ),
+    entries: menuEntries,
+    notes: [
+      {
+        title: localize("DDA.TamerAction.Bolster", "Fortalecer"),
+        body: localize(
+          "DDA.TamerAction.BolsterIntegrated",
+          "é oferecido dentro das Ações compatíveis, pois modifica a própria Ação em vez de ocorrer separadamente."
+        )
       },
-      render: (html) => {
-        const root = html instanceof jQuery ? html : $(html);
-
-        root.find("[data-action-key]").on("click", async (event) => {
-          event.preventDefault();
-          const actionKey = String(event.currentTarget.dataset.actionKey ?? "");
-          const result = actionKey.startsWith("talent:")
-            ? await useOfficialCombatSpecialOrder(tamer, actionKey.slice(7))
-            : await handlers[actionKey]?.();
-
-          resolve(result ?? null);
-          root.closest(".window-app").find(".window-header .close").trigger("click");
-        });
-      },
-      default: "close",
-      close: () => resolve(null)
-    }, {
-      classes: ["dda", "dda-tamer-action-dialog"]
-    }).render(true);
+      {
+        title: localize("DDA.TamerAction.Interrupts.Title", "Interrupções"),
+        body: localize(
+          "DDA.TamerAction.Interrupts.Automatic",
+          "Interceder, Proteção do Destino e outras respostas aparecem automaticamente quando o gatilho correto acontece."
+        )
+      }
+    ],
+    onSelect: async (actionKey) => actionKey.startsWith("talent:")
+      ? useOfficialCombatSpecialOrder(tamer, actionKey.slice(7))
+      : handlers[actionKey]?.()
   });
 }
 

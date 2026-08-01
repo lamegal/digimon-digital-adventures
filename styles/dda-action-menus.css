@@ -1,0 +1,354 @@
+/* DDA — compact Tamer and Digimon Action consoles --------------------- */
+.dda-compact-action-dialog .window-content {
+  padding: 0 !important;
+  overflow: visible !important;
+  color: #eaf8ff;
+  background:
+    radial-gradient(circle at 92% -12%, rgba(82, 205, 255, 0.18), transparent 38%),
+    radial-gradient(circle at -8% 108%, rgba(86, 101, 232, 0.16), transparent 36%),
+    linear-gradient(160deg, #08243a 0%, #06192b 58%, #041321 100%) !important;
+}
+
+.dda-compact-action-dialog .form-footer,
+.dda-compact-action-dialog .dialog-buttons {
+  display: none !important;
+}
+
+.dda-compact-action-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.dda-compact-action-hero {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 7px 9px;
+  border: 1px solid rgba(116, 214, 255, 0.2);
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, rgba(22, 79, 112, 0.72), rgba(11, 45, 73, 0.62));
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.05),
+    0 5px 18px rgba(0, 0, 0, 0.18);
+}
+
+.dda-compact-action-hero > img {
+  width: 42px;
+  height: 42px;
+  margin: 0;
+  object-fit: cover;
+  border: 1px solid rgba(150, 229, 255, 0.45);
+  border-radius: 9px;
+  background: rgba(4, 20, 34, 0.84);
+  box-shadow: 0 0 12px rgba(83, 202, 255, 0.16);
+}
+
+.dda-compact-action-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.12;
+}
+
+.dda-compact-action-identity > span {
+  margin-bottom: 2px;
+  color: #65cdf7;
+  font-size: 0.61rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dda-compact-action-identity > strong {
+  overflow: hidden;
+  color: #f5fcff;
+  font-size: 0.98rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-compact-action-identity > small {
+  overflow: hidden;
+  margin-top: 3px;
+  color: #b9dbea;
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-compact-action-counter {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 6px 8px;
+  color: #ffe28a;
+  border: 1px solid rgba(255, 204, 77, 0.3);
+  border-radius: 999px;
+  background: rgba(255, 196, 49, 0.12);
+  white-space: nowrap;
+}
+
+.dda-compact-action-counter i {
+  margin-right: 2px;
+  font-size: 0.72rem;
+}
+
+.dda-compact-action-counter strong {
+  font-size: 0.92rem;
+}
+
+.dda-compact-action-counter span {
+  color: #d5bb68;
+  font-size: 0.68rem;
+}
+
+.dda-compact-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  max-height: min(54vh, 420px);
+  padding: 1px 3px 1px 1px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(78, 188, 235, 0.55) rgba(4, 21, 36, 0.5);
+}
+
+.dda-compact-action {
+  --dda-action-accent: #68caef;
+  display: grid !important;
+  grid-template-columns: 31px minmax(0, 1fr) auto;
+  align-items: center !important;
+  gap: 7px;
+  min-width: 0;
+  min-height: 50px !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 6px 7px !important;
+  color: #edfaff !important;
+  text-align: left !important;
+  white-space: normal !important;
+  border: 1px solid rgba(100, 201, 242, 0.25) !important;
+  border-left: 3px solid var(--dda-action-accent) !important;
+  border-radius: 8px !important;
+  background:
+    linear-gradient(145deg, rgba(20, 68, 99, 0.9), rgba(8, 37, 63, 0.94)) !important;
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.04),
+    0 2px 7px rgba(0, 0, 0, 0.15) !important;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.dda-compact-action:hover,
+.dda-compact-action:focus-visible {
+  color: #fff !important;
+  border-color: color-mix(in srgb, var(--dda-action-accent) 68%, white) !important;
+  background:
+    linear-gradient(145deg, rgba(27, 91, 126, 0.98), rgba(10, 48, 78, 0.98)) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--dda-action-accent) 22%, transparent),
+    0 6px 14px rgba(0, 0, 0, 0.23) !important;
+  transform: translateY(-1px);
+}
+
+.dda-compact-action:focus-visible {
+  outline: 2px solid rgba(232, 250, 255, 0.78) !important;
+  outline-offset: 1px;
+}
+
+.dda-compact-action.is-movement { --dda-action-accent: #54c8f5; }
+.dda-compact-action.is-offense { --dda-action-accent: #ff7770; }
+.dda-compact-action.is-defense { --dda-action-accent: #75e0d1; }
+.dda-compact-action.is-support { --dda-action-accent: #86dd83; }
+.dda-compact-action.is-tactical { --dda-action-accent: #f1bd5e; }
+.dda-compact-action.is-special { --dda-action-accent: #bd8df2; }
+
+.dda-compact-action__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--dda-action-accent);
+  border: 1px solid color-mix(in srgb, var(--dda-action-accent) 38%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--dda-action-accent) 11%, transparent);
+  font-size: 0.86rem;
+}
+
+.dda-compact-action__label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.dda-compact-action__label > strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: inherit !important;
+  font-size: 0.76rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.015em !important;
+  line-height: 1.15;
+  text-transform: uppercase;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.dda-compact-action__automation {
+  flex: 0 0 auto;
+  color: #ffe4a4;
+  font-size: 0.64rem;
+}
+
+.dda-compact-action__automation.is-automated {
+  color: #83efb8;
+}
+
+.dda-compact-action__cost,
+.dda-compact-action-detail__cost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 3px 5px;
+  color: #ffe18b;
+  font-size: 0.65rem;
+  font-weight: 900;
+  line-height: 1;
+  border: 1px solid rgba(255, 205, 79, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 196, 49, 0.12);
+  white-space: nowrap;
+}
+
+.dda-compact-action-detail {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 50px;
+  padding: 7px 9px;
+  border: 1px solid rgba(117, 211, 249, 0.2);
+  border-radius: 9px;
+  background: rgba(5, 27, 46, 0.75);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.dda-compact-action-detail__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  color: #75d4f7;
+  border-radius: 50%;
+  background: rgba(69, 173, 218, 0.12);
+}
+
+.dda-compact-action-detail__copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dda-compact-action-detail__copy strong {
+  color: #f4fbff;
+  font-size: 0.77rem;
+}
+
+.dda-compact-action-detail__copy small {
+  margin-top: 2px;
+  color: #b8d7e6;
+  font-size: 0.7rem;
+  line-height: 1.22;
+}
+
+.dda-compact-action-rules {
+  color: #bad8e6;
+  font-size: 0.69rem;
+  border-top: 1px solid rgba(118, 207, 244, 0.12);
+}
+
+.dda-compact-action-rules summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 1px 0;
+  color: #8fcae4;
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+}
+
+.dda-compact-action-rules summary::-webkit-details-marker {
+  display: none;
+}
+
+.dda-compact-action-rules > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 6px;
+}
+
+.dda-compact-action-rules p {
+  margin: 0;
+  padding: 6px 7px;
+  color: #c7e2ed;
+  border: 1px solid rgba(111, 197, 234, 0.12);
+  border-radius: 7px;
+  background: rgba(20, 66, 92, 0.32);
+}
+
+.dda-compact-action-menu.is-busy .dda-compact-action-grid {
+  pointer-events: none;
+  opacity: 0.66;
+}
+
+@media (max-width: 560px) {
+  .dda-compact-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 390px) {
+  .dda-compact-action-grid,
+  .dda-compact-action-rules > div {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-compact-action-hero {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .dda-compact-action-hero > img {
+    width: 38px;
+    height: 38px;
+  }
+
+  .dda-compact-action-counter {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dda-compact-action {
+    transition: none;
+  }
+
+  .dda-compact-action:hover,
+  .dda-compact-action:focus-visible {
+    transform: none;
+  }
+}

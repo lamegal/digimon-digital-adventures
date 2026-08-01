@@ -4886,9 +4886,30 @@ _recalculateFormBuild(build = null) {
   build.dp.coreDiscountUsed = coreDiscount.used;
   build.dp.coreDiscountRemaining = coreDiscount.remaining;
 
-  build.stats.movement = Number(stageData.movement ?? 0);
-  build.stats.attackSlots = Number(stageData.attacks ?? 1);
-  build.stats.maxSize = String(stageData.maxSize ?? "medium");
+build.stats.movement = Number(stageData.movement ?? 0);
+const memoryUpgradeRanks = build.qualities.positive.reduce((total, quality) => {
+  const key = normalizeWizardQualityIdentity(
+    quality.id ??
+    quality.originalName ??
+    quality.name ??
+    ""
+  );
+
+  return [
+    "melhoriadememoria",
+    "memoryupgrade"
+  ].includes(key)
+    ? total + Math.max(
+        1,
+        Number(quality.rank?.value ?? 1)
+      )
+    : total;
+}, 0);
+
+build.stats.attackSlots =
+  Number(stageData.attacks ?? 1) +
+  memoryUpgradeRanks;
+    build.stats.maxSize = String(stageData.maxSize ?? "medium");
 
   this._recalculateFormBuildDerivedStats(build);
   return build;
@@ -11047,7 +11068,10 @@ const isAttackChoice =
   [
     "singleAttack",
     "attackTag",
-    "effectTagPerRank"
+    "effectTagPerRank",
+    "attackWithPiercing",
+    "attackWithCertain",
+    "signatureMove"
   ].includes(choices.type);
 
 const options = isAttackChoice
@@ -11522,6 +11546,7 @@ _getWizardAttackItemsForChoices() {
           wizardAttackKey,
           slotNumber: index + 1,
           system: {
+            isSignature: Boolean(attack.isSignature),
             baseTags: {
               rangeType: attack.rangeType,
               functionType: attack.functionType
@@ -11574,6 +11599,7 @@ _getWizardAttackItemsForChoices() {
           wizardAttackKey,
           slotNumber: index + 1,
           system: {
+            isSignature: Boolean(attack.isSignature),
             baseTags: {
               rangeType: ["melee", "range"].includes(attack.rangeType) ? attack.rangeType : "melee",
               functionType: ["damage", "support"].includes(attack.functionType) ? attack.functionType : "damage"
@@ -11854,6 +11880,14 @@ _getAttackChoiceOptionsForQuality(
         .map(getChoiceAttackKey)
         .filter(Boolean)
     );
+
+  const weaponAssignedAttackKeys = new Set(
+    selectedWizardQualities
+      .filter((selectedQuality) => ["arma", "weapon"].includes(normalizeWizardQualityIdentity(selectedQuality?.id ?? selectedQuality?.originalName ?? selectedQuality?.name ?? "")))
+      .flatMap((selectedQuality) => selectedQuality?.choices?.selectedRanks ?? [])
+      .map(getChoiceAttackKey)
+      .filter(Boolean)
+  );
 
   const attackHasEffectTag = (
     attack
@@ -12237,6 +12271,7 @@ _getAttackChoiceOptionsForQuality(
       modifier.appliesTo ??
       "oneAttack"
     );
+  const qualityIdentity = normalizeWizardQualityIdentity(quality?.id ?? quality?.originalName ?? quality?.name ?? "");
 
   return attacks
     .filter((attack) => {
@@ -12257,6 +12292,11 @@ _getAttackChoiceOptionsForQuality(
       return !getAttackTags(
         attack
       ).includes(primaryTag);
+    })
+    .filter((attack) => {
+      if (!["armamentodedigizoidepuro", "puredigizoidweaponry"].includes(qualityIdentity)) return true;
+      const attackKey = String(attack.id ?? "").trim();
+      return !weaponAssignedAttackKeys.has(attackKey) || Boolean(attack.system?.isSignature);
     })
     .map((attack) => {
       return {
@@ -12501,7 +12541,7 @@ return {
 
   grantsDp: Boolean(quality.cost?.grantsDp),
   perRank: Boolean(quality.cost?.perRank),
-  countsAgainstFreeLimit: isFree,
+  countsAgainstFreeLimit: isFree && quality.cost?.countsAgainstFreeLimit !== false,
 
   rank: foundry.utils.deepClone(quality.rank ?? {}),
   rankLimit: foundry.utils.deepClone(quality.rankLimit ?? {}),
@@ -12774,17 +12814,21 @@ _prepareQualityForBrowser(quality) {
   const canTakeFreeQuality = this._canTakeFreeQuality(quality, ownedEntry);
 
   const incompatibilityConflict = this._getQualityIncompatibilityConflict(quality);
+  const digizoidGainForceRequirement = this._getDigizoidGainForceRequirementFailure(quality);
 
   const canBuy = !owned
     && availabilityCheck.available
     && canAfford
     && canTakeFreeQuality
-    && !incompatibilityConflict;
+    && !incompatibilityConflict
+    && !digizoidGainForceRequirement;
 
   let blockedReason = "";
 
       if (incompatibilityConflict) {
         blockedReason = incompatibilityConflict.message;
+      } else if (digizoidGainForceRequirement) {
+        blockedReason = digizoidGainForceRequirement;
       } else if (!availabilityCheck.available) {
         blockedReason = availabilityCheck.reason;
       } else if (!canAfford) {
@@ -12867,6 +12911,37 @@ _getQualityIdentityKeys(quality = {}) {
     .filter(Boolean);
 }
 
+_getDigizoidGainForceFamily(quality = {}) {
+  const section = normalizeDigimonLookupName(quality.section ?? quality.system?.section ?? "");
+  if (["digizoidarmor", "armadurasdedigizoide"].includes(section)) return "armor";
+  if (["digizoidweaponry", "armamentosdedigizoide"].includes(section)) return "weaponry";
+  if (["gainforcequalities", "qualidadesgainforce"].includes(section)) return "gainForce";
+  return "";
+}
+
+_getSelectedQualityRankByAliases(aliases = []) {
+  const wanted = new Set(aliases.map(normalizeDigimonLookupName));
+  const selected = [...this.data.qualities.positive, ...this.data.qualities.negative].find((quality) => (
+    this._getQualityIdentityKeys(quality).some((key) => wanted.has(key))
+  ));
+  return Math.max(0, Number(selected?.rank?.value ?? 0));
+}
+
+_getDigizoidGainForceRequirementFailure(quality = {}) {
+  const family = this._getDigizoidGainForceFamily(quality);
+  const id = normalizeDigimonLookupName(quality.id ?? quality.originalName ?? quality.name ?? "");
+  if (family === "weaponry" && this._getSelectedQualityRankByAliases(["arma", "weapon"]) < 1) {
+    return text("Requer 1 Rank de Arma.", "Requires 1 Rank of Weapon.");
+  }
+  if (family === "gainForce" && this._getSelectedQualityRankByAliases(["instinto", "instinct"]) < 1) {
+    return text("Requer 1 Rank de Instinto.", "Requires 1 Rank of Instinct.");
+  }
+  if (["armamentodedigizoidepuro", "puredigizoidweaponry", "overwritepuro", "pureoverwrite"].includes(id) && this._getSelectedQualityRankByAliases(["algoritmo", "algorithm"]) < 3) {
+    return text("Requer 3 Ranks de Algoritmo.", "Requires 3 Ranks of Algorithm.");
+  }
+  return "";
+}
+
 _getQualityIncompatibleNames(quality = {}) {
   const raw = String(quality?.incompatible?.qualityNames ?? "").trim();
 
@@ -12932,11 +13007,13 @@ _getQualityIncompatibilityConflict(candidateQuality = null) {
       continue;
     }
 
+  const familyConflict = this._getDigizoidGainForceFamily(candidateQuality) &&
+    this._getDigizoidGainForceFamily(candidateQuality) === this._getDigizoidGainForceFamily(selected);
   const weaponInstinctConflict = this._isWeaponInstinctPair(candidateQuality, selected);
   const candidateBlocksSelected = this._qualityReferencesQuality(candidateQuality, selected);
   const selectedBlocksCandidate = this._qualityReferencesQuality(selected, candidateQuality);
 
-  if (weaponInstinctConflict || candidateBlocksSelected || selectedBlocksCandidate) {
+  if (familyConflict || weaponInstinctConflict || candidateBlocksSelected || selectedBlocksCandidate) {
       return {
         candidate: candidateQuality,
         selected,
@@ -12973,6 +13050,7 @@ _getSelectedQualityIncompatibilityErrors() {
       }
 
     const conflict =
+      (this._getDigizoidGainForceFamily(left) && this._getDigizoidGainForceFamily(left) === this._getDigizoidGainForceFamily(right)) ||
       this._isWeaponInstinctPair(left, right) ||
       this._qualityReferencesQuality(left, right) ||
       this._qualityReferencesQuality(right, left);

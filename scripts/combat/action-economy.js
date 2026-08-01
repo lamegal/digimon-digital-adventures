@@ -1,4 +1,8 @@
 import { getActiveDDAUnitContext } from "./initiative.js";
+import {
+  getLightDigizoidActionReserve,
+  spendLightDigizoidActionReserve
+} from "./digizoid-gain-force.js";
 
 function localize(key, fallback = key) {
   const value = game?.i18n?.localize?.(key);
@@ -36,11 +40,14 @@ export function checkActorActionSpend(
   amount,
   {
     requireActiveUnit = true,
-    notify = true
+    notify = true,
+    lightDigizoidAction = ""
   } = {}
 ) {
   const cost = normalizeActionCost(amount);
   const { value: available, max } = getActorActionState(actor);
+  const lightReserve = getLightDigizoidActionReserve(actor, lightDigizoidAction);
+  const totalAvailable = available + lightReserve;
 
   if (requireActiveUnit) {
     const turnContext = getActiveDDAUnitContext(actor);
@@ -63,13 +70,13 @@ export function checkActorActionSpend(
     }
   }
 
-  if (available < cost) {
+  if (totalAvailable < cost) {
     if (notify) {
       ui.notifications.warn(
         formatI18n(
           "DDA.ActionEconomy.Warning.NotEnoughActions",
-          { required: cost, available },
-          `Ações insuficientes: são necessárias ${cost}, mas apenas ${available} estão disponíveis.`
+          { required: cost, available: totalAvailable },
+          `Ações insuficientes: são necessárias ${cost}, mas apenas ${totalAvailable} estão disponíveis.`
         )
       );
     }
@@ -82,7 +89,8 @@ export function checkActorActionSpend(
     cost,
     available,
     max,
-    remaining: available - cost
+    remaining: Math.max(0, available - cost),
+    lightReserveSpent: Math.max(0, cost - available)
   };
 }
 
@@ -92,12 +100,14 @@ export async function spendActorActions(
   {
     requireActiveUnit = true,
     notify = true,
-    additionalUpdates = {}
+    additionalUpdates = {},
+    lightDigizoidAction = ""
   } = {}
 ) {
   const payment = checkActorActionSpend(actor, amount, {
     requireActiveUnit,
-    notify
+    notify,
+    lightDigizoidAction
   });
 
   if (!payment) return null;
@@ -107,9 +117,14 @@ export async function spendActorActions(
     "system.combat.actions.value": payment.remaining
   });
 
+  if (payment.lightReserveSpent > 0) {
+    await spendLightDigizoidActionReserve(actor, payment.lightReserveSpent);
+  }
+
   return {
     actionCost: payment.cost,
     actionsBefore: payment.available,
-    actionsAfter: payment.remaining
+    actionsAfter: payment.remaining,
+    lightReserveSpent: payment.lightReserveSpent
   };
 }

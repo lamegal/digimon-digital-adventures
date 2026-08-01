@@ -1,0 +1,108 @@
+/* DDA33 — Stance, Preservation and Utility Quality applications */
+.dda-stance-quality-window,
+.dda-preservation-quality-window,
+.dda-utility-quality-window {
+  --dda-quality-accent: #54d8ff;
+  --dda-quality-accent-soft: rgba(84, 216, 255, 0.18);
+  --dda-quality-panel: rgba(5, 24, 43, 0.94);
+  --dda-quality-panel-light: rgba(13, 49, 76, 0.92);
+  --dda-quality-border: rgba(84, 216, 255, 0.58);
+  color: #eefaff;
+}
+
+.dda-stance-quality-window .window-header,
+.dda-preservation-quality-window .window-header,
+.dda-utility-quality-window .window-header {
+  background: linear-gradient(115deg, #071a31, #0c4168 68%, #0d6281);
+  border-bottom: 1px solid var(--dda-quality-border);
+  color: #fff;
+}
+
+.dda-stance-quality-window .window-content,
+.dda-preservation-quality-window .window-content,
+.dda-utility-quality-window .window-content {
+  background:
+    radial-gradient(circle at 90% 0%, rgba(41, 183, 230, 0.16), transparent 42%),
+    linear-gradient(145deg, var(--dda-quality-panel), #061423);
+  padding: 0.85rem;
+}
+
+.dda-stance-quality-dialog,
+.dda-preservation-quality-dialog,
+.dda-utility-quality-dialog {
+  display: grid;
+  gap: 0.7rem;
+  color: #eefaff;
+}
+
+.dda-stance-quality-dialog p,
+.dda-preservation-quality-dialog p,
+.dda-utility-quality-dialog p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.dda-stance-quality-dialog .form-group,
+.dda-preservation-quality-dialog .form-group,
+.dda-utility-quality-dialog .form-group,
+.dda-quality-check {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(84, 216, 255, 0.28);
+  border-radius: 8px;
+  background: var(--dda-quality-panel-light);
+}
+
+.dda-stance-quality-dialog label,
+.dda-preservation-quality-dialog label,
+.dda-utility-quality-dialog label {
+  color: #dff7ff;
+  font-weight: 700;
+}
+
+.dda-stance-quality-dialog input,
+.dda-stance-quality-dialog select,
+.dda-preservation-quality-dialog input,
+.dda-preservation-quality-dialog select,
+.dda-utility-quality-dialog input,
+.dda-utility-quality-dialog select {
+  min-height: 2rem;
+  border: 1px solid rgba(84, 216, 255, 0.5);
+  background: rgba(2, 17, 31, 0.92);
+  color: #fff;
+}
+
+.dda-stance-quality-window button,
+.dda-preservation-quality-window button,
+.dda-utility-quality-window button {
+  border: 1px solid rgba(84, 216, 255, 0.5);
+  background: linear-gradient(180deg, rgba(26, 111, 151, 0.95), rgba(7, 55, 86, 0.98));
+  color: #f6fdff;
+  text-shadow: 0 1px 1px #001019;
+}
+
+.dda-stance-quality-window button:hover,
+.dda-preservation-quality-window button:hover,
+.dda-utility-quality-window button:hover,
+.dda-stance-quality-window button:focus-visible,
+.dda-preservation-quality-window button:focus-visible,
+.dda-utility-quality-window button:focus-visible {
+  border-color: #8ce8ff;
+  box-shadow: 0 0 0 2px var(--dda-quality-accent-soft), 0 0 14px rgba(84, 216, 255, 0.35);
+}
+
+.dda-stance-quality-card,
+.dda-preservation-quality-card,
+.dda-utility-quality-card,
+.dda-domain-control-card {
+  border-left: 4px solid #42c8f5;
+  background:
+    linear-gradient(135deg, rgba(17, 73, 105, 0.17), transparent 55%),
+    var(--dda-card-background, rgba(255, 255, 255, 0.72));
+}
+
+.dda-domain-control-card h2,
+.dda-stance-quality-card h2,
+.dda-preservation-quality-card h2,
+.dda-utility-quality-card h2 {
+  letter-spacing: 0.025em;
+}

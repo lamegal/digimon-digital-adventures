@@ -1,0 +1,97 @@
+/* DDA35 — Effect Qualities */
+
+.digimon-digital-adventures .active-effect-row {
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.digimon-digital-adventures .active-effect-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.digimon-digital-adventures .active-effect-controls button,
+.dda-effect-quality-dialog button {
+  min-height: 2rem;
+}
+
+.digimon-digital-adventures .resist-active-effect {
+  border-color: rgba(50, 201, 230, 0.72);
+  background: linear-gradient(180deg, rgba(17, 74, 101, 0.94), rgba(10, 42, 64, 0.98));
+  color: #eafcff;
+  font-weight: 700;
+}
+
+.digimon-digital-adventures .resist-active-effect:hover,
+.digimon-digital-adventures .resist-active-effect:focus-visible {
+  box-shadow: 0 0 0 1px rgba(71, 218, 244, 0.8), 0 0 12px rgba(35, 181, 222, 0.36);
+}
+
+.dda-effect-quality-dialog .window-content {
+  background:
+    linear-gradient(135deg, rgba(5, 28, 47, 0.98), rgba(8, 53, 75, 0.97)),
+    repeating-linear-gradient(0deg, transparent 0 20px, rgba(77, 216, 237, 0.035) 20px 21px);
+  color: #e9fbff;
+}
+
+.dda-effect-quality-dialog .dda-roll-dialog {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dda-effect-quality-dialog .form-group {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) 1fr;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.6rem;
+  border: 1px solid rgba(75, 208, 234, 0.36);
+  border-radius: 7px;
+  background: rgba(1, 18, 31, 0.46);
+}
+
+.dda-effect-quality-dialog select,
+.dda-effect-quality-dialog input {
+  border-color: rgba(65, 203, 232, 0.58);
+  background: rgba(0, 15, 26, 0.82);
+  color: #effdff;
+}
+
+.dda-guiding-dice-control {
+  margin: 0.65rem 0;
+  padding: 0.7rem;
+  border: 1px solid rgba(90, 215, 237, 0.46);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(9, 58, 82, 0.5), rgba(4, 31, 51, 0.66));
+}
+
+.dda-guiding-dice-control label {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 5rem;
+  gap: 0.6rem;
+  align-items: center;
+  font-weight: 700;
+}
+
+.dda-guiding-dice-control small {
+  display: block;
+  margin-top: 0.35rem;
+  opacity: 0.82;
+}
+
+.dda-chat-card.dda-guiding-card,
+.dda-chat-card.dda-deny-card {
+  border-left: 4px solid rgba(68, 208, 235, 0.9);
+}
+
+.dda-attack-tag-limit-warning {
+  margin: 0.55rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(225, 91, 91, 0.72);
+  border-radius: 6px;
+  background: rgba(99, 20, 28, 0.28);
+  color: #ffe9eb;
+  font-weight: 700;
+}

@@ -116,6 +116,41 @@ const DDA_QUALITY_AUTOMATION_DEFAULTS = {
       trojanApplications: true
     }
   },
+
+  perfuracaoDeArmadura: {
+    choices: {
+      required: true,
+      type: "singleAttack",
+      repeatOnRankIncrease: false,
+      options: []
+    },
+    attackModifier: {
+      enabled: true,
+      appliesTo: "oneDamageAttack",
+      grantsTags: ["piercing"],
+      piercingUnalterableDamagePerRank: 2,
+      piercingUnalterableDamageAreaPerRank: 1,
+      signatureBatteryDamageCanBecomeUnalterable: true
+    }
+  },
+
+  golpeCerteiro: {
+    choices: {
+      required: true,
+      type: "singleAttack",
+      repeatOnRankIncrease: false,
+      options: []
+    },
+    attackModifier: {
+      enabled: true,
+      appliesTo: "oneDamageAttack",
+      grantsTags: ["certain"],
+      automaticSuccessesPerRank: 1,
+      signatureBatteryAutomaticSuccessThreshold: 2,
+      signatureBatteryAutomaticSuccessBonus: 1
+    }
+  },
+
 ataqueDeInvestida: {
   choices: {
     required: true,
@@ -326,8 +361,8 @@ recuoPesado: {
 
   brace: {
     activation: { enabled: true, active: false, mode: "instant", chatMessage: "DDA.QualityAutomation.Brace.Chat" },
-    uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
-    trigger: { actionCost: "interrupt" },
+    uses: { enabled: false, value: 0, max: 0, recharge: "" },
+    trigger: { actionCost: "interrupt", frequency: "escalatingCombat" },
     grants: { brace: true }
   },
 
@@ -425,6 +460,12 @@ const DDA_QUALITY_AUTOMATION_ALIASES = {
   firewall: "firewall",
 
   trojan: "trojan",
+
+  perfuracaodearmadura: "perfuracaoDeArmadura",
+  armorpiercing: "perfuracaoDeArmadura",
+
+  golpecerteiro: "golpeCerteiro",
+  certainstrike: "golpeCerteiro",
 
   ataquedeinvestida: "ataqueDeInvestida",
 chargeattack: "ataqueDeInvestida",
@@ -777,12 +818,23 @@ if (system.grants.skillBonus === undefined) {
     );
 
     const qualityTags = Array.isArray(system.qualityTags) ? system.qualityTags : [];
+    const normalizedQualityTags = new Set(
+      qualityTags
+        .map((entry) => String(entry?.tag ?? entry?.key ?? entry?.value ?? entry ?? "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    if (system.effectTag?.enabled && String(system.effectTag?.tag ?? "").trim()) {
+      normalizedQualityTags.add(String(system.effectTag.tag).trim().toLowerCase());
+    }
 
     if (!system.qualityTagLimit) {
       system.qualityTagLimit = {};
     }
 
-    system.qualityTagLimit.count = qualityTags.length;
+    system.qualityTagLimit.count = normalizedQualityTags.size;
+    system.qualityTagLimit.max = 3;
+    system.qualityTagLimit.exceeded = normalizedQualityTags.size > 3;
   }
   _prepareTormentData() {
   const system = this.system;

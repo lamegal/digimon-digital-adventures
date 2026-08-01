@@ -2,6 +2,23 @@ import {
   advanceDDACombatTurn
 } from "./initiative.js";
 import { maybeApplyGritSurvival } from "../rules/tamer-resources.js";
+import {
+  applyCombatMonsterResolveFromEffectDamage,
+  handleDefensiveEndTurn
+} from "./defensive-qualities.js";
+import { handleStanceEndTurn } from "./stance-qualities.js";
+import { handleUtilityEndTurn } from "./utility-qualities.js";
+import {
+  processPendingStunEndTurn,
+  resolveEndTurnEffectResistance
+} from "./effect-qualities.js";
+import { processOverclockEndTurn } from "../rules/overclock.js";
+import { getActorSv } from "../rules/quality-automation.js";
+import {
+  handleDigizoidGainForceEndTurn,
+  reduceEnemyUnalterableDamageWithShiningArmor
+} from "./digizoid-gain-force.js";
+import { hasQuality } from "../rules/quality-automation.js";
 
 import {
   tryUndefeatedEndurance
@@ -32,6 +49,11 @@ export async function endDigimonTurn(actor, options = {}) {
 
   let batteryGain = 0;
 
+  if (hasQuality(actor, "vengefulCharge")) {
+    turnRestrictionData.batteryGainBlocked = true;
+    turnRestrictionData.notes.push("Vengeful Charge replaces normal start-of-turn Battery gain.");
+  }
+
   if (!usedSignatureMove && !turnRestrictionData.batteryGainBlocked) {
     batteryGain += 1;
   }
@@ -41,6 +63,12 @@ export async function endDigimonTurn(actor, options = {}) {
   }
 
   const newBattery = Math.min(maxBattery, currentBattery + batteryGain);
+
+  /*
+   * FEAR, DOOM e TAUNT permitem uma tentativa gratuita no fim do turno,
+   * exceto quando o alvo já usou a tentativa de 1 Ação naquele turno.
+   */
+  await resolveEndTurnEffectResistance(actor);
 
   /* Consequências de fim de turno usam as Ações gastas antes do reset. */
   const effectConsequenceData = await applyEndTurnEffectConsequences(actor);
@@ -60,6 +88,9 @@ export async function endDigimonTurn(actor, options = {}) {
   const effectTurnData = reduceActiveEffectDurations(actor);
   const shieldTempCleared = await clearExpiredShieldTemp(actor, effectTurnData.expiredEffects);
   const turnUseRechargeData = await rechargeQualityUses(actor, "turn");
+  await handleDefensiveEndTurn(actor);
+  await handleStanceEndTurn(actor);
+  await handleUtilityEndTurn(actor);
 
 // Tamer e Digimon agora encerram suas próprias ativações.
 // O parceiro não é mais recarregado junto.
@@ -90,6 +121,20 @@ if (effectConsequenceData.changed) {
   if (Object.keys(updateData).length) {
     await actor.update(updateData);
   }
+
+  await processPendingStunEndTurn(actor);
+  await processOverclockEndTurn(actor);
+  await handleDigizoidGainForceEndTurn(actor);
+
+  await applyCombatMonsterResolveFromEffectDamage({
+    actor,
+    entries: effectConsequenceData.entries,
+    healthDamage: Math.max(
+      0,
+      Number(effectConsequenceData.oldWounds ?? 0) -
+      Number(effectConsequenceData.newWounds ?? 0)
+    )
+  });
 
   const batteryMessage = usedSignatureMove && usedEnergize
     ? `<li>${formatI18n("DDA.EndTurn.Battery.SignatureAndEnergize", {
@@ -329,6 +374,11 @@ function reduceActiveEffectDurations(actor) {
   let changed = false;
 
   for (const effect of currentEffects) {
+    if (effect.activatesAtEndOfNextTurn) {
+      remainingEffects.push(effect);
+      continue;
+    }
+
     const isSpecial = effect.hasSpecialDuration === true || effect.durationRule === "special";
 
     /* Durações normais são reduzidas no começo do turno do Caster. */
@@ -424,6 +474,7 @@ async function applyEndTurnEffectConsequences(actor) {
         label,
         amount,
         type: "damage",
+        sourceActorUuid: effect.sourceActorUuid ?? "",
         sourceActorName: effect.sourceActorName ?? "",
         sourceAttackName: effect.sourceAttackName ?? ""
       });
@@ -432,14 +483,47 @@ async function applyEndTurnEffectConsequences(actor) {
   }
 
   /* Efeitos nunca causam mais que SV x 2 de Dano Inalterável por Rodada. */
-  const effectDamageCap = Math.max(0, Number(actor.system?.stageValue ?? 0) * 2);
+  const effectDamageCap = Math.max(0, Number(getActorSv(actor)) * 2);
   const effectDamageRoundKey = `${game.combat?.id ?? "no-combat"}:${Number(game.combat?.round ?? 0)}`;
   const previousEffectDamage = String(actor.system?.combat?.effectDamageRoundKey ?? "") === effectDamageRoundKey
     ? Math.max(0, Number(actor.system?.combat?.effectDamageTakenThisRound ?? 0))
     : 0;
-  if (effectDamageCap > 0 && woundDelta < 0) {
-    woundDelta = -Math.min(-woundDelta, Math.max(0, effectDamageCap - previousEffectDamage));
+
+  if (woundDelta < 0) {
+    let remainingAllowance = Math.max(0, effectDamageCap - previousEffectDamage);
+    for (const entry of entries) {
+      if (entry.type !== "damage") continue;
+      const applied = Math.min(Math.max(0, Number(entry.amount ?? 0)), remainingAllowance);
+      entry.amount = applied;
+      remainingAllowance -= applied;
+    }
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (entries[index].type === "damage" && Number(entries[index].amount ?? 0) <= 0) entries.splice(index, 1);
+    }
+    woundDelta = -entries
+      .filter((entry) => entry.type === "damage")
+      .reduce((total, entry) => total + Math.max(0, Number(entry.amount ?? 0)), 0);
   }
+  for (const entry of entries.filter((candidate) => candidate.type === "damage" && Number(candidate.amount) > 0)) {
+    let source = null;
+    if (entry.sourceActorUuid) {
+      try {
+        const document = await fromUuid(entry.sourceActorUuid);
+        source = document?.documentName === "Token" ? document.actor : document;
+      } catch (_error) {
+        source = null;
+      }
+    }
+    const shining = await reduceEnemyUnalterableDamageWithShiningArmor(actor, entry.amount, {
+      unalterable: true,
+      attacker: source
+    });
+    entry.shiningDigizoidReduction = shining.reduction;
+    entry.amount = shining.damage;
+  }
+  woundDelta = -entries
+    .filter((entry) => entry.type === "damage")
+    .reduce((total, entry) => total + Math.max(0, Number(entry.amount ?? 0)), 0);
   const effectDamageTakenThisRound = previousEffectDamage + Math.max(0, -woundDelta);
 
   const oldWoundsRaw = Number(actor.system.miscStats?.wounds?.value ?? 0);
@@ -926,6 +1010,8 @@ export async function endTamerTurn(actor, options = {}) {
       Number.isFinite(maxActions) ? maxActions : 2
     );
 
+  await resolveEndTurnEffectResistance(actor);
+
   const effectConsequenceData =
     await applyLinkedTamerEffectConsequences(actor);
 
@@ -948,6 +1034,8 @@ export async function endTamerTurn(actor, options = {}) {
     "system.effects.active":
       effectTurnData.remainingEffects
   });
+
+  await processPendingStunEndTurn(actor);
 
   const healthMessage = effectConsequenceData.changed
     ? `

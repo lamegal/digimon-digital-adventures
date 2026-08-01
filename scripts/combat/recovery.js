@@ -1,4 +1,8 @@
 import { rollPool } from "../rolls/pool-roll.js";
+import {
+  consumeSecondWindRecoveryBonus,
+  getSecondWindRecoveryBonus
+} from "./preservation-qualities.js";
 
 export async function rollRecovery(actor) {
   if (!actor) {
@@ -70,9 +74,22 @@ async function rollTamerRecovery(actor) {
 }
 
 async function rollDigimonRecovery(actor) {
-  const result = await rollPool(actor, "health");
+  const secondWindBonus = getSecondWindRecoveryBonus(actor);
+
+  const result = await rollPool(actor, "health", {
+    automaticSuccesses: secondWindBonus,
+    externalLabel: secondWindBonus > 0
+      ? (String(game.i18n?.lang ?? "").toLowerCase().startsWith("en")
+        ? `Second Wind: +${secondWindBonus} automatic Recovery Successes`
+        : `Segundo Fôlego: +${secondWindBonus} Sucessos automáticos de Recuperação`)
+      : ""
+  });
 
   if (!result) return;
+
+  if (secondWindBonus > 0) {
+    await consumeSecondWindRecoveryBonus(actor);
+  }
 
   const recovered = Number(result.totalSuccesses ?? 0);
 
@@ -97,6 +114,11 @@ async function rollDigimonRecovery(actor) {
           actor: `<strong>${actor.name}</strong>`
         })}</p>
         <p><strong>${localize("DDA.Recovery.HealthRecovered")}:</strong> ${recovered}</p>
+        ${
+          secondWindBonus > 0
+            ? `<p><strong>${String(game.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "Second Wind" : "Segundo Fôlego"}:</strong> +${secondWindBonus} ${String(game.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "automatic Successes" : "Sucessos automáticos"}.</p>`
+            : ""
+        }
         <p><strong>${localize("DDA.Resource.Health")}:</strong> ${current} → ${newWounds} / ${max}</p>
 
         ${
@@ -121,6 +143,7 @@ async function rollDigimonRecovery(actor) {
     actor,
     recovered,
     newWounds,
+    secondWindBonus,
     rechargedUses: restUseRechargeData
   };
 }

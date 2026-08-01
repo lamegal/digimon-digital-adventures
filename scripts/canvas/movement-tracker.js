@@ -1,9 +1,16 @@
+import { getDomainMovementContext } from "../combat/utility-qualities.js";
 import {
   getActiveDDAUnitContext,
   getCombatantUnitId
 } from "../combat/initiative.js";
+import { spendActorActions } from "../combat/action-economy.js";
+import {
+  reduceEnemyUnalterableDamageWithShiningArmor,
+  refundLightDigizoidActionReserve
+} from "../combat/digizoid-gain-force.js";
 
 const DDA_MOVEMENT_FLAG = "movementTracker";
+const MOBILE_ARTILLERY_TERRAIN_FLAG = "mobileArtilleryTerrain";
 const MOVABLE_TYPES = new Set(["character", "digimon", "npc"]);
 
 const pendingMoves = new Map();
@@ -186,6 +193,25 @@ function getCombatant(combat, document) {
   }) ?? null;
 }
 
+function applyCurrentTurnMovementMultiplier(actor, value) {
+  const base = Math.max(0, num(value));
+  const penalty = actor?.system?.combat?.offensiveQualities?.noEscape;
+
+  if (!penalty?.active) return base;
+
+  const sameTurn =
+    String(penalty.combatId ?? "") === String(game.combat?.id ?? "") &&
+    Number(penalty.round ?? -1) === Number(game.combat?.round ?? -2) &&
+    Number(penalty.turn ?? -1) === Number(game.combat?.turn ?? -2);
+
+  if (!sameTurn) return base;
+
+  return Math.max(
+    0,
+    Math.floor(base * Math.max(0, num(penalty.multiplier, 1)))
+  );
+}
+
 function landMovementData(actor) {
   const land =
     actor?.system?.movementTypes?.land;
@@ -223,9 +249,9 @@ function landMovementData(actor) {
 
       enabled: true,
 
-      total: Math.max(
-        0,
-        num(fallbackTotal)
+      total: applyCurrentTurnMovementMultiplier(
+        actor,
+        Math.max(0, num(fallbackTotal))
       )
     };
   }
@@ -249,10 +275,13 @@ function landMovementData(actor) {
     enabled:
       land.enabled !== false,
 
-    total: Math.max(
-      0,
-      num(land.total ?? land.value),
-      num(fallbackTotal)
+    total: applyCurrentTurnMovementMultiplier(
+      actor,
+      Math.max(
+        0,
+        num(land.total ?? land.value),
+        num(fallbackTotal)
+      )
     )
   };
 }
@@ -647,7 +676,8 @@ function directionalEffectPenalty(actor, movement) {
 
 async function applyBurnMovementDamage(actor, spaces, { unwilling = false } = {}) {
   const effects = actor?.system?.effects?.active ?? [];
-  if (!effects.some((effect) => String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase() === "burn")) {
+  const burnEffect = effects.find((effect) => String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase() === "burn");
+  if (!burnEffect) {
     return 0;
   }
 
@@ -670,7 +700,23 @@ async function applyBurnMovementDamage(actor, spaces, { unwilling = false } = {}
     ? Math.max(0, num(actor.system?.combat?.effectDamageTakenThisRound))
     : 0;
   const cap = Math.max(0, num(actor.system?.stageValue) * 2);
-  if (cap > 0) damage = Math.min(damage, Math.max(0, cap - previousDamage));
+  damage = Math.min(damage, Math.max(0, cap - previousDamage));
+  if (damage <= 0) return 0;
+
+  let burnSource = null;
+  if (burnEffect.sourceActorUuid) {
+    try {
+      const document = await fromUuid(burnEffect.sourceActorUuid);
+      burnSource = document?.documentName === "Token" ? document.actor : document;
+    } catch (_error) {
+      burnSource = null;
+    }
+  }
+  const shining = await reduceEnemyUnalterableDamageWithShiningArmor(actor, damage, {
+    unalterable: true,
+    attacker: burnSource
+  });
+  damage = shining.damage;
   if (damage <= 0) return 0;
 
   const woundsPath = actor.type === "character"
@@ -687,9 +733,152 @@ async function applyBurnMovementDamage(actor, spaces, { unwilling = false } = {}
   return damage;
 }
 
+
+function normalizeTerrainElement(value = "") {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function actorNaturewalkElements(actor) {
+  return new Set(
+    (actor?.system?.qualityFeatures?.naturewalk?.elements ?? [])
+      .map(normalizeTerrainElement)
+      .filter(Boolean)
+  );
+}
+
+function activeSurfaceMobileArtilleryTemplates(actor) {
+  const ignoredElements = actorNaturewalkElements(actor);
+
+  return (canvas?.templates?.placeables ?? []).filter((template) => {
+    const document = template?.document;
+    const flag = document?.getFlag?.(scope(), MOBILE_ARTILLERY_TERRAIN_FLAG)
+      ?? document?.flags?.[scope()]?.[MOBILE_ARTILLERY_TERRAIN_FLAG]
+      ?? null;
+    if (!flag?.active || flag.layer !== "surface") return false;
+    return !ignoredElements.has(normalizeTerrainElement(flag.element));
+  });
+}
+
+function templateContainsWorldPoint(template, worldPoint) {
+  const document = template?.document;
+  const shape = template?.shape ?? template?.object?.shape;
+  if (!document || !shape?.contains) return false;
+
+  const localX = num(worldPoint?.x) - num(document.x);
+  const localY = num(worldPoint?.y) - num(document.y);
+
+  try {
+    return Boolean(shape.contains(localX, localY));
+  } catch (_error) {
+    return false;
+  }
+}
+
+function movementPathPoints(document, movement) {
+  const grid = Math.max(1, num(canvas?.grid?.size, 100));
+  const centerOffset = {
+    x: Math.max(0.5, num(document?.width, 1)) * grid / 2,
+    y: Math.max(0.5, num(document?.height, 1)) * grid / 2
+  };
+  const center = (source = {}) => ({
+    x: num(source.x) + centerOffset.x,
+    y: num(source.y) + centerOffset.y
+  });
+
+  return [
+    center(movement?.origin ?? document),
+    ...(movement?.passed?.waypoints ?? []).map(center),
+    center(movement?.destination ?? document)
+  ];
+}
+
+/**
+ * Estimate how many grid spaces of a Token's path are inside one or more
+ * active Surface Mobile Artillery templates. Difficult Terrain adds one
+ * additional Movement cost per affected Space; matching Naturewalk ignores it.
+ */
+function mobileArtilleryTerrainPenalty(document, movement, spaces) {
+  const templates = activeSurfaceMobileArtilleryTemplates(document?.actor);
+  if (!templates.length || spaces <= 0) return 0;
+
+  const points = movementPathPoints(document, movement);
+  const grid = Math.max(1, num(canvas?.grid?.size, 100));
+  let totalLength = 0;
+  let difficultLength = 0;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1];
+    const to = points[index];
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy);
+    if (length <= 0) continue;
+
+    const samples = Math.max(1, Math.ceil((length / grid) * 6));
+    const sampleLength = length / samples;
+    totalLength += length;
+
+    for (let sample = 0; sample < samples; sample += 1) {
+      const ratio = (sample + 0.5) / samples;
+      const current = {
+        x: from.x + (dx * ratio),
+        y: from.y + (dy * ratio)
+      };
+      if (templates.some((template) => templateContainsWorldPoint(template, current))) {
+        difficultLength += sampleLength;
+      }
+    }
+  }
+
+  if (totalLength <= 0 || difficultLength <= 0) return 0;
+  const affectedSpaces = Number(spaces) * Math.min(1, difficultLength / totalLength);
+  return Math.max(0, Math.min(Number(spaces), Math.ceil(affectedSpaces - 0.001)));
+}
+
+function utilityDomainTerrainPenalty(document, movement, spaces) {
+  if (!document?.actor || spaces <= 0) return 0;
+  const points = movementPathPoints(document, movement);
+  const grid = Math.max(1, num(canvas?.grid?.size, 100));
+  let totalLength = 0;
+  let difficultLength = 0;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1];
+    const to = points[index];
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy);
+    if (length <= 0) continue;
+    const samples = Math.max(1, Math.ceil((length / grid) * 6));
+    const sampleLength = length / samples;
+    totalLength += length;
+    for (let sample = 0; sample < samples; sample += 1) {
+      const ratio = (sample + 0.5) / samples;
+      const current = { x: from.x + dx * ratio, y: from.y + dy * ratio };
+      if (getDomainMovementContext(document.actor, current)?.difficult) difficultLength += sampleLength;
+    }
+  }
+
+  if (totalLength <= 0 || difficultLength <= 0) return 0;
+  const affectedSpaces = Number(spaces) * Math.min(1, difficultLength / totalLength);
+  return Math.max(0, Math.min(Number(spaces), Math.ceil(affectedSpaces - 0.001)));
+}
+
 function buildSegment(document, movement, spaces) {
+  const inSentryStance = String(document?.actor?.system?.combat?.currentStance ?? "").toLowerCase() === "sentry";
+  const evokerProtectorIgnoresDifficultTerrain = Boolean(
+    document?.actor?.flags?.["digimon-digital-adventures"]?.evokerCreation?.kind === "minion" &&
+    document?.actor?.flags?.["digimon-digital-adventures"]?.evokerCreation?.subtype === "protector"
+  );
   const difficultMultiplier =
-    actorHasEffect(document?.actor, "paralyze")
+    !evokerProtectorIgnoresDifficultTerrain && (
+      actorHasEffect(document?.actor, "paralyze") || inSentryStance
+    )
       ? 2
       : 1;
 
@@ -698,6 +887,15 @@ function buildSegment(document, movement, spaces) {
       document?.actor,
       movement
     );
+
+  const mobileArtilleryPenalty = evokerProtectorIgnoresDifficultTerrain
+    ? 0
+    : mobileArtilleryTerrainPenalty(document, movement, spaces);
+  const domainTerrainPenalty = difficultMultiplier > 1
+    || evokerProtectorIgnoresDifficultTerrain
+    ? 0
+    : utilityDomainTerrainPenalty(document, movement, spaces);
+  const terrainPenalty = mobileArtilleryPenalty + domainTerrainPenalty;
 
   return {
     from: point(
@@ -718,9 +916,14 @@ function buildSegment(document, movement, spaces) {
 
     cost:
       spaces * difficultMultiplier +
-      directionalPenalty,
+      directionalPenalty +
+      terrainPenalty,
 
     directionalPenalty,
+    terrainPenalty,
+    mobileArtilleryPenalty,
+    domainTerrainPenalty,
+    sentryDifficultTerrain: inSentryStance,
 
     type: "land",
 
@@ -1115,6 +1318,23 @@ function hasActiveMovementSession(actor) {
   return Boolean(document && getSession(document)?.state === "active");
 }
 
+/**
+ * Return the current tracked Movement spent by an Actor in spaces.
+ * Completed [CHARGE] sessions remain readable until the Attack finalizes,
+ * allowing combat Qualities such as Hit and Run to use the actual path.
+ */
+export function getCurrentMovementSpent(actor) {
+  const document = findTokenDocumentForActor(actor);
+  const session = document ? getSession(document) : null;
+  return Math.max(0, num(session?.spent));
+}
+
+export function getCurrentMovementSession(actor) {
+  const document = findTokenDocumentForActor(actor);
+  const session = document ? getSession(document) : null;
+  return session ? clone(session) : null;
+}
+
 function hasActiveChargeApproach(actor) {
   const document = findTokenDocumentForActor(actor);
   const session = document ? getSession(document) : null;
@@ -1209,7 +1429,11 @@ async function beginActionMovement(actor, options = {}) {
     return false;
   }
 
-  if (!getActiveDDAUnitContext(actor, combat).allowed) {
+  const evokerCommandedMinion = Boolean(
+    actor.flags?.["digimon-digital-adventures"]?.evokerCreation?.kind === "minion" &&
+    actor.system?.combat?.evokerCommand?.roundSignature
+  );
+  if (!evokerCommandedMinion && !getActiveDDAUnitContext(actor, combat).allowed) {
     warn(i18n(
       "Este Digimon não pode agir nesta ativação.",
       "This Digimon cannot act during this activation."
@@ -1226,23 +1450,20 @@ async function beginActionMovement(actor, options = {}) {
   }
 
   const actions = Math.max(0, num(actor.system?.combat?.actions?.value));
-  if (actions < actionCost) {
-    warn(i18n(
-      `Ações insuficientes: ${actionCost} necessárias, ${actions} disponíveis.`,
-      `Not enough Actions: ${actionCost} required, ${actions} available.`
-    ));
-    return false;
-  }
 
   const previousMovementActions = Math.max(
     0,
     num(actor.system?.combat?.movementActionsThisTurn)
   );
 
-  await actor.update({
-    "system.combat.actions.value": actions - actionCost,
-    "system.combat.movementActionsThisTurn": previousMovementActions + 1
-  }, { ddaMovementAutoStart: true });
+  const payment = await spendActorActions(actor, actionCost, {
+    requireActiveUnit: !evokerCommandedMinion,
+    lightDigizoidAction: actionCost > 1 ? "difficultMove" : "move",
+    additionalUpdates: {
+      "system.combat.movementActionsThisTurn": previousMovementActions + 1
+    }
+  });
+  if (!payment) return false;
 
   const granted = await grantMovement(actor, maximum, {
     kind: "paid-action",
@@ -1259,6 +1480,9 @@ async function beginActionMovement(actor, options = {}) {
       "system.combat.actions.value": actions,
       "system.combat.movementActionsThisTurn": previousMovementActions
     }, { ddaMovementAutoStart: true });
+    if (payment.lightReserveSpent > 0) {
+      await refundLightDigizoidActionReserve(actor, payment.lightReserveSpent);
+    }
     return false;
   }
 
@@ -1981,6 +2205,8 @@ export function registerMovementTracker() {
     grantChargeMovement,
     getChargeMovementCapacity,
     hasActiveMovementSession,
+    getCurrentMovementSpent,
+    getCurrentMovementSession,
     hasActiveChargeApproach,
     beginChargeApproach,
     isChargeApproachReady,

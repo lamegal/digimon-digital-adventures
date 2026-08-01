@@ -1,8 +1,11 @@
 import {
   areActorsAllies,
+  canSpendQuality,
+  findQuality,
   getCombatId,
   getCombatRound,
-  hasQuality
+  hasQuality,
+  spendQualityUse
 } from "../rules/quality-automation.js";
 import { spendActorActions } from "./action-economy.js";
 import { payPartnerInterruptAction } from "./tamer-actions.js";
@@ -32,6 +35,14 @@ function movementOf(actor) {
       ?? actor?.system?.miscStats?.movement?.total
       ?? actor?.system?.miscStats?.movement?.value
       ?? actor?.system?.miscStats?.movement?.base
+  ));
+}
+
+function cpuOf(actor) {
+  return Math.max(0, number(
+    actor?.system?.derivedStats?.cpu?.total
+      ?? actor?.system?.derivedStats?.cpu?.value
+      ?? actor?.system?.derivedStats?.cpu?.base
   ));
 }
 
@@ -130,9 +141,22 @@ function eligibleInterceders(attacker, targetToken) {
     const actions = Math.max(0, number(actor.system?.combat?.actions?.value));
     const movement = movementOf(actor);
     const distance = getTokenGridDistance(token, targetToken);
+    const travelRequired = Math.max(0, distance - 1);
+    const sprintQuality = findQuality(actor, "sprint");
+    const sprintAvailable = Boolean(sprintQuality && canSpendQuality(sprintQuality));
+    const sprintRequired = travelRequired > movement;
+    const effectiveMovement = movement * (sprintRequired && sprintAvailable ? 2 : 1);
     const freeSource = getIntercedeFreeSource(actor, target, distance);
     const actionCost = freeSource ? 0 : 1;
-    if (actions < actionCost || movement <= 0 || distance > movement) return [];
+    if (actions < actionCost || movement <= 0 || travelRequired > effectiveMovement) return [];
+
+    const trueGuardian = Boolean(
+      actor.system?.qualityFeatures?.dataSpecialization?.trueGuardian
+    );
+    const unusedMovement = Math.max(0, effectiveMovement - travelRequired);
+    const intercedeArmorBonus = trueGuardian
+      ? Math.min(cpuOf(actor), unusedMovement)
+      : 0;
     const authorizedUserIds = ownerIds(actor);
     if (!authorizedUserIds.length) return [];
     seen.add(actor.uuid);
@@ -143,7 +167,14 @@ function eligibleInterceders(attacker, targetToken) {
       tokenId: token.id,
       sceneId: canvas.scene?.id ?? "",
       distance,
-      movement,
+      travelRequired,
+      movement: effectiveMovement,
+      baseMovement: movement,
+      sprintRequired,
+      sprintQualityId: sprintRequired ? sprintQuality?.id ?? "" : "",
+      unusedMovement,
+      trueGuardian,
+      intercedeArmorBonus,
       actionCost,
       freeSource: freeSource?.key ?? "",
       authorizedUserIds
@@ -165,7 +196,14 @@ function requestCard(request) {
           <button type="button" data-action="dda-intercede" data-candidate-id="${candidate.id}">
             <i class="fas fa-shield-halved"></i>
             ${escape(candidate.actorName)}
-            <small>${candidate.distance}/${candidate.movement} ${text("Espaços", "Spaces")} · ${candidate.actionCost > 0 ? `${candidate.actionCost}A` : text("Livre", "Free")}</small>
+            <small>
+              ${candidate.travelRequired}/${candidate.movement} ${text("Espaços", "Spaces")} ·
+              ${candidate.actionCost > 0 ? `${candidate.actionCost}A` : text("Livre", "Free")}
+              ${candidate.sprintRequired ? ` · ${text("Arrancada", "Sprint")}` : ""}
+              ${candidate.intercedeArmorBonus > 0
+                ? ` · ${text("Guardião Verdadeiro", "True Guardian")} +${candidate.intercedeArmorBonus} ${text("Armadura", "Armor")}`
+                : ""}
+            </small>
           </button>`).join("")}
         <button type="button" data-action="dda-intercede-decline">
           ${text("Prosseguir sem Interceder", "Continue without Interceding")}
@@ -218,10 +256,29 @@ async function resolveChoice(message, candidateId = "") {
     actor = await fromUuid(candidate.actorUuid);
     if (!actor) return false;
 
+    const sprintQuality = candidate.sprintRequired
+      ? actor.items?.get?.(candidate.sprintQualityId) ?? findQuality(actor, "sprint")
+      : null;
+    if (candidate.sprintRequired && (!sprintQuality || !canSpendQuality(sprintQuality))) {
+      ui.notifications.warn(text(
+        "Arrancada não está mais disponível para este Interceder.",
+        "Sprint is no longer available for this Intercede."
+      ));
+      return false;
+    }
+
     const payment = await payIntercedeAction(actor, candidate, request);
     if (!payment) {
       ui.notifications.warn(text("O personagem não possui mais Ações para Interceder.", "The character no longer has enough Actions to Intercede."));
       return false;
+    }
+
+    if (sprintQuality) {
+      await spendQualityUse(actor, sprintQuality, {
+        bucket: "movement",
+        key: "sprintIntercede",
+        state: { source: "intercede", requestId: request.requestId }
+      });
     }
 
     const targetToken = canvas?.tokens?.get(request.targetTokenId);
@@ -238,7 +295,7 @@ async function resolveChoice(message, candidateId = "") {
 
   await message.update({
     content: candidate
-      ? `<div class="dda-chat-card dda-intercede-card is-resolved"><h2>${text("Interceder resolvido", "Intercede resolved")}</h2><p><strong>${escape(candidate.actorName)}</strong> ${text("assumiu o ataque.", "took over the attack.")}</p></div>`
+      ? `<div class="dda-chat-card dda-intercede-card is-resolved"><h2>${text("Interceder resolvido", "Intercede resolved")}</h2><p><strong>${escape(candidate.actorName)}</strong> ${text("assumiu o ataque.", "took over the attack.")}${candidate.sprintRequired ? ` ${text("Arrancada foi consumida.", "Sprint was spent.")}` : ""}</p></div>`
       : `<div class="dda-chat-card dda-intercede-card is-declined"><p>${text("Ninguém Intercedeu. O ataque prossegue.", "Nobody Interceded. The attack continues.")}</p></div>`,
     [`flags.${game.system.id}.intercedeRequest`]: resolvedRequest
   });
@@ -246,7 +303,7 @@ async function resolveChoice(message, candidateId = "") {
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: actor ?? undefined }),
     content: candidate
-      ? `<div class="dda-chat-card dda-intercede-card is-resolved"><h2>${text("Interceder", "Intercede")}</h2><p><strong>${escape(candidate.actorName)}</strong> ${text("recebe o ataque no lugar do alvo original e não rola Esquiva.", "takes the attack instead of the original target and does not roll Dodge.")}</p></div>`
+      ? `<div class="dda-chat-card dda-intercede-card is-resolved"><h2>${text("Interceder", "Intercede")}</h2><p><strong>${escape(candidate.actorName)}</strong> ${text("recebe o ataque no lugar do alvo original e não rola Esquiva.", "takes the attack instead of the original target and does not roll Dodge.")}</p>${candidate.sprintRequired ? `<p><strong>${text("Arrancada", "Sprint")}:</strong> ${text("Movimento dobrado para alcançar o aliado.", "Movement doubled to reach the ally.")}</p>` : ""}${candidate.intercedeArmorBonus > 0 ? `<p><strong>${text("Guardião Verdadeiro", "True Guardian")}:</strong> +${candidate.intercedeArmorBonus} ${text("Armadura neste ataque", "Armor for this attack")}.</p>` : ""}</div>`
       : `<div class="dda-chat-card dda-intercede-card is-declined"><p>${text("Ninguém Intercedeu. O ataque prossegue.", "Nobody Interceded. The attack continues.")}</p></div>`,
     flags: { [game.system.id]: { intercedeResponse: {
       requestId: request.requestId,
@@ -309,7 +366,7 @@ export async function requestStandardIntercede({ attacker, targetToken, attackIt
 }
 
 export function registerIntercede() {
-  Hooks.on("renderChatMessage", (message, html) => bindIntercedeChatCard(message, html?.[0] ?? html));
+  Hooks.on("renderChatMessageHTML", (message, html) => bindIntercedeChatCard(message, html));
   Hooks.on("createChatMessage", (message) => {
     const response = message?.getFlag?.(game.system.id, "intercedeResponse");
     if (!response) return;

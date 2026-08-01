@@ -764,9 +764,19 @@
         <div class="active-effect-meta">
           <span>{{localize "DDA.Label.Source"}}: {{effect.sourceActorName}}</span>
           <span>{{localize "DDA.Label.Duration"}}: {{effect.remaining}}</span>
+          {{#if effect.hasDisplayMagnitude}}
+            <span>{{localize effect.displayMagnitudeLabel}}: {{effect.displayMagnitude}}</span>
+          {{/if}}
         </div>
 
-        <button type="button" class="remove-active-effect" data-effect-id="{{effect.id}}">{{localize "DDA.Button.Remove"}}</button>
+        <div class="active-effect-controls">
+          {{#if effect.canResist}}
+            <button type="button" class="resist-active-effect" data-effect-id="{{effect.id}}">
+              {{localize "DDA.EffectQualities.Resist"}}
+            </button>
+          {{/if}}
+          <button type="button" class="remove-active-effect" data-effect-id="{{effect.id}}">{{localize "DDA.Button.Remove"}}</button>
+        </div>
       </div>
       {{/each}}
     </div>

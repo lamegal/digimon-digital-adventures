@@ -16,6 +16,60 @@ function normalizeQualityAutomationData(quality) {
   next.grants.derivedStats ??= {};
   next.grants.automaticSuccesses ??= {};
 
+  const digizoidGainForceIds = new Set([
+    "armaduraDeDigizoideCromada", "armaduraDeDigizoideAmaldicoada", "armaduraDeDigizoideAdaptavel",
+    "armaduraDeDigizoideAfiada", "armaduraDeDigizoidePesada", "armaduraDeDigizoideFlexivel",
+    "armaduraDeDigizoideLeve", "armaduraDeDigizoideRadiante", "armamentoDeDigizoideCromado",
+    "armamentoDeDigizoideAmaldicoado", "armamentoDeDigizoideAdaptavel", "armamentoDeDigizoideAfiado",
+    "armamentoDeDigizoideFlexivel", "armamentoDeDigizoidePesado", "armamentoDeDigizoideLeve",
+    "armamentoDeDigizoideRadiante", "armamentoDeDigizoidePuro", "overwrite", "inforceImortal",
+    "inforceTemporal", "inforceOnisciente", "perigoDigital", "unidadeZero", "overwritePuro"
+  ]);
+  if (digizoidGainForceIds.has(id) && typeof next.effect === "string") {
+    next.effect = next.effect
+      .replace(/^(?:ALGORITHM\s*\|\s*)?(?:Any other|Qualquer outr[oa])\s+(?:DIGIZOID ARMOR|DIGIZOID WEAPONRY|GAIN FORCE)[^\n]*\n/i, "")
+      .split(/\n\s*(?:6\.10\s*-\s*Gain Force Qualities|7\.0\s*-\s*Free\s*&\s*Negative Qualities)/i)[0]
+      .trim();
+  }
+  if (digizoidGainForceIds.has(id) && typeof next.description === "string") {
+    next.description = next.description
+      .replace(/^(?:ALGORITHM\s*\|\s*)?(?:Any other|Qualquer outr[oa])\s+(?:DIGIZOID ARMOR|DIGIZOID WEAPONRY|GAIN FORCE)\s*/i, "")
+      .trim();
+  }
+  if (id.startsWith("armaduraDeDigizoide")) {
+    next.incompatible = {
+      ...(next.incompatible ?? {}),
+      qualityNames: isEnglishLanguage() ? "Any other DIGIZOID ARMOR" : "Qualquer outra ARMADURA DE DIGIZOIDE"
+    };
+  }
+  if (id.startsWith("armamentoDeDigizoide")) {
+    const algorithm = id === "armamentoDeDigizoidePuro" ? "" : (isEnglishLanguage() ? "ALGORITHM | " : "ALGORITMO | ");
+    next.incompatible = {
+      ...(next.incompatible ?? {}),
+      qualityNames: `${algorithm}${isEnglishLanguage() ? "Any other DIGIZOID WEAPONRY" : "Qualquer outro ARMAMENTO DE DIGIZOIDE"}`
+    };
+  }
+  if (["overwrite", "inforceImortal", "inforceTemporal", "inforceOnisciente", "perigoDigital", "unidadeZero", "overwritePuro"].includes(id)) {
+    const algorithm = id === "overwritePuro" ? "" : (isEnglishLanguage() ? "ALGORITHM | " : "ALGORITMO | ");
+    next.incompatible = {
+      ...(next.incompatible ?? {}),
+      qualityNames: `${algorithm}${isEnglishLanguage() ? "Any other GAIN FORCE" : "Qualquer outra GAIN FORCE"}`
+    };
+  }
+  if (id === "armamentoDeDigizoidePuro") {
+    next.choices = {
+      ...(next.choices ?? {}),
+      required: true,
+      type: "singleAttack",
+      label: isEnglishLanguage() ? "Attack with [OFFHAND]" : "Ataque com [OFFHAND]"
+    };
+    next.attackModifier = {
+      ...(next.attackModifier ?? {}),
+      appliesTo: "weaponAttacks",
+      grantsTags: ["offhand"]
+    };
+  }
+
 const applyLegacyMainStatGrant = (legacyKey, statKey) => {
   if (next.grants?.[legacyKey] === undefined) return;
 
@@ -84,6 +138,15 @@ const applyLegacyDerivedStatGrant = (legacyKey, statKey) => {
     next.grants.automaticSuccesses.dodgePerRank = Number(next.grants.automaticSuccesses.dodgePerRank ?? next.grants.automaticDodgeSuccessesPerRank ?? 1);
   }
 
+  if (id === "elementoAlterado") {
+    next.choices = {
+      ...(next.choices ?? {}),
+      required: false,
+      runtimeConfigured: true,
+      options: Array.isArray(next.choices?.options) ? next.choices.options : []
+    };
+  }
+
 if (id === "arma") {
   next.choices = {
     ...(next.choices ?? {}),
@@ -108,6 +171,7 @@ if (id === "golpeCerteiro") {
     ...(next.choices ?? {}),
     required: true,
     type: "singleAttack",
+    repeatOnRankIncrease: false,
     label: next.choices?.label || "Ataque com [CERTAIN]",
     options: Array.isArray(next.choices?.options) ? next.choices.options : []
   };
@@ -156,6 +220,7 @@ if (id === "perfuracaoDeArmadura") {
     ...(next.choices ?? {}),
     required: true,
     type: "singleAttack",
+    repeatOnRankIncrease: false,
     label: next.choices?.label || "Ataque com [PIERCING]",
     options: Array.isArray(next.choices?.options) ? next.choices.options : []
   };
@@ -330,6 +395,7 @@ if (id === "alcance") {
     ...(next.choices ?? {}),
     required: true,
     type: "single",
+    repeatOnRankIncrease: false,
     options: Array.isArray(next.choices?.options) && next.choices.options.length ? next.choices.options : [
       { key: "wideSwings", label: "Golpes Amplos", originalLabel: "Wide Swings" },
       { key: "longArms", label: "Braços Longos", originalLabel: "Long Arms" },
@@ -558,8 +624,16 @@ if (id === "conjurador") {
   };
 
   next.effect = english
-    ? "Gain Mastery equal to BIT + twice the combined Ranks in Conjurer and Summoner. Use Conjure with 1 Action to access half Mastery or 2 Actions to access all Mastery. Each Rank adds one different Structure option. Structures are created in unoccupied spaces within Range, have a Damage Threshold equal to DOS, do not roll Dodge, and refund their Mastery cost when destroyed at 0 Wound Boxes."
-    : "Receba Mastery igual ao BIT + duas vezes a soma dos Ranks em Conjurador e Invocador. Use Conjurar com 1 Ação para acessar metade da Mastery ou 2 Ações para acessar toda a Mastery. Cada Rank adiciona uma opção diferente de Estrutura. Estruturas são criadas em espaços desocupados dentro do Alcance, possuem Limiar de Dano igual ao DOS, não rolam Esquiva e devolvem seu custo de Mastery quando são destruídas ao chegar a 0 Caixas de Ferimento.";
+    ? `Mastery equals BIT + twice the combined Ranks in Conjurer and Summoner. Conjure uses 1 Action to access half maximum Mastery or 2 Actions to access all of it, and cannot be used again for 1 Round. Structures must occupy unoccupied spaces within Range, have a Damage Threshold equal to DOS, do not roll Dodge, and refund their Mastery cost only when destroyed at 0 Wound Boxes. Define their appearance when purchasing this Quality.
+
+Each Rank selects one different option. Walls and Pillars cost 1 Mastery per space, rise up to DOS spaces or the ceiling, have 1 Wound Box per space, and form a Wall of at most 4 adjacent spaces; windows may allow sight and Attacks but not movement. Platforms cost 2 Mastery, occupy 2 spaces by 1 space, have 2 Wound Boxes, may be created in mid-air, and may be Basic or Difficult Terrain of an owned Naturewalk Element. Terrain requires Element Master: each surface or aerial space costs 2 Mastery, or 1 when that Element is already present, plus 1 to become Dangerous Terrain; up to 4 adjacent spaces form one Structure with 1 Wound Box per space.
+
+Pillars and Walls may stand on Platforms, and elemental Platforms may become Dangerous Terrain. Destroying a supporting foundation collapses what it supports (resolved by the GM on a two-dimensional canvas). Existing Structures disappear without a refund when Conjure is used again, when the Digimon reaches 0 Wound Boxes, or when this Quality becomes unavailable.`
+    : `Mastery é igual ao BIT + duas vezes a soma dos Ranks em Conjurador e Invocador. Conjurar usa 1 Ação para acessar metade da Mastery máxima ou 2 Ações para acessar toda ela, e não pode ser usada novamente por 1 Rodada. Estruturas devem ocupar espaços desocupados dentro do Alcance, possuem Limiar de Dano igual ao DOS, não rolam Esquiva e só devolvem seu custo de Mastery quando são destruídas ao chegar a 0 Caixas de Ferimento. Defina sua aparência ao comprar esta Qualidade.
+
+Cada Rank seleciona uma opção diferente. Paredes e Pilares custam 1 Mastery por espaço, sobem até DOS espaços ou o teto, possuem 1 Caixa de Ferimento por espaço e formam uma Parede de no máximo 4 espaços adjacentes; janelas podem permitir visão e Ataques, mas não movimento. Plataformas custam 2 Mastery, ocupam 2 espaços por 1 espaço, possuem 2 Caixas de Ferimento, podem ser criadas no ar e podem ser Terreno Básico ou Difícil de um Elemento de Passo Natural possuído. Terreno exige Mestre Elemental: cada espaço de superfície ou aéreo custa 2 Mastery, ou 1 quando o Elemento já existe, mais 1 para se tornar Terreno Perigoso; até 4 espaços adjacentes formam uma Estrutura com 1 Caixa de Ferimento por espaço.
+
+Pilares e Paredes podem se apoiar em Plataformas, e Plataformas elementais podem se tornar Terreno Perigoso. Destruir a fundação derruba o que ela sustenta (resolvido pelo GM no canvas bidimensional). Estruturas existentes desaparecem sem reembolso quando Conjurar é usada novamente, quando o Digimon chega a 0 Caixas de Ferimento ou quando esta Qualidade fica indisponível.`;
 
   next.description = english
     ? "Conjurer creates persistent Structures and elemental terrain by spending Mastery."
@@ -820,8 +894,24 @@ if (id === "invocador") {
   };
 
   next.effect = english
-    ? "Gain Mastery equal to BIT + twice the combined Ranks in Summoner and Conjurer. Use Summon with 1 Action to access half Mastery or 2 Actions to access all Mastery. The maximum number of Minions equals Summoner Ranks. Command one Minion with 1 Action or all Minions with 2 Actions; commanded Minions receive 2 Actions."
-    : "Receba Mastery igual ao BIT + duas vezes a soma dos Ranks em Invocador e Conjurador. Use Invocar com 1 Ação para acessar metade da Mastery ou 2 Ações para acessar toda a Mastery. A quantidade máxima de Lacaios é igual aos Ranks em Invocador. Comande um Lacaio com 1 Ação ou todos com 2 Ações; Lacaios comandados recebem 2 Ações.";
+    ? `Mastery equals BIT + twice the combined Ranks in Summoner and Conjurer. Summon uses 1 Action to access half maximum Mastery or 2 Actions to access all of it, creates Minions in unoccupied spaces within Range, and cannot be used again for 1 Round. Define the summoning method and appearance when purchasing this Quality. The maximum number of Minions equals Summoner Ranks. A new Summon removes and refunds Minions not kept; kept Minions retain their spent Mastery. Minions reaching 0 Wound Boxes are destroyed and refunded.
+
+Base Accuracy, Damage, and Movement equal BIT; Wound Boxes equal DOS × 2; Armor and Dodge are 0 and Minions do not roll Dodge. They have Flight without its Movement penalty, no Derived Stats, and normally use [MELEE] Attacks. Each extra Mastery grants +2 Wound Boxes, and every 2 extra Mastery also grants +1 Accuracy, Damage, and Movement. Minions only benefit or suffer from Damage Effects and Effects that move or alter Movement; [POISON] uses the Summoner's CPU.
+
+Command Minion uses 1 Action for one Minion or 2 Actions for all Minions and grants each 2 Actions. Minions may only Move, Attack, or Aid, and only Move may repeat. Aid uses the Summoner's Range and always grants +2. If 2 or more commanded Minions Attack, this consumes the Summoner's one Attack per Round; roll Accuracy once using the lowest possible pool and apply that result to all targets.
+
+Infantry costs 4, is Large, gains SV Movement, and reduces Command by 1 Action once per turn; discounted Minions cannot Aid. Protector costs 3, is Huge, gains 2 × SV Wound Boxes, may Intercede using the Summoner's Actions, and ignores Difficult Terrain. Recon costs 2, is Medium, gains SV Accuracy, uses the Summoner's Range and Effective Limit for [RANGE] Attacks, and shares its sight. Volatile requires Element Master, costs 1, is Large, gains SV Damage, uses an owned Naturewalk Element, and at 0 Wound Boxes makes a free minimum-range [RANGE][DAMAGE][T:BURST] Attack; matching Element Master targets take no Damage.
+
+Only the listed inherited Qualities apply: all Minions may use Data Optimization (Close Combat; Speedster Movement only), Accelerate, Extra Movement other than Flight, Advanced Mobility, Tumbler, and Aggressive Flank; Infantry may use True Guardian's Action refund; Recon may use Ranged Striker and Sniper; Volatile may use Naturewalk for Terrain and Mobile Artillery. Minions disappear when removed by a new Summon, when the Summoner reaches 0 Wound Boxes, or when this Quality becomes unavailable.`
+    : `Mastery é igual ao BIT + duas vezes a soma dos Ranks em Invocador e Conjurador. Invocar usa 1 Ação para acessar metade da Mastery máxima ou 2 Ações para acessar toda ela, cria Lacaios em espaços desocupados dentro do Alcance e não pode ser usada novamente por 1 Rodada. Defina o método e a aparência da invocação ao comprar esta Qualidade. O máximo de Lacaios é igual aos Ranks em Invocador. Uma nova Invocação remove e reembolsa os Lacaios não mantidos; Lacaios mantidos preservam a Mastery gasta. Lacaios que chegam a 0 Caixas de Ferimento são destruídos e reembolsados.
+
+Precisão, Dano e Movimento base são iguais ao BIT; Caixas de Ferimento são DOS × 2; Armadura e Esquiva são 0 e Lacaios não rolam Esquiva. Eles possuem Voo sem sua penalidade de Movimento, não possuem Estatísticas Derivadas e normalmente usam Ataques [MELEE]. Cada Mastery adicional concede +2 Caixas de Ferimento, e a cada 2 Mastery adicionais também recebem +1 Precisão, Dano e Movimento. Lacaios só recebem Efeitos de Dano e Efeitos que movem ou alteram Movimento; [POISON] usa o CPU do Invocador.
+
+Comandar Lacaio usa 1 Ação para um Lacaio ou 2 Ações para todos e concede 2 Ações a cada um. Lacaios só podem Mover, Atacar ou Ajudar, e apenas Mover pode se repetir. Ajudar usa o Alcance do Invocador e sempre concede +2. Se 2 ou mais Lacaios comandados Atacarem, isso consome o único Ataque por Rodada do Invocador; role Precisão uma vez usando a menor Pool possível e aplique o resultado a todos os alvos.
+
+Infantaria custa 4, é Grande, recebe Movimento igual ao SV e reduz Comandar em 1 Ação uma vez por turno; Lacaios com desconto não podem Ajudar. Protetor custa 3, é Enorme, recebe 2 × SV Caixas de Ferimento, pode Interceder usando as Ações do Invocador e ignora Terreno Difícil. Reconhecimento custa 2, é Médio, recebe Precisão igual ao SV, usa o Alcance e Limite Efetivo do Invocador em Ataques [RANGE] e compartilha sua visão. Volátil exige Mestre Elemental, custa 1, é Grande, recebe Dano igual ao SV, usa um Elemento de Passo Natural possuído e, a 0 Caixas, faz um Ataque gratuito [RANGE][DAMAGE][T:BURST] de alcance mínimo; alvos com Mestre Elemental correspondente não sofrem Dano.
+
+Apenas as Qualidades herdadas listadas se aplicam: todos podem usar Otimização de Dados (Combate Corpo a Corpo; Movimento de Velocista), Acelerar, Movimento Extra além de Voo, Mobilidade Avançada, Acrobata e Flanco Agressivo; Infantaria pode usar o reembolso de Ação de Guardião Verdadeiro; Reconhecimento pode usar Combatente à Distância e Atirador de Elite; Volátil pode usar Passo Natural para Terreno e Artilharia Móvel. Lacaios desaparecem quando removidos por uma nova Invocação, quando o Invocador chega a 0 Caixas de Ferimento ou quando esta Qualidade fica indisponível.`;
 
   next.description = english
     ? "Summoner creates and commands digital Minions by spending Mastery."
@@ -875,6 +965,108 @@ if (id === "evocador") {
   next.description = english
     ? "Omnievoker combines Conjurer and Summoner into the same Action expenditure."
     : "Omnievoker combina Conjurador e Invocador no mesmo gasto de Ações.";
+}
+
+if (id === "mudancaDeModo") {
+  const english = isEnglishLanguage();
+  next.name = english ? "Mode Change" : "Mudança de Modo";
+  next.originalName = "Mode Change";
+  next.section = "Mode Change Qualities";
+  next.cost = { ...(next.cost ?? {}), dp: 1, perRank: true };
+  next.rank = { ...(next.rank ?? {}), value: 1, max: 2, limited: true };
+  next.stageRequirement = { enabled: true, minimum: "perfect", maximum: "" };
+  next.requirements = {
+    text: english ? "Requires Ultimate." : "Requer Perfeito.",
+    qualityNames: ""
+  };
+  next.requiredFor = [english ? "Superior Mode Change" : "Mudança de Modo Superior"];
+  next.choices = {
+    ...(next.choices ?? {}),
+    required: true,
+    type: "modeChangePairsPerRank",
+    label: english ? "Core Stat pairs" : "Pares de Estatísticas Centrais",
+    maxPairs: 2,
+    cannotRepeatStats: true,
+    repeatOnRankIncrease: true,
+    excludedStats: ["health"],
+    options: ["accuracy", "damage", "dodge", "armor"]
+  };
+  next.activation = {
+    ...(next.activation ?? {}),
+    enabled: true,
+    active: false,
+    mode: "action",
+    actionCost: 1,
+    chatMessage: english
+      ? "Swap the selected Core Stat pairs and the optional selected Size."
+      : "Troque os pares de Estatísticas Centrais e o Tamanho opcional selecionados."
+  };
+  next.modeChange = {
+    ...(next.modeChange ?? {}),
+    selectedStatPairsPerRank: true,
+    canSelectSizeOneStepLargerOrSmaller: true,
+    selectedSizeMustBeAvailableAtStage: true,
+    swapsSelectedStats: true,
+    swapsSelectedSize: true,
+    recalculatesDerivedStats: true,
+    qualityBonusesToTotalStatsApplyToNewValues: true,
+    resetToDefaultAtEndOfCombat: true
+  };
+  next.effect = english
+    ? "For each Rank, select a different pair of Core Stats except Health; no Stat may appear in more than one pair. You may also select one Size exactly one step larger or smaller, if that Size is available at the Digimon's Stage. The Mode Change Action swaps every selected pair and the optional Size, recalculates Derived Stats, and applies Quality bonuses to the new Total Stats. The Digimon returns to its default Mode at the end of Combat."
+    : "Para cada Rank, selecione um par diferente de Estatísticas Centrais, exceto Saúde; nenhuma Estatística pode aparecer em mais de um par. Você também pode selecionar um Tamanho exatamente um passo maior ou menor, se estiver disponível no Estágio do Digimon. A Ação Mudança de Modo troca todos os pares selecionados e o Tamanho opcional, recalcula as Estatísticas Derivadas e aplica os bônus de Qualidades aos novos Totais. O Digimon retorna ao Modo padrão no fim do Combate.";
+  next.description = english
+    ? "Mode Change exchanges Core Stats and an optional Size during Combat."
+    : "Mudança de Modo troca Estatísticas Centrais e um Tamanho opcional durante o Combate.";
+}
+
+if (id === "mudancaDeModoSuperior") {
+  const english = isEnglishLanguage();
+  next.name = english ? "Superior Mode Change" : "Mudança de Modo Superior";
+  next.originalName = "Superior Mode Change";
+  next.section = "Mode Change Qualities";
+  next.cost = { ...(next.cost ?? {}), dp: 3, perRank: false };
+  next.rank = { ...(next.rank ?? {}), value: 1, max: 1, limited: true };
+  next.stageRequirement = { enabled: true, minimum: "perfect", maximum: "" };
+  next.requirements = {
+    text: english ? "Requires 1 Rank of Mode Change." : "Requer 1 Rank de Mudança de Modo.",
+    qualityNames: english ? "Mode Change" : "Mudança de Modo"
+  };
+  next.choices = {
+    ...(next.choices ?? {}),
+    required: false,
+    type: "superiorModeConfiguration",
+    label: english ? "Superior Mode configuration" : "Configuração do Modo Superior",
+    options: []
+  };
+  next.activation = {
+    ...(next.activation ?? {}),
+    enabled: false,
+    active: false,
+    mode: "modeChangeModifier"
+  };
+  next.superiorModeChange = {
+    ...(next.superiorModeChange ?? {}),
+    enabled: true,
+    activeMode: "default",
+    defaultQualitiesMaxDpFormula: "stage * 3",
+    modeQualitiesTotalDpMustEqualDefaultQualities: true,
+    swapsQualitiesAndAttacks: true,
+    losesBenefitsFromRemovedQualities: true,
+    maxWoundBoxChangesAffectCurrentWoundBoxes: true,
+    cannotLoseMaxWoundsUnlessCanLoseEqualCurrentWounds: true,
+    doesNotAffectResolve: true,
+    mustMeetRequirementsForSelectedQualities: true,
+    cannotRemoveQualitiesRequiredByKeptQualities: true,
+    attacksWithTagsFromDefaultQualitiesMustBeSelected: true,
+    createSameNumberOfNewAttacks: true
+  };
+  next.effect = english
+    ? "Choose purchased Default Qualities costing no more than Stage × 3 DP, then Mode Qualities with exactly the same total DP cost. Mode Change and Superior Mode Change cannot be selected. Choose the affected default Attacks, including every Attack whose Tags came from a Default Quality, and create the same number of Mode Attacks. Changing Mode swaps those Qualities and Attacks and removes every lost benefit, including Stat bonuses. A Maximum Wound Box change applies by the same amount to Current Wound Boxes; a Mode cannot be entered if that loss cannot be paid. Resolve is unchanged. Every selected Quality must meet its requirements, and a required Quality cannot be removed while its dependent Quality remains."
+    : "Escolha Qualidades Padrão já compradas com custo total de até Estágio × 3 PD e, depois, Qualidades de Modo com exatamente o mesmo custo. Mudança de Modo e Mudança de Modo Superior não podem ser selecionadas. Escolha os Ataques padrão afetados, incluindo todo Ataque cujas Tags vieram de uma Qualidade Padrão, e crie a mesma quantidade de Ataques de Modo. Mudar de Modo troca essas Qualidades e Ataques e remove todos os benefícios perdidos, inclusive bônus de Estatísticas. Uma mudança no máximo de Caixas de Ferimento altera as Caixas atuais pela mesma quantidade; o Modo não pode ser assumido se a perda não puder ser paga. Resolve não muda. Toda Qualidade selecionada precisa cumprir seus requisitos, e uma Qualidade exigida não pode ser removida enquanto a Qualidade dependente for mantida.";
+  next.description = english
+    ? "Superior Mode Change swaps complete Quality and Attack packages with Mode Change."
+    : "Mudança de Modo Superior troca pacotes completos de Qualidades e Ataques junto com Mudança de Modo.";
 }
 
   return next;
@@ -5130,7 +5322,7 @@ const DDA_DIGIMON_QUALITIES_PT = [
       "appliesWhenEscapingClash": true,
       "result": {
         "higherThanInitiator": "A tentativa de Clash termina imediatamente e quem iniciou o Clash não pode tentar entrar em Clash com este Digimon novamente até a próxima rodada.",
-        "lowerThanInitiator": "Quem iniciou o Clash controla imediatamente o Clash."
+        "lowerThanInitiator": "The initiator immediately controls the Clash."
       }
     },
     "effect": "O Digimon é incrivelmente difícil de segurar. Quando um inimigo tenta iniciar um Clash com ele, ou quando o Digimon tenta usar a Ação Escapar do Clash, pode fazer um Teste RAM×2 em vez de um Teste de Clash. Se o resultado do Digimon for maior que o Teste de Clash do iniciador, a tentativa de Clash termina imediatamente e quem iniciou o Clash não pode tentar entrar em Clash com este Digimon novamente até a próxima rodada. Se o resultado do Digimon for menor, o iniciador controla imediatamente o Clash.",
@@ -5197,7 +5389,7 @@ const DDA_DIGIMON_QUALITIES_PT = [
       "active": false,
       "mode": "action",
       "actionCost": 1,
-      "chatMessage": "Arremesse um aliado disposto dentro do seu alcance de Clash."
+      "chatMessage": "Throw a willing Ally within your Clash reach."
     },
     "uses": {
       "enabled": false,
@@ -5290,7 +5482,7 @@ const DDA_DIGIMON_QUALITIES_PT = [
       "active": false,
       "mode": "action",
       "actionCost": 1,
-      "chatMessage": "Tente subir em um inimigo muito maior para impedir que ele fuja livremente."
+      "chatMessage": "Climb onto a much larger Enemy to keep it from moving freely."
     },
     "uses": {
       "enabled": false,
@@ -8910,7 +9102,7 @@ const DDA_DIGIMON_QUALITIES_PT = [
     "cost": {
       "dp": 2,
       "perRank": false,
-      "coreDiscountAvailable": false,
+      "coreDiscountAvailable": true,
       "countsAgainstFreeLimit": false,
       "grantsDp": false
     },
@@ -9964,7 +10156,7 @@ const DDA_DIGIMON_QUALITIES_PT = [
       "countsAsClashCheck": true,
       "appliesQualities": [
         "Otimização de Dados: Brigão",
-        "Escorregadio"
+        "Slippery"
       ]
     },
     "forcedMovement": {
@@ -14574,7 +14766,7 @@ const DDA_DIGIMON_QUALITIES_PT = [
 ,
   {
     "id": "brace",
-    "name": "Brace",
+    "name": "Preparar",
     "originalName": "Brace",
     "tier": "champion",
     "originalTier": "Champion Qualities",
@@ -14589,11 +14781,11 @@ const DDA_DIGIMON_QUALITIES_PT = [
     "requiredFor": [],
     "choices": { "required": false, "type": "", "options": [] },
     "activation": { "enabled": true, "active": false, "mode": "instant", "chatMessage": "Quando sofrer dano de um ataque, use uma Interrupção e role CPU (Resistência) para reduzir o dano." },
-    "uses": { "enabled": true, "value": 1, "max": 1, "recharge": "combat" },
-    "trigger": { "actionCost": "interrupt", "frequency": "combat", "check": { "enabled": true, "stat": "cpu", "skill": "endurance", "tnFormula": "10 + damageAfterArmor" } },
+    "uses": { "enabled": false, "value": 0, "max": 0, "recharge": "" },
+    "trigger": { "actionCost": "interrupt", "frequency": "escalatingCombat", "check": { "enabled": true, "stat": "cpu", "skill": "endurance", "tnFormula": "10 + damageAfterArmor + tnIncrease + intercedeIncrease" } },
     "grants": { "brace": true },
     "effect": "Quando o Digimon sofre Dano de um Ataque, pode usar uma Interrupção para fazer um Teste CPU (Resistência), NA 10 + dano depois da Armadura. Sucesso reduz o dano pela metade depois da Armadura; Sucesso Crítico pode reduzir a 0 se ficaria 1; Falha Crítica aumenta o dano em 1. Usos posteriores aumentam o NA em 3 até o fim do combate.",
-    "description": "Brace permite reduzir dano recebido com um teste de resistência."
+    "description": "Preparar permite usar uma Ação de Interrupção para tentar reduzir o Dano de um Ataque depois da Armadura; a NA cresce a cada tentativa durante o Combate."
   },
   {
     "id": "selvageria",
@@ -17114,7 +17306,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "enabled": true,
       "active": false,
       "mode": "instant",
-      "chatMessage": "Rerrole resultados baixos em uma Pool de Avoidance."
+      "chatMessage": "Reroll low results in a Dodge Pool."
     },
     "uses": {
       "enabled": true,
@@ -17332,7 +17524,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "active": false,
       "mode": "reaction",
       "actionCost": 0,
-      "chatMessage": "Ao ser atingido por um ataque, antes de suffersr Damage, faça um Check RAM (Evasion) to create um substituto."
+      "chatMessage": "When hit by an Attack, before taking Damage, make a RAM (Evasion) Check to create a substitute."
     },
     "uses": {
       "enabled": false,
@@ -18631,14 +18823,14 @@ const DDA_DIGIMON_QUALITIES_EN = [
           }
         ],
         "result": {
-          "failure": "O Opponent não é movido.",
-          "success": "O Opponent if move junto with o Digimon, mas o Digimon só pode if mover half dos espaços.",
-          "criticalSuccess": "O Opponent if move junto with o Digimon, without penalidade de movimento."
+          "failure": "The Opponent is not moved.",
+          "success": "The Opponent moves with the Digimon, but the Digimon can only move half as many Spaces.",
+          "criticalSuccess": "The Opponent moves with the Digimon with no Movement penalty."
         }
       }
     },
     "effect": "The Digimon can control a Clash normally against any Size.\nWhen the Digimon takes the Move Clash Action, if the Opponent in the Clash is the same Size or smaller, the Digimon can force its Opponent to move with it. The Digimon must make a CPU (Feats of Strength) Check, with a TN equal to 10 + the Opponent’s CPU.\nAlternatively, the Digimon can make a Clash Check with a TN equal to 10 + the Opponent’s Clash.\nOn a Failure, the Opponent isn’t moved. On a Success, the opponent is moved with the Digimon, but the Digimon can only move half as many Spaces. On a Critical Success, the Digimon has no movement penalty.",
-    "description": "The Digimon can control a Clash normally against any Size. ",
+    "description": "Monster Strength lets the Digimon control Clashes against any Size and drag equal-or-smaller Opponents with the Move Clash Action.",
     "tier": "starting",
     "originalTier": "Starting Qualities",
     "availability": {
@@ -18698,7 +18890,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "enabled": true,
       "active": false,
       "mode": "trigger",
-      "chatMessage": "Ao controlar um Clash with sucesso, ative esta Quality para expor o Opponent."
+      "chatMessage": "After taking control of a Clash, activate this Quality to expose the Opponent."
     },
     "uses": {
       "enabled": false,
@@ -18716,7 +18908,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       }
     },
     "effect": "When the Digimon rolls to Control a Clash and succeeds, it can choose to Trigger this Quality until its next attempt to Control a Clash. It cannot take the Pin Clash Action this turn, but the Opponent only reduces the incoming Damage from outside Attacks by half their CPU, instead of half the combined CPUs. The same logic applies to [SUPPORT] Attacks, using half their RAM instead of half the combined RAMs.",
-    "description": "When the Digimon rolls to Control a Clash and succeeds, it can choose to Trigger this Quality until its next attempt to Control a Clash. ",
+    "description": "Exposing Hold makes the Opponent more vulnerable to outside Attacks until the next Clash control attempt.",
     "tier": "starting",
     "originalTier": "Starting Qualities",
     "availability": {
@@ -18793,7 +18985,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "canMakeWeakAttackWithRange": true
     },
     "effect": "While in a Clash, the Digimon is allowed to use both [MELEE] and [RANGE] Attacks against their Opponent. If they use a [RANGE] Attack, they suffer no penalty for any Enemies within 1 Space.\nIf the Attack has [RECOIL], the Attack immediately ends the Clash and applies normal effects (though the target still rolls half their Dodge Pool). The Digimon can also make a Weak Attack with [RANGE] instead of [MELEE].",
-    "description": "While in a Clash, the Digimon is allowed to use both [MELEE] and [RANGE] Attacks against their Opponent. ",
+    "description": "Point Blank enables [RANGE] Attacks and Weak Attacks inside a Clash without the adjacent-enemy Accuracy penalty.",
     "tier": "starting",
     "originalTier": "Starting Qualities",
     "availability": {
@@ -18866,12 +19058,12 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "appliesWhenEnemyInitiatesClash": true,
       "appliesWhenEscapingClash": true,
       "result": {
-        "higherThanInitiator": "A tentativa de Clash termina imediatamente e quem iniciou o Clash cannot tentar entrar em Clash with este Digimon novamente até a próxima rodada.",
-        "lowerThanInitiator": "Quem iniciou o Clash controla imediatamente o Clash."
+        "higherThanInitiator": "The attempted Clash immediately ends, and the initiator cannot attempt to Clash with this Digimon again until the next round.",
+        "lowerThanInitiator": "The initiator immediately controls the Clash."
       }
     },
     "effect": "The Digimon is incredibly hard to get a hold of. When an Enemy attempts to initiate a Clash with the Digimon, or the Digimon attempts to use the Escape the Clash Action, it can make a RAMx2 Check instead of a Clash Check.\nIf the Digimon’s result is higher than the initiator's Clash Check, it instead immediately ends the attempted Clash and the one who initiated the Clash cannot attempt to Clash with the Digimon again until the next round.\nIf the Digimon’s result is lower than the initiator's Clash Check, the initiator immediately controls the Clash.",
-    "description": "The Digimon is incredibly hard to get a hold of. ",
+    "description": "Slippery allows RAM×2 to resist Clash initiation or Escape a Clash.",
     "tier": "starting",
     "originalTier": "Starting Qualities",
     "availability": {
@@ -18910,7 +19102,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "maximum": ""
     },
     "requirements": {
-      "text": "O Ally arremessado must estar disposto e ser pelo menos um tamanho menor, unless o Digimon também possua Monster Strength.",
+      "text": "The thrown Ally must be willing and at least one Size smaller, unless the Digimon also has Monster Strength.",
       "qualityNames": ""
     },
     "incompatible": {
@@ -18934,7 +19126,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "active": false,
       "mode": "action",
       "actionCost": 1,
-      "chatMessage": "Arremesse um aliado disposto dentro do seu alcance de Clash."
+      "chatMessage": "Throw a willing Ally within your Clash reach."
     },
     "uses": {
       "enabled": false,
@@ -18966,7 +19158,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       }
     },
     "effect": "You may throw a willing ally that is at least one Size smaller than you within your Clash reach as 1 Action. The ally takes Damage as per normal throwing rules, unless they have Tumbler. If the Ally has an Attack with the [CHARGE] Tag and is being thrown at an Enemy, they may take an Interrupt Action to make a [CHARGE] Attack on the same Enemy, however the Digimon making the Attack doesn’t move. If the Throw targets multiple enemies, the Thrown Ally targets just one. Instead of making the standard [RANGE] Attack with Throw, the Digimon can also choose to forgo its Once per Round Attack and treat the Ally’s [CHARGE] Attack as it instead (which bypasses their own one Attack per Round Rule).\nThe Digimon can choose to use Fastball as 2 Actions to supply the Thrown Ally with an additional 1 Action for the purpose of the Attack, making the Interrupt Action potentially free.\nIf the Digimon also possesses the Monster Strength Quality, it is not restricted by Size.\nIn addition, the Digimon can now use Area Intercede as 1 Action instead of 2 Actions.",
-    "description": "You may throw a willing ally that is at least one Size smaller than you within your Clash reach as 1 Action. ",
+    "description": "Fastball turns a smaller willing Ally into a tactical projectile and can enable an immediate [CHARGE] Attack.",
     "tier": "starting",
     "originalTier": "Starting Qualities",
     "availability": {
@@ -19005,11 +19197,11 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "maximum": ""
     },
     "requirements": {
-      "text": "Can only ser usado contra um Digimon pelo menos um tamanho maior.",
+      "text": "Can only be used against a Digimon at least one Size larger.",
       "qualityNames": ""
     },
     "incompatible": {
-      "text": "A Digimon cannot entrar em Clash with outro Digimon compartilhando seu Space por meio of this Quality.",
+      "text": "A Digimon cannot Clash with another Digimon sharing its Space through this Quality.",
       "qualityNames": ""
     },
     "requiredFor": [],
@@ -19027,7 +19219,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "active": false,
       "mode": "action",
       "actionCost": 1,
-      "chatMessage": "Tente subir em um inimigo muito maior para impedir que ele fuja livremente."
+      "chatMessage": "Climb onto a much larger Enemy to keep it from moving freely."
     },
     "uses": {
       "enabled": false,
@@ -19040,13 +19232,13 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "stat": "cpu",
       "skill": "athletics",
       "tnFormula": "10 + targetRam - targetCpu",
-      "notes": "Can only ser tentado contra um Digimon pelo menos um tamanho maior."
+      "notes": "Can only be attempted against a Digimon at least one Size larger."
     },
     "result": {
-      "criticalFailure": "",
-      "failure": "The Digimon fails and suffers [SLOW 2] until the start of its next turn.",
-      "success": "The Digimon is considered to share the same space as the Digimon, and moves with them whenever they move.",
-      "criticalSuccess": ""
+      "criticalFailure": "The Digimon fails and suffers [SLOW 2] until the start of its next turn.",
+      "failure": "Nothing happens.",
+      "success": "The Digimon shares the Target’s Space and moves with it whenever it moves.",
+      "criticalSuccess": "The larger Digimon’s TN to remove the smaller Digimon increases by +3."
     },
     "clash": {
       "doesNotCountAsClash": true,
@@ -19059,8 +19251,8 @@ const DDA_DIGIMON_QUALITIES_EN = [
         "tnFormula": "10 + smallerDigimonRam"
       }
     },
-    "effect": "The Digimon can attempt to climb onto much larger enemies to make sure they cannot flee freely. As 1 Action while adjacent to the Target, the Digimon can make a CPU (Athletics) Check against a TN equal to 10 + the Target’s RAM - the Target’s CPU. A Digimon can only attempt to do this on a Digimon at least one Size larger than it.\nCritical Failure: The Digimon fails and suffers [SLOW 2] until the start of its next turn.\nFailure: Nothing happens.\nSuccess: The Digimon is considered to share the same space as the Digimon, and moves with them whenever they move.\nCritical Success: The larger Digimon’s TN to remove the smaller Digimon increases by +3.\nThe smaller Digimon can end this as a Free Action at any point or by using the Move or similar ability to leave the larger Digimon’s space. The larger Digimon must use 1 Action to make a CPU Check against a TN equal to 10 + the smaller Digimon’s RAM to shake the smaller Digimon off.\nThis does not count as a Clash. Both Digimon still retain full use of their Actions and do not suffer the detriments or gain the benefits granted by a Clash. A Digimon cannot Clash with another Digimon sharing its Space via this Quality.\n\n4.08 - Effect Qualities\n________________________________________\nEffect Qualities are used to give a special Effect to your Digimon’s Attacks, changing the tides of battle. When you purchase an Attack Effect, it is applied to one Attack and you cannot put more than one Attack Effect on a single Attack. There’s a lot to know about effects, but the most important things to note is that they have different Types, Potency, Durations, requirements, only affects Total Stats, and have different Categories depending on how expensive they are.\nEffect Types\nThere are three types of Effects:\nNegative Effects which weaken enemies\nPositive Effects which empower allies\nDamage Effects which inflict Damage to Enemies\nUnique Effects that are unique compared to other Effects, such as ignoring Resistance\nCaster and Target\nThe Effects can reference two individuals: the Caster and the Target. The Caster is the one that applied the Effect, and the Target is the one the Effect has been placed on. The Caster cannot affect itself with Attacks with an Effect Tag in any way, and instead must purchase the Overclock Quality if they want to use a Positive Effect on themselves.\n\nEffect Potency\nPotency is the power of the Effect which is then reduced by the Target’s Resistance. Many Effects will raise or lower a Target’s stats depending on the Effect’s Potency. Potency is only used for Negative and Positive Effects (as well as 2 Damage Effects), and will list a Derived Stat that is used to calculate Potency. Any bonus to Effect Potency, such as from Data Optimization: Effect Warrior, is applied after calculating base Potency, which is then reduced by Resistance. (This cannot reduce Potency to less than 2.)\nUnique Effects do not have a Potency, and are therefor not affected by Resistance.\nEffect Duration\nThe Duration of an Effect is determined by how well the Attack lands (which is covered in 9.02b), but the maximum Duration of Effects is 3. If a Digimon would use the same Effect Tag on a Digimon already affected by the Effect, they simply increase the Duration by the leftover Accuracy Dice to the maximum possible Duration (or keep the old Duration if it would last longer). The Duration counts down every round at the start of the Caster’s turn, unless stated otherwise in the effect.\n\nHow to Apply Effects\nAs mentioned in 3.03 - Digimon Attacks, if an Effect Tag is applied to a [SUPPORT] Attack, the Attack simply needs to land in order to apply the Effect. If an Effect Tag is applied to a [DAMAGE] Attack, it must deal at least 2 Damage after Armor to be applied, which does not include Unalterable Damage. Some Effects require the [DAMAGE]Tag to be applied.\nAltering Stats\nIf an Effect would alter Stats, it only affects Total Stats, not Base Stats. It also cannot lower a Total Stat below 1. A Digimon may benefit/suffer from multiple Effects as long as they have different names. A Digimon suffering from multiple Effects that reduce Stats will only reduce a Stat by the one with the highest potency. A Digimon suffering from [FRAIL 4], [WEAK 3] and [EXPLOIT 5] would only lower its Armor from [EXPLOIT 5].\nFlavouring Effects\nWhen an Effect is chosen, the intention suits the Digimon’s needs. [STUN] could be seen as the Caster slowing down time around the Target, [POISON] could be corrupting a Digimon’s data. The names of effects exist only to showcase their mechanical uses and inspirations.\nDamage Effects\nThere are four Effects that deal Unalterable Damage. The maximum amount of Unalterable Damage a Target can take from Effects is equal to its SV x 2 per Round.\n\nBasic, Advanced and Master Effects\nAttack Effects are separated into three categories based on their DP cost: Basic, Advanced, Master. The Digimon must be Stage 4 or higher to purchase Master Effects.\nCategorization of Effects\nIn each category, Attack Effects are noted as Positive (P), Negative (N), Damage (D) or Unique (U) in the columns. An Effect will also list if it has a Duration or not, as well as the Derived Stat used to calculate its Potency.",
-    "description": "The Digimon can attempt to climb onto much larger enemies to make sure they cannot flee freely. ",
+    "effect": "The Digimon can climb onto a Digimon at least one Size larger as 1 Action by making a CPU (Athletics) Check against TN 10 + the Target’s RAM - the Target’s CPU. On a Success it shares the Target’s Space and follows its movement. The smaller Digimon may dismount as a Free Action; the larger Digimon may spend 1 Action and make a CPU Check against TN 10 + the smaller Digimon’s RAM to shake it off. This is not a Clash.",
+    "description": "Giant Hijacker lets a smaller Digimon ride a larger Enemy and follow its movement without entering a Clash.",
     "tier": "starting",
     "originalTier": "Starting Qualities",
     "availability": {
@@ -22651,7 +22843,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
     "cost": {
       "dp": 2,
       "perRank": false,
-      "coreDiscountAvailable": false,
+      "coreDiscountAvailable": true,
       "countsAgainstFreeLimit": false,
       "grantsDp": false
     },
@@ -22979,7 +23171,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "maximum": ""
     },
     "requirements": {
-      "text": "Requires Ultimate ou superior.",
+      "text": "Requires Ultimate or higher.",
       "qualityNames": ""
     },
     "incompatible": {
@@ -23595,7 +23787,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "maximum": ""
     },
     "requirements": {
-      "text": "Requires Ultimate ou superior e Monster Strength.",
+      "text": "Requires Ultimate or higher and Monster Strength.",
       "qualityNames": "Monster Strength"
     },
     "incompatible": {
@@ -23667,7 +23859,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "maximum": ""
     },
     "requirements": {
-      "text": "Requires Ultimate ou superior.",
+      "text": "Requires Ultimate or higher.",
       "qualityNames": ""
     },
     "incompatible": {
@@ -23689,7 +23881,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "active": false,
       "mode": "action",
       "actionCost": 1,
-      "chatMessage": "Aplique [PUSH] ou [PULL] a um Target dentro do Range usando força à distância."
+      "chatMessage": "Apply [PUSH] or [PULL] to a Target within Range using distant force."
     },
     "uses": {
       "enabled": false,
@@ -23705,7 +23897,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "countsAsClashCheck": true,
       "appliesQualities": [
         "Data Optimization: Brawler",
-        "Escorregadio"
+        "Slippery"
       ]
     },
     "forcedMovement": {
@@ -23719,7 +23911,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       ]
     },
     "effect": "As 1 Action, the Digimon may target a Digimon within its Range. If the Target is unwilling, the Digimon and the Target can make a contested Check. The Digimon adds its BIT + DOS to the Check, and the Target adds its Clash. This Check is counted as a Clash Check for the purpose of Qualities such as Data Optimization: Brawler or Slippery.\nIf the Target succeeds, nothing happens. If the Digimon succeeds or the Target is willing, the Digimon may apply [PUSH] or [PULL] to the Target, using either its BIT or DOS (the Digimon’s choice) to determine the distance.",
-    "description": "As 1 Action, the Digimon may target a Digimon within its Range. "
+    "description": "Distant Force pushes or pulls a Target at Range through a Clash-like contested Check."
   },
   {
     "id": "arremessoPoderoso",
@@ -23758,7 +23950,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "maximum": ""
     },
     "requirements": {
-      "text": "Requires Ultimate ou superior e Fastball.",
+      "text": "Requires Ultimate or higher and Fastball.",
       "qualityNames": "Fastball"
     },
     "incompatible": {
@@ -23791,8 +23983,8 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "max": 0,
       "recharge": ""
     },
-    "effect": "Whenever the Digimon throws a Target (Enemy or Ally), the Range gains +3.\nThrowing an Enemy as a [RANGE] Attack also adds the Digimon’s CPU to the Damage.\nThrowing an Ally no longer causes them to potentially take any Crash Damage from the Throw.\n\n6.07 - Effect Qualities\n________________________________________",
-    "description": "Whenever the Digimon throws a Target (Enemy or Ally), the Range gains +3. "
+    "effect": "Whenever the Digimon throws an Enemy or Ally, the Throw gains +3 Range. Throwing an Enemy as a [RANGE] Attack also adds the Digimon’s CPU to Damage. Throwing an Ally no longer causes Crash Damage from the Throw.",
+    "description": "Power Throw increases Throw Range, improves offensive Throws, and protects thrown Allies from Crash Damage."
   },
   {
     "id": "efeitoMestre",
@@ -28311,6 +28503,74 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "minimumStage": "perfect",
       "label": "Optional Quality"
     }
+  },
+  {
+    "id": "brace",
+    "name": "Brace",
+    "originalName": "Brace",
+    "tier": "champion",
+    "originalTier": "Champion Qualities",
+    "availability": { "minimumStage": "adult", "label": "Champion Quality" },
+    "section": "Defensive Qualities",
+    "category": { "core": false, "attack": false, "trigger": true, "static": false, "free": false, "negative": false },
+    "cost": { "dp": 2, "perRank": false, "coreDiscountAvailable": false, "countsAgainstFreeLimit": false, "grantsDp": false },
+    "rank": { "value": 1, "max": 1, "limited": false },
+    "stageRequirement": { "enabled": true, "minimum": "adult", "maximum": "" },
+    "requirements": { "text": "Requires Champion.", "qualityNames": "" },
+    "incompatible": { "text": "", "qualityNames": "" },
+    "requiredFor": [],
+    "choices": { "required": false, "type": "", "options": [] },
+    "activation": { "enabled": true, "active": false, "mode": "instant", "chatMessage": "When taking Damage from an Attack, use an Interrupt Action and make a CPU (Endurance) Check to reduce it." },
+    "uses": { "enabled": false, "value": 0, "max": 0, "recharge": "" },
+    "trigger": { "actionCost": "interrupt", "frequency": "escalatingCombat", "check": { "enabled": true, "stat": "cpu", "skill": "endurance", "tnFormula": "10 + damageAfterArmor + tnIncrease + intercedeIncrease" } },
+    "grants": { "brace": true },
+    "effect": "When the Digimon takes Damage from an Attack, it may use an Interrupt Action to make a CPU (Endurance) Check against TN 10 + Damage after Armor. Critical Failure increases the Damage by 1. Success halves the Damage after Armor, rounded up. On a Critical Success, if that would leave 1 Damage, it takes 0 instead. Unalterable Damage is unaffected. Each attempt increases the TN by 3 until combat ends, with an additional +3 when used against an Attack the Digimon Interceded for.",
+    "description": "Brace spends an Interrupt Action to attempt to reduce incoming Damage after Armor, with an escalating TN during combat."
+  },
+  {
+    "id": "selvageria",
+    "name": "Savagery",
+    "originalName": "Savagery",
+    "tier": "champion",
+    "originalTier": "Champion Qualities",
+    "availability": { "minimumStage": "adult", "label": "Champion Quality" },
+    "section": "Defensive Qualities",
+    "category": { "core": false, "attack": false, "trigger": true, "static": false, "free": false, "negative": false },
+    "cost": { "dp": 1, "perRank": false, "coreDiscountAvailable": false, "countsAgainstFreeLimit": false, "grantsDp": false },
+    "rank": { "value": 1, "max": 1, "limited": false },
+    "stageRequirement": { "enabled": true, "minimum": "adult", "maximum": "" },
+    "requirements": { "text": "Requires Champion and Combat Monster.", "qualityNames": "Combat Monster" },
+    "incompatible": { "text": "", "qualityNames": "" },
+    "requiredFor": [],
+    "choices": { "required": false, "type": "", "options": [] },
+    "activation": { "enabled": true, "active": false, "mode": "instant", "chatMessage": "Once per Round when declaring an Attack, make a CPU (Endurance) Check and suffer Unalterable Damage equal to half maximum Resolve." },
+    "uses": { "enabled": false, "value": 0, "max": 0, "recharge": "" },
+    "trigger": { "actionCost": "0", "frequency": "round", "check": { "enabled": true, "stat": "cpu", "skill": "endurance", "tnFormula": "15 - dos + tnIncrease" } },
+    "grants": { "savagery": true },
+    "effect": "Once per Round when declaring an Attack, the Digimon may make a CPU (Endurance) Check against TN 15 - DOS. It suffers Unalterable Damage equal to half its maximum Resolve directly to true Wound Boxes; this counts toward Resolve and cannot be paid if it would reduce the Digimon to 0. On Success it also gains Temporary Wound Boxes equal to the Damage, or twice as many on a Critical Success. A Critical Failure locks Savagery until combat ends. Each use increases the TN by 3 until combat ends.",
+    "description": "Savagery turns self-inflicted pain into Resolve and, on success, Temporary Wound Boxes."
+  },
+  {
+    "id": "destruicaoGarantida",
+    "name": "Assured Destruction",
+    "originalName": "Assured Destruction",
+    "tier": "champion",
+    "originalTier": "Champion Qualities",
+    "availability": { "minimumStage": "adult", "label": "Champion Quality" },
+    "section": "Defensive Qualities",
+    "category": { "core": false, "attack": false, "trigger": true, "static": false, "free": false, "negative": false },
+    "cost": { "dp": 1, "perRank": false, "coreDiscountAvailable": false, "countsAgainstFreeLimit": false, "grantsDp": false },
+    "rank": { "value": 1, "max": 1, "limited": false },
+    "stageRequirement": { "enabled": true, "minimum": "adult", "maximum": "" },
+    "requirements": { "text": "Requires Champion and Combat Monster.", "qualityNames": "Combat Monster" },
+    "incompatible": { "text": "", "qualityNames": "" },
+    "requiredFor": [],
+    "choices": { "required": false, "type": "", "options": [] },
+    "activation": { "enabled": true, "active": false, "mode": "instant", "chatMessage": "When attacking an Enemy, convert any amount of Resolve into additional Accuracy dice instead of Damage." },
+    "uses": { "enabled": false, "value": 0, "max": 0, "recharge": "" },
+    "grants": { "assuredDestruction": true },
+    "effect": "When the Digimon makes an Attack against an Enemy, it may convert any amount of Resolve into additional dice in its Accuracy Pool instead of additional Damage. Converted Resolve is committed to that Attack and remains spent even if the Attack misses.",
+    "description": "Assured Destruction converts Resolve into Accuracy dice for one Attack."
   }
 ];
 
