@@ -1,4 +1,4 @@
-Cumulative Foundry VTT v13 beta release covering every system change from v2.0.8-beta through v2.0.19-beta.2.
+Cumulative Foundry VTT v13 beta release covering every system change from v2.0.8-beta through v2.0.19-beta.3.
 
 Release cycle overview
 
@@ -19,6 +19,22 @@ Existing embedded Qualities continue to resolve through canonical IDs and suppor
 Opening an Actor, Wizard or Quality Browser may refresh missing derived automation metadata without spending DP or duplicating purchases.
 
 A backup of the world and system folder is still strongly recommended before installing any beta build.
+
+Digimon Digital Adventures V2 — v2.0.19-beta.3
+
+DDA40.3 — Outnumbered Initiative ordering hotfix
+
+Corrected Initiative ordering when Enemy units outnumber Player units.
+
+Enemy-heavy encounters now alternate one Player unit and one Enemy unit for as long as both sides still have available units, then place all remaining Enemy units at the end of the order.
+
+Preserved the official outnumbered-player distribution: when Players outnumber Enemies, Player units continue to be divided as evenly as possible between Enemy activations.
+
+Preserved raw Initiative ordering within each side, the highest-initiative side's opening position, and shared Tamer/Partner units as one Initiative unit with separate Actions.
+
+Existing active Combats must reroll DDA Initiative or be recreated to receive the corrected order.
+
+Digimon Digital Adventures V2 — v2.0.19-beta.2
 
 DDA40.2 — Token HUD hit-testing hotfix
 
