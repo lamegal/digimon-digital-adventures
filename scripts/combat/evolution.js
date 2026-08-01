@@ -20,7 +20,7 @@ import {
 
 export const DDA_SYSTEM_ID = "digimon-digital-adventures";
 
-export async function evolvePartner(tamerActor) {
+export async function evolvePartner(tamerActor, options = {}) {
   if (!tamerActor || tamerActor.type !== "character") {
     ui.notifications.warn(localize("DDA.Warning.DigivolutionOnlyForTamers"));
     return;
@@ -100,6 +100,17 @@ export async function evolvePartner(tamerActor) {
     edgeMethod: selectedForm.edgeMethod,
     directLink: selectedForm.directLink
   });
+
+  if (options.zeroUnit) {
+    const credit = Math.max(0, Number(options.evolutionPointCredit ?? 0));
+    costData.zeroUnitOriginalPeCost = Math.max(0, Number(costData.peCost ?? 0));
+    costData.zeroUnitCredit = Math.min(costData.zeroUnitOriginalPeCost, credit);
+    costData.peCost = Math.max(0, costData.zeroUnitOriginalPeCost - credit);
+    costData.actionCost = 0;
+    costData.reason = String(game.i18n?.lang ?? "").toLowerCase().startsWith("en")
+      ? `Zero Unit: ${credit} Evolution Point credit and a free Evolution Action.`
+      : `Unidade Zero: crédito de ${credit} Pontos de Evolução e Ação Evoluir gratuita.`;
+  }
 
   if (!costData.allowed) {
     ui.notifications.warn(costData.blockedReason || localize("DDA.Warning.EvolutionMethodDisabled"));

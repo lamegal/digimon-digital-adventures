@@ -8698,8 +8698,12 @@ form.dda-tamer-window-sheet
 
 .dda-tamer-action-check {
   display: flex !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   gap: 0.55rem !important;
+
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
 
   margin-top: 0.55rem !important;
   padding: 0.55rem 0.65rem !important;
@@ -8714,22 +8718,55 @@ form.dda-tamer-window-sheet
     rgba(125, 210, 255, 0.22) !important;
 
   border-radius: 7px !important;
+
+  box-sizing: border-box !important;
+  cursor: pointer !important;
 }
 
-.dda-tamer-action-check input {
-  flex: 0 0 auto !important;
+.dda-tamer-action-check input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
 
-  margin-top: 2px !important;
+  display: inline-block !important;
+
+  width: 18px !important;
+  height: 18px !important;
+
+  min-width: 18px !important;
+  min-height: 18px !important;
+
+  max-width: 18px !important;
+  max-height: 18px !important;
+
+  flex: 0 0 18px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+
+  cursor: pointer !important;
 }
 
 .dda-tamer-action-check span {
+  display: block !important;
+  flex: 1 1 auto !important;
+
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+
   line-height: 1.3 !important;
+  white-space: normal !important;
 }
 
 .dda-tamer-action-check:has(
-  input:disabled
+  input[type="checkbox"]:disabled
 ) {
   opacity: 0.48 !important;
+  cursor: not-allowed !important;
 }
 
 .dda-tamer-action-calculated {

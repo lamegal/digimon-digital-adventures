@@ -10,6 +10,20 @@ import {
   setUseState
 } from "./quality-automation.js";
 
+function getActorResistance(actor) {
+  const value = Number(
+    actor?.system?.miscStats?.resistance?.total ??
+    actor?.system?.miscStats?.resistance?.value ??
+    actor?.system?.miscStats?.resistance?.base ??
+    actor?.system?.derived?.sv?.total ??
+    actor?.system?.derived?.sv?.value ??
+    getActorSv(actor) ??
+    0
+  );
+
+  return Math.max(0, Number.isFinite(value) ? value : 0);
+}
+
 function getOverclockChoiceData(quality) {
   const configured =
     quality?.system?.overclock ?? {};
@@ -202,12 +216,21 @@ export async function useOverclockQuality(
       ? 3
       : 1;
 
-    const potency = Math.max(
+    /*
+     * Overclock aplica o Efeito ao próprio Caster, portanto a Potência
+     * também é reduzida pela Resistência do Digimon. Como se trata de um
+     * Efeito Positivo comum, a Resistência não pode reduzi-la abaixo de 2.
+     */
+    const rawPotency = Math.max(
       0,
       getActorDerivedStat(
         actor,
         choice.potencyStat
       )
+    );
+    const potency = Math.max(
+      Math.min(2, rawPotency),
+      rawPotency - getActorResistance(actor)
     );
 
     const currentEffects =
@@ -253,8 +276,16 @@ export async function useOverclockQuality(
       remaining: duration,
 
       overclock: true,
+      overclockCritical: criticalSuccess,
+      overclockTurnsRemaining: criticalSuccess ? 3 : 0,
       usePotencyValue: true,
 
+      /*
+       * Sucesso normal termina no início do próximo turno. O Crítico é
+       * contado no fim dos turnos do usuário e expira no fim do terceiro.
+       */
+      hasDuration: !criticalSuccess,
+      durationRule: criticalSuccess ? "overclock-critical" : true,
       expiresAtStartOfNextTurn:
         !criticalSuccess,
 
@@ -401,4 +432,41 @@ export async function expireStartOfTurnQualityEffects(
   actor.sheet?.render(false);
 
   return true;
+}
+export async function processOverclockEndTurn(actor) {
+  if (!actor) return { changed: false, expired: [] };
+
+  const effects = foundry.utils.deepClone(actor.system?.effects?.active ?? []);
+  const remaining = [];
+  const expired = [];
+  let changed = false;
+
+  for (const effect of effects) {
+    if (!effect.overclockCritical && effect.durationRule !== "overclock-critical") {
+      remaining.push(effect);
+      continue;
+    }
+
+    const turns = Math.max(0, Number(effect.overclockTurnsRemaining ?? effect.remaining ?? 3));
+    const nextTurns = Math.max(0, turns - 1);
+    changed = true;
+
+    if (nextTurns <= 0) {
+      expired.push({ ...effect, overclockTurnsRemaining: 0, remaining: 0 });
+      continue;
+    }
+
+    remaining.push({
+      ...effect,
+      overclockTurnsRemaining: nextTurns,
+      remaining: nextTurns
+    });
+  }
+
+  if (changed) {
+    await actor.update({ "system.effects.active": remaining });
+    actor.sheet?.render(false);
+  }
+
+  return { changed, expired };
 }

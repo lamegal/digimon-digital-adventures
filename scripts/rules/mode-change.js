@@ -2,6 +2,8 @@ import {
   getCombatId,
   localizeQ
 } from "./quality-automation.js";
+import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+import { buildQualityItemData } from "../apps/digimon-quality-browser.js";
 
 const MODE_STATS = new Set([
   "accuracy",
@@ -201,7 +203,8 @@ function buildChat({
   modeSize,
   actionsBefore,
   actionsAfter,
-  automatic = false
+  automatic = false,
+  freeSource = ""
 }) {
   const pairRows = pairs
     .map(({ stats }) => {
@@ -258,6 +261,7 @@ function buildChat({
           ${actionsBefore} →
           ${actionsAfter}
         </strong>.
+        ${freeSource ? `<em>${localizeQ("DDA.ModeChange.FreeSource", "Mudança Livre")} — ${freeSource}</em>` : ""}
       </li>
     `;
 
@@ -335,6 +339,272 @@ function addBaseStatUpdates(
   }
 }
 
+function normalizeIdentity(value = "") {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function getSuperiorModeQuality(actor) {
+  return actor?.items?.find?.((item) => {
+    if (item.type !== "quality") return false;
+    const keys = [item.system?.sourceId, item.system?.originalName, item.name]
+      .map(normalizeIdentity);
+    return keys.some((key) => ["mudancademodosuperior", "superiormodechange"].includes(key));
+  }) ?? null;
+}
+
+function getSuperiorConfiguration(actor) {
+  const quality = getSuperiorModeQuality(actor);
+  const configuration = quality?.system?.superiorModeChange?.configuration ?? {};
+  const complete = Boolean(
+    configuration.complete ??
+    configuration.configurationComplete ??
+    quality?.system?.superiorModeChange?.configurationComplete
+  );
+  return { quality, configuration: foundry.utils.deepClone(configuration), complete };
+}
+
+function itemMatchesIdentifier(item, identifier) {
+  const wanted = normalizeIdentity(identifier);
+  if (!wanted) return false;
+  return [
+    item?.id,
+    item?.system?.sourceId,
+    item?.system?.originalName,
+    item?.flags?.[game.system.id]?.enemyBuilderAttackKey,
+    item?.flags?.[game.system.id]?.superiorModeKey,
+    item?.name
+  ].some((candidate) => normalizeIdentity(candidate) === wanted);
+}
+
+function getConfiguredDefaultQualityDocuments(actor, configuration) {
+  const identifiers = [
+    ...(configuration.defaultQualityIds ?? []),
+    ...(configuration.defaultQualities ?? []).flatMap((entry) => [
+      entry?._id,
+      entry?.id,
+      entry?.system?.sourceId,
+      entry?.name
+    ])
+  ].filter(Boolean);
+  const modeIds = new Set(["mudancademodo", "modechange", "mudancademodosuperior", "superiormodechange"]);
+  return actor.items.filter((item) => {
+    if (item.type !== "quality") return false;
+    if (modeIds.has(normalizeIdentity(item.system?.sourceId ?? item.name))) return false;
+    return identifiers.some((identifier) => itemMatchesIdentifier(item, identifier));
+  });
+}
+
+function buildConfiguredModeQualityData(configuration) {
+  return (configuration.modeQualities ?? []).map((row, index) => {
+    if (row?.type === "quality" && row?.system) {
+      const data = foundry.utils.deepClone(row);
+      delete data._id;
+      return data;
+    }
+    const definition = DDA_DIGIMON_QUALITIES.find((entry) => {
+      return [entry.id, entry.name, entry.originalName]
+        .some((candidate) => normalizeIdentity(candidate) === normalizeIdentity(row?.id ?? row?.sourceId ?? row?.name));
+    });
+    if (!definition) return null;
+    const data = buildQualityItemData(definition);
+    data.system.rank = {
+      ...(data.system.rank ?? {}),
+      value: Math.max(1, Number(row?.rank ?? 1))
+    };
+    const choices = foundry.utils.deepClone(row?.choices ?? row?.choiceRows ?? []);
+    if (choices.length) {
+      data.system.choices = { ...(data.system.choices ?? {}), selectedRanks: choices };
+    }
+    data.flags = {
+      ...(data.flags ?? {}),
+      [game.system.id]: {
+        ...(data.flags?.[game.system.id] ?? {}),
+        superiorModeRole: "mode",
+        superiorModeKey: String(row?.key ?? row?.id ?? `${definition.id}:${index}`)
+      }
+    };
+    return data;
+  }).filter(Boolean);
+}
+
+function buildConfiguredModeAttackData(configuration) {
+  return (configuration.modeAttacks ?? []).map((row, index) => {
+    if (row?.type === "attack" && row?.system) {
+      const data = foundry.utils.deepClone(row);
+      delete data._id;
+      data.flags ??= {};
+      data.flags[game.system.id] = {
+        ...(data.flags[game.system.id] ?? {}),
+        superiorModeRole: "mode",
+        superiorModeKey: String(row?.key ?? row?.id ?? `mode-attack:${index}`)
+      };
+      return data;
+    }
+    const rangeType = String(row?.rangeType ?? row?.system?.baseTags?.rangeType ?? "melee");
+    const functionType = String(row?.functionType ?? row?.system?.baseTags?.functionType ?? "damage");
+    return {
+      name: String(row?.name ?? `${localizeQ("DDA.ModeChange.ModeAttack", "Ataque de Modo")} ${index + 1}`),
+      type: "attack",
+      img: String(row?.img ?? "icons/svg/sword.svg"),
+      flags: {
+        [game.system.id]: {
+          superiorModeRole: "mode",
+          superiorModeKey: String(row?.key ?? row?.id ?? `mode-attack:${index}`)
+        }
+      },
+      system: {
+        baseTags: { rangeType, functionType },
+        qualityTags: foundry.utils.deepClone(row?.qualityTags ?? []),
+        accuracy: { baseFormula: "@actor.mainStats.accuracy.total", bonus: 0, automaticSuccesses: 0 },
+        damage: { enabled: functionType !== "support", baseFormula: "@actor.mainStats.damage.total", bonus: 0, unalterable: 0, minimum: 1 },
+        support: { enabled: functionType === "support", effect: "", potency: 0, duration: 1 },
+        actionCost: { value: 1, extra: 0 }
+      }
+    };
+  });
+}
+
+function getWoundState(actor) {
+  return {
+    value: Math.max(0, Number(actor?.system?.miscStats?.wounds?.value ?? 0)),
+    max: Math.max(0, Number(actor?.system?.miscStats?.wounds?.max ?? 0))
+  };
+}
+
+async function applyWoundMaximumDelta(actor, before, rollback, { force = false } = {}) {
+  const after = getWoundState(actor);
+  const delta = after.max - before.max;
+  if (delta < 0 && before.value < Math.abs(delta)) {
+    if (force) {
+      await actor.update({ "system.miscStats.wounds.value": 0 });
+      ui.notifications.warn(localizeQ(
+        "DDA.ModeChange.ForcedWoundReset",
+        "O fim do Combate forçou o retorno ao Modo padrão; as Caixas de Ferimento atuais foram reduzidas a 0."
+      ));
+      return true;
+    }
+    await rollback();
+    const restored = getWoundState(actor);
+    await actor.update({
+      "system.miscStats.wounds.value": Math.min(restored.max, before.value)
+    });
+    ui.notifications.warn(localizeQ(
+      "DDA.ModeChange.WoundLossBlocked",
+      "A Mudança de Modo foi impedida: o Digimon não possui Caixas de Ferimento atuais suficientes para acompanhar a redução do máximo."
+    ));
+    return false;
+  }
+  if (delta !== 0) {
+    await actor.update({
+      "system.miscStats.wounds.value": Math.max(0, Math.min(after.max, before.value + delta))
+    });
+  }
+  return true;
+}
+
+async function setSuperiorAttackRoles(actor, configuration) {
+  const defaultIdentifiers = configuration.defaultAttackIds ?? configuration.defaultAttackKeys ?? [];
+  const defaultAttacks = actor.items.filter((item) => item.type === "attack" &&
+    defaultIdentifiers.some((identifier) => itemMatchesIdentifier(item, identifier)));
+  if (defaultAttacks.length) {
+    await actor.updateEmbeddedDocuments("Item", defaultAttacks.map((item) => ({
+      _id: item.id,
+      [`flags.${game.system.id}.superiorModeRole`]: "default",
+      [`flags.${game.system.id}.superiorModeKey`]: String(
+        item.flags?.[game.system.id]?.enemyBuilderAttackKey ?? item.id
+      )
+    })));
+  }
+
+  const configuredModeIds = configuration.modeAttackIds ?? [];
+  let modeAttacks = actor.items.filter((item) => item.type === "attack" && (
+    item.flags?.[game.system.id]?.superiorModeRole === "mode" ||
+    configuredModeIds.some((identifier) => itemMatchesIdentifier(item, identifier))
+  ));
+  if (!modeAttacks.length && (configuration.modeAttacks ?? []).length) {
+    modeAttacks = await actor.createEmbeddedDocuments("Item", buildConfiguredModeAttackData(configuration));
+  }
+  return { defaultAttackIds: defaultAttacks.map((item) => item.id), modeAttackIds: modeAttacks.map((item) => item.id) };
+}
+
+async function enterSuperiorMode(actor) {
+  const { quality, configuration, complete } = getSuperiorConfiguration(actor);
+  if (!quality) return { ok: true, state: null };
+  if (!complete) {
+    ui.notifications.warn(localizeQ(
+      "DDA.ModeChange.SuperiorIncomplete",
+      "Configure as Qualidades e os Ataques de Mudança de Modo Superior antes de mudar de Modo."
+    ));
+    return { ok: false, state: null };
+  }
+
+  const defaultDocs = getConfiguredDefaultQualityDocuments(actor, configuration);
+  const modeData = buildConfiguredModeQualityData(configuration);
+  if (!defaultDocs.length || !modeData.length) {
+    ui.notifications.warn(localizeQ(
+      "DDA.ModeChange.SuperiorInvalid",
+      "A configuração de Mudança de Modo Superior não contém os dois conjuntos de Qualidades válidos."
+    ));
+    return { ok: false, state: null };
+  }
+
+  const beforeWounds = getWoundState(actor);
+  const defaultQualityData = defaultDocs.map((item) => item.toObject());
+  const attackState = await setSuperiorAttackRoles(actor, configuration);
+  await actor.deleteEmbeddedDocuments("Item", defaultDocs.map((item) => item.id));
+  const createdMode = await actor.createEmbeddedDocuments("Item", modeData);
+
+  const rollback = async () => {
+    if (createdMode.length) await actor.deleteEmbeddedDocuments("Item", createdMode.map((item) => item.id));
+    await actor.createEmbeddedDocuments("Item", defaultQualityData, { keepId: true });
+  };
+  if (!(await applyWoundMaximumDelta(actor, beforeWounds, rollback))) {
+    return { ok: false, state: null };
+  }
+
+  await quality.update({ "system.superiorModeChange.activeMode": "mode" });
+  return {
+    ok: true,
+    state: {
+      superiorQualityId: quality.id,
+      defaultQualityData,
+      modeQualityIds: createdMode.map((item) => item.id),
+      ...attackState
+    }
+  };
+}
+
+async function leaveSuperiorMode(actor, state = {}, { force = false } = {}) {
+  if (!state?.defaultQualityData?.length) return true;
+  const beforeWounds = getWoundState(actor);
+  const modeDocs = (state.modeQualityIds ?? []).map((id) => actor.items.get(id)).filter(Boolean);
+  const modeData = modeDocs.map((item) => item.toObject());
+  if (modeDocs.length) await actor.deleteEmbeddedDocuments("Item", modeDocs.map((item) => item.id));
+  const restored = await actor.createEmbeddedDocuments("Item", foundry.utils.deepClone(state.defaultQualityData), { keepId: true });
+
+  const rollback = async () => {
+    if (restored.length) await actor.deleteEmbeddedDocuments("Item", restored.map((item) => item.id));
+    if (modeData.length) await actor.createEmbeddedDocuments("Item", modeData, { keepId: true });
+  };
+  if (!(await applyWoundMaximumDelta(actor, beforeWounds, rollback, { force }))) return false;
+
+  const quality = actor.items.get(state.superiorQualityId) ?? getSuperiorModeQuality(actor);
+  await quality?.update({ "system.superiorModeChange.activeMode": "default" });
+  return true;
+}
+
+export function isAttackAvailableForCurrentMode(actor, attack) {
+  const role = String(attack?.flags?.[game.system.id]?.superiorModeRole ?? "");
+  if (!role) return true;
+  const active = Boolean(actor?.system?.combat?.qualityModeChange?.active);
+  return active ? role !== "default" : role !== "mode";
+}
+
 export async function resetModeChangeForActor(
   actor,
   {
@@ -354,6 +624,11 @@ export async function resetModeChangeForActor(
       String(combatId)
   ) {
     return false;
+  }
+
+  if (state.superior) {
+    const superiorReverted = await leaveSuperiorMode(actor, state.superior, { force: true });
+    if (!superiorReverted) return false;
   }
 
   const update = {
@@ -417,7 +692,11 @@ export async function resetModeChangeForActor(
 
 export async function useModeChangeQuality(
   actor,
-  quality
+  quality,
+  {
+    actionCostOverride = null,
+    freeSource = ""
+  } = {}
 ) {
   if (!actor || !quality) {
     return false;
@@ -466,8 +745,11 @@ export async function useModeChangeQuality(
     return false;
   }
 
-  const actionCost =
-    getActionCost(quality);
+  const configuredActionCost = getActionCost(quality);
+  const overrideValue = Number(actionCostOverride);
+  const actionCost = actionCostOverride === null || !Number.isFinite(overrideValue)
+    ? configuredActionCost
+    : Math.max(0, Math.floor(overrideValue));
 
   const actionsBefore = Math.max(
     0,
@@ -507,6 +789,11 @@ export async function useModeChangeQuality(
    * retorna ao Modo padrão.
    */
   if (isActive) {
+    if (state.superior) {
+      const superiorReverted = await leaveSuperiorMode(actor, state.superior);
+      if (!superiorReverted) return false;
+    }
+
     const update = {
       "system.combat.actions.value":
         actionsAfter,
@@ -560,7 +847,8 @@ export async function useModeChangeQuality(
           state.modeSize,
 
         actionsBefore,
-        actionsAfter
+        actionsAfter,
+        freeSource
       })
     });
 
@@ -611,6 +899,9 @@ export async function useModeChangeQuality(
     config.selectedSize ||
     config.defaultSize;
 
+  const superiorResult = await enterSuperiorMode(actor);
+  if (!superiorResult.ok) return false;
+
   const nextState = {
     active: true,
 
@@ -628,6 +919,8 @@ export async function useModeChangeQuality(
       config.defaultSize,
 
     modeSize,
+
+    superior: superiorResult.state,
 
     activatedAt:
       new Date().toISOString()

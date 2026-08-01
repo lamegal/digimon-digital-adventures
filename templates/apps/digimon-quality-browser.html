@@ -32,6 +32,84 @@
     </nav>
   </header>
 
+  {{#if coreReview.visible}}
+    <section class="dda-core-review {{coreReview.stateClass}}">
+      <header class="dda-core-review__header">
+        <div>
+          <span class="dda-core-review__eyebrow">{{coreReview.actorName}}</span>
+          <h2>{{coreReview.title}}</h2>
+        </div>
+        <span class="dda-core-review__status">
+          <i class="fa-solid {{coreReview.statusIcon}}"></i>
+          {{coreReview.statusLabel}}
+        </span>
+      </header>
+
+      <div class="dda-core-review__metrics">
+        <div class="dda-core-review__metric">
+          <span>{{coreReview.coreCountLabel}}</span>
+          <strong>{{coreReview.coreCount}}</strong>
+        </div>
+        <div class="dda-core-review__metric is-discount">
+          <span>{{coreReview.discountLabel}}</span>
+          <strong>{{coreReview.discount.remaining}}</strong>
+          <small>
+            {{coreReview.discountBaseLabel}} {{coreReview.discount.base}} ·
+            {{coreReview.discountUsedLabel}} {{coreReview.discount.used}} ·
+            {{coreReview.discountRemainingLabel}} {{coreReview.discount.remaining}}
+          </small>
+        </div>
+        <div class="dda-core-review__metric">
+          <span>{{coreReview.optimizationLabel}}</span>
+          <strong>{{coreReview.optimizationValue}}</strong>
+        </div>
+      </div>
+
+      <div class="dda-core-review__specializations">
+        <span>{{coreReview.specializationLabel}}</span>
+        <div>
+          {{#each coreReview.specializations}}
+            <span class="dda-core-review__pill {{#if viaHybridDrive}}is-hybrid{{/if}}">
+              {{label}}
+              {{#if hybridLabel}}<small>{{hybridLabel}}</small>{{/if}}
+            </span>
+          {{else}}
+            <span class="dda-core-review__empty">{{coreReview.noSpecializationsLabel}}</span>
+          {{/each}}
+        </div>
+      </div>
+
+      {{#if coreReview.statusWarlord}}
+        <div class="dda-core-review__discount-note">
+          <i class="fa-solid fa-tags"></i>
+          <strong>{{coreReview.statusWarlord.label}}:</strong>
+          {{coreReview.statusWarlord.value}}
+        </div>
+      {{/if}}
+
+      {{#if coreReview.warnings.length}}
+        <div class="dda-core-review__warnings">
+          <strong>{{coreReview.warningsLabel}}</strong>
+          <ul>
+            {{#each coreReview.warnings}}
+              <li>{{message}}</li>
+            {{/each}}
+          </ul>
+        </div>
+      {{/if}}
+
+      {{#if coreReview.canRepair}}
+        <footer class="dda-core-review__repair">
+          <p>{{coreReview.repairHint}}</p>
+          <button type="button" data-repair-core-automation>
+            <i class="fa-solid fa-screwdriver-wrench"></i>
+            {{coreReview.repairLabel}}
+          </button>
+        </footer>
+      {{/if}}
+    </section>
+  {{/if}}
+
   <section class="quality-browser-list">
     {{#each qualities}}
       <article class="quality-card tier-{{tier}} {{#if isNegative}}negative{{/if}} {{#if isFree}}free{{/if}}">

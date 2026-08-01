@@ -8,7 +8,16 @@ import { DDADigimonSheet } from "./sheets/digimon-sheet.js";
 import { DDAGroupSheet } from "./sheets/group-sheet.js";
 import { DDAItemSheet } from "./sheets/item-sheet.js";
 import { bindDamageApplicationButtons } from "./rolls/damage-application.js";
-import { bindAttackDodgeChatCard, registerAttackDodgeResponseListener } from "./rolls/attack-roll.js";
+import {
+  bindAreaAttackBulkDodgeCard,
+  bindAttackDodgeChatCard,
+  registerAttackDodgeResponseListener
+} from "./rolls/attack-roll.js";
+
+import {
+  bindAreaAttackBulkDamageCard,
+  registerAreaAttackTerrainHooks
+} from "./combat/area-attacks/area-attack-controller.js";
 import { registerDDASettings } from "./settings.js";
 import { executeForcedEvolution, endForcedEvolution, executeBlastEvolution } from "./combat/evolution.js";
 import { initiateDigimonClash, endDigimonClash, openDigimonClashActionMenu, handleClashChatAction } from "./combat/clash.js";
@@ -31,8 +40,19 @@ import {
 } from "./apps/dda-digimon-enemy-wizard.js";
 import { registerMovementTracker } from "./canvas/movement-tracker.js";
 import { registerDigimonActions } from "./combat/digimon-actions.js";
+import { registerOffensiveQualities } from "./combat/offensive-qualities.js";
+import { registerDefensiveQualities } from "./combat/defensive-qualities.js";
+import { registerStanceQualities } from "./combat/stance-qualities.js";
+import { registerPreservationQualities } from "./combat/preservation-qualities.js";
+import { registerUtilityQualities } from "./combat/utility-qualities.js";
+import { bindClashQualityChatCards, registerClashQualities } from "./combat/clash-qualities.js";
+import { registerEffectQualities } from "./combat/effect-qualities.js";
+import { registerEvokerQualities } from "./combat/evoker-qualities.js";
+import { registerDigizoidGainForce } from "./combat/digizoid-gain-force.js";
+import { registerFreeNegativeQualities } from "./combat/free-negative-qualities.js";
 import { registerIntercede } from "./combat/intercede.js";
 import { registerDdaHealthPips } from "./canvas/health-pips.js";
+import { registerDdaTokenHudEffects } from "./tokens/dda-token-hud-effects.js";
 function registerDdaDefaultTokenDispositions() {
   Hooks.on("preCreateActor", (actor, data) => {
     if (!actor) return;
@@ -76,6 +96,8 @@ function registerDdaDefaultTokenDispositions() {
   });
 }
 import {
+  bindTacticalAdaptationInitiativeCard,
+  DDACombat,
   registerDDACombatInitiativeHooks
 } from "./combat/initiative.js";
 import { DDATamerWizard } from "./wizard/dda-tamer-wizard.js";
@@ -129,10 +151,11 @@ Hooks.once("init", async function () {
   CONFIG.DDA.DIGIMENTALS = DDA_DIGIMENTALS;
 
   // Evita que o botão nativo de Iniciativa do Foundry tente avaliar
-// uma fórmula ausente. A ordem oficial continua sendo a Iniciativa DDA.
-CONFIG.Combat ??= {};
-CONFIG.Combat.initiative ??= {};
-CONFIG.Combat.initiative.formula = "3d6";
+  // uma fórmula ausente. A ordem oficial continua sendo a Iniciativa DDA.
+  CONFIG.Combat ??= {};
+  CONFIG.Combat.documentClass = DDACombat;
+  CONFIG.Combat.initiative ??= {};
+  CONFIG.Combat.initiative.formula = "3d6";
 
   game.dda.DDA_DIGIMENTALS = DDA_DIGIMENTALS;
   game.dda.getDdaDigimentals = getDdaDigimentals;
@@ -267,7 +290,9 @@ ItemCollection.registerSheet(
   registerHandlebarsHelpers();
 
   registerDigimonTokenScaleHooks();
+  registerDdaTokenHudEffects();
   registerDDACombatInitiativeHooks();
+  registerAreaAttackTerrainHooks();
 
   Handlebars.registerHelper("range", function (start, end) {
     const result = [];
@@ -411,13 +436,33 @@ void bindAttackDodgeChatCard(message, root).catch((error) => {
     console.warn("DDA | Could not bind the pending Dodge chat card.", error);
   });
 
-  void bindDamageApplicationButtons(root).catch((error) => {
-  console.warn("DDA | Could not bind damage buttons.", error);
-});
+  void bindAreaAttackBulkDodgeCard(message, root).catch((error) => {
+    console.warn(
+      "DDA | Could not bind the Area Attack bulk Dodge card.",
+      error
+    );
+  });
+
+  void bindAreaAttackBulkDamageCard(message, root).catch((error) => {
+    console.warn(
+      "DDA | Could not bind the Area Attack bulk damage card.",
+      error
+    );
+  });
+
+  void bindDamageApplicationButtons(root, message).catch((error) => {
+    console.warn("DDA | Could not bind damage buttons.", error);
+  });
+
+  void bindTacticalAdaptationInitiativeCard(message, root).catch((error) => {
+    console.warn("DDA | Could not bind Tactical Adaptation prompt.", error);
+  });
 
   root.querySelectorAll(".dda-clash-chat-action").forEach((button) => {
     button.addEventListener("click", handleClashChatAction);
   });
+
+  bindClashQualityChatCards(message, root);
 
   root.querySelectorAll("[data-action='dda-dark-evolution-end']").forEach((button) => {
     button.addEventListener("click", async (event) => {
@@ -464,6 +509,16 @@ Hooks.once("ready", () => {
 Hooks.once("ready", () => {
   registerMovementTracker();
   registerDigimonActions();
+  registerOffensiveQualities();
+  registerDefensiveQualities();
+  registerStanceQualities();
+  registerPreservationQualities();
+  registerUtilityQualities();
+  registerClashQualities();
+  registerEffectQualities();
+  registerEvokerQualities();
+  registerDigizoidGainForce();
+  registerFreeNegativeQualities();
   registerIntercede();
   registerDdaHealthPips();
   registerDdaDefaultTokenDispositions();

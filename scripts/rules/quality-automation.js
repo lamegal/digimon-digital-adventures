@@ -5,7 +5,10 @@ import {
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 
 export const QUALITY_ALIASES = {
+  weapon: ["arma", "weapon"],
+  instinct: ["instinto", "instinct"],
   hugePower: ["poderbrutal", "hugepower", "poder brutal", "huge power"],
+  absoluteEvasion: ["evasaoabsoluta", "absoluteevasion", "absolute evasion"],
   avoidance: ["esquiva", "evasiva", "avoidance"],
   vitalEnergy: ["energiavital", "vitalenergy", "energia vital", "vital energy"],
   combatMonster: ["monstrodecombate", "combatmonster", "combat monster"],
@@ -17,8 +20,10 @@ export const QUALITY_ALIASES = {
   brace: ["preparar", "brace"],
   fierceSoul: ["almaferoz", "fiercesoul", "fierce soul"],
   braveHeart: ["coracaovalente", "braveheart", "brave heart"],
+  sentryAim: ["mirasentinela", "sentryaim", "sentry aim"],
   secondWind: ["segundofolêgo", "segundoflego", "secondwind", "second wind"],
   packMaster: ["mestrealcateia", "packmaster", "pack master"],
+  tumbler: ["acrobata", "tumbler"],
   elementalForce: ["forcaelemental", "elementalforce", "elemental force"],
   elementalMyriad: ["miriadeelemental", "elementalmyriad", "elemental myriad"],
   naturalWeakness: ["fraquezanatural", "naturalweakness", "natural weakness"],
@@ -35,12 +40,35 @@ export const QUALITY_ALIASES = {
   instantCounter: ["contrainstantaneo", "instantcounter", "instant counter"],
   lifesteal: ["roubodevida", "lifesteal", "life steal"],
   reload: ["recarregar", "reload"],
+  combatAwareness: ["conscienciadecombate", "percepcaodecombate", "combatawareness", "combat awareness"],
+  hordeDuelist: ["duelistadehordas", "hordeduelist", "horde duelist"],
+  aggressiveFlank: ["flancoagressivo", "aggressiveflank", "aggressive flank"],
+  hideInPlainSight: ["ocultarseavistadetodos", "ocultareseavistadetodos", "ocultarseavista", "hideinplainsight", "hide in plain sight"],
+  shadeCloak: ["mantodesombras", "shadecloak", "shade cloak"],
+  sneakAttack: ["ataquefurtivo", "sneakattack", "sneak attack"],
+  areaAttack: ["ataqueemarea", "areaattack", "area attack"],
+  armorPiercing: ["perfuracaodearmadura", "perfurante", "armorpiercing", "armor piercing"],
+  certainStrike: ["golpecerteiro", "certainstrike", "certain strike"],
+  chargeAttack: ["ataquedeinvestida", "chargeattack", "charge attack"],
+  ammo: ["municao", "ammo"],
+  heavyRecoil: ["recuopesado", "heavyrecoil", "heavy recoil"],
+  simplifiedStrike: ["golpesimplificado", "simplifiedstrike", "simplified strike"],
+  reach: ["alcance", "reach"],
+  zoner: ["zonista", "zoner"],
   savagery: ["selvageria", "savagery"],
   assuredDestruction: ["destruicaogarantida", "assureddestruction", "assured destruction"],
-  savagery: ["selvageria", "savagery"],
-  assuredDestruction: ["destruicaogarantida", "assureddestruction", "assured destruction"],
+  berserker: ["berserker"],
+  boilingBlood: ["sanguefervente", "boilingblood", "boiling blood"],
   focusedResistance: ["resistenciafocada", "focusedresistance", "focused resistance"],
   immunity: ["imunidade", "immunity"],
+  systemBoost: ["impulsodesistema", "systemboost", "system boost"],
+  teleport: ["teleporte", "teleport"],
+  transporter: ["transportador", "transporter"],
+  glamor: ["glamour", "glamor"],
+  illusionaryOverlay: ["sobreposicaoilusoria", "illusionaryoverlay", "illusionary overlay"],
+  technician: ["tecnico", "technician"],
+  firewall: ["firewall"],
+  trojan: ["trojan"],
   overdrive: ["overdrive"],
   dataScan: ["varreduradedados", "datascan", "data scan"],
   domainControl: ["controlededominio", "domaincontrol", "domain control"],
@@ -51,14 +79,20 @@ export const QUALITY_ALIASES = {
   advancedMobility: ["mobilidadeavancada", "advancedmobility", "advanced mobility"],
   sprint: ["arrancada", "sprint", "disparada"],
   elementMaster: ["mestreelemental", "elementmaster", "element master"],
-  adaptiveElement: ["elementoadaptativo", "adaptiveelement", "adaptive element"],
+  adaptiveElement: ["elementoadaptavel", "elementoadaptativo", "adaptiveelement", "adaptive element"],
   alteredElement: ["elementoalterado", "alteredelement", "altered element"],
-  monsterStrength: ["forcademonstro", "monsterstrength", "monster strength"],
-  exposingHold: ["agarrãoexpositor", "agarraoexpositor", "exposinghold", "exposing hold"],
-  pointBlank: ["queimaroupa", "pointblank", "point blank"],
+  holyWard: ["protecaosagrada", "holyward", "holy ward"],
+  darkEmblem: ["emblemasombrio", "darkemblem", "dark emblem"],
+  chaoticBalance: ["equilibriocaotico", "chaoticbalance", "chaotic balance"],
+  monsterStrength: ["forcamonstruosa", "forca monstruosa", "forcademonstro", "monsterstrength", "monster strength"],
+  exposingHold: ["imobilizacaoexposta", "imobilizacao exposta", "agarraoexpositor", "exposinghold", "exposing hold"],
+  pointBlank: ["aqueimaroupa", "a queima roupa", "queimaroupa", "pointblank", "point blank"],
   slippery: ["escorregadio", "slippery"],
-  fastball: ["fastball", "arremessor"],
-  giantHijacker: ["sequestradordegigantes", "gianthijacker", "giant hijacker"],
+  fastball: ["arremessoespecial", "arremesso especial", "fastball", "arremessor"],
+  giantHijacker: ["sequestradordegigantes", "sequestrador de gigantes", "gianthijacker", "giant hijacker"],
+  titanPower: ["podertitanico", "poder titanico", "titanpower", "titan power"],
+  distantForce: ["forcadistante", "forca distante", "distantforce", "distant force"],
+  powerThrow: ["arremessopoderoso", "arremesso poderoso", "powerthrow", "power throw"],
   basicEffect: ["efeitobasico", "basiceffect", "basic effect"],
   advancedEffect: ["efeitoavancado", "advancedeffect", "advanced effect"],
   masterEffect: ["efeitomestre", "mastereffect", "master effect"],
@@ -86,7 +120,61 @@ export const QUALITY_ALIASES = {
     "escudoprotetor",
     "protectingshield",
     "protecting shield"
-  ]
+  ],
+
+  chromeDigizoidArmor: ["armaduradedigizoidecromada", "chromedigizoidarmor", "chrome digizoid armor"],
+  cursedDigizoidArmor: ["armaduradedigizoideamaldicoada", "armaduradedigizoideamaldicoada", "curseddigizoidarmor", "cursed digizoid armor"],
+  adaptiveDigizoidArmor: ["armaduradedigizoideadaptavel", "adaptivedigizoidarmor", "adaptive digizoid armor"],
+  sharpDigizoidArmor: ["armaduradedigizoideafiada", "sharpdigizoidarmor", "sharp digizoid armor"],
+  heavyDigizoidArmor: ["armaduradedigizoidepesada", "heavydigizoidarmor", "heavy digizoid armor"],
+  flexibleDigizoidArmor: ["armaduradedigizoideflexivel", "flexibledigizoidarmor", "flexible digizoid armor"],
+  lightDigizoidArmor: ["armaduradedigizoideleve", "lightdigizoidarmor", "light digizoid armor"],
+  shiningDigizoidArmor: ["armaduradedigizoideradiante", "shiningdigizoidarmor", "shining digizoid armor"],
+
+  chromeDigizoidWeaponry: ["armamentodedigizoidecromado", "chromedigizoidweaponry", "chrome digizoid weaponry"],
+  cursedDigizoidWeaponry: ["armamentodedigizoideamaldicoado", "curseddigizoidweaponry", "cursed digizoid weaponry"],
+  adaptiveDigizoidWeaponry: ["armamentodedigizoideadaptavel", "adaptivedigizoidweaponry", "adaptive digizoid weaponry"],
+  sharpDigizoidWeaponry: ["armamentodedigizoideafiado", "sharpdigizoidweaponry", "sharp digizoid weaponry"],
+  flexibleDigizoidWeaponry: ["armamentodedigizoideflexivel", "flexibledigizoidweaponry", "flexible digizoid weaponry"],
+  heavyDigizoidWeaponry: ["armamentodedigizoidepesado", "heavydigizoidweaponry", "heavy digizoid weaponry"],
+  lightDigizoidWeaponry: ["armamentodedigizoideleve", "lightdigizoidweaponry", "light digizoid weaponry"],
+  shiningDigizoidWeaponry: ["armamentodedigizoideradiante", "shiningdigizoidweaponry", "shining digizoid weaponry"],
+  pureDigizoidWeaponry: ["armamentodedigizoidepuro", "puredigizoidweaponry", "pure digizoid weaponry"],
+
+  overwrite: ["overwrite"],
+  undyingInForce: ["inforceimortal", "undyinginforce", "undying inforce"],
+  temporalInForce: ["inforcetemporal", "temporalinforce", "temporal inforce"],
+  omniscientInForce: ["inforceonisciente", "omniscientinforce", "omniscient inforce"],
+  digitalHazard: ["perigodigital", "digitalhazard", "digital hazard"],
+  zeroUnit: ["unidadezero", "zerounit", "zero unit"],
+  pureOverwrite: ["overwritepuro", "pureoverwrite", "pure overwrite"]
+  ,memoryUpgrade: ["melhoriadememoria", "memoryupgrade", "memory upgrade"]
+  ,mercifulMode: ["modomisericordioso", "mercifulmode", "merciful mode"]
+  ,slayer: ["matador", "slayer"]
+  ,violentOverwrite: ["overwriteviolento", "violentoverwrite", "violent overwrite"]
+  ,criticalArms: ["armascriticas", "criticalarms", "critical arms"]
+  ,luckyMiss: ["errosortudo", "luckymiss", "lucky miss"]
+  ,innateTalent: ["talentoinato", "innatetalent", "innate talent"]
+  ,vengefulCharge: ["investidavingativa", "vengefulcharge", "vengeful charge"]
+  ,justiceIsBlind: ["justicaecega", "justiceisblind", "justice is blind"]
+  ,inconsistentSize: ["tamanhoinconsistente", "inconsistentsize", "inconsistent size"]
+  ,sealedWeapon: ["armaselada", "sealedweapon", "sealed weapon"]
+  ,awakenedInstinct: ["instintodesperto", "awakenedinstinct", "awakened instinct"]
+  ,positiveReinforcement: ["reforcopositivo", "positivereinforcement", "positive reinforcement"]
+  ,bulky: ["volumoso", "bulky"]
+  ,lowVitality: ["baixavitalidade", "lowvitality", "low vitality"]
+  ,complexSignature: ["assinaturacomplexa", "complexsignature", "complex signature"]
+  ,faultyBattery: ["bateriadefeituosa", "faultybattery", "faulty battery"]
+  ,vulnerable: ["vulneravel", "vulnerable"]
+  ,fumbledPiercing: ["perfuracaodesastrada", "fumbledpiercing", "fumbled piercing"]
+  ,weakenedStrike: ["golpeenfraquecido", "weakenedstrike", "weakened strike"]
+  ,indiscriminateTargeting: ["miraindiscriminada", "indiscriminatetargetting", "indiscriminatetargeting"]
+  ,underwhelming: ["decepcionante", "underwhelming"]
+  ,broadside: ["flancoaberto", "broadside"]
+  ,illness: ["doenca", "illness"]
+  ,systemError: ["errodesistema", "systemerror", "system error"]
+  ,exploitableProgram: ["programaexploravel", "exploitableprogram", "exploitable program"]
+  ,boilingPoint: ["pontodeebulicao", "boilingpoint", "boiling point"]
 };
 
 export const EFFECT_TAGS = {
@@ -344,6 +432,90 @@ export function getElementTagsFromAttack(attackItem) {
   return [...tags];
 }
 
+export async function maybeUseVariableReroll(actor, roll, {
+  source = "check",
+  title = ""
+} = {}) {
+  if (!actor || !roll || !game?.combat?.started) {
+    return { roll, used: false, originalResults: [] };
+  }
+
+  const variableUses = Math.max(
+    0,
+    Number(actor.system?.qualityFeatures?.dataOptimization?.variableRerollPerRound ?? 0)
+  );
+  if (variableUses <= 0) {
+    return { roll, used: false, originalResults: [] };
+  }
+
+  if (getRoundUseState(actor, "dataOptimization", "variableReroll")) {
+    return { roll, used: false, originalResults: [] };
+  }
+
+  const originalResults = (roll.dice?.[0]?.results ?? [])
+    .filter((result) => result?.active !== false)
+    .map((result) => Number(result?.result ?? 0));
+  const english = String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en");
+  const useIt = await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-core-quality-dialog", "dda-variable-reroll-dialog"],
+    position: { width: 500, height: "auto" },
+    window: { title: english ? "Data Optimization: Variable" : "Otimização de Dados: Variável" },
+    modal: true,
+    content: `
+      <div class="dda-core-choice-dialog">
+        <header class="dda-core-choice-dialog__hero">
+          <span>Data Optimization · Variable</span>
+          <h2>${foundry.utils.escapeHTML(actor.name)}</h2>
+          <p>${english
+            ? "Reroll this entire Check? The new result is mandatory, even if it is worse."
+            : "Rerrolar este Teste inteiro? O novo resultado será obrigatório, mesmo que seja pior."}</p>
+          <div class="dda-dice-results">
+            ${originalResults.map((result) => `<span class="dda-die ${result >= 5 ? "success" : "failure"}">${result}</span>`).join("")}
+          </div>
+        </header>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "reroll",
+        label: english ? "Reroll" : "Rerrolar",
+        icon: "fa-solid fa-rotate",
+        default: true,
+        callback: () => true
+      },
+      {
+        action: "keep",
+        label: english ? "Keep result" : "Manter resultado",
+        icon: "fa-solid fa-check",
+        callback: () => false
+      }
+    ],
+    rejectClose: false,
+    close: () => false
+  });
+
+  if (!useIt) return { roll, used: false, originalResults };
+
+  await setUseState(actor, "dataOptimization", "variableReroll", {
+    source,
+    title
+  });
+
+  const replacement = await new Roll(
+    roll.formula,
+    foundry.utils.deepClone(roll.data ?? {})
+  ).evaluate();
+
+  return {
+    roll: replacement,
+    used: true,
+    originalResults,
+    replacementResults: (replacement.dice?.[0]?.results ?? [])
+      .filter((result) => result?.active !== false)
+      .map((result) => Number(result?.result ?? 0))
+  };
+}
+
 export async function rollDerivedCheck(
   actor,
   statKey,
@@ -387,13 +559,19 @@ export async function rollDerivedCheck(
       manualModifier ?? 0
     );
 
-  const roll =
+  let roll =
     await new Roll(
       "3d6 + @modifier",
       {
         modifier
       }
     ).evaluate();
+
+  const variableReroll = await maybeUseVariableReroll(actor, roll, {
+    source: `derivedCheck:${statKey}`,
+    title
+  });
+  roll = variableReroll.roll;
 
   const diceResults =
     (
@@ -515,6 +693,13 @@ export async function rollDerivedCheck(
 
             ${skillLine}
 
+            ${variableReroll.used ? `
+              <li>
+                <strong>Variable:</strong>
+                ${localizeQ("DDA.QualityAutomation.VariableRerollUsed", "The original Check was rerolled and replaced by this result.")}
+              </li>
+            ` : ""}
+
             <li>
               ${localizeQ(
                 "DDA.Roll.TN",
@@ -589,7 +774,8 @@ export async function rollDerivedCheck(
     criticalFailure,
 
     diceResults,
-    luckyNumberResult
+    luckyNumberResult,
+    variableReroll
   };
 }
 
@@ -603,17 +789,73 @@ export function getRerollLimitFromQuality(quality) {
   return Math.min(2, Math.max(1, getQualityRank(quality)));
 }
 
-export async function getLowRerollDeclaration(actor, statKey) {
-  const quality = getLowRerollQualityForPool(actor, statKey);
-  if (!quality || !canSpendQuality(quality)) return null;
-  if (getRoundUseState(actor, `reroll-${statKey}`, quality.id)) return null;
-  const limit = getRerollLimitFromQuality(quality);
-  const useIt = await promptUseQuality(quality, {
-    body: localizeQ("DDA.QualityAutomation.RerollLowPrompt", "Use {quality} to reroll results up to {limit}?", { quality: quality.name, limit }),
-    defaultYes: false
+export async function getLowRerollDeclaration(actor, statKey, {
+  diceResults = [],
+  protectedDiceStart = diceResults.length
+} = {}) {
+  const gainForce = statKey === "health" && hasQuality(actor, "undyingInForce")
+    ? { quality: findQuality(actor, "undyingInForce"), support: findQuality(actor, "vitalEnergy"), bucket: "gain-force-health" }
+    : statKey === "accuracy" && hasQuality(actor, "temporalInForce")
+      ? { quality: findQuality(actor, "temporalInForce"), support: findQuality(actor, "hugePower"), bucket: "gain-force-accuracy" }
+      : statKey === "dodge" && hasQuality(actor, "omniscientInForce")
+        ? { quality: findQuality(actor, "omniscientInForce"), support: findQuality(actor, "avoidance"), bucket: "gain-force-dodge" }
+        : null;
+  const quality = gainForce?.quality ?? getLowRerollQualityForPool(actor, statKey);
+  if (!quality || (!gainForce && !canSpendQuality(quality))) return null;
+  const bucket = gainForce?.bucket ?? `reroll-${statKey}`;
+  if (getRoundUseState(actor, bucket, quality.id)) return null;
+
+  const limit = gainForce
+    ? gainForce.support
+      ? Math.min(3, 1 + Math.max(1, getQualityRank(gainForce.support)))
+      : 1
+    : getRerollLimitFromQuality(quality);
+  const rerollValuesLabel = limit <= 1
+    ? "1"
+    : limit === 2
+      ? (String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "1 or 2" : "1 ou 2")
+      : (String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "1, 2 or 3" : "1, 2 ou 3");
+  const eligible = (Array.isArray(diceResults) ? diceResults : [])
+    .map((result, index) => ({
+      index,
+      value: Number(result?.result ?? 0)
+    }))
+    .filter((entry) => (
+      entry.index < Math.max(0, Number(protectedDiceStart ?? diceResults.length)) &&
+      entry.value > 0 &&
+      entry.value <= limit
+    ));
+
+  /*
+   * Avoidance/Vital Energy only opens after the roll and only when there is
+   * at least one eligible die. Tamer-granted bonus dice remain protected.
+   */
+  if (!eligible.length) return null;
+
+  const english = String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en");
+  const useIt = await foundry.applications.api.DialogV2.confirm({
+    classes: ["dda", "dda-area-attack-dialog", "dda-defensive-quality-window"],
+    window: { title: quality.name },
+    content: `<div class="dda-confirm-dialog dda-defensive-quality-dialog">
+      <p>${english
+        ? `Reroll <strong>${eligible.length}</strong> eligible die/dice showing ${rerollValuesLabel}? The new results are final.`
+        : `Rerrolar <strong>${eligible.length}</strong> dado(s) elegível(is) mostrando ${rerollValuesLabel}? Os novos resultados serão definitivos.`}</p>
+    </div>`,
+    yes: { label: english ? "Reroll" : "Rerrolar" },
+    no: { label: english ? "Keep results" : "Manter resultados" },
+    rejectClose: false,
+    modal: true
   });
+
   if (!useIt) return null;
-  return { quality, rerollResultsUpTo: limit, label: quality.name, bucket: `reroll-${statKey}` };
+  return {
+    quality,
+    rerollResultsUpTo: limit,
+    label: quality.name,
+    bucket,
+    spendItemUse: !gainForce,
+    eligibleCount: eligible.length
+  };
 }
 
 export function getEffectTagData(tag) {

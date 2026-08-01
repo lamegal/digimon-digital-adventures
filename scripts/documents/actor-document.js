@@ -3,6 +3,22 @@ import {
   getTamerAttributeCap,
   getTamerEvolutionPointMaximum
 } from "../rules/tamer-progression.js";
+import {
+  CORE_QUALITY_IDS,
+  getCoreQualityId,
+  findCoreQuality,
+  hasCoreQuality,
+  getCoreSelectedChoices,
+  getDataSpecializationEntries,
+  buildDataSpecializationFeature,
+  getAlgorithmRank,
+  getWeaponInstinctEffectiveMax,
+  isWeaponInstinctConflict,
+  getDataOptimizationKey,
+  getNativeDataSpecializations,
+  getMissingDataSpecializationFreeGrants
+} from "../rules/core-qualities.js";
+import { prepareEvokerCreationActor } from "../combat/evoker-qualities.js";
 
 
 const DDA_DIGIMON_MAIN_STAT_MIN =
@@ -749,6 +765,7 @@ this._prepareDigimonMiscStats(system);
 this._prepareDigimonMovementTypes(system);
 this._prepareDigimonQualityRequirements(system);
 this._prepareDigimonDp(system);
+prepareEvokerCreationActor(this, system);
   }
 
 _prepareDigimonQualityResources(system) {
@@ -1009,6 +1026,15 @@ system.qualityFeatures.adaptiveArmor = {
   round: 0
 };
 
+system.qualityFeatures.digizoid = {
+  consideredSizeStepsSmallerWhileMoving: 0,
+  canMoveThroughLargerDigimon: false,
+  cannotEndMovementInOccupiedSpace: true,
+  disarmImmune: false,
+  disarmMustChooseWeaponOrOffhand: false,
+  lightExtraActionAllowedActions: []
+};
+
 system.qualityFeatures.dataOptimization = {
   choice: "",
   choiceLabel: "",
@@ -1127,6 +1153,100 @@ system.qualityFeatures.advancedMobility = {
   sources: []
 };
 
+system.qualityFeatures.algorithm = {
+  active: false,
+  ranks: 0,
+  weaponInstinctSharedCap: 0,
+  ignoresWeaponInstinctIncompatibility: false
+};
+
+system.qualityFeatures.dataSpecialization = buildDataSpecializationFeature([]);
+system.qualityFeatures.dataSpecialization.sourceName = "";
+system.qualityFeatures.dataSpecialization.nativeOptimization = "";
+system.qualityFeatures.dataSpecialization.hybridChoicesUsed = 0;
+system.qualityFeatures.dataSpecialization.invalidChoices = [];
+
+system.qualityFeatures.hybridDrive = {
+  active: false,
+  offPathChoicesAllowed: 0,
+  offPathChoicesUsed: 0,
+  remaining: 0
+};
+
+system.qualityFeatures.sprint = {
+  active: false,
+  usesPerCombat: 0,
+  doublesMovementForAction: false,
+  affectsChargeAndIntercede: false
+};
+
+system.qualityFeatures.elementMaster = {
+  active: false,
+  elements: [],
+  freeManipulationCheckPerRound: 0,
+  negatesElementalForce: true,
+  dangerousTerrainDamage: 1
+};
+
+system.qualityFeatures.coreValidation = {
+  valid: true,
+  warnings: []
+};
+
+system.qualityFeatures.defensive = {
+  absoluteEvasionRanks: 0,
+  avoidanceRanks: 0,
+  combatMonster: false,
+  combatMonsterResolveMax: 0,
+  bulletProof: false,
+  substitute: false,
+  brace: false,
+  savagery: false,
+  assuredDestruction: false,
+  berserker: false,
+  boilingBloodRanks: 0
+};
+
+system.qualityFeatures.stance = {
+  fierceSoul: false,
+  braveHeart: false,
+  sentryAim: false,
+  current: normalizeQualityChoiceKey(system.combat?.currentStance ?? "neutral"),
+  activeDamageBonus: 0,
+  activeArmorBonus: 0,
+  activeMovementPenalty: 0,
+  activeRangePenalty: 0
+};
+
+system.qualityFeatures.preservation = {
+  secondWind: false,
+  packMaster: false,
+  vitalEnergyRanks: 0,
+  tumbler: false,
+  focusedResistance: false,
+  immunity: false
+};
+
+system.qualityFeatures.utility = {
+  systemBoostRanks: 0,
+  combatAwareness: false,
+  teleport: false,
+  glamor: false,
+  illusionaryOverlay: false,
+  technician: false,
+  firewall: false,
+  trojan: false,
+  domainControl: false,
+  adaptiveElement: false,
+  alteredElement: false,
+  overdrive: false,
+  dataScan: false,
+  transporter: false,
+  holyWard: false,
+  darkEmblem: false,
+  chaoticBalance: false
+};
+
 system.utilityBonuses ??= {};
 
 system.utilityBonuses.technician = {
@@ -1169,6 +1289,157 @@ system.utilityBonuses.damageReductionByType = {
 
 system.skillBonuses = {};
 
+/*
+ * Core Qualities are evaluated from canonical IDs before the generic Quality
+ * loop.  This keeps localized/legacy item names from changing their rules and
+ * gives every combat subsystem one stable feature object to consult.
+ */
+const algorithmRank = getAlgorithmRank(this);
+const weaponItem = findCoreQuality(this, CORE_QUALITY_IDS.weapon);
+const instinctItem = findCoreQuality(this, CORE_QUALITY_IDS.instinct);
+const hasWeaponAndInstinct = Boolean(weaponItem && instinctItem);
+const sharedWeaponInstinctCap = hasWeaponAndInstinct
+  ? Math.min(
+      getWeaponInstinctEffectiveMax(this, weaponItem),
+      getWeaponInstinctEffectiveMax(this, instinctItem)
+    )
+  : 0;
+
+system.qualityFeatures.algorithm = {
+  active: algorithmRank > 0,
+  ranks: algorithmRank,
+  weaponInstinctSharedCap: sharedWeaponInstinctCap,
+  ignoresWeaponInstinctIncompatibility: algorithmRank > 0
+};
+
+const dataSpecializationItem = findCoreQuality(this, CORE_QUALITY_IDS.dataSpecialization);
+const dataSpecializationEntries = getDataSpecializationEntries(dataSpecializationItem);
+const dataSpecialization = buildDataSpecializationFeature(dataSpecializationEntries);
+const dataOptimizationKey = getDataOptimizationKey(this);
+const nativeSpecializations = new Set(getNativeDataSpecializations(this));
+const hybridDriveActive = hasCoreQuality(this, CORE_QUALITY_IDS.hybridDrive);
+const hybridChoicesUsed = dataSpecializationEntries.filter((entry) => {
+  return Boolean(entry.viaHybridDrive) || !nativeSpecializations.has(entry.key);
+}).length;
+const duplicateSpecializations = dataSpecializationEntries.filter((entry, index, entries) => {
+  return entries.findIndex((candidate) => candidate.key === entry.key) !== index;
+});
+const invalidSpecializations = dataSpecializationEntries.filter((entry) => {
+  const native = nativeSpecializations.has(entry.key);
+  return !native && (!hybridDriveActive || hybridChoicesUsed > 1);
+});
+
+dataSpecialization.sourceName = dataSpecializationItem?.name ?? "";
+dataSpecialization.nativeOptimization = dataOptimizationKey;
+dataSpecialization.hybridChoicesUsed = hybridChoicesUsed;
+dataSpecialization.invalidChoices = [
+  ...duplicateSpecializations.map((entry) => ({ ...entry, reason: "duplicate" })),
+  ...invalidSpecializations.map((entry) => ({ ...entry, reason: "hybridDrive" }))
+];
+system.qualityFeatures.dataSpecialization = dataSpecialization;
+system.qualityFeatures.hybridDrive = {
+  active: hybridDriveActive,
+  offPathChoicesAllowed: hybridDriveActive ? 1 : 0,
+  offPathChoicesUsed: hybridChoicesUsed,
+  remaining: hybridDriveActive ? Math.max(0, 1 - hybridChoicesUsed) : 0
+};
+
+system.qualityFeatures.sprint = {
+  active: hasCoreQuality(this, CORE_QUALITY_IDS.sprint),
+  usesPerCombat: hasCoreQuality(this, CORE_QUALITY_IDS.sprint) ? 1 : 0,
+  doublesMovementForAction: hasCoreQuality(this, CORE_QUALITY_IDS.sprint),
+  affectsChargeAndIntercede: hasCoreQuality(this, CORE_QUALITY_IDS.sprint)
+};
+
+system.qualityFeatures.elementMaster = {
+  active: hasCoreQuality(this, CORE_QUALITY_IDS.elementMaster),
+  elements: [],
+  freeManipulationCheckPerRound: hasCoreQuality(this, CORE_QUALITY_IDS.elementMaster) ? 1 : 0,
+  negatesElementalForce: hasCoreQuality(this, CORE_QUALITY_IDS.elementMaster),
+  dangerousTerrainDamage: hasCoreQuality(this, CORE_QUALITY_IDS.elementMaster) ? 1 : 2
+};
+
+if (dataSpecialization.healthBonus && mainStats.health) {
+  addQualitySourceBonus(mainStats.health, {
+    name: dataSpecialization.sourceName || "Data Specialization: Try Something",
+    value: dataSpecialization.healthBonus,
+    type: "dataSpecialization",
+    choice: "trySomething"
+  });
+}
+
+if (dataSpecialization.dodgeBonus && mainStats.dodge) {
+  addQualitySourceBonus(mainStats.dodge, {
+    name: dataSpecialization.sourceName || "Data Specialization: Uncatchable Target",
+    value: dataSpecialization.dodgeBonus,
+    type: "dataSpecialization",
+    choice: "uncatchableTarget"
+  });
+}
+
+if (dataSpecialization.allMainStatBonus) {
+  for (const [statKey, stat] of Object.entries(mainStats)) {
+    addQualitySourceBonus(stat, {
+      name: dataSpecialization.sourceName || "Data Specialization: Supreme Code",
+      value: dataSpecialization.allMainStatBonus,
+      type: "dataSpecialization",
+      choice: "supremeCode",
+      stat: statKey
+    });
+  }
+}
+
+if (hasWeaponAndInstinct) {
+  if (algorithmRank <= 0) {
+    system.qualityFeatures.coreValidation.warnings.push(
+      game.i18n?.lang?.startsWith("en")
+        ? "Weapon and Instinct require Algorithm."
+        : "Arma e Instinto juntos exigem Algoritmo."
+    );
+  } else {
+    const weaponRank = Number(weaponItem.system?.rank?.value ?? 0);
+    const instinctRank = Number(instinctItem.system?.rank?.value ?? 0);
+    if (weaponRank > sharedWeaponInstinctCap || instinctRank > sharedWeaponInstinctCap) {
+      system.qualityFeatures.coreValidation.warnings.push(
+        game.i18n?.lang?.startsWith("en")
+          ? `Algorithm currently supports at most ${sharedWeaponInstinctCap} Ranks in Weapon and Instinct.`
+          : `Algoritmo atualmente sustenta no máximo ${sharedWeaponInstinctCap} Ranks em Arma e Instinto.`
+      );
+    }
+  }
+}
+
+if (duplicateSpecializations.length) {
+  system.qualityFeatures.coreValidation.warnings.push(
+    game.i18n?.lang?.startsWith("en")
+      ? "Data Specialization choices cannot be repeated."
+      : "Escolhas de Especialização de Dados não podem ser repetidas."
+  );
+}
+
+if (hybridChoicesUsed > (hybridDriveActive ? 1 : 0)) {
+  system.qualityFeatures.coreValidation.warnings.push(
+    game.i18n?.lang?.startsWith("en")
+      ? "Hybrid Drive permits only one off-path Data Specialization."
+      : "Impulso Híbrido permite somente uma Especialização de Dados fora da sua Otimização."
+  );
+}
+
+const missingDataSpecializationGrants = getMissingDataSpecializationFreeGrants(this);
+system.qualityFeatures.dataSpecialization.missingFreeGrants = missingDataSpecializationGrants;
+if (missingDataSpecializationGrants.length) {
+  const labels = missingDataSpecializationGrants
+    .map((entry) => entry.label ?? entry.originalLabel ?? entry.key)
+    .join(", ");
+  system.qualityFeatures.coreValidation.warnings.push(
+    game.i18n?.lang?.startsWith("en")
+      ? `Data Specialization free grants still need to be applied: ${labels}.`
+      : `Ainda é preciso aplicar as concessões gratuitas de Especialização de Dados: ${labels}.`
+  );
+}
+
+system.qualityFeatures.coreValidation.valid = system.qualityFeatures.coreValidation.warnings.length === 0;
+
   for (const item of this.items) {
     if (item.type !== "quality") continue;
 
@@ -1210,6 +1481,7 @@ for (const [legacyKey, statKey] of Object.entries(legacyMainStatGrantMap)) {
 const legacyMiscStatGrantMap = {
   movementBonus: "movement",
   movementPenalty: "movement",
+  movementPenaltyPerRank: "movementPerRank",
   initiativeBonus: "initiative"
 };
 
@@ -1263,7 +1535,88 @@ const derivedStatChoicePerRank = Number(grants.derivedStatChoicePerRank ?? 0);
 
 const rankValue = getQualityRankValue(itemSystem);
 const sourceId = getQualitySourceId(item);
+const normalizedSourceId = normalizeQualityChoiceKey(
+  sourceId || itemSystem.originalName || item.name
+);
 const choiceKeys = getQualityChoiceKeys(itemSystem);
+
+if (["armaduradedigizoideflexivel", "flexibledigizoidarmor"].includes(normalizedSourceId)) {
+  system.qualityFeatures.digizoid.consideredSizeStepsSmallerWhileMoving = -1;
+  system.qualityFeatures.digizoid.canMoveThroughLargerDigimon = true;
+}
+if (["armamentodedigizoideadaptavel", "adaptivedigizoidweaponry"].includes(normalizedSourceId)) {
+  system.qualityFeatures.digizoid.disarmImmune = true;
+}
+if (["armamentodedigizoidepuro", "puredigizoidweaponry"].includes(normalizedSourceId)) {
+  system.qualityFeatures.digizoid.disarmMustChooseWeaponOrOffhand = true;
+}
+if (["armamentodedigizoideleve", "lightdigizoidweaponry"].includes(normalizedSourceId)) {
+  system.qualityFeatures.digizoid.lightExtraActionAllowedActions = ["bolster", "move", "difficultMove"];
+}
+
+const defensiveFeature = system.qualityFeatures.defensive;
+if (["evasaoabsoluta", "absoluteevasion"].includes(normalizedSourceId)) {
+  defensiveFeature.absoluteEvasionRanks = Math.max(defensiveFeature.absoluteEvasionRanks, rankValue);
+}
+if (["esquiva", "avoidance"].includes(normalizedSourceId)) {
+  defensiveFeature.avoidanceRanks = Math.max(defensiveFeature.avoidanceRanks, rankValue);
+}
+if (["monstrodecombate", "combatmonster"].includes(normalizedSourceId)) {
+  defensiveFeature.combatMonster = true;
+}
+if (["aprovadebalas", "bulletproof"].includes(normalizedSourceId)) {
+  defensiveFeature.bulletProof = true;
+}
+if (["substituir", "substituto", "substitute"].includes(normalizedSourceId)) {
+  defensiveFeature.substitute = true;
+}
+if (["preparar", "brace"].includes(normalizedSourceId)) {
+  defensiveFeature.brace = true;
+}
+if (["selvageria", "savagery"].includes(normalizedSourceId)) {
+  defensiveFeature.savagery = true;
+}
+if (["destruicaogarantida", "assureddestruction"].includes(normalizedSourceId)) {
+  defensiveFeature.assuredDestruction = true;
+}
+if (normalizedSourceId === "berserker") {
+  defensiveFeature.berserker = true;
+}
+if (["sanguefervente", "boilingblood"].includes(normalizedSourceId)) {
+  defensiveFeature.boilingBloodRanks = Math.max(defensiveFeature.boilingBloodRanks, rankValue);
+}
+
+const stanceFeature = system.qualityFeatures.stance;
+if (["almaferoz", "fiercesoul"].includes(normalizedSourceId)) stanceFeature.fierceSoul = true;
+if (["coracaocorajoso", "braveheart"].includes(normalizedSourceId)) stanceFeature.braveHeart = true;
+if (["mirasentinela", "sentryaim"].includes(normalizedSourceId)) stanceFeature.sentryAim = true;
+
+const preservationFeature = system.qualityFeatures.preservation;
+if (["segundofolego", "secondwind"].includes(normalizedSourceId)) preservationFeature.secondWind = true;
+if (["mestredamatilha", "packmaster"].includes(normalizedSourceId)) preservationFeature.packMaster = true;
+if (["energiavital", "vitalenergy"].includes(normalizedSourceId)) preservationFeature.vitalEnergyRanks = Math.max(preservationFeature.vitalEnergyRanks, rankValue);
+if (["acrobata", "tumbler"].includes(normalizedSourceId)) preservationFeature.tumbler = true;
+if (["resistenciafocada", "focusedresistance"].includes(normalizedSourceId)) preservationFeature.focusedResistance = true;
+if (["imunidade", "immunity"].includes(normalizedSourceId)) preservationFeature.immunity = true;
+
+const utilityFeature = system.qualityFeatures.utility;
+if (["impulsodesistema", "systemboost"].includes(normalizedSourceId)) utilityFeature.systemBoostRanks = Math.max(utilityFeature.systemBoostRanks, rankValue);
+if (["conscienciadecombate", "combatawareness"].includes(normalizedSourceId)) utilityFeature.combatAwareness = true;
+if (["teleporte", "teleport"].includes(normalizedSourceId)) utilityFeature.teleport = true;
+if (["glamour", "glamor"].includes(normalizedSourceId)) utilityFeature.glamor = true;
+if (["sobreposicaoilusoria", "illusionaryoverlay"].includes(normalizedSourceId)) utilityFeature.illusionaryOverlay = true;
+if (["tecnico", "technician"].includes(normalizedSourceId)) utilityFeature.technician = true;
+if (normalizedSourceId === "firewall") utilityFeature.firewall = true;
+if (normalizedSourceId === "trojan") utilityFeature.trojan = true;
+if (["controlededominio", "domaincontrol"].includes(normalizedSourceId)) utilityFeature.domainControl = true;
+if (["elementoadaptavel", "adaptiveelement"].includes(normalizedSourceId)) utilityFeature.adaptiveElement = true;
+if (["elementoalterado", "alteredelement"].includes(normalizedSourceId)) utilityFeature.alteredElement = true;
+if (normalizedSourceId === "overdrive") utilityFeature.overdrive = true;
+if (["varreduradedados", "datascan"].includes(normalizedSourceId)) utilityFeature.dataScan = true;
+if (["transportador", "transporter"].includes(normalizedSourceId)) utilityFeature.transporter = true;
+if (["protecaosagrada", "holyward"].includes(normalizedSourceId)) utilityFeature.holyWard = true;
+if (["emblemasombrio", "darkemblem"].includes(normalizedSourceId)) utilityFeature.darkEmblem = true;
+if (["equilibriocaotico", "chaoticbalance"].includes(normalizedSourceId)) utilityFeature.chaoticBalance = true;
 
 if (isInnateTalentQuality(item)) {
   const allStatsPenalty = Number(
@@ -1598,6 +1951,14 @@ for (const [grantKey, value] of Object.entries(derivedStatGrants)) {
 
   if (perRankMatch) {
     const statKey = perRankMatch[1];
+
+    const awakenedInstinctLocked = ["instinto", "instinct"].includes(normalizedSourceId) &&
+      Array.from(this.items ?? []).some((entry) => {
+        if (entry.type !== "quality") return false;
+        const key = normalizeQualityChoiceKey(getQualitySourceId(entry) || entry.system?.originalName || entry.name);
+        return ["instintodesperto", "awakenedinstinct"].includes(key);
+      }) && !Boolean(system.combat?.freeNegativeQualities?.belowHalfTriggered);
+    if (awakenedInstinctLocked && ["dodge", "movement"].includes(statKey)) continue;
 
     // derivedStats é fallback/compatibilidade.
     // Se o bônus já existe no caminho canônico, não soma de novo.
@@ -2165,6 +2526,67 @@ if (skillBonus > 0 && selectedRanks.length > 0) {
 }
   }
 
+  const activeStanceFeature = system.qualityFeatures.stance;
+  const activeStance = normalizeQualityChoiceKey(system.combat?.currentStance ?? "neutral");
+  const activeSv = Math.max(0, Number(system.stageValue ?? 0));
+  activeStanceFeature.current = activeStance;
+
+  if (activeStance === "fierce" && activeStanceFeature.fierceSoul) {
+    activeStanceFeature.activeDamageBonus = activeSv;
+    activeStanceFeature.activeMovementPenalty = activeSv;
+    activeStanceFeature.activeRangePenalty = activeSv;
+    addQualitySourceBonus(mainStats.damage, { name: game.i18n?.lang?.startsWith("en") ? "Fierce Stance" : "Postura Feroz", value: activeSv, type: "stance" });
+    if (miscStats.movement) {
+      miscStats.movement.qualityBonus -= activeSv;
+      miscStats.movement.qualityBonusSources.push({ name: game.i18n?.lang?.startsWith("en") ? "Fierce Stance" : "Postura Feroz", value: -activeSv, type: "stance" });
+    }
+  }
+
+  if (activeStance === "brave" && activeStanceFeature.braveHeart) {
+    activeStanceFeature.activeArmorBonus = activeSv;
+    activeStanceFeature.activeMovementPenalty = activeSv;
+    addQualitySourceBonus(mainStats.armor, { name: game.i18n?.lang?.startsWith("en") ? "Brave Stance" : "Postura Corajosa", value: activeSv, type: "stance" });
+    if (miscStats.movement) {
+      miscStats.movement.qualityBonus -= activeSv;
+      miscStats.movement.qualityBonusSources.push({ name: game.i18n?.lang?.startsWith("en") ? "Brave Stance" : "Postura Corajosa", value: -activeSv, type: "stance" });
+    }
+  }
+
+  const defensiveFeature = system.qualityFeatures.defensive;
+  defensiveFeature.combatMonsterResolveMax = defensiveFeature.combatMonster
+    ? (defensiveFeature.berserker ? 6 : 4)
+    : 0;
+
+  system.resources ??= {};
+  system.resources.resolve ??= {};
+  system.resources.resolve.enabled = defensiveFeature.combatMonster;
+  system.resources.resolve.max = defensiveFeature.combatMonsterResolveMax;
+  system.resources.resolve.value = defensiveFeature.combatMonster
+    ? Math.min(
+        defensiveFeature.combatMonsterResolveMax,
+        Math.max(0, Number(system.resources.resolve.value ?? 0))
+      )
+    : 0;
+
+  if (system.qualityFeatures.elementMaster.active) {
+    system.qualityFeatures.elementMaster.elements = [
+      ...new Set(system.qualityFeatures.naturewalk.elements ?? [])
+    ];
+  }
+
+  const missingAdvancedMobility = (system.qualityFeatures.advancedMobility.types ?? [])
+    .filter((type) => !(system.qualityFeatures.extraMovement.types ?? []).includes(type));
+  if (missingAdvancedMobility.length) {
+    system.qualityFeatures.coreValidation.warnings.push(
+      game.i18n?.lang?.startsWith("en")
+        ? `Advanced Mobility requires matching Extra Movement: ${missingAdvancedMobility.join(", ")}.`
+        : `Mobilidade Avançada exige o Movimento Extra correspondente: ${missingAdvancedMobility.join(", ")}.`
+    );
+  }
+
+  system.qualityFeatures.coreValidation.valid =
+    system.qualityFeatures.coreValidation.warnings.length === 0;
+
   for (const stat of Object.values(mainStats)) {
     const sources = Array.isArray(stat.sharedBonusSources)
       ? stat.sharedBonusSources
@@ -2412,6 +2834,15 @@ _prepareDigimonEffectBonuses(system) {
 
     if (!tag) continue;
 
+    /* Metadados de interface para o painel de Efeitos da ficha. */
+    effect.canResist = ["fear", "doom", "taunt"].includes(tag);
+    const displayedMagnitude = Number(effect.value ?? effect.potency ?? 0);
+    effect.hasDisplayMagnitude = Number.isFinite(displayedMagnitude) && displayedMagnitude > 0;
+    effect.displayMagnitude = effect.hasDisplayMagnitude ? displayedMagnitude : 0;
+    effect.displayMagnitudeLabel = ["fear", "doom", "taunt"].includes(tag)
+      ? "DDA.EffectQualities.Value"
+      : "DDA.EffectQualities.Potency";
+
     /*
      * Advanced Mobility: Climb concede
      * imunidade a Root.
@@ -2428,6 +2859,10 @@ _prepareDigimonEffectBonuses(system) {
 
     let modifiers =
       effectModifiers[tag];
+
+    if (tag === "heavy" && effect.heavyDigizoidWeaponry) {
+      modifiers = { movement: -1 };
+    }
 
     if (tag === "confuse" && effect.affectedStat) {
       modifiers = { [String(effect.affectedStat)]: -1 };
@@ -2992,7 +3427,13 @@ if (miscStats.movement) {
 }
 
 if (miscStats.wounds) {
-  const woundsMax = Math.max(1, stageValue + healthTotal * 2);
+  const hasLowVitality = Array.from(this.items ?? []).some((entry) => {
+    if (entry.type !== "quality") return false;
+    const key = normalizeQualityChoiceKey(getQualitySourceId(entry) || entry.system?.originalName || entry.name);
+    return ["baixavitalidade", "lowvitality"].includes(key);
+  });
+  const naturalWoundsMax = Math.max(1, stageValue + healthTotal * 2);
+  const woundsMax = hasLowVitality ? Math.max(1, Math.ceil(naturalWoundsMax / 2)) : naturalWoundsMax;
 
   const woundsValueRaw = Number(miscStats.wounds.value ?? woundsMax);
   const woundsTempValueRaw = Number(miscStats.wounds.temp?.value ?? 0);
@@ -3004,7 +3445,7 @@ if (miscStats.wounds) {
   miscStats.wounds.value = Math.clamp(woundsValue, 0, woundsMax);
 
   if (miscStats.wounds.temp) {
-    miscStats.wounds.temp.value = Math.max(0, woundsTempValue);
+    miscStats.wounds.temp.value = hasLowVitality ? 0 : Math.max(0, woundsTempValue);
   }
 
   const healthRatio = miscStats.wounds.value / woundsMax;
@@ -3024,11 +3465,16 @@ if (miscStats.wounds) {
   }
 }
     if (miscStats.range) {
-      miscStats.range.value = 3 + bit;
+      const stanceRangePenalty = Math.max(0, Number(system.qualityFeatures?.stance?.activeRangePenalty ?? 0));
+      miscStats.range.base = 3 + bit;
+      miscStats.range.stancePenalty = stanceRangePenalty;
+      miscStats.range.value = Math.max(0, miscStats.range.base - stanceRangePenalty);
+      miscStats.range.total = miscStats.range.value;
     }
 
     if (miscStats.effectiveLimit) {
       miscStats.effectiveLimit.value = Number(miscStats.range?.value ?? 3) + stageValue;
+      miscStats.effectiveLimit.total = miscStats.effectiveLimit.value;
     }
 
 if (miscStats.initiative) {
@@ -3074,7 +3520,14 @@ if (miscStats.initiative) {
 }
 
     if (miscStats.resistance) {
-      miscStats.resistance.value = Math.floor(dos / 2);
+      const vulnerableRanks = Array.from(this.items ?? []).reduce((total, entry) => {
+        if (entry.type !== "quality") return total;
+        const key = normalizeQualityChoiceKey(getQualitySourceId(entry) || entry.system?.originalName || entry.name);
+        return ["vulneravel", "vulnerable"].includes(key)
+          ? total + Math.max(0, getQualityRankValue(entry.system ?? {}))
+          : total;
+      }, 0);
+      miscStats.resistance.value = Math.max(0, Math.floor(dos / 2) - vulnerableRanks);
     }
 
     if (miscStats.clash) {
@@ -3305,22 +3758,61 @@ for (const movementType of extraMovementTypes) {
     movementTypes[movementType].advanced = advancedMovementTypes.has(movementType);
   }
 
-  const hasHeavyEffect = (
-  Array.isArray(system.effects?.active)
-    ? system.effects.active
-    : []
-).some((effect) => {
-  return (
-    isActiveDigimonEffect(effect) &&
-    normalizeDigimonEffectTag(effect.tag) === "heavy"
-  );
-});
+  const activeHeavyEffects = (Array.isArray(system.effects?.active) ? system.effects.active : [])
+    .filter((effect) => isActiveDigimonEffect(effect) && normalizeDigimonEffectTag(effect.tag) === "heavy");
+  const hasHeavyEffect = activeHeavyEffects.length > 0;
+  const hasDigizoidHeavyEffect = activeHeavyEffects.some((effect) => effect.heavyDigizoidWeaponry === true);
 
 /*
  * Heavy remove somente opções adicionais.
  * Land permanece disponível.
  */
+  system.qualityFeatures.heavy = {
+    active: false,
+    transporterSuppressed: false,
+    teleportSuppressed: false,
+    advancedMobilitySuppressed: false,
+    extraMovementSuppressed: false,
+    digizoidWeaponry: false
+  };
+
 if (hasHeavyEffect) {
+  const hasTransporter = this.items.some((quality) => {
+    if (quality.type !== "quality") return false;
+    const sourceId = normalizeQualityName(getQualitySourceId(quality));
+    const name = normalizeQualityName(quality.name);
+    return sourceId === "transporter" || sourceId === "transportador" ||
+      name === "transporter" || name === "transportador";
+  });
+
+  system.qualityFeatures.heavy = {
+    active: true,
+    transporterSuppressed: Boolean(hasTransporter && movementTypes.teleport?.enabled),
+    teleportSuppressed: Boolean(!hasTransporter && movementTypes.teleport?.enabled),
+    advancedMobilitySuppressed: advancedMovementTypes.size > 0,
+    extraMovementSuppressed: (hasDigizoidHeavyEffect || advancedMovementTypes.size === 0) && extraMovementTypes.size > 0,
+    digizoidWeaponry: hasDigizoidHeavyEffect
+  };
+
+  if (movementTypes.teleport?.enabled) {
+    if (hasTransporter) {
+      movementTypes.teleport.transporterDisabledByHeavy = true;
+      movementTypes.teleport.disabledReason =
+        "[HEAVY] suppresses Transporter before suppressing Teleport.";
+      if (hasDigizoidHeavyEffect) {
+        movementTypes.teleport.enabled = false;
+        movementTypes.teleport.total = 0;
+        movementTypes.teleport.disabledByDigizoidHeavy = true;
+      }
+    } else {
+      movementTypes.teleport.enabled = false;
+      movementTypes.teleport.total = 0;
+      movementTypes.teleport.disabledByHeavy = true;
+      movementTypes.teleport.disabledReason =
+        "[HEAVY] suppresses Teleport when Transporter is unavailable.";
+    }
+  }
+
   if (advancedMovementTypes.size > 0) {
     for (const movementType of advancedMovementTypes) {
       if (!movementTypes[movementType]) continue;
@@ -3328,6 +3820,11 @@ if (hasHeavyEffect) {
       movementTypes[movementType].advancedDisabledByHeavy = true;
       movementTypes[movementType].disabledReason =
         "[HEAVY] suppresses Advanced Mobility before suppressing Extra Movement.";
+      if (hasDigizoidHeavyEffect) {
+        movementTypes[movementType].enabled = false;
+        movementTypes[movementType].total = 0;
+        movementTypes[movementType].disabledByDigizoidHeavy = true;
+      }
     }
   } else {
     for (
@@ -3740,8 +4237,18 @@ _prepareDigimonQualityRequirements(system) {
   const ownedQualities = this.items.filter((item) => item.type === "quality");
 
   const ownedQualityNames = new Set(
-    ownedQualities.map((item) => normalizeQualityName(item.name))
+    ownedQualities.flatMap((item) => [
+      item.name,
+      item.system?.originalName,
+      item.system?.sourceId
+    ]).filter(Boolean).map(normalizeQualityName)
   );
+
+  const hasOwnedQualityReference = (reference = "") => {
+    const coreId = getCoreQualityId({ name: reference });
+    if (coreId && hasCoreQuality(this, coreId)) return true;
+    return ownedQualityNames.has(normalizeQualityName(reference));
+  };
 
   for (const item of ownedQualities) {
     const itemSystem = item.system ?? {};
@@ -3768,13 +4275,19 @@ const rankLimitData = getQualityRankLimitForStage(itemSystem, stageKey, system);
 let effectiveRankMax = rankLimitData.max;
 
 if (isNaturewalkQualitySystem(itemSystem)) {
-  const hasElementalMyriad = ownedQualities.some((quality) => {
-    const identity = normalizeQualityName(
-      quality.system?.sourceId ?? quality.system?.originalName ?? quality.name
-    );
-    return identity === "miriade elemental" || identity === "elemental myriad";
-  });
+  const hasElementalMyriad = hasCoreQuality(this, CORE_QUALITY_IDS.elementalMyriad);
   effectiveRankMax = hasElementalMyriad ? 10 : 2;
+}
+
+const coreQualityId = getCoreQualityId(item);
+if ([CORE_QUALITY_IDS.weapon, CORE_QUALITY_IDS.instinct].includes(coreQualityId)) {
+  effectiveRankMax = getWeaponInstinctEffectiveMax(this, item);
+}
+
+if (coreQualityId === CORE_QUALITY_IDS.advancedMobility) {
+  const extraMovement = findCoreQuality(this, CORE_QUALITY_IDS.extraMovement);
+  const extraChoices = getCoreSelectedChoices(extraMovement);
+  effectiveRankMax = Math.min(5, extraChoices.length);
 }
 
 if (itemSystem.rank) {
@@ -3804,7 +4317,7 @@ const anyRequiredQuality = itemSystem.requirements?.mode === "any" ||
 
 if (anyRequiredQuality && requiredQualityNames.length) {
   const hasAny = requiredQualityNames.some((requiredName) => {
-    return ownedQualityNames.has(normalizeQualityName(requiredName));
+    return hasOwnedQualityReference(requiredName);
   });
   if (!hasAny) {
     unmet.push(game.i18n.format("DDA.QualityRequirement.RequiredQuality", {
@@ -3813,7 +4326,7 @@ if (anyRequiredQuality && requiredQualityNames.length) {
   }
 } else {
   for (const requiredName of requiredQualityNames) {
-    if (!ownedQualityNames.has(normalizeQualityName(requiredName))) {
+    if (!hasOwnedQualityReference(requiredName)) {
       unmet.push(game.i18n.format("DDA.QualityRequirement.RequiredQuality", { quality: requiredName }));
     }
   }
@@ -3822,8 +4335,34 @@ if (anyRequiredQuality && requiredQualityNames.length) {
 const incompatibleQualityNames = parseQualityNameList(itemSystem.incompatible?.qualityNames);
 
 for (const incompatibleName of incompatibleQualityNames) {
-  if (ownedQualityNames.has(normalizeQualityName(incompatibleName))) {
+  const weaponInstinctPair = [CORE_QUALITY_IDS.weapon, CORE_QUALITY_IDS.instinct].includes(coreQualityId) &&
+    ["arma", "weapon", "instinto", "instinct"].includes(
+      normalizeQualityChoiceKey(incompatibleName)
+    );
+
+  if (weaponInstinctPair && !isWeaponInstinctConflict(this, item)) continue;
+
+  if (hasOwnedQualityReference(incompatibleName)) {
     incompatible.push(`Incompatível com: ${incompatibleName}`);
+  }
+}
+
+if (coreQualityId === CORE_QUALITY_IDS.dataSpecialization) {
+  const invalidChoices = system.qualityFeatures?.dataSpecialization?.invalidChoices ?? [];
+  for (const invalidChoice of invalidChoices) {
+    const label = invalidChoice.label ?? invalidChoice.key ?? "Data Specialization";
+    unmet.push(invalidChoice.reason === "duplicate"
+      ? `${label}: escolha repetida.`
+      : `${label}: exige Impulso Híbrido disponível.`);
+  }
+}
+
+if (coreQualityId === CORE_QUALITY_IDS.advancedMobility) {
+  const extraTypes = new Set(system.qualityFeatures?.extraMovement?.types ?? []);
+  const invalidTypes = (system.qualityFeatures?.advancedMobility?.types ?? [])
+    .filter((type) => !extraTypes.has(type));
+  for (const type of invalidTypes) {
+    unmet.push(`Mobilidade Avançada exige Movimento Extra: ${type}.`);
   }
 }
 
@@ -3932,14 +4471,24 @@ function getQualityTotalCost(itemSystem) {
     effectiveRank = Math.min(rank, usableMax);
   }
 
+  const freeRanks = Math.max(0, Number(itemSystem.cost?.freeRanks ?? 0));
+  const paidRank = Math.max(0, effectiveRank - freeRanks);
+
   const rankedBaseCost =
     itemSystem.cost?.perRank
-      ? baseCost * effectiveRank
+      ? baseCost * paidRank
       : baseCost;
 
-  return (
+  const storedDiscount = (Array.isArray(itemSystem.cost?.dpDiscountSources)
+    ? itemSystem.cost.dpDiscountSources
+    : []).reduce((total, entry) => {
+      return total + Math.max(0, Number(entry?.amount ?? entry?.value ?? 0));
+    }, 0);
+
+  return Math.max(0,
     rankedBaseCost +
-    attachedChoiceCost
+    attachedChoiceCost -
+    storedDiscount
   );
 }
 

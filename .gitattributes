@@ -1,0 +1,34 @@
+# Keep source diffs stable across Windows, macOS and Linux.
+* text=auto
+
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.css text eol=lf
+*.hbs text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+*.csv text eol=lf
+*.txt text eol=lf
+*.py text eol=lf
+
+# Binary assets.
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.gif -text
+*.webp -text
+*.webm -text
+*.woff -text
+*.woff2 -text
+*.ttf -text
+*.otf -text
+*.zip -text
+
+# Foundry/LevelDB pack files must never receive line-ending conversion.
+*.ldb -text
+packs/**/CURRENT -text
+packs/**/LOCK -text
+packs/**/LOG -text
+packs/**/LOG.old -text
+packs/**/MANIFEST-* -text

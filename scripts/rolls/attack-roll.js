@@ -3,13 +3,16 @@ import { getTamerCheckOutcome } from "./check-roll.js";
 import { getDDASetting } from "../settings.js";
 
 import {
-  getActiveDDAUnitContext
+  combatantEndedThisRound,
+  getActiveDDAUnitContext,
+  getCombatantForActor
 } from "../combat/initiative.js";
 
 import { getFlankContext } from "../combat/positioning.js";
 import {
   requestStandardIntercede
 } from "../combat/intercede.js";
+import { requestEvokerProtectorIntercede } from "../combat/evoker-qualities.js";
 import {
   getCoordinatedAssaultBonus,
   incrementCoordinatedAssaultMarks
@@ -26,6 +29,82 @@ import {
 } from "../rules/tamer-resources.js";
 
 import {
+  runAreaAttackWorkflow
+} from "../combat/area-attacks/area-attack-controller.js";
+
+import {
+  getCurrentMovementSpent
+} from "../canvas/movement-tracker.js";
+
+import {
+  clearHiddenAfterInterference,
+  getHordeDuelistAttackModifier,
+  getReachModeData,
+  getSneakAttackState,
+  maybeTriggerCounterattack
+} from "../combat/offensive-qualities.js";
+
+import {
+  convertResolveWithAssuredDestruction,
+  getCombatMonsterResolve,
+  requestBrace,
+  requestSubstitute,
+  setCombatMonsterResolve,
+  triggerSavagery
+} from "../combat/defensive-qualities.js";
+
+import {
+  consumeBraveHeartDamageBonus,
+  getSentryMeleeDodgePenalty,
+  getStanceAttackModifier,
+  maybeTriggerFierceSoulRepeat
+} from "../combat/stance-qualities.js";
+
+import {
+  canAttackAfterSecondWind,
+  requestFocusedResistance
+} from "../combat/preservation-qualities.js";
+import {
+  applyDigizoidAttackRules,
+  applyDigizoidPostHitRules,
+  getEffectDpCost,
+  markUndyingRegenCleanseSuppression,
+  resolveIncomingDigizoidGainForceEffects,
+  resolveSharpDigizoidArmorRetaliation,
+  suppressInterruptsDuringTemporalTurn,
+  tryExecuteSpecialGainForceAttack
+} from "../combat/digizoid-gain-force.js";
+import {
+  adjustPositiveReinforcementMood,
+  getFreeNegativeAttackContext
+} from "../combat/free-negative-qualities.js";
+
+import {
+  breakGlamorOnAttackHit,
+  getDomainAttackModifier,
+  requestTeleportEscape,
+  resolveWardEmblemAfterAttack
+} from "../combat/utility-qualities.js";
+import {
+  attackAllowedDuringDot,
+  consumeDenyForIncomingEffects,
+  consumeProtectingShieldUse,
+  getIncomingEffectDurationPenalty,
+  resolveInspiringGuidanceAfterAttack,
+  validateEffectAttackDeclaration
+} from "../combat/effect-qualities.js";
+import { calculateEffectDurationRounds } from "../combat/effect-duration.js";
+
+function identityForMatching(value = "") {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+import {
   findQuality,
   hasQuality,
   getQualityRank,
@@ -36,6 +115,7 @@ import {
   getCombatRound,
   getCombatTurn,
   getCombatUseState,
+  getRoundUseState,
   setUseState,
   clearUseState,
   spendQualityUse as spendAutomationQualityUse,
@@ -58,6 +138,9 @@ const pendingAttackDodgeRequests =
 const pendingAttackDodgeByAttacker =
   new Map();
 
+const bulkAreaDodgeInFlightRequests =
+  new Set();
+
 const ATTACK_DODGE_REQUEST_TIMEOUT_MS =
   5 * 60 * 1000;
 const combatText = (pt, en) => String(game.i18n?.lang ?? "")
@@ -79,13 +162,145 @@ function escapeHtml(
     .replaceAll("'", "&#039;");
 }
 
+function getDataSpecializationFeature(actor) {
+  return actor?.system?.qualityFeatures?.dataSpecialization ?? {};
+}
+
+function attackHasExtraTags(attackItem) {
+  const qualityTags = getAttackQualityTags(attackItem);
+  const effectTagEnabled = Boolean(
+    attackItem?.system?.effectTag?.enabled &&
+    String(attackItem?.system?.effectTag?.tag ?? "").trim()
+  );
+  const isSignature = Boolean(attackItem?.system?.isSignature);
+  return qualityTags.size > 0 || effectTagEnabled || isSignature;
+}
+
+function getDataSpecializationAttackPermission(attacker, attackItem, attackOptions = {}, alreadyAttacked = false) {
+  const feature = getDataSpecializationFeature(attacker);
+  const rangeType = String(attackItem?.system?.baseTags?.rangeType ?? "").toLowerCase();
+  const functionType = String(
+    attackOptions?.areaBatch?.functionTypeOverride ??
+    attackItem?.system?.baseTags?.functionType ??
+    ""
+  ).toLowerCase();
+  const isInterrupt = Boolean(
+    attackOptions?.isInterrupt ||
+    attackOptions?.clashContext?.isInterrupt ||
+    attackOptions?.allowOutOfTurn
+  );
+
+  if (!alreadyAttacked) {
+    return { allowed: true, mode: "normal", functionType };
+  }
+
+  if (isInterrupt && feature.interruptAttacksIgnoreRoundLimit) {
+    return { allowed: true, mode: "trySomething", functionType };
+  }
+
+  const flurryUse = getRoundUseState(attacker, "dataSpecialization", "flurry");
+  const flurryEligible = Boolean(
+    feature.mayMakeAdditionalMeleeDamageAttack &&
+    !isInterrupt &&
+    rangeType === "melee" &&
+    functionType === "damage" &&
+    !attackHasExtraTags(attackItem) &&
+    !flurryUse?.used
+  );
+
+  if (flurryEligible) {
+    return { allowed: true, mode: "flurry", functionType };
+  }
+
+  const statusUse = getRoundUseState(attacker, "dataSpecialization", "statusWarlord");
+  if (feature.statusWarlordAttackPair && statusUse && !statusUse.completed && !isInterrupt) {
+    const firstFunction = String(statusUse.firstFunction ?? "");
+    const firstHadEffect = Boolean(statusUse.firstHadEffect);
+    const currentHasEffect = attackHasExtraTags(attackItem);
+    const validPair = (
+      firstFunction === "support" && functionType === "damage" && !currentHasEffect
+    ) || (
+      firstFunction === "damage" && !firstHadEffect && functionType === "support"
+    );
+
+    if (validPair) {
+      return { allowed: true, mode: "statusWarlord", functionType };
+    }
+  }
+
+  return { allowed: false, mode: "blocked", functionType };
+}
+
+async function recordDataSpecializationAttackUse(attacker, attackItem, mode = "normal") {
+  const feature = getDataSpecializationFeature(attacker);
+  const functionType = String(attackItem?.system?.baseTags?.functionType ?? "").toLowerCase();
+  const hadEffect = attackHasExtraTags(attackItem);
+
+  if (mode === "flurry") {
+    await setUseState(attacker, "dataSpecialization", "flurry", {
+      used: true,
+      attackItemId: attackItem?.id ?? ""
+    });
+    return;
+  }
+
+  if (mode === "statusWarlord") {
+    await setUseState(attacker, "dataSpecialization", "statusWarlord", {
+      used: true,
+      completed: true,
+      secondFunction: functionType,
+      attackItemId: attackItem?.id ?? ""
+    });
+    return;
+  }
+
+  if (!feature.statusWarlordAttackPair) return;
+
+  const existing = getRoundUseState(attacker, "dataSpecialization", "statusWarlord");
+  if (existing?.completed || existing?.firstFunction) return;
+
+  const canOpenPair = functionType === "support" || (functionType === "damage" && !hadEffect);
+  if (!canOpenPair) return;
+
+  await setUseState(attacker, "dataSpecialization", "statusWarlord", {
+    used: false,
+    completed: false,
+    firstFunction: functionType,
+    firstHadEffect: hadEffect,
+    attackItemId: attackItem?.id ?? ""
+  });
+}
+
 export async function rollAttack(attacker, attackItem, options = {}) {
   if (!attacker || !attackItem) {
     ui.notifications.warn(localize("DDA.Warning.AttackerOrAttackNotFound"));
     return;
   }
 
-if (pendingAttackDodgeByAttacker.has(attacker.uuid)) {
+  const { isAttackAvailableForCurrentMode } = await import("../rules/mode-change.js");
+  if (!isAttackAvailableForCurrentMode(attacker, attackItem)) {
+    ui.notifications.warn(combatText(
+      "Este Ataque pertence ao outro Modo do Digimon.",
+      "This Attack belongs to the Digimon's other Mode."
+    ));
+    return;
+  }
+
+  if (!attackAllowedDuringDot(attacker, attackItem)) {
+    ui.notifications.warn(combatText(
+      "[DOT] substitui os Ataques do Digimon pelos Ataques Pixelados enquanto o Efeito durar.",
+      "[DOT] replaces the Digimon's Attacks with Pixel Attacks for the Effect's Duration."
+    ));
+    return;
+  }
+
+  const specialGainForceAttack = await tryExecuteSpecialGainForceAttack(attacker, attackItem, options);
+  if (specialGainForceAttack.handled) return specialGainForceAttack.result;
+
+if (
+  pendingAttackDodgeByAttacker.has(attacker.uuid) &&
+  !Boolean(options?.areaBatch?.active && options?.areaBatch?.secondary)
+) {
   ui.notifications.warn(formatI18n("DDA.Warning.AttackAwaitingDodge", {
     actor: attacker.name
   }));
@@ -109,6 +324,31 @@ const attackOptions = {
       : {}
   )
 };
+
+if (suppressInterruptsDuringTemporalTurn(attacker)) {
+  attackOptions.suppressTargetInterrupts = true;
+}
+
+const effectExecutionId = String(
+  attackOptions?.areaBatch?.id ??
+  attackOptions?.effectExecutionId ??
+  foundry.utils.randomID()
+);
+attackOptions.effectExecutionId = effectExecutionId;
+
+const areaBatch = attackOptions.areaBatch ?? null;
+const isAreaBatchSecondary = Boolean(areaBatch?.active && areaBatch?.secondary);
+const isFierceSoulRepeat = Boolean(attackOptions.fierceSoulRepeat);
+const isSentryReaction = Boolean(attackOptions.sentryReaction);
+const isFreeStanceAttack = isFierceSoulRepeat || isSentryReaction;
+
+if (!isFreeStanceAttack && !canAttackAfterSecondWind(attacker)) {
+  ui.notifications.warn(combatText(
+    `${attacker.name} usou Segundo Fôlego e não pode usar uma Ação de Ataque nesta ativação.`,
+    `${attacker.name} used Second Wind and cannot take an Attack Action this turn.`
+  ));
+  return;
+}
 
 const attackQualityTagsAtStart =
   getAttackQualityTags(attackItem);
@@ -135,16 +375,113 @@ const usesHasteAttackWindow = Boolean(
   alreadyAttacked && !isAmmoAttack && !usesSpeedSurgeAttackWindow && hasteAttackWindow
 );
 
-if (alreadyAttacked && !isAmmoAttack && !usesSpeedSurgeAttackWindow && !usesHasteAttackWindow) {
+const dataSpecializationAttackPermission =
+  getDataSpecializationAttackPermission(
+    attacker,
+    attackItem,
+    attackOptions,
+    alreadyAttacked
+  );
+
+const usesDataSpecializationAttackWindow = Boolean(
+  alreadyAttacked &&
+  dataSpecializationAttackPermission.allowed &&
+  dataSpecializationAttackPermission.mode !== "normal"
+);
+
+const usesCounterattackWindow = Boolean(
+  attackOptions?.counterattackContext?.active
+);
+
+const usesPunishingStrikeWindow = Boolean(
+  attackOptions?.punishingStrikeContext?.active
+);
+
+if (
+  alreadyAttacked &&
+  !isAreaBatchSecondary &&
+  !usesCounterattackWindow &&
+  !usesPunishingStrikeWindow &&
+  !attackOptions.ignoreAttackPerRoundLimit &&
+  !isFreeStanceAttack &&
+  !isAmmoAttack &&
+  !usesSpeedSurgeAttackWindow &&
+  !usesHasteAttackWindow &&
+  !usesDataSpecializationAttackWindow
+) {
   ui.notifications.warn(combatText(
-    `${attacker.name} já realizou um Ataque nesta Rodada.`,
-    `${attacker.name} has already made an Attack this Round.`
+    `${attacker.name} já realizou um Ataque nesta Rodada e não possui uma janela válida de Ataque adicional.`,
+    `${attacker.name} has already made an Attack this Round and has no valid additional Attack window.`
   ));
   return;
 }
 
 const effectiveAttacksMade = 0;
 const multiattackPenalty = 0;
+
+/*
+ * Area Attacks need to be declared before the single-target requirement.
+ * This preflight intentionally uses a target-neutral Quality pass only to
+ * discover Area tags and calculate the legal template Size. Each affected
+ * target is still resolved through the normal attack pipeline afterwards.
+ */
+if (!attackOptions.__ddaAreaChild) {
+  const areaCombatContext = getAttackCombatContext(attacker, attackOptions);
+
+  if (!areaCombatContext.ok) {
+    ui.notifications.warn(areaCombatContext.message);
+    return;
+  }
+
+  const provisionalQualityModifier = getAppliedAttackQualityModifier(
+    attacker,
+    attackItem,
+    {
+      defender: null,
+      targetToken: null,
+      clashContext
+    }
+  );
+
+  const provisionalRange = Math.max(
+    0,
+    Math.floor(
+      (
+        Number(
+          attacker.system?.miscStats?.range?.total ??
+          attacker.system?.miscStats?.range?.value ??
+          attacker.system?.miscStats?.range?.base ??
+          attackItem.system?.range?.total ??
+          0
+        ) +
+        Number(provisionalQualityModifier.rangeBonus ?? 0)
+      ) *
+      Number(provisionalQualityModifier.rangeMultiplier ?? 1)
+    )
+  );
+
+  const areaWorkflow = await runAreaAttackWorkflow({
+    attacker,
+    attackItem,
+    attackOptions,
+    attackerToken: areaCombatContext.token,
+    areaTags: provisionalQualityModifier.areaAttackTags ?? [],
+    attackRangeTotal: provisionalRange,
+    qualityAttackModifier: provisionalQualityModifier,
+    resolveTarget: (targetToken, childOptions) => {
+      return rollAttack(attacker, attackItem, {
+        ...childOptions,
+        targetToken
+      });
+    }
+  });
+
+  if (areaWorkflow?.suppressLegacyAreaPrompt) {
+    attackOptions.areaAttackActive = false;
+  }
+
+  if (areaWorkflow?.handled) return areaWorkflow.result;
+}
 
   let targetToken = attackOptions.targetToken ?? game.user.targets.first();
 
@@ -158,6 +495,30 @@ let defender = getCombatActorFromTargetToken(targetToken);
 if (!defender) {
   ui.notifications.warn(localize("DDA.Warning.TargetHasNoActor"));
   return;
+}
+
+let outsideClashAttackContext = { active: false };
+try {
+  const clashAutomation = await import("../combat/clash.js");
+  if (
+    clashAutomation.isActorInActiveClash?.(attacker) &&
+    !clashContext?.active &&
+    !clashContext?.enabled &&
+    !attackOptions.allowAttackWhileClashing
+  ) {
+    ui.notifications.warn(combatText(
+      `${attacker.name} está em um Clash e só pode usar uma Ação de Clash.`,
+      `${attacker.name} is in a Clash and can only use a Clash Action.`
+    ));
+    return;
+  }
+  outsideClashAttackContext = await clashAutomation.getOutsideClashAttackContext?.({
+    attacker,
+    defender,
+    clashContext
+  }) ?? { active: false };
+} catch (error) {
+  console.warn("DDA | Could not prepare Clash attack context.", error);
 }
 
 const attackCombatContext = getAttackCombatContext(attacker, attackOptions);
@@ -186,7 +547,7 @@ if (isAmmoAttack && isAmmoAttackUsedThisCombat(attacker, attackItem)) {
   }
 
   let attributeAdvantageData = getAttributeAdvantageData(attacker, defender);
-  let attackerEffectModifiers = getActiveEffectAttackModifiers(attacker, defender);
+  let attackerEffectModifiers = getActiveEffectAttackModifiers(attacker, defender, attackOptions);
   let defenderEffectModifiers = getActiveEffectDefenseModifiers(defender);
   const multiattackAccuracyPenalty = multiattackPenalty;
   const multiattackDamagePenalty = multiattackPenalty;
@@ -198,12 +559,42 @@ let qualityAttackModifier = getAppliedAttackQualityModifier(attacker, attackItem
   clashContext
 });
 
+const freeNegativeContext = getFreeNegativeAttackContext(attacker, attackItem, defender);
+if (freeNegativeContext.sealedWeaponBlocked) {
+  ui.notifications.warn(combatText(
+    "Este Ataque [WEAPON] permanece selado até o Digimon cair abaixo da metade das Caixas de Ferimento.",
+    "This [WEAPON] Attack remains sealed until the Digimon falls below half Wound Boxes."
+  ));
+  return;
+}
+if (freeNegativeContext.mood !== null) {
+  const mood = Number(freeNegativeContext.mood);
+  if (mood < 3) qualityAttackModifier.accuracyBonus -= 3 - mood;
+  if (mood > 4) qualityAttackModifier.damageBonus += mood - 4;
+}
+if (freeNegativeContext.slayerApplies) {
+  qualityAttackModifier.accuracyBonus += Number(freeNegativeContext.slayerAccuracyBonus ?? 0);
+}
+if (hasQuality(attacker, "sealedWeapon") && !freeNegativeContext.sealedWeaponBlocked) {
+  qualityAttackModifier.accuracyBonus += 1;
+  qualityAttackModifier.damageBonus += 1;
+  qualityAttackModifier.effectPotencyBonus = Number(qualityAttackModifier.effectPotencyBonus ?? 0) + 1;
+}
+
+if (attackOptions.suppressChargeMovement) {
+  qualityAttackModifier.chargeMoveWithAttack = false;
+  qualityAttackModifier.chargeSignatureBatteryMoveBonus = 0;
+}
+
 /*
  * [CHARGE] may already be stored directly on the Attack item. Older
  * automation only detected the tag when a Quality granted it at runtime,
  * so imported and previously-created attacks skipped the pre-attack flow.
  */
-if (hasChargeAttackBinding(attacker, attackItem, attackQualityTagsAtStart)) {
+if (
+  !attackOptions.suppressChargeMovement &&
+  hasChargeAttackBinding(attacker, attackItem, attackQualityTagsAtStart)
+) {
   qualityAttackModifier.chargeMoveWithAttack = true;
 
   if (isSignature) {
@@ -219,9 +610,30 @@ if (qualityAttackModifier.blockedInSentryStance) {
   return;
 }
 
+if (qualityAttackModifier.stanceBlocked) {
+  ui.notifications.warn(qualityAttackModifier.stanceBlockedMessage || combatText(
+    "Este Ataque não pode ser usado na Postura atual.",
+    "This Attack cannot be used in the current Stance."
+  ));
+  return;
+}
+
+if (
+  getAttackQualityTags(attackItem).has("counter") &&
+  !usesCounterattackWindow
+) {
+  ui.notifications.warn(combatText(
+    `${attackItem.name} possui [COUNTER] e só pode ser usado durante Contra-Ataque.`,
+    `${attackItem.name} has [COUNTER] and can only be used during Counterattack.`
+  ));
+  return;
+}
+
 const baseActionCost = Number(attackItem.system.actionCost?.value ?? 1);
 const attackExtraActionCost = Number(attackItem.system.actionCost?.extra ?? 0);
 const qualityExtraActionCost = Number(qualityAttackModifier.extraActionCost ?? 0);
+const areaBatchExtraActionCost = Number(attackOptions?.areaBatch?.extraActionCost ?? 0);
+const totalQualityExtraActionCost = qualityExtraActionCost + areaBatchExtraActionCost;
 
 const rawAttackRangeTotal =
   Number(
@@ -259,21 +671,25 @@ const attackEffectiveLimitTotal = Math.max(
   )
 );
 
+const unreducedDeclaredActionCost = Number.isFinite(
+  Number(attackOptions.actionCostOverride)
+)
+  ? Number(attackOptions.actionCostOverride)
+  : baseActionCost +
+    attackExtraActionCost +
+    totalQualityExtraActionCost;
+
 const declaredActionCost = Math.max(
   Number(
     qualityAttackModifier
       .actionCostMinimum ?? 0
   ),
 
-  Number.isFinite(Number(attackOptions.actionCostOverride))
-    ? Number(attackOptions.actionCostOverride)
-    : baseActionCost +
-      attackExtraActionCost +
-      qualityExtraActionCost -
-      Number(
-        qualityAttackModifier
-          .actionCostReduction ?? 0
-      )
+  unreducedDeclaredActionCost -
+    Number(
+      qualityAttackModifier
+        .actionCostReduction ?? 0
+    )
 );
 
 const movementTracker = game.dda?.movementTracker;
@@ -303,31 +719,41 @@ if (matchesActiveChargeApproach && !isTokenVisibleToCurrentUser(targetToken)) {
   return;
 }
 
-const attackTargeting = validateAttackTargeting({
-  attacker,
-  attackerToken: attackCombatContext.token,
-  targetToken,
-  attackItem,
-  qualityAttackModifier,
-  attackRangeTotal,
-  attackEffectiveLimitTotal
-});
+const attackTargeting = areaBatch?.active || attackOptions.ignoreTargetingValidation
+  ? {
+      valid: true,
+      distance: Number(areaBatch?.originDistance ?? getTokenGridDistance(attackCombatContext.token, targetToken) ?? 0),
+      accuracyPenalty: 0,
+      rangeType: String(attackItem.system.baseTags?.rangeType ?? "")
+    }
+  : validateAttackTargeting({
+      attacker,
+      attackerToken: attackCombatContext.token,
+      targetToken,
+      attackItem,
+      qualityAttackModifier,
+      attackRangeTotal,
+      attackEffectiveLimitTotal,
+      attackOptions
+    });
 
 /*
  * [CHARGE] is declared before the attack continues. This intentionally
  * happens before the normal invalid-target warning, Area Attack choices,
  * quality declarations and every die roll.
  */
-const chargeApproach = await maybeBeginChargeApproach({
-  attacker,
-  attackerToken: attackCombatContext.token,
-  targetToken,
-  attackItem,
-  attackOptions,
-  attackTargeting,
-  qualityAttackModifier,
-  declaredActionCost
-});
+const chargeApproach = areaBatch?.active
+  ? { handled: false }
+  : await maybeBeginChargeApproach({
+      attacker,
+      attackerToken: attackCombatContext.token,
+      targetToken,
+      attackItem,
+      attackOptions,
+      attackTargeting,
+      qualityAttackModifier,
+      declaredActionCost
+    });
 
 if (chargeApproach.handled) return;
 
@@ -357,6 +783,8 @@ const usesInterruptPayment =
   Boolean(
     isInterruptAttack &&
     !usesTamerHoldAttackWindow &&
+    !usesCounterattackWindow &&
+    !usesPunishingStrikeWindow &&
     declaredActionCost === 1
   );
 
@@ -406,8 +834,12 @@ const chargeMovementBeforeAttack = Boolean(
 
 const attackerActionCost =
   (
+    isAreaBatchSecondary ||
     usesTamerHoldAttackWindow ||
     usesInterruptPayment ||
+    usesCounterattackWindow ||
+    usesPunishingStrikeWindow ||
+    isFreeStanceAttack ||
     chargeMovementBeforeAttack
   )
     ? 0
@@ -447,9 +879,12 @@ if (currentActions < attackerActionCost) {
 if (
   game.combat?.started &&
   !areaAttackDeclaration?.active &&
-  !isClashAttackContext(clashContext)
+  !isClashAttackContext(clashContext) &&
+  !qualityAttackModifier.sneakSuppressInterrupts &&
+  !attackOptions.suppressTargetInterrupts
 ) {
-  intercedeDeclaration = await requestStandardIntercede({ attacker, targetToken, attackItem });
+  intercedeDeclaration = await requestEvokerProtectorIntercede({ attacker, targetToken, attackItem })
+    ?? await requestStandardIntercede({ attacker, targetToken, attackItem });
 
   if (intercedeDeclaration) {
     const nextTargetToken = canvas?.tokens?.get(intercedeDeclaration.tokenId);
@@ -464,14 +899,17 @@ if (
     targetToken = nextTargetToken;
     defender = nextDefender;
     attributeAdvantageData = getAttributeAdvantageData(attacker, defender);
-    attackerEffectModifiers = getActiveEffectAttackModifiers(attacker, defender);
+    attackerEffectModifiers = getActiveEffectAttackModifiers(attacker, defender, attackOptions);
     defenderEffectModifiers = getActiveEffectDefenseModifiers(defender);
     qualityAttackModifier = getAppliedAttackQualityModifier(attacker, attackItem, {
       defender,
       targetToken,
       clashContext
     });
-    if (hasChargeAttackBinding(attacker, attackItem, attackQualityTagsAtStart)) {
+    if (
+      !attackOptions.suppressChargeMovement &&
+      hasChargeAttackBinding(attacker, attackItem, attackQualityTagsAtStart)
+    ) {
       qualityAttackModifier.chargeMoveWithAttack = true;
       if (isSignature) {
         qualityAttackModifier.chargeSignatureBatteryMoveBonus = Math.max(
@@ -488,12 +926,34 @@ const attackEffectTag = attackItem.system.effectTag?.enabled
   ? attackItem.system.effectTag?.tag ?? ""
   : "";
 
-const activeEffectTags = [
-  ...new Set([
-    attackEffectTag,
-    ...grantedEffectTags
-  ].filter(Boolean))
-];
+const activeEffectTags = areaBatch?.suppressEffectTags
+  ? []
+  : [
+      ...new Set([
+        attackEffectTag,
+        ...grantedEffectTags
+      ].filter(Boolean))
+    ];
+
+const targetIsAlly =
+  areActorsAllies(attacker, defender);
+
+const effectAttackValidation = validateEffectAttackDeclaration({
+  attacker,
+  defender,
+  attackItem,
+  effectTags: activeEffectTags,
+  areaActive: Boolean(areaAttackDeclaration?.active),
+  currentBattery,
+  targetIsAlly,
+  functionTypeOverride: areaBatch?.functionTypeOverride ?? "",
+  executionId: effectExecutionId
+});
+
+if (!effectAttackValidation.ok) {
+  ui.notifications.warn(effectAttackValidation.message);
+  return;
+}
 
 const cleanseDeclaration = await getCleanseDeclaration(defender, activeEffectTags);
 
@@ -502,12 +962,24 @@ if (cleanseDeclaration === null) return;
 const cleanseIsActive =
   hasCleanseTag(activeEffectTags);
 
-const targetIsAlly =
-  areActorsAllies(attacker, defender);
-
 const isAlliedCleanse =
   cleanseIsActive &&
   targetIsAlly;
+
+/*
+ * 9.02b: um Efeito aplicado a um alvo disposto é tratado como Positivo.
+ * Em Área, isso só vale quando a declaração inclui exclusivamente aliados;
+ * uma Área indiscriminada continua usando a resolução de Efeito Negativo.
+ */
+const targetIsWillingForEffect = Boolean(
+  targetIsAlly &&
+  activeEffectTags.length > 0 &&
+  String(attackFunctionType).toLowerCase() === "support" &&
+  (
+    !areaAttackDeclaration?.active ||
+    areaAttackDeclaration?.targetMode === "allies"
+  )
+);
 
 const activeEffectTagLabels =
   activeEffectTags.map((tag) => {
@@ -529,8 +1001,11 @@ const declaredAttackQualityEffects = await getDeclaredAttackQualityEffects({
   attackItem,
   qualityAttackModifier,
   totalActionCost,
+  unreducedDeclaredActionCost,
   isSignature,
-  areaAttackDeclaration
+  areaAttackDeclaration,
+  areaBatch,
+  attackOptions
 });
 
 if (declaredAttackQualityEffects === null) return;
@@ -543,41 +1018,69 @@ if (declaredAttackQualityEffects.preventAttack) {
     if (!payment?.success) return null;
   }
 
-  if (isAmmoAttack) {
-    await markAmmoAttackUsedThisCombat(attacker, attackItem);
-  } else {
-    await markAttackUsed(attacker, isSignature, effectiveAttacksMade + 1);
-    if (usesSpeedSurgeAttackWindow) {
-      await consumeSpeedSurgeAttackWindow(attacker, speedSurgeAttackWindow.id);
-    }
-    if (usesHasteAttackWindow) {
-      await consumeSpeedSurgeAttackWindow(attacker, hasteAttackWindow.id);
-    }
-  }
+  let preventedAttackUseFinalized = false;
 
-  if (!usesInterruptPayment && attackerActionCost > 0) {
-    await attacker.update(
-      {
-        "system.combat.actions.value": Math.max(
-          0,
-          currentActions - attackerActionCost
-        )
-      },
-      {
-        ddaChargeAttackAction:
-          chargeCanCombineMovement &&
-          !chargeMovementBeforeAttack
+  const finalizePreventedAttackUse = async () => {
+    if (preventedAttackUseFinalized) return;
+    preventedAttackUseFinalized = true;
+
+    if (isAmmoAttack) {
+      await markAmmoAttackUsedThisCombat(attacker, attackItem);
+    } else {
+      await markAttackUsed(
+        attacker,
+        isSignature,
+        effectiveAttacksMade + 1,
+        {
+          attackItem,
+          dataSpecializationMode: dataSpecializationAttackPermission.mode,
+          suppressRoundCount: usesCounterattackWindow || usesPunishingStrikeWindow
+        }
+      );
+
+      if (usesSpeedSurgeAttackWindow) {
+        await consumeSpeedSurgeAttackWindow(
+          attacker,
+          speedSurgeAttackWindow.id
+        );
       }
-    );
-  }
 
-  await resolveChargeMovementForAttack({
-    attacker,
-    chargeCanCombineMovement,
-    chargeMovementBeforeAttack,
-    chargeSignatureBatteryMoveBonus:
-      qualityAttackModifier.chargeSignatureBatteryMoveBonus
-  });
+      if (usesHasteAttackWindow) {
+        await consumeSpeedSurgeAttackWindow(
+          attacker,
+          hasteAttackWindow.id
+        );
+      }
+    }
+
+    if (!usesInterruptPayment && attackerActionCost > 0) {
+      await attacker.update(
+        {
+          "system.combat.actions.value": Math.max(
+            0,
+            currentActions - attackerActionCost
+          )
+        },
+        {
+          ddaChargeAttackAction:
+            chargeCanCombineMovement &&
+            !chargeMovementBeforeAttack
+        }
+      );
+    }
+
+    await resolveChargeMovementForAttack({
+      attacker,
+      chargeCanCombineMovement,
+      chargeMovementBeforeAttack,
+      chargeSignatureBatteryMoveBonus:
+        qualityAttackModifier.chargeSignatureBatteryMoveBonus,
+      suppressAfterMovement: Boolean(
+        areaAttackDeclaration?.active &&
+        normalizeAttackTag(areaAttackDeclaration?.tag) === "t:pass"
+      )
+    });
+  };
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: attacker }),
@@ -590,24 +1093,69 @@ if (declaredAttackQualityEffects.preventAttack) {
         </ul>
       </div>`
   });
-  return;
+
+  if (!areaBatch?.active) {
+    await finalizePreventedAttackUse();
+    return;
+  }
+
+  return {
+    attacker,
+    defender,
+    attackItem,
+    attackPrevented: true,
+    hit: false,
+    accuracySuccesses: 0,
+    dodgeSuccesses: 0,
+    leftoverSuccesses: 0,
+    normalDamage: 0,
+    unalterableDamage: 0,
+    finalDamage: 0,
+    totalActionCost,
+    activeEffectTags,
+    activeEffectTagLabels,
+    qualityAttackModifier,
+    areaAttackDeclaration,
+    declaredAttackQualityEffects,
+    accuracyRollResult: null,
+    hugePowerReroll: null,
+    overpowerResult: null,
+    finalizeAttackUse: finalizePreventedAttackUse
+  };
 }
 
+const ignoreRangedAccuracyPenalties = Boolean(
+  qualityAttackModifier.ignoreNegativeAccuracyModifiers
+);
+const keepNonNegative = (value) => ignoreRangedAccuracyPenalties
+  ? Math.max(0, Number(value ?? 0))
+  : Number(value ?? 0);
+
+const accuracyPoolMultiplier = Math.max(0, Number(attackOptions.accuracyPoolMultiplier ?? 1));
+const accuracyPoolMultiplierPenalty = accuracyPoolMultiplier < 1
+  ? -Math.ceil(Number(attacker.system.mainStats?.accuracy?.total ?? 0) * (1 - accuracyPoolMultiplier))
+  : 0;
+
 const accuracyDiceBonus =
-  customAccuracyModifier +
-  Number(attackOptions.accuracyDiceModifier ?? 0) +
+  keepNonNegative(customAccuracyModifier) +
+  keepNonNegative(attackOptions.accuracyDiceModifier) +
+  accuracyPoolMultiplierPenalty +
   signatureAccuracyBonus +
   attributeAdvantageData.extraAccuracyDice +
-  multiattackAccuracyPenalty +
-  qualityAttackModifier.accuracyBonus +
-  Number(declaredAttackQualityEffects.accuracyBonus ?? 0) +
-  attackerEffectModifiers.accuracyDice;
+  keepNonNegative(multiattackAccuracyPenalty) +
+  keepNonNegative(qualityAttackModifier.accuracyBonus) +
+  keepNonNegative(declaredAttackQualityEffects.accuracyBonus) +
+  keepNonNegative(attackerEffectModifiers.accuracyDice);
 
 
-const hugePowerReroll = await getHugePowerRerollDeclaration(attacker, attackOptions);
-if (hugePowerReroll === null) return;
+const sharedAccuracyResult = areaBatch?.sharedAccuracyResult ?? attackOptions.sharedAccuracyResult ?? null;
+const hugePowerReroll = sharedAccuracyResult
+  ? (areaBatch?.sharedHugePowerReroll ?? null)
+  : await getHugePowerRerollDeclaration(attacker, { ...attackOptions, attackItem });
 
-const accuracyResult = await rollPool(attacker, "accuracy", {
+if (!sharedAccuracyResult && hugePowerReroll === null) return;
+
+const accuracyResult = sharedAccuracyResult ?? await rollPool(attacker, "accuracy", {
   diceModifier: accuracyDiceBonus,
 
   automaticSuccesses: Number(qualityAttackModifier.automaticSuccesses ?? 0),
@@ -642,10 +1190,16 @@ const accuracyResult = await rollPool(attacker, "accuracy", {
     return;
   }
 
-const attackFunctionType = attackItem.system.baseTags?.functionType ?? "damage";
+const attackFunctionType = String(
+  areaBatch?.functionTypeOverride ??
+  attackItem.system.baseTags?.functionType ??
+  "damage"
+).trim().toLowerCase();
 const weakAttackSupportAccuracyPenalty = isClashWeakAttack && attackFunctionType === "support" ? 1 : 0;
 const weakAttackHalvesDodge = isClashWeakAttack && !clashDefenderHasReach;
-const cleanseSelectivePenalty = cleanseDeclaration?.selective ? 1 : 0;
+const cleanseAccuracyPenalty =
+  (cleanseDeclaration?.selective ? 1 : 0) +
+  (cleanseIsActive && areaAttackDeclaration?.active ? 1 : 0);
 
 const weaponMeleeFourSuccesses =
   getWeaponMeleeFourSuccesses(
@@ -657,7 +1211,7 @@ const weaponMeleeFourSuccesses =
     )
   );
 
-const overpowerResult =
+const overpowerResult = areaBatch?.sharedOverpowerResult ??
   await getOverpowerDeclaration(
     attacker,
     accuracyResult,
@@ -694,19 +1248,33 @@ const accuracySuccessesBeforePositioningPenalty =
     attributeAdvantageData
       .automaticSuccesses -
 
-    cleanseSelectivePenalty -
+    cleanseAccuracyPenalty -
     weakAttackSupportAccuracyPenalty
   );
 
-const rangePositioningPenalty = Math.max(
-  0,
-  -Number(attackTargeting.accuracyPenalty ?? 0)
-);
+const rangePositioningPenalty = qualityAttackModifier.ignoreNegativeAccuracyModifiers
+  ? 0
+  : Math.max(
+      0,
+      -Number(attackTargeting.accuracyPenalty ?? 0)
+    );
 
-const accuracySuccesses = Math.max(
+let accuracySuccesses = Math.max(
   0,
   accuracySuccessesBeforePositioningPenalty - rangePositioningPenalty
 );
+
+if (hugePowerReroll?.qualityId && hasQuality(attacker, "underwhelming")) {
+  accuracySuccesses = Math.max(0, accuracySuccesses - getQualityRank(findQuality(attacker, "underwhelming")));
+}
+
+let criticalArmsResult = null;
+if (hasQuality(attacker, "criticalArms") && getAttackQualityTags(attackItem).has("weapon")) {
+  const criticalRoll = await new Roll("2d6").evaluate();
+  criticalArmsResult = Number(criticalRoll.total);
+  if (criticalArmsResult === 2) accuracySuccesses = 0;
+  if (criticalArmsResult === 12) accuracySuccesses += 3;
+}
 
 const rangePositioningAccuracyNote = rangePositioningPenalty > 0
   ? `
@@ -719,7 +1287,9 @@ const rangePositioningAccuracyNote = rangePositioningPenalty > 0
   : "";
 
 const dodgeShouldHalve = weakAttackHalvesDodge ||
-  Boolean(declaredAttackQualityEffects?.halveDodge);
+  Boolean(clashContext?.halveDodge) ||
+  Boolean(declaredAttackQualityEffects?.halveDodge) ||
+  Boolean(attackOptions?.counterattackContext?.halveDodge);
 
 const equalAccuracyAndDodgeCountsAsMiss = Boolean(
   qualityAttackModifier
@@ -727,8 +1297,40 @@ const equalAccuracyAndDodgeCountsAsMiss = Boolean(
 );
 
 let dodgeResult;
+let teleportEscape = null;
 
-if (intercedeDeclaration) {
+if (
+  !intercedeDeclaration &&
+  !targetIsWillingForEffect &&
+  !qualityAttackModifier.sneakSuppressInterrupts &&
+  !attackOptions.suppressTargetInterrupts
+) {
+  teleportEscape = await requestTeleportEscape({ defender, attacker, attackItem });
+}
+
+if (teleportEscape?.used) {
+  dodgeResult = {
+    roll: null,
+    rolledSuccesses: 0,
+    automaticSuccesses: Math.max(1, accuracySuccesses + 1),
+    totalSuccesses: Math.max(1, accuracySuccesses + 1),
+    teleportEscape: true,
+    suppressSuccessfulDodgeTriggers: true,
+    suppressMissTriggers: true
+  };
+} else if (outsideClashAttackContext?.active) {
+  const syntheticDodge = attackFunctionType === "support"
+    ? Math.max(0, Number(outsideClashAttackContext.supportDodgeSuccesses ?? 0))
+    : 0;
+  dodgeResult = {
+    roll: null,
+    rolledSuccesses: 0,
+    automaticSuccesses: syntheticDodge,
+    totalSuccesses: syntheticDodge,
+    outsideClash: true,
+    suppressDodgePenalty: true
+  };
+} else if (intercedeDeclaration) {
   dodgeResult = {
     roll: null,
     rolledSuccesses: 0,
@@ -736,30 +1338,61 @@ if (intercedeDeclaration) {
     totalSuccesses: 0,
     interceded: true
   };
-} else if (isAlliedCleanse) {
+} else if (targetIsWillingForEffect) {
   dodgeResult = {
     roll: null,
     rolledSuccesses: 0,
     automaticSuccesses: 0,
-    totalSuccesses: 0
+    totalSuccesses: 0,
+    suppressSuccessfulDodgeTriggers: true,
+    suppressMissTriggers: true
+  };
+} else if (defender.flags?.["digimon-digital-adventures"]?.evokerCreation) {
+  dodgeResult = {
+    roll: null,
+    rolledSuccesses: 0,
+    automaticSuccesses: 0,
+    totalSuccesses: 0,
+    evokerCreationCannotDodge: true
   };
 } else if (defender.type === "character" && attackFunctionType === "support") {
   dodgeResult = await getAttackDodgeResult(
     defender,
     attackFunctionType,
-    defenderEffectModifiers.dodgeDice
+    defenderEffectModifiers.dodgeDice -
+      Math.max(0, Number(qualityAttackModifier.domainTargetDodgePenalty ?? 0))
   );
 } else {
+const defenderFreeNegativeContext = getFreeNegativeAttackContext(defender, attackItem);
+const moodDodgeBonus = defenderFreeNegativeContext.mood !== null && Number(defenderFreeNegativeContext.mood) > 4
+  ? Number(defenderFreeNegativeContext.mood) - 4
+  : 0;
 dodgeResult = await requestAttackDodgeResult({
   attacker,
   defender,
   attackItem,
   attackFunctionType,
-  effectDodgeModifier: defenderEffectModifiers.dodgeDice,
+  effectDodgeModifier: defenderEffectModifiers.dodgeDice +
+  moodDodgeBonus +
+  getSentryMeleeDodgePenalty(defender, attackItem) -
+  Math.max(0, Number(attackOptions?.counterattackContext?.dodgePenalty ?? 0)) - (
+    qualityAttackModifier.ignoresUncatchableTarget &&
+    defender.system?.qualityFeatures?.dataSpecialization?.uncatchableTarget
+      ? 3
+      : 0
+  ) - Math.max(0, Number(qualityAttackModifier.domainTargetDodgePenalty ?? 0)),
   accuracySuccesses,
   dodgeShouldHalve,
   equalAccuracyAndDodgeCountsAsMiss,
-  areaAttack: Boolean(areaAttackDeclaration?.active)
+  areaAttack: Boolean(areaAttackDeclaration?.active),
+  areaRequestId: String(areaBatch?.id ?? ""),
+  areaProgressMessageId: String(areaBatch?.progressMessageId ?? ""),
+  ignoresUncatchableTarget: Boolean(
+    qualityAttackModifier.ignoresUncatchableTarget
+  ),
+  suppressTargetInterrupts: Boolean(
+    qualityAttackModifier.sneakSuppressInterrupts
+  )
 });
 }
 
@@ -768,12 +1401,22 @@ if (!dodgeResult) {
   return;
 }
 
-let cleanseTargetHealthResult = null;
+let targetHealthPoolResult = null;
+const isAlliedForcedMovementEffect = Boolean(
+  targetIsAlly &&
+  activeEffectTags.some((tag) => ["pull", "push"].includes(getEffectTagKey(tag)))
+);
 
-if (isAlliedCleanse) {
-  cleanseTargetHealthResult = await rollCleanseTargetHealthPool(defender);
+if (targetIsWillingForEffect || isAlliedForcedMovementEffect) {
+  targetHealthPoolResult = await rollCleanseTargetHealthPool(defender, {
+    label: isAlliedCleanse
+      ? localize("DDA.Effect.Cleanse")
+      : isAlliedForcedMovementEffect
+        ? combatText("Movimento Forçado em Aliado", "Allied Forced Movement")
+        : combatText("Efeito Positivo", "Positive Effect")
+  });
 
-  if (!cleanseTargetHealthResult) {
+  if (!targetHealthPoolResult && (isAlliedCleanse || isAlliedForcedMovementEffect)) {
     ui.notifications.warn(localize("DDA.Warning.TargetHealthRollCancelledOrInvalid"));
     return;
   }
@@ -791,12 +1434,20 @@ const originalRawDodgeSuccesses =
     rawDodgeSuccesses
   );
 
-const dodgeSuccesses =
+let dodgeSuccesses =
   dodgeShouldHalve
     ? Math.ceil(
         rawDodgeSuccesses / 2
       )
     : rawDodgeSuccesses;
+
+let luckyMissResult = null;
+if (hasQuality(defender, "luckyMiss") && !dodgeResult.suppressSuccessfulDodgeTriggers) {
+  const luckyRoll = await new Roll("2d6").evaluate();
+  luckyMissResult = Number(luckyRoll.total);
+  if (luckyMissResult === 2) dodgeSuccesses = 0;
+  if (luckyMissResult === 12) dodgeSuccesses += 3;
+}
 
 const originalDodgeSuccesses =
   dodgeShouldHalve
@@ -809,12 +1460,42 @@ const tamerDefense = dodgeResult.tamerDefense ?? null;
 
 let hit = tamerDefense
   ? Number(tamerDefense.damage ?? 0) > 0
-  : accuracySuccesses > 0 &&
+  : targetIsWillingForEffect
+    ? true
+    : accuracySuccesses > 0 &&
     (
       equalAccuracyAndDodgeCountsAsMiss
         ? accuracySuccesses > dodgeSuccesses
         : accuracySuccesses >= dodgeSuccesses
     );
+
+if (criticalArmsResult === 2) hit = false;
+if (criticalArmsResult === 12) hit = true;
+
+if (criticalArmsResult === 2) {
+  const effects = foundry.utils.deepClone(attacker.system?.effects?.active ?? []);
+  effects.push({
+    id: foundry.utils.randomID(), tag: "disarm", label: "[DISARM]", sourceActorUuid: attacker.uuid,
+    durationRule: "combat", hasDuration: false, endsAtCombatEnd: true, removalActionCost: 2,
+    appliedCombatId: game.combat?.id ?? "", appliedCombatRound: Number(game.combat?.round ?? 0), appliedCombatTurn: Number(game.combat?.turn ?? -1)
+  });
+  await attacker.update({ "system.effects.active": effects });
+}
+
+const luckyMissMitigation = luckyMissResult === 12 && hit;
+if (luckyMissMitigation) {
+  qualityAttackModifier.luckyMissDamageHalved = true;
+  qualityAttackModifier.luckyMissEffectPenalty = 1;
+}
+
+await adjustPositiveReinforcementMood(attacker, hit ? 1 : -1, hit ? "attackHit" : "attackMiss");
+await adjustPositiveReinforcementMood(defender, hit ? -1 : 1, hit ? "wasHit" : "dodged");
+
+if (!hit && freeNegativeContext.slayerApplies) {
+  const selfWoundPath = attacker.type === "character" ? "system.derived.wounds.value" : "system.miscStats.wounds.value";
+  const currentSelfWounds = Math.max(0, Number(foundry.utils.getProperty(attacker, selfWoundPath) ?? 0));
+  await attacker.update({ [selfWoundPath]: Math.max(0, currentSelfWounds - getActorSv(attacker)) });
+}
 
 await incrementCoordinatedAssaultMarks(defender);
 
@@ -827,6 +1508,26 @@ const leftoverSuccesses = tamerDefense
       )
     : 0;
 
+const substituteResolution = hit && !tamerDefense
+  ? await requestSubstitute({
+      attacker,
+      defender,
+      suppressInterrupts: Boolean(
+        qualityAttackModifier.sneakSuppressInterrupts ||
+        attackOptions.suppressTargetInterrupts
+      ),
+      inClash: Boolean(
+        clashContext?.active ||
+        clashContext?.isClash ||
+        clashContext?.clashId
+      )
+    })
+  : { used: false, success: false };
+
+const attackDivertedBySubstitute = Boolean(
+  substituteResolution?.success
+);
+
 const defaultDamageBase = Number(attacker.system.mainStats?.damage?.total ?? 0);
 
 const attackerDamage = await evaluateAttackFormula(
@@ -836,7 +1537,12 @@ const attackerDamage = await evaluateAttackFormula(
 );
 
 const baseAttackDamageBonus = Number(attackItem.system.damage?.bonus ?? 0);
-const qualityDamageBonus = Number(qualityAttackModifier.damageBonus ?? 0);
+const clashFlatDamageBonus = Number(
+  attackOptions.flatDamageBonus ??
+  clashContext.flatDamageBonus ??
+  0
+);
+const qualityDamageBonus = Number(qualityAttackModifier.damageBonus ?? 0) + clashFlatDamageBonus;
 
 const baseUnalterableDamage = Number(attackItem.system.damage?.unalterable ?? 0);
 
@@ -890,21 +1596,63 @@ qualityAttackModifier
   .fumblePiercingDamageAfterPenalty =
     piercingUnalterableDamage;
 
+const signatureBatteryUnalterableDamage = Math.max(
+  0,
+  Number(qualityAttackModifier.signatureBatteryUnalterableDamage ?? 0)
+);
+
 const qualityUnalterableDamage =
   Number(qualityAttackModifier.unalterableDamage ?? 0) +
-  piercingUnalterableDamage;
+  piercingUnalterableDamage +
+  signatureBatteryUnalterableDamage;
+
+const signatureNormalDamageBonus = Math.max(
+  0,
+  signatureDamageBonus - signatureBatteryUnalterableDamage
+);
 
 const attackDamageBonus = baseAttackDamageBonus + qualityDamageBonus;
 const unalterableDamage = baseUnalterableDamage + qualityUnalterableDamage;
 
 const baseDefenderArmor = Number(defender.system.mainStats?.armor?.total ?? 0);
-const defenderArmor = Math.max(
+const intercedeArmorBonus = Math.max(
   0,
-  baseDefenderArmor + defenderEffectModifiers.armor
+  Number(intercedeDeclaration?.intercedeArmorBonus ?? 0)
+);
+const trueGuardianProtection = areaBatch?.trueGuardianProtection ?? null;
+const trueGuardianArmorBonus = Math.max(
+  0,
+  Number(trueGuardianProtection?.armorBonus ?? 0)
 );
 
+let defenderArmor = Math.max(
+  0,
+  baseDefenderArmor +
+    defenderEffectModifiers.armor +
+    intercedeArmorBonus +
+    trueGuardianArmorBonus -
+    Math.max(0, Number(qualityAttackModifier.domainTargetArmorPenalty ?? 0))
+);
 
-  const attackDealsDamage = attackItem.system.damage?.enabled !== false;
+const defenderMood = getFreeNegativeAttackContext(defender, attackItem).mood;
+if (defenderMood !== null && Number(defenderMood) < 3) {
+  defenderArmor = Math.max(0, defenderArmor - (3 - Number(defenderMood)));
+}
+
+if (attackOptions?.counterattackContext?.halveArmor) {
+  defenderArmor = Math.ceil(defenderArmor / 2);
+}
+
+if (
+  attackOptions?.punishingStrikeContext?.active &&
+  intercedeDeclaration
+) {
+  defenderArmor = Math.ceil(defenderArmor / 2);
+}
+
+  const attackDealsDamage = areaBatch?.functionTypeOverride === "damage"
+    ? true
+    : attackItem.system.damage?.enabled !== false;
 
   let normalDamage = 0;
   let finalDamage = 0;
@@ -915,13 +1663,17 @@ const defenderArmor = Math.max(
     normalDamage = Math.max(0, Number(tamerDefense.damage ?? 0));
     rawWeakAttackNormalDamage = normalDamage;
     finalDamage = normalDamage;
-  } else if (hit && attackDealsDamage) {
+  } else if (hit && attackDealsDamage && !attackDivertedBySubstitute) {
+    const minimumDamageAfterArmor = qualityAttackModifier.allowArmorToReduceDamageToZero
+      ? 0
+      : 1;
+
     normalDamage = Math.max(
-      1,
+      minimumDamageAfterArmor,
       attackerDamage +
         attackDamageBonus +
         attackerEffectModifiers.damage +
-        signatureDamageBonus +
+        signatureNormalDamageBonus +
         leftoverSuccesses +
         multiattackDamagePenalty -
         defenderArmor
@@ -955,25 +1707,42 @@ const defenderArmor = Math.max(
       qualityAttackModifier.feintDamageHalved = true;
     }
 
+    if (qualityAttackModifier.luckyMissDamageHalved) {
+      normalDamage = Math.ceil(normalDamage / 2);
+    }
+
     if (
       areaAttackDeclaration?.active &&
       attackFunctionType === "damage"
     ) {
-      const areaHalvedDamage = Math.ceil(
-        normalDamage / 2
+      const ignoresAreaHalving = Boolean(
+        qualityAttackModifier?.areaIgnoreDamageHalving
       );
 
-      const bombardmentFloor =
-        getZonerBombardmentDamageFloor({
-          attacker,
-          qualityAttackModifier,
-          areaAttackDeclaration,
-          damageAfterArmor: normalDamage
-        });
+      if (!ignoresAreaHalving) {
+        const areaHalvedDamage = Math.ceil(
+          normalDamage / 2
+        );
 
+        const bombardmentFloor =
+          getZonerBombardmentDamageFloor({
+            attacker,
+            qualityAttackModifier,
+            areaAttackDeclaration,
+            damageAfterArmor: normalDamage
+          });
+
+        normalDamage = Math.max(
+          areaHalvedDamage,
+          bombardmentFloor
+        );
+      }
+    }
+
+    if (outsideClashAttackContext?.active) {
       normalDamage = Math.max(
-        areaHalvedDamage,
-        bombardmentFloor
+        0,
+        normalDamage - Math.max(0, Number(outsideClashAttackContext.damageReduction ?? 0))
       );
     }
 
@@ -988,7 +1757,8 @@ const defenderArmor = Math.max(
         attackDealsDamage,
         attackFunctionType,
         normalDamage,
-        areaAttackDeclaration
+        areaAttackDeclaration,
+        areaBatch
       });
 
     if (postHitQualityEffects === null) {
@@ -1004,7 +1774,7 @@ const defenderArmor = Math.max(
     );
 
     normalDamage = Math.max(
-      0,
+      Math.max(0, Number(postHitQualityEffects.minimumNormalDamage ?? 0)),
       normalDamage -
         Number(
           postHitQualityEffects.damageReduction ?? 0
@@ -1015,19 +1785,64 @@ const defenderArmor = Math.max(
       normalDamage = 0;
     }
 
+    const braceResolution = await requestBrace({
+      attacker,
+      defender,
+      normalDamage,
+      interceded: Boolean(intercedeDeclaration),
+      suppressInterrupts: Boolean(
+        qualityAttackModifier.sneakSuppressInterrupts ||
+        attackOptions.suppressTargetInterrupts
+      )
+    });
+
+    if (braceResolution?.used) {
+      normalDamage = Math.max(
+        0,
+        Number(braceResolution.adjustedDamage ?? normalDamage)
+      );
+
+      postHitQualityEffects.notes ??= [];
+      postHitQualityEffects.notes.push(
+        braceResolution.criticalFailure
+          ? combatText(
+              `Preparar falhou criticamente: o Dano após Armadura aumentou para ${normalDamage}.`,
+              `Brace critically failed: Damage after Armor increased to ${normalDamage}.`
+            )
+          : braceResolution.success
+            ? combatText(
+                `Preparar reduziu o Dano após Armadura para ${normalDamage}.`,
+                `Brace reduced Damage after Armor to ${normalDamage}.`
+              )
+            : combatText(
+                "Preparar não reduziu o Dano.",
+                "Brace did not reduce the Damage."
+              )
+      );
+    }
+
     finalDamage = normalDamage + unalterableDamage;
 
-    qualityAttackModifier.drainHealing =
-      qualityAttackModifier.lifesteal
-        ? Math.min(
-            finalDamage,
-            getActorDerivedStat(attacker, "dos")
-          )
-        : 0;
+    qualityAttackModifier.drainHealing = 0;
+  } else if (attackDivertedBySubstitute) {
+    normalDamage = 0;
+    finalDamage = 0;
+    postHitQualityEffects = {
+      damageBonus: 0,
+      damageReduction: 0,
+      minimumNormalDamage: 0,
+      preventNormalDamage: true,
+      extraEffects: [],
+      notes: [combatText(
+        `Substituto desviou o Ataque; ${substituteResolution.cost ?? 0} Caixas de Ferimento verdadeiras foram perdidas.`,
+        `Substitute diverted the Attack; ${substituteResolution.cost ?? 0} true Wound Boxes were forfeited.`
+      )]
+    };
   }
 
   const gritDefenseDealsDamage = Boolean(
   dodgeResult.gritDefense &&
+  !attackDivertedBySubstitute &&
   attackDealsDamage &&
   attackFunctionType === "damage"
 );
@@ -1049,12 +1864,42 @@ if (gritMinimumDamageApplied) {
   );
 }
 
+const volatileElement = String(
+  attackItem.flags?.["digimon-digital-adventures"]?.element ?? ""
+).trim();
+const defenderNaturewalkElements = new Set(
+  defender.system?.qualityFeatures?.naturewalk?.elements ?? []
+);
+const volatileElementImmune = Boolean(
+  attackItem.flags?.["digimon-digital-adventures"]?.volatileExplosion &&
+  volatileElement &&
+  defender.system?.qualityFeatures?.elementMaster?.active &&
+  [...defenderNaturewalkElements].some((element) => identityForMatching(element) === identityForMatching(volatileElement))
+);
+if (volatileElementImmune) {
+  normalDamage = 0;
+  finalDamage = 0;
+}
+
 const gritDamageOnMiss = Boolean(
   gritDefenseDealsDamage &&
   !hit
 );
 
-const effectApplication = getAttackEffectApplication({
+const confuseAffectedStat = hit && activeEffectTags.some((tag) => getEffectTagKey(tag) === "confuse")
+  ? await getConfuseAffectedStatDeclaration(defender)
+  : "";
+
+const focusedResistance = hit && activeEffectTags.length && !attackDivertedBySubstitute
+  ? await requestFocusedResistance({
+      defender,
+      attacker,
+      attackItem,
+      effectTags: activeEffectTags
+    })
+  : { used: false, multiplier: 1, canNegate: hasQuality(defender, "immunity") };
+
+let effectApplication = getAttackEffectApplication({
   hit,
   attackItem,
   activeEffectTags,
@@ -1064,18 +1909,57 @@ const effectApplication = getAttackEffectApplication({
   defender,
   cleanseDeclaration,
   targetIsAlly,
-  cleanseTargetHealthSuccesses: Number(
-    cleanseTargetHealthResult
+  targetIsWilling: targetIsWillingForEffect,
+  positiveTargetHealthSuccesses: Number(
+    targetHealthPoolResult
       ?.totalSuccesses ?? 0
   ),
+  cleanseTargetHealthSuccesses: Number(
+    targetHealthPoolResult
+      ?.totalSuccesses ?? 0
+  ),
+  forcedMovementTargetHealthSuccesses: Number(
+    targetHealthPoolResult
+      ?.totalSuccesses ?? 0
+  ),
+  confuseAffectedStat,
 
   accuracySuccesses,
   qualityAttackModifier,
   areaAttackDeclaration,
   ignoreEffectResistance:
     attackOptions.calledShotMode === "focused" &&
-    leftoverSuccesses >= 1
+    leftoverSuccesses >= 1,
+  additionalDurationPenalty: Number(
+    declaredAttackQualityEffects?.effectDurationPenalty ?? 0
+  ) + Math.max(0, Number(qualityAttackModifier?.luckyMissEffectPenalty ?? 0)),
+  effectResistanceMultiplier: Number(focusedResistance?.multiplier ?? 1),
+  effectResistanceCanNegate: Boolean(focusedResistance?.canNegate)
   });
+
+if (attackDivertedBySubstitute) {
+  effectApplication = {
+    applied: [],
+    reason: combatText(
+      "Substituto desviou o dano e as Tags de Efeito do Ataque.",
+      "Substitute diverted the Attack's damage and Effect Tags."
+    )
+  };
+}
+
+if (Array.isArray(postHitQualityEffects?.extraEffects) && postHitQualityEffects.extraEffects.length) {
+  effectApplication.applied.push(...postHitQualityEffects.extraEffects);
+}
+
+if (trueGuardianProtection?.negateEffects && effectApplication.applied.length) {
+  effectApplication = {
+    applied: [],
+    reason: combatText(
+      `${trueGuardianProtection.guardianName || "Guardião Verdadeiro"} protegeu o alvo e negou as Tags de Efeito da Área de Ataque.`,
+      `${trueGuardianProtection.guardianName || "True Guardian"} protected the target and negated the Area Attack's Effect Tags.`
+    )
+  };
+}
 
 const resultLabel = hit
   ? localize("DDA.Attack.Result.Hit")
@@ -1181,13 +2065,48 @@ const clashWeakAttackDamageNote = isClashWeakAttack && attackFunctionType !== "s
   `
   : "";
 
+const outsideClashTechnicalNote = outsideClashAttackContext?.active
+  ? `
+    <li class="attack-clash-protection">
+      <strong>${combatText("Proteção de Clash", "Clash Protection")}</strong>:
+      ${attackFunctionType === "support"
+        ? combatText(
+            `Esquiva sintética ${Number(outsideClashAttackContext.supportDodgeSuccesses ?? 0)} pela proteção de RAM${outsideClashAttackContext.exposingHold ? " (Imobilização Exposta)" : ""}.`,
+            `Synthetic Dodge ${Number(outsideClashAttackContext.supportDodgeSuccesses ?? 0)} from RAM protection${outsideClashAttackContext.exposingHold ? " (Exposing Hold)" : ""}.`
+          )
+        : combatText(
+            `Redução de Dano ${Number(outsideClashAttackContext.damageReduction ?? 0)} após Armadura${outsideClashAttackContext.exposingHold ? " (Imobilização Exposta)" : ""}.`,
+            `Damage reduction ${Number(outsideClashAttackContext.damageReduction ?? 0)} after Armor${outsideClashAttackContext.exposingHold ? " (Exposing Hold)" : ""}.`
+          )}
+    </li>
+  `
+  : "";
+
 const areaAttackTechnicalNote = areaAttackDeclaration?.active
   ? `
     <li>
       <strong>${areaAttackDeclaration.label}</strong>:
+      ${areaAttackDeclaration.size > 0
+        ? `${combatText("Tamanho", "Size")} ${Number(areaAttackDeclaration.size)}; `
+        : ""}
+      ${areaAttackDeclaration.targetMode
+        ? `${combatText("alvos", "targets")}: ${escapeHtml(areaAttackDeclaration.targetMode)}; `
+        : ""}
       ${attackFunctionType === "damage"
-        ? "damage after Armor is halved, rounded up."
-        : "support area effects have their Potency and Duration reduced by 1 unless another rule says otherwise."}
+        ? combatText(
+            "o Dano após Armadura é reduzido pela metade, arredondado para cima.",
+            "damage after Armor is halved, rounded up."
+          )
+        : areaAttackDeclaration.targetMode === "all" &&
+          hasZonerOption(qualityAttackModifier, "firewallBypass")
+          ? combatText(
+              "Firewall Bypass impede a redução de Potência e Duração.",
+              "Firewall Bypass prevents the Potency and Duration reduction."
+            )
+          : combatText(
+              "a Potência e a Duração dos Efeitos são reduzidas em 1, salvo outra regra.",
+              "support area effects have their Potency and Duration reduced by 1 unless another rule says otherwise."
+            )}
     </li>
   `
   : "";
@@ -1319,6 +2238,7 @@ const qualitySpecialNote = buildAttackQualitySpecialNote({
   isSignature,
   currentBattery,
   areaAttackDeclaration,
+  areaBatch,
   declaredAttackQualityEffects,
   postHitQualityEffects
 });
@@ -1372,6 +2292,10 @@ if (usesInterruptPayment) {
             )
       }</p>`
     : "";
+  const lifestealApplicationId = String(
+    areaBatch?.id ?? foundry.utils.randomID()
+  );
+
   const tamerIntercedeMustResolve = Boolean(
     hit && intercedeDeclaration && defender.type === "character"
   );
@@ -1385,6 +2309,9 @@ if (usesInterruptPayment) {
         data-damage="1"
         data-hold-back="false"
         data-tamer-intercede="true"
+        data-focus-temp-multiplier="${Number(qualityAttackModifier.focusTemporaryWoundMultiplier ?? 1)}"
+        data-lifesteal-cap="${Number(qualityAttackModifier.lifestealHealingCap ?? 0)}"
+        data-lifesteal-key="${escapeHtml(lifestealApplicationId)}"
       >
         ${localizeQ("DDA.Intercede.ResolveTamer", "Resolve Tamer Intercede")}
       </button>`
@@ -1518,6 +2445,7 @@ ${
           }
 
           ${clashWeakAttackTechnicalNote}
+          ${outsideClashTechnicalNote}
           ${areaAttackTechnicalNote}
           ${
   attackerEffectModifiers.notes.length
@@ -1545,11 +2473,11 @@ ${localize("DDA.Attack.EffectsOnTarget")}:
     : ""
 }
           ${
-            qualityExtraActionCost !== 0
+            totalQualityExtraActionCost !== 0
               ? `
                 <li>
 ${localize("DDA.Attack.ExtraQualityCost")}:
-                  <strong>${qualityExtraActionCost}</strong>.
+                  <strong>${totalQualityExtraActionCost}</strong>.
                 </li>
               `
               : ""
@@ -1720,6 +2648,10 @@ ${
         data-damage="1"
         data-hold-back="${Boolean(attackOptions.holdBack)}"
         data-tamer-intercede="${Boolean(intercedeDeclaration && defender.type === "character")}"
+        data-digimon-intercede="${Boolean(intercedeDeclaration && defender.type !== "character")}"
+        data-focus-temp-multiplier="${Number(qualityAttackModifier.focusTemporaryWoundMultiplier ?? 1)}"
+        data-lifesteal-cap="${Number(qualityAttackModifier.lifestealHealingCap ?? 0)}"
+        data-lifesteal-key="${escapeHtml(lifestealApplicationId)}"
       >
         ${localize(
           "DDA.Attack.ApplyDamage"
@@ -1793,8 +2725,11 @@ ${
         ? `
           <li>
             ${localize("DDA.Attack.BatteryDamageBonus")}:
-            <strong>${signatureDamageBonus}</strong>.
+            <strong>${signatureNormalDamageBonus}</strong>.
           </li>
+          ${signatureBatteryUnalterableDamage > 0
+            ? `<li>${combatText("Bateria convertida em Dano Inalterável", "Battery converted to Unalterable Damage")}: <strong>${signatureBatteryUnalterableDamage}</strong>.</li>`
+            : ""}
         `
         : ""
     }
@@ -1813,6 +2748,16 @@ ${
     `
     : ""
 }
+    ${
+      intercedeArmorBonus > 0
+        ? `
+          <li>
+            <strong>${combatText("Guardião Verdadeiro", "True Guardian")}</strong>:
+            +${intercedeArmorBonus} ${combatText("Armadura neste ataque", "Armor for this attack")}.
+          </li>
+        `
+        : ""
+    }
     <li>
       ${localize("DDA.Attack.NormalDamage")}:
       <strong>${normalDamage}</strong>.
@@ -1852,8 +2797,13 @@ ${
   data-defender-uuid="${defender.uuid}"
   data-attacker-uuid="${attacker.uuid}"
   data-damage="${finalDamage}"
+  data-unalterable-portion="${unalterableDamage}"
   data-hold-back="${Boolean(attackOptions.holdBack)}"
   data-tamer-intercede="${Boolean(intercedeDeclaration && defender.type === "character")}"
+        data-digimon-intercede="${Boolean(intercedeDeclaration && defender.type !== "character")}"
+  data-focus-temp-multiplier="${Number(qualityAttackModifier.focusTemporaryWoundMultiplier ?? 1)}"
+  data-lifesteal-cap="${Number(qualityAttackModifier.lifestealHealingCap ?? 0)}"
+  data-lifesteal-key="${escapeHtml(lifestealApplicationId)}"
 >
   ${localize("DDA.Attack.ApplyDamage")}
 </button>
@@ -1870,91 +2820,281 @@ ${
     </div>
   `;
 
-  await ChatMessage.create({
+  const damageAmountForApplication = gritDamageOnMiss
+    ? 1
+    : (
+        hit &&
+        attackDealsDamage &&
+        Number(finalDamage) > 0
+          ? Number(finalDamage)
+          : 0
+      );
+
+  const areaDamageApplication = (
+    areaBatch?.active &&
+    damageAmountForApplication > 0
+  )
+    ? {
+        requestId: String(areaBatch.id ?? ""),
+        progressMessageId: String(areaBatch.progressMessageId ?? ""),
+        defenderUuid: String(defender.uuid ?? ""),
+        attackerUuid: String(attacker.uuid ?? ""),
+        damage: damageAmountForApplication,
+        holdBack: Boolean(attackOptions.holdBack),
+        tamerIntercede: Boolean(
+          intercedeDeclaration &&
+          defender.type === "character"
+        ),
+        digimonIntercede: Boolean(
+          intercedeDeclaration &&
+          defender.type !== "character"
+        ),
+        unalterable: false,
+        unalterablePortion: Math.max(0, Number(unalterableDamage)),
+        focusTempMultiplier: Number(
+          qualityAttackModifier.focusTemporaryWoundMultiplier ?? 1
+        ),
+        lifestealCap: Number(
+          qualityAttackModifier.lifestealHealingCap ?? 0
+        ),
+        lifestealKey: lifestealApplicationId,
+        applied: false,
+        appliedAt: null,
+        appliedByUserId: ""
+      }
+    : null;
+
+  const attackResultMessage = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: attacker }),
-    content
+    content,
+    flags: areaDamageApplication
+      ? {
+          [game.system.id]: {
+            areaAttackDamageEntry: areaDamageApplication
+          }
+        }
+      : {}
   });
 
-/*
- * A partir deste ponto o Ataque já foi completamente
- * resolvido e publicado no chat.
- *
- * Seus custos e usos devem ser confirmados antes das
- * automações secundárias, para que um erro posterior
- * não permita preservar Ações, Bateria ou usos.
- */
-if (isAmmoAttack) {
-  await markAmmoAttackUsedThisCombat(
-    attacker,
-    attackItem
-  );
-} else {
-  await markAttackUsed(
-    attacker,
-    isSignature,
-    effectiveAttacksMade + 1
-  );
+  if (areaDamageApplication) {
+    areaDamageApplication.messageId = String(attackResultMessage?.id ?? "");
 
-  if (usesSpeedSurgeAttackWindow) {
-    await consumeSpeedSurgeAttackWindow(
-      attacker,
-      speedSurgeAttackWindow.id
-    );
-  }
-
-  if (usesHasteAttackWindow) {
-    await consumeSpeedSurgeAttackWindow(
-      attacker,
-      hasteAttackWindow.id
-    );
-  }
-}
-
-if (!usesInterruptPayment && attackerActionCost > 0) {
-  await attacker.update(
-    {
-      "system.combat.actions.value":
-        Math.max(
-          0,
-          currentActions -
-          attackerActionCost
-        )
-    },
-    {
-      ddaChargeAttackAction:
-        chargeCanCombineMovement &&
-        !chargeMovementBeforeAttack
+    try {
+      await attackResultMessage?.update?.({
+        [`flags.${game.system.id}.areaAttackDamageEntry`]:
+          areaDamageApplication
+      });
+    } catch (error) {
+      console.warn(
+        "DDA | Could not store the Area Attack damage entry.",
+        error
+      );
     }
-  );
-}
+  }
 
-await resolveChargeMovementForAttack({
-  attacker,
-  chargeCanCombineMovement,
-  chargeMovementBeforeAttack,
-  chargeSignatureBatteryMoveBonus:
-    qualityAttackModifier.chargeSignatureBatteryMoveBonus
-});
+/*
+ * A partir deste ponto o Ataque já foi completamente resolvido e publicado.
+ * Ataques em Área adiam o pagamento único até todas as Esquivas individuais
+ * terminarem. O controlador recebe esta closure e a executa exatamente uma vez.
+ */
+let attackUseFinalized = false;
 
-if (hugePowerReroll?.qualityId) {
-  await spendHugePowerUse(
+const finalizeAttackUse = async ({ attackHit = hit } = {}) => {
+  if (attackUseFinalized) return;
+  attackUseFinalized = true;
+
+  if (isFreeStanceAttack || attackOptions.skipAttackUseTracking) {
+    // Free/replacement attacks do not consume Battery, Ammo, the one-Attack
+    // limit, Actions or once-per-roll resources unless their parent flow says so.
+  } else if (isAmmoAttack) {
+    await markAmmoAttackUsedThisCombat(
+      attacker,
+      attackItem
+    );
+  } else {
+    await markAttackUsed(
+      attacker,
+      isSignature,
+      effectiveAttacksMade + 1,
+      {
+        attackItem,
+        dataSpecializationMode: dataSpecializationAttackPermission.mode,
+          suppressRoundCount: usesCounterattackWindow || usesPunishingStrikeWindow
+      }
+    );
+
+    if (usesSpeedSurgeAttackWindow) {
+      await consumeSpeedSurgeAttackWindow(
+        attacker,
+        speedSurgeAttackWindow.id
+      );
+    }
+
+    if (usesHasteAttackWindow) {
+      await consumeSpeedSurgeAttackWindow(
+        attacker,
+        hasteAttackWindow.id
+      );
+    }
+  }
+
+  if (!usesInterruptPayment && attackerActionCost > 0) {
+    await attacker.update(
+      {
+        "system.combat.actions.value":
+          Math.max(
+            0,
+            currentActions - attackerActionCost
+          )
+      },
+      {
+        ddaChargeAttackAction:
+          chargeCanCombineMovement &&
+          !chargeMovementBeforeAttack
+      }
+    );
+  }
+
+  await resolveChargeMovementForAttack({
     attacker,
-    hugePowerReroll.qualityId
-  );
+    chargeCanCombineMovement,
+    chargeMovementBeforeAttack,
+    chargeSignatureBatteryMoveBonus:
+      qualityAttackModifier.chargeSignatureBatteryMoveBonus,
+    suppressAfterMovement: Boolean(
+      areaAttackDeclaration?.active &&
+      normalizeAttackTag(areaAttackDeclaration?.tag) === "t:pass"
+    )
+  });
+
+  if (!isFreeStanceAttack && hugePowerReroll?.qualityId) {
+    await spendHugePowerUse(
+      attacker,
+      hugePowerReroll.qualityId
+    );
+  }
+
+  if (attackHit && Number(qualityAttackModifier.combatMonsterResolveSpent ?? 0) > 0) {
+    await setCombatMonsterResolve(attacker, 0);
+  }
+};
+
+if (!areaBatch?.active && !hit && !dodgeResult?.suppressMissTriggers) {
+  await maybeTriggerFierceSoulRepeat({
+    attacker,
+    attackItem,
+    targetToken,
+    hit,
+    attackOptions
+  });
 }
 
-if (hit && Number(qualityAttackModifier.combatMonsterResolveSpent ?? 0) > 0) {
-  await setCombatMonsterResolve(attacker, 0);
+if (!areaBatch?.active) {
+  await finalizeAttackUse();
 }
 
-if (hit && Number(qualityAttackModifier.drainHealing ?? 0) > 0) {
-  await healActorWounds(attacker, Number(qualityAttackModifier.drainHealing ?? 0));
-}
+await resolveSharpDigizoidArmorRetaliation({
+  attacker,
+  defender,
+  attackItem,
+  hit
+});
 
 await recordBulletProofIncomingAttack(defender, attacker);
 
-  if (effectApplication.applied.length) {
-  await applyAttackEffectTags(defender, effectApplication.applied);
+let appliedEffectResolution = { applied: [], denied: null };
+if (effectApplication.applied.length) {
+  appliedEffectResolution = await applyAttackEffectTags(
+    defender,
+    effectApplication.applied
+  );
+
+  if (appliedEffectResolution.denied) {
+    effectApplication.deniedByDeny = appliedEffectResolution.denied;
+  }
+
+  if (appliedEffectResolution.applied.includes("shield")) {
+    await consumeProtectingShieldUse({
+      attacker,
+      attackItem,
+      executionId: effectExecutionId
+    });
+  }
+}
+
+if (!areaBatch?.active && appliedEffectResolution.applied.length) {
+  await resolveInspiringGuidanceAfterAttack({
+    attacker,
+    attackItem,
+    currentBattery,
+    isArea: false,
+    results: [{
+      attacker,
+      defender,
+      attackItem,
+      hit,
+      effectApplication: {
+        ...effectApplication,
+        applied: effectApplication.applied.filter((effect) => {
+          return appliedEffectResolution.applied.includes(getEffectTagKey(effect.tag));
+        })
+      }
+    }]
+  });
+}
+
+if (hit) {
+  await breakGlamorOnAttackHit(defender, attackItem);
+}
+
+if (!areaBatch?.active && hit) {
+  await resolveWardEmblemAfterAttack({ attacker, results: [{
+    attacker,
+    defender,
+    attackItem,
+    hit,
+    activeEffectTags,
+    effectApplication,
+    finalDamage,
+    normalDamage
+  }] });
+  if (String(attackFunctionType).toLowerCase() === "damage" && Number(qualityAttackModifier.braveHeartBonusUsed ?? 0) > 0) {
+    await consumeBraveHeartDamageBonus(attacker);
+  }
+}
+
+await resolveOffensiveForcedMovement({
+  attacker,
+  defender,
+  targetToken,
+  qualityAttackModifier,
+  attackOptions,
+  hit,
+  attackFunctionType,
+  leftoverSuccesses
+});
+
+await applyThereIsNoEscapeMovementPenalty({
+  attacker,
+  defender,
+  attackItem,
+  attackOptions,
+  hit,
+  normalDamage
+});
+
+await clearHiddenAfterInterference(attacker);
+
+if (!qualityAttackModifier.sneakSuppressInterrupts && !attackOptions.suppressTargetInterrupts) {
+  await maybeTriggerCounterattack({
+    attacker,
+    defender,
+    attackItem,
+    hit,
+    attackOptions,
+    intercedeDeclaration,
+    finalDamage
+  });
 }
 
 return {
@@ -1968,14 +3108,26 @@ return {
   normalDamage,
   unalterableDamage,
   finalDamage,
+  damageApplication: areaDamageApplication,
+  resultMessageId: String(attackResultMessage?.id ?? ""),
   totalActionCost,
   activeEffectTags,
   activeEffectTagLabels,
+  effectApplication,
+  appliedEffectResolution,
+  signatureBatteryAtDeclaration: currentBattery,
   qualityAttackModifier,
   attributeAdvantage: attributeAdvantageData,
   clashContext,
+accuracyRollResult: accuracyResult,
+hugePowerReroll,
+finalizeAttackUse: areaBatch?.active ? finalizeAttackUse : null,
 declaredAttackQualityEffects,
 postHitQualityEffects,
+substituteResolution,
+attackDivertedBySubstitute,
+focusedResistance,
+teleportEscape,
 interruptPayment,
 overpowerResult,
 
@@ -2001,72 +3153,93 @@ gritDamageOnMiss
 
 
 
-async function maybeConvertResolveWithAssuredDestruction(attacker, qualityAttackModifier, data) {
-  const resolve = Number(qualityAttackModifier?.combatMonsterResolveSpent ?? 0);
-  if (resolve <= 0 || !hasQuality(attacker, "assuredDestruction")) return;
+async function maybeConvertResolveWithAssuredDestruction(attacker, defender, qualityAttackModifier, data) {
+  const availableResolve = getCombatMonsterResolve(attacker);
+  if (
+    availableResolve <= 0 ||
+    !hasQuality(attacker, "assuredDestruction") ||
+    !defender ||
+    areActorsAllies(attacker, defender)
+  ) return 0;
 
-  const amount = await promptNumberForAttack(localizeQ("DDA.QualityAutomation.AssuredDestruction.Amount", "Resolve to convert into Accuracy dice"), 0, 0, resolve);
-  if (amount === null || amount <= 0) return;
+  const result = await convertResolveWithAssuredDestruction(attacker, {
+    maximum: availableResolve
+  });
+  const converted = Math.max(0, Number(result?.converted ?? 0));
+  if (converted <= 0) return 0;
 
-  const converted = Math.min(resolve, Math.max(0, Number(amount ?? 0)));
+  /*
+   * O Resolve convertido é gasto imediatamente. Apenas o Resolve restante
+   * continua disponível para virar Dano caso o Ataque acerte.
+   */
   qualityAttackModifier.damageBonus -= converted;
+  qualityAttackModifier.combatMonsterResolveSpent = Math.max(
+    0,
+    Number(result?.remaining ?? availableResolve - converted)
+  );
   data.accuracyBonus += converted;
-  data.notes.push(localizeQ("DDA.QualityAutomation.AssuredDestruction.Converted", "Assured Destruction converted {value} Resolve into Accuracy dice.", { value: converted }));
+  data.notes.push(localizeQ(
+    "DDA.QualityAutomation.AssuredDestruction.Converted",
+    "Assured Destruction converted {value} Resolve into Accuracy dice.",
+    { value: converted }
+  ));
+
+  return converted;
 }
 
 async function maybeTriggerSavageryOnAttackDeclare(attacker, data) {
-  const quality = findQuality(attacker, "savagery");
-  if (!quality) return;
-  const state = getCombatUseState(attacker, "savagery", quality.id);
-  if (state && Number(state.round ?? -1) === getCombatRound()) return;
-
-  const useIt = await promptUseQuality(quality, {
-    body: localizeQ("DDA.QualityAutomation.Savagery.Prompt", "Trigger Savagery for this attack declaration?"),
-    defaultYes: false
-  });
-  if (!useIt) return;
-
-  const tnIncrease = Number(attacker.system?.combat?.qualityAttackUses?.savagery?.[quality.id]?.tnIncrease ?? 0);
-  const tn = 15 - getActorDerivedStat(attacker, "dos") + tnIncrease;
-  const check = await rollDerivedCheck(attacker, "cpu", {
-    skillKey: "endurance",
-    tn,
-    title: localizeQ("DDA.QualityAutomation.Savagery.Title", "Savagery")
+  const result = await triggerSavagery(attacker, {
+    notes: data.notes
   });
 
-  if (!check) return;
-
-  const maxResolve = 4;
-  const selfDamage = Math.ceil(maxResolve / 2);
-
-  if (check.criticalFailure || !check.success) {
-    await loseActorWoundsDirectly(attacker, selfDamage);
-    await addCombatMonsterResolve(attacker, selfDamage);
-    data.notes.push(localizeQ("DDA.QualityAutomation.Savagery.Failure", "Savagery dealt {value} Unalterable Damage to the user and added it to Resolve.", { value: selfDamage }));
+  if (result?.insufficientWounds) {
+    data.notes.push(combatText(
+      "Selvageria não pôde ser ativada: o custo reduziria o Digimon a 0 Caixas de Ferimento.",
+      "Savagery could not be triggered: its cost would reduce the Digimon to 0 Wound Boxes."
+    ));
   }
 
-  if (check.success) {
-    await loseActorWoundsDirectly(attacker, selfDamage);
-    await addCombatMonsterResolve(attacker, selfDamage);
-    const tempGain = check.criticalSuccess ? selfDamage * 2 : selfDamage;
-    await addTemporaryWounds(attacker, tempGain);
-    data.notes.push(localizeQ("DDA.QualityAutomation.Savagery.Success", "Savagery dealt {damage} Unalterable Damage and granted {temp} Temporary Wound Boxes.", { damage: selfDamage, temp: tempGain }));
-  }
-
-  await setUseState(attacker, "savagery", quality.id, { tnIncrease: tnIncrease + 3 });
+  return result;
 }
 
-async function getDeclaredAttackQualityEffects({ attacker, defender, attackItem, qualityAttackModifier, totalActionCost, isSignature, areaAttackDeclaration } = {}) {
+async function getDeclaredAttackQualityEffects({ attacker, defender, attackItem, qualityAttackModifier, totalActionCost, unreducedDeclaredActionCost = totalActionCost, isSignature, areaAttackDeclaration, areaBatch = null, attackOptions = {} } = {}) {
   const data = {
     accuracyBonus: 0,
     halveDodge: false,
     halveDamageOnHit: false,
+    effectDurationPenalty: 0,
+    elementalForceUsed: null,
+    assuredDestructionConverted: 0,
     notes: []
   };
 
-  await maybeTriggerSavageryOnAttackDeclare(attacker, data);
+  const isAreaSecondary = Boolean(areaBatch?.active && areaBatch?.secondary);
 
-  await maybeConvertResolveWithAssuredDestruction(attacker, qualityAttackModifier, data);
+  if (!isAreaSecondary) {
+    await maybeTriggerSavageryOnAttackDeclare(attacker, data);
+    data.assuredDestructionConverted = await maybeConvertResolveWithAssuredDestruction(
+      attacker,
+      defender,
+      qualityAttackModifier,
+      data
+    );
+  } else {
+    const converted = Math.max(
+      0,
+      Number(areaBatch?.sharedAssuredDestructionConverted ?? 0)
+    );
+
+    if (converted > 0) {
+      /* O modificador secundário já lê apenas o Resolve restante. */
+      data.accuracyBonus += converted;
+      data.assuredDestructionConverted = converted;
+      data.notes.push(localizeQ(
+        "DDA.QualityAutomation.AssuredDestruction.Converted",
+        "Assured Destruction converted {value} Resolve into Accuracy dice.",
+        { value: converted }
+      ));
+    }
+  }
 
   if (qualityAttackModifier?.elementalForce) {
     const ef =
@@ -2086,21 +3259,30 @@ async function getDeclaredAttackQualityEffects({ attacker, defender, attackItem,
         : 1
     );
 
-    const useElement = await promptUseQuality(
-      ef.quality,
-      {
-        body: localizeQ(
-          "DDA.QualityAutomation.ElementalForce.Prompt",
-          "Trigger {quality} for +{bonus} Damage?",
-          {
-            quality: ef.quality.name,
-            bonus: elementalDamageBonus
-          }
-        ),
+    const hasSharedElementalChoice =
+      isAreaSecondary &&
+      areaBatch?.sharedElementalForceUsed !== null &&
+      areaBatch?.sharedElementalForceUsed !== undefined;
 
-        defaultYes: false
-      }
-    );
+    const useElement = hasSharedElementalChoice
+      ? Boolean(areaBatch.sharedElementalForceUsed)
+      : await promptUseQuality(
+          ef.quality,
+          {
+            body: localizeQ(
+              "DDA.QualityAutomation.ElementalForce.Prompt",
+              "Trigger {quality} for +{bonus} Damage?",
+              {
+                quality: ef.quality.name,
+                bonus: elementalDamageBonus
+              }
+            ),
+
+            defaultYes: false
+          }
+        );
+
+    data.elementalForceUsed = Boolean(useElement);
 
     if (useElement) {
       if (
@@ -2162,7 +3344,11 @@ async function getDeclaredAttackQualityEffects({ attacker, defender, attackItem,
     }
   }
 
-  if (qualityAttackModifier?.preciseFocus && !areaAttackDeclaration?.active && Number(totalActionCost ?? 0) >= 2) {
+  if (
+    qualityAttackModifier?.preciseFocus &&
+    !areaAttackDeclaration?.active &&
+    Number(unreducedDeclaredActionCost ?? totalActionCost ?? 0) >= 2
+  ) {
     const focusQuality = getQualityForAttackModifier(attacker, "preciseFocus");
     const tn = 12 + getActorDerivedStat(defender, "ram");
     const check = await rollDerivedCheck(attacker, "ram", {
@@ -2180,7 +3366,14 @@ async function getDeclaredAttackQualityEffects({ attacker, defender, attackItem,
     data.notes.push(localizeQ("DDA.QualityAutomation.PreciseFocus.Result", "Precise Focus: {bonus} Accuracy from the RAM (Precision) Check.", { bonus: bonus >= 0 ? `+${bonus}` : bonus }));
   }
 
-  if (qualityAttackModifier?.feintAttack && !areaAttackDeclaration?.active) {
+  const areaQualityAppliesToThisTarget = !areaAttackDeclaration?.active || Boolean(areaBatch?.isClosestAreaTarget);
+
+  if (
+    qualityAttackModifier?.feintAttack &&
+    areaQualityAppliesToThisTarget &&
+    !isClashAttackContext(attackOptions?.clashContext ?? {}) &&
+    !attackOptions?.counterattackContext?.active
+  ) {
     const feintQuality = getQualityForAttackModifier(attacker, "feintAttack");
     const useFeint = await promptUseQuality(feintQuality, {
       body: localizeQ("DDA.QualityAutomation.FeintAttack.Prompt", "Trigger Feint Attack against this target?"),
@@ -2200,6 +3393,9 @@ async function getDeclaredAttackQualityEffects({ attacker, defender, attackItem,
       } else if (check.success) {
         data.halveDodge = true;
         data.halveDamageOnHit = !check.criticalSuccess;
+        if (String(attackItem?.system?.baseTags?.functionType ?? "") === "support") {
+          data.effectDurationPenalty = 1;
+        }
         data.notes.push(check.criticalSuccess
           ? localizeQ("DDA.QualityAutomation.FeintAttack.CritSuccess", "Feint Attack critically succeeded: target Dodge is halved and damage is not halved.")
           : localizeQ("DDA.QualityAutomation.FeintAttack.Success", "Feint Attack succeeded: target Dodge is halved, but damage is halved after Armor."));
@@ -2211,18 +3407,76 @@ async function getDeclaredAttackQualityEffects({ attacker, defender, attackItem,
   return data;
 }
 
-async function getPostHitQualityEffects({ attacker, defender, qualityAttackModifier, hit, attackDealsDamage, attackFunctionType, normalDamage, areaAttackDeclaration } = {}) {
-  const data = { damageBonus: 0, damageReduction: 0, preventNormalDamage: false, notes: [] };
+function buildOffensiveQualityEffect({
+  tag,
+  attacker,
+  defender,
+  attackItem,
+  sourceName = "",
+  potency = 0,
+  duration = "special"
+} = {}) {
+  const hasNumericDuration = Number.isFinite(Number(duration));
+  return {
+    id: foundry.utils.randomID(),
+    tag,
+    label: sourceName || getEffectTagLabel(tag),
+    sourceAttackId: attackItem?.id ?? "",
+    sourceAttackName: attackItem?.name ?? sourceName,
+    sourceActorUuid: attacker?.uuid ?? "",
+    sourceActorName: attacker?.name ?? "",
+    targetActorUuid: defender?.uuid ?? "",
+    targetActorName: defender?.name ?? "",
+    appliedCombatId: game.combat?.id ?? "",
+    appliedCombatRound: Number(game.combat?.round ?? 0),
+    appliedCombatTurn: Number(game.combat?.turn ?? -1),
+    effectType: tag === "poison" ? "damage" : "unique",
+    potency: Math.max(0, Number(potency ?? 0)),
+    value: Math.max(0, Number(potency ?? 0)),
+    durationRule: hasNumericDuration ? true : duration,
+    hasDuration: hasNumericDuration,
+    hasSpecialDuration: !hasNumericDuration,
+    duration: hasNumericDuration ? Math.max(0, Number(duration)) : 0,
+    remaining: hasNumericDuration ? Math.max(0, Number(duration)) : 0,
+    maxDuration: hasNumericDuration ? Math.max(0, Number(duration)) : 0
+  };
+}
+
+async function getPostHitQualityEffects({ attacker, defender, attackItem, qualityAttackModifier, hit, attackDealsDamage, attackFunctionType, normalDamage, areaAttackDeclaration, areaBatch = null } = {}) {
+  const data = {
+    damageBonus: 0,
+    damageReduction: 0,
+    minimumNormalDamage: 0,
+    preventNormalDamage: false,
+    extraEffects: [],
+    notes: []
+  };
   if (!hit || !attackDealsDamage) return data;
 
-  if (qualityAttackModifier?.mightyBlow && attackFunctionType === "damage" && Number(normalDamage ?? 0) >= 2) {
+  applyDigizoidPostHitRules(data, {
+    attacker,
+    defender,
+    attackItem,
+    qualityAttackModifier,
+    attackFunctionType
+  });
+
+  const areaQualityAppliesToThisTarget = !areaAttackDeclaration?.active || Boolean(areaBatch?.isClosestAreaTarget);
+
+  if (
+    qualityAttackModifier?.mightyBlow &&
+    areaQualityAppliesToThisTarget &&
+    attackFunctionType === "damage" &&
+    Number(normalDamage ?? 0) >= 2
+  ) {
     const mightyQuality = getQualityForAttackModifier(attacker, "mightyBlow");
-    const useMighty = !areaAttackDeclaration?.active && await promptUseQuality(mightyQuality, {
+    const useMighty = await promptUseQuality(mightyQuality, {
       body: localizeQ("DDA.QualityAutomation.MightyBlow.Prompt", "Trigger Mighty Blow to try to inflict [STUN]?"),
       defaultYes: false
     });
     if (useMighty) {
-      const tn = 10 + getActorDerivedStat(defender, "cpu") + getEscalatingTn(attacker, mightyQuality, "mightyBlow");
+      const exploitablePenalty = hasQuality(defender, "exploitableProgram") && !areActorsAllies(attacker, defender) ? 3 : 0;
+      const tn = Math.max(0, 10 + getActorDerivedStat(defender, "cpu") + getEscalatingTn(attacker, mightyQuality, "mightyBlow") - exploitablePenalty);
       const check = await rollDerivedCheck(attacker, "cpu", {
         skillKey: "featsOfStrength",
         tn,
@@ -2234,40 +3488,78 @@ async function getPostHitQualityEffects({ attacker, defender, qualityAttackModif
         data.notes.push(localizeQ("DDA.QualityAutomation.MightyBlow.CritFail", "Mighty Blow critically failed: -1 Damage."));
       } else if (check.criticalSuccess) {
         data.damageBonus += 2;
+        data.extraEffects.push(buildOffensiveQualityEffect({
+          tag: "stun",
+          attacker,
+          defender,
+          attackItem,
+          sourceName: mightyQuality?.name ?? "Mighty Blow"
+        }));
         data.notes.push(localizeQ("DDA.QualityAutomation.MightyBlow.CritSuccess", "Mighty Blow critically succeeded: [STUN] applies and +2 Damage."));
-        data.notes.push(localizeQ("DDA.QualityAutomation.EffectAssist", "Apply/track the listed Effect on the target from the chat card or Effect panel."));
       } else if (check.success) {
+        data.extraEffects.push(buildOffensiveQualityEffect({
+          tag: "stun",
+          attacker,
+          defender,
+          attackItem,
+          sourceName: mightyQuality?.name ?? "Mighty Blow"
+        }));
         data.notes.push(localizeQ("DDA.QualityAutomation.MightyBlow.Success", "Mighty Blow succeeded: [STUN] applies."));
-        data.notes.push(localizeQ("DDA.QualityAutomation.EffectAssist", "Apply/track the listed Effect on the target from the chat card or Effect panel."));
       }
       await increaseEscalatingTn(attacker, mightyQuality, "mightyBlow", 3);
     }
   }
 
-  if (hasQuality(defender, "brace") && Number(normalDamage ?? 0) > 0) {
-    const braceQuality = findQuality(defender, "brace");
-    if (braceQuality && canSpendQuality(braceQuality)) {
-      const useBrace = await promptUseQuality(braceQuality, {
-        body: localizeQ("DDA.QualityAutomation.Brace.Prompt", "Use Brace to reduce incoming damage?"),
-        defaultYes: false
+  if (
+    qualityAttackModifier?.venomous &&
+    !areaAttackDeclaration?.active &&
+    attackFunctionType === "damage"
+  ) {
+    const venomQuality = getQualityForAttackModifier(attacker, "venomous");
+    const tn = 10 + getActorDerivedStat(defender, "ram");
+    const check = await rollDerivedCheck(attacker, "bit", {
+      skillKey: "survival",
+      tn,
+      title: venomQuality?.name ?? localizeQ("DDA.QualityAutomation.Venomous.Name", "Venomous")
+    });
+
+    if (!check) return null;
+
+    if (check.criticalFailure) {
+      data.damageReduction += 1;
+      data.minimumNormalDamage = Math.max(data.minimumNormalDamage, 1);
+      data.notes.push(combatText(
+        "Venenoso falhou criticamente: -1 Dano, mínimo 1.",
+        "Venomous critically failed: -1 Damage, minimum 1."
+      ));
+    } else if (check.success) {
+      const batteryBonus = attackItem?.system?.isSignature
+        ? Math.max(0, Number(attacker.system?.resources?.battery?.value ?? 0))
+        : 0;
+      const existingPoison = (defender.system?.effects?.active ?? []).find((effect) => {
+        return getEffectTagKey(effect?.tag) === "poison";
       });
-      if (useBrace) {
-        const tn = 10 + Number(normalDamage ?? 0) + getEscalatingTn(defender, braceQuality, "brace");
-        const check = await rollDerivedCheck(defender, "cpu", { skillKey: "endurance", tn, title: localizeQ("DDA.QualityAutomation.Brace.Check", "Brace") });
-        if (!check) return null;
-        if (check.criticalFailure) {
-          data.damageBonus += 1;
-          data.notes.push(localizeQ("DDA.QualityAutomation.Brace.CritFail", "Brace critically failed: incoming damage +1."));
-        } else if (check.success) {
-          const reduced = Math.floor(Number(normalDamage ?? 0) / 2);
-          const reduction = Number(normalDamage ?? 0) - reduced;
-          data.damageReduction += reduction;
-          if (check.criticalSuccess && reduced === 1) data.damageReduction += 1;
-          data.notes.push(localizeQ("DDA.QualityAutomation.Brace.Success", "Brace reduced the damage after Armor."));
-        }
-        await spendAutomationQualityUse(defender, braceQuality, { bucket: "brace" });
-        await increaseEscalatingTn(defender, braceQuality, "brace", 3);
-      }
+      const existingPotency = Math.max(
+        0,
+        Number(existingPoison?.potency ?? existingPoison?.value ?? 0)
+      );
+      const potency = (existingPoison ? existingPotency : 0) +
+        1 +
+        (check.criticalSuccess ? 1 : 0) +
+        batteryBonus;
+      data.extraEffects.push(buildOffensiveQualityEffect({
+        tag: "poison",
+        attacker,
+        defender,
+        attackItem,
+        sourceName: venomQuality?.name ?? "Venomous",
+        potency,
+        duration: 1
+      }));
+      data.notes.push(combatText(
+        `Venenoso aplicou [POISON ${potency}] por 1 Rodada.`,
+        `Venomous applied [POISON ${potency}] for 1 Round.`
+      ));
     }
   }
 
@@ -2307,7 +3599,9 @@ async function getAreaAttackDeclaration(attacker, attackItem, qualityAttackModif
     return {
       active: true,
       tag: selectedTag,
-      label
+      label: attackOptions.areaAttackLabel ?? label,
+      size: Number(attackOptions.areaAttackSize ?? 0),
+      targetMode: String(attackOptions.areaAttackTargetMode ?? "")
     };
   }
 
@@ -2340,7 +3634,8 @@ async function resolveChargeMovementForAttack({
   attacker,
   chargeCanCombineMovement = false,
   chargeMovementBeforeAttack = false,
-  chargeSignatureBatteryMoveBonus = 0
+  chargeSignatureBatteryMoveBonus = 0,
+  suppressAfterMovement = false
 } = {}) {
   if (!chargeCanCombineMovement) return false;
 
@@ -2353,11 +3648,54 @@ async function resolveChargeMovementForAttack({
     );
   }
 
-  /*
-   * Charge Movement must happen before the roll. Never grant a fresh
-   * Movement session after the Attack has already been resolved.
-   */
-  return false;
+  if (suppressAfterMovement || tracker.hasActiveMovementSession?.(attacker)) {
+    return false;
+  }
+
+  const maximum = Math.max(
+    0,
+    Number(
+      tracker.getChargeMovementCapacity?.(
+        attacker,
+        chargeSignatureBatteryMoveBonus,
+        1
+      ) ?? 0
+    )
+  );
+
+  if (maximum <= 0) return false;
+
+  let useMovement = false;
+  try {
+    useMovement = Boolean(
+      await foundry.applications.api.DialogV2.confirm({
+          classes: ["dda", "dda-area-attack-dialog", "dda-offensive-quality-window"],
+        window: {
+          title: combatText("Movimento após [CHARGE]", "Post-[CHARGE] Movement")
+        },
+        content: `<div class="dda-confirm-dialog dda-offensive-quality-dialog"><p>${combatText(
+          `Mover até ${maximum} Espaços em linha reta após o Ataque? A Ação já foi paga pelo [CHARGE].`,
+          `Move up to ${maximum} Spaces in a straight line after the Attack? The Action was already paid by [CHARGE].`
+        )}</p></div>`,
+        yes: { label: combatText("Mover", "Move") },
+        no: { label: combatText("Encerrar", "Finish") },
+        rejectClose: false,
+        modal: true
+      })
+    );
+  } catch (_error) {
+    useMovement = false;
+  }
+
+  if (!useMovement) return false;
+
+  return Boolean(await tracker.grantMovement?.(attacker, maximum, {
+    kind: "charge-post",
+    source: "charge",
+    actionCost: 0,
+    requireStraightLine: true,
+    label: combatText("Movimento após [CHARGE]", "Post-[CHARGE] Movement")
+  }));
 }
 
 function isTokenVisibleToCurrentUser(token) {
@@ -2616,6 +3954,10 @@ async function getHugePowerRerollDeclaration(attacker, attackOptions = {}) {
   });
 
   if (!quality) {
+    return {};
+  }
+
+  if (hasQuality(attacker, "underwhelming") && getAttackQualityTags(attackOptions.attackItem).has("certain")) {
     return {};
   }
 
@@ -3548,13 +4890,6 @@ function getWeaponMeleeFourSuccesses(
 
 
 
-async function loseActorWoundsDirectly(actor, amount) {
-  const damage = Math.max(0, Number(amount ?? 0));
-  if (!actor || damage <= 0) return;
-  const path = actor.type === "character" ? "system.derived.wounds.value" : "system.miscStats.wounds.value";
-  const current = Number(foundry.utils.getProperty(actor, path) ?? 0);
-  await actor.update({ [path]: Math.max(0, current - damage) });
-}
 
 function absorbGainWithDoom(actor, amount) {
   const requested = Math.max(0, Number(amount ?? 0));
@@ -3579,60 +4914,7 @@ function absorbGainWithDoom(actor, amount) {
   };
 }
 
-async function addTemporaryWounds(actor, amount) {
-  if (!actor) return;
-  const doom = absorbGainWithDoom(actor, amount);
-  const value = doom.remaining;
-  if (value <= 0) {
-    if (doom.changed) await actor.update({ "system.effects.active": doom.effects });
-    return;
-  }
-  const path = actor.type === "character" ? "system.derived.wounds.temp.value" : "system.miscStats.wounds.temp.value";
-  const current = Number(foundry.utils.getProperty(actor, path) ?? 0);
-  await actor.update({
-    [path]: current + value,
-    ...(doom.changed ? { "system.effects.active": doom.effects } : {})
-  });
-}
 
-async function addCombatMonsterResolve(actor, amount) {
-  if (!actor || !hasQuality(actor, "combatMonster")) return;
-
-  const resolveMax = Math.max(1, Number(actor.system?.resources?.resolve?.max ?? 4));
-  const visibleResolve = Number(actor.system?.resources?.resolve?.value ?? 0);
-
-  const qualityAttackUses = foundry.utils.deepClone(actor.system?.combat?.qualityAttackUses ?? {});
-  qualityAttackUses.combatMonster ??= {};
-
-  const hiddenResolve = Number(qualityAttackUses.combatMonster.resolve ?? 0);
-  const current = Math.max(0, visibleResolve, hiddenResolve);
-  const nextResolve = Math.min(resolveMax, Math.max(0, current + Number(amount ?? 0)));
-
-  qualityAttackUses.combatMonster.resolve = nextResolve;
-  qualityAttackUses.combatMonster.combatId = getCombatId();
-
-  await actor.update({
-    "system.resources.resolve.enabled": true,
-    "system.resources.resolve.value": nextResolve,
-    "system.resources.resolve.max": resolveMax,
-    "system.combat.qualityAttackUses": qualityAttackUses
-  });
-}
-
-async function promptNumberForAttack(title, value = 0, min = 0, max = 999) {
-  return await new Promise((resolve) => {
-    new Dialog({
-      title,
-      content: `<form><div class="form-group"><label>${title}</label><input type="number" name="value" value="${Number(value ?? 0)}" min="${Number(min ?? 0)}" max="${Number(max ?? 999)}" /></div></form>`,
-      buttons: {
-        ok: { label: localize("DDA.Button.Confirm"), callback: (html) => resolve(Number(html.find("[name='value']").val() ?? 0)) },
-        cancel: { label: localize("DDA.Button.Cancel"), callback: () => resolve(null) }
-      },
-      default: "ok",
-      close: () => resolve(null)
-    }).render(true);
-  });
-}
 
 function getQualityForAttackModifier(actor, modifierFlag) {
   return actor?.items?.find((item) => item.type === "quality" && Boolean(item.system?.attackModifier?.[modifierFlag])) ?? null;
@@ -3712,34 +4994,6 @@ function getElementalForceAttackData(attacker, attackItem) {
     elementLabel: element.toUpperCase(),
     damageBonus: 1 + rank
   };
-}
-
-function getCombatMonsterResolve(actor) {
-  if (!hasQuality(actor, "combatMonster")) return 0;
-
-  const visibleResolve = Number(actor.system?.resources?.resolve?.value ?? 0);
-  const hiddenResolve = Number(actor.system?.combat?.qualityAttackUses?.combatMonster?.resolve ?? 0);
-
-  return Math.max(0, visibleResolve, hiddenResolve);
-}
-
-async function setCombatMonsterResolve(actor, value) {
-  const resolveMax = Math.max(1, Number(actor.system?.resources?.resolve?.max ?? 4));
-  const nextResolve = Math.clamp
-    ? Math.clamp(Number(value ?? 0), 0, resolveMax)
-    : Math.min(resolveMax, Math.max(0, Number(value ?? 0)));
-
-  const qualityAttackUses = foundry.utils.deepClone(actor.system?.combat?.qualityAttackUses ?? {});
-  qualityAttackUses.combatMonster ??= {};
-  qualityAttackUses.combatMonster.resolve = nextResolve;
-  qualityAttackUses.combatMonster.combatId = getCombatId();
-
-  await actor.update({
-    "system.resources.resolve.enabled": true,
-    "system.resources.resolve.value": nextResolve,
-    "system.resources.resolve.max": resolveMax,
-    "system.combat.qualityAttackUses": qualityAttackUses
-  });
 }
 
 function findBulletProofQualityForAttack(actor) {
@@ -3844,8 +5098,7 @@ function getBulletProofAttackModifier(attacker, defender) {
 
   if (
     !entry ||
-    String(entry.combatId ?? "") !== getCombatId() ||
-    Number(entry.round ?? -1) !== getCombatRound()
+    String(entry.combatId ?? "") !== getCombatId()
   ) {
     return null;
   }
@@ -3891,9 +5144,12 @@ function getBulletProofAttackModifier(attacker, defender) {
 
 function getWatchfulHunterAttackModifier(attacker, defender, rangeType = "") {
   if (!attacker || !defender) return null;
-  const entry = attacker.system?.combat?.qualityAttackUses?.watchfulHunter?.[defender.uuid];
+  const modern = attacker.system?.combat?.offensiveQualities?.watchfulHunter;
+  const legacy = attacker.system?.combat?.qualityAttackUses?.watchfulHunter?.[defender.uuid];
+  const entry = modern?.targetUuid === defender.uuid ? modern : legacy;
   if (!entry) return null;
-  if (String(entry.combatId ?? "") !== getCombatId()) return null;
+  if (legacy && String(entry.combatId ?? "") !== getCombatId()) return null;
+  if (modern && !entry.active && String(entry.mode ?? "none") === "none") return null;
   const mode = String(entry.mode ?? "melee");
   if (mode !== "all" && rangeType !== "melee") return null;
   const bonus = Number(entry.bonus ?? 2);
@@ -3920,8 +5176,7 @@ async function recordBulletProofIncomingAttack(defender, attacker) {
 
   const currentCount =
     existing &&
-    String(existing.combatId ?? "") === getCombatId() &&
-    Number(existing.round ?? -1) === getCombatRound()
+    String(existing.combatId ?? "") === getCombatId()
       ? Number(existing.count ?? 0)
       : 0;
 
@@ -4131,6 +5386,7 @@ function buildAttackQualitySpecialNote({
   isSignature,
   currentBattery,
   areaAttackDeclaration,
+  areaBatch = null,
   declaredAttackQualityEffects = {},
   postHitQualityEffects = {}
 } = {}) {
@@ -4173,6 +5429,14 @@ function buildAttackQualitySpecialNote({
 
   if (areaAttackDeclaration?.active) {
     notes.push(`${areaAttackDeclaration.label} was declared as active for this Attack.`);
+  }
+
+  if (areaBatch?.trueGuardianProtection?.active) {
+    const protection = areaBatch.trueGuardianProtection;
+    notes.push(combatText(
+      `${protection.guardianName || "Guardião Verdadeiro"} concede +${Number(protection.armorBonus ?? 0)} de Armadura e nega as Tags de Efeito por estar entre o alvo e a origem da Área.`,
+      `${protection.guardianName || "True Guardian"} grants +${Number(protection.armorBonus ?? 0)} Armor and negates Effect Tags by standing between the target and the Area origin.`
+    ));
   }
 
     if (
@@ -4271,6 +5535,7 @@ function buildAttackQualitySpecialNote({
 
   if (
     areaAttackDeclaration?.active &&
+    areaAttackDeclaration?.targetMode === "all" &&
     hasZonerOption(
       qualityAttackModifier,
       "bombardment"
@@ -4303,7 +5568,11 @@ function buildAttackQualitySpecialNote({
 
 function getAppliedAttackQualityModifier(attacker, attackItem, options = {}) {
   const rangeType = attackItem.system.baseTags?.rangeType ?? "";
-  const functionType = attackItem.system.baseTags?.functionType ?? "";
+  const functionType = String(
+    options?.areaBatch?.functionTypeOverride ??
+    attackItem.system.baseTags?.functionType ??
+    ""
+  ).trim().toLowerCase();
   const isSignature = Boolean(attackItem.system.isSignature);
   const attackQualityTags = getAttackQualityTags(attackItem);
 
@@ -4354,6 +5623,7 @@ function getAppliedAttackQualityModifier(attacker, attackItem, options = {}) {
     fragileEffectDurationPenalty: 0,
 
     certainSignatureBatteryAutomaticSuccessBonus: 0,
+    signatureBatteryUnalterableDamage: 0,
     weaponMeleeFourSuccessesMax: 0,
     rangeBonus: 0,
     effectiveLimitBonus: 0,
@@ -4375,6 +5645,11 @@ function getAppliedAttackQualityModifier(attacker, attackItem, options = {}) {
     actionCostReduction: 0,
     actionCostMinimum: 0,
     meleeReachBonus: 0,
+    longArmsAccuracyPenalty: 0,
+    sneakAccuracyBonus: 0,
+    sneakSuppressInterrupts: false,
+    focusTemporaryWoundMultiplier: 1,
+    lifestealHealingCap: 0,
     sneakRangeExtraActionCost: 0,
     venomous: false,
     areaAttackTags: [],
@@ -4390,8 +5665,54 @@ function getAppliedAttackQualityModifier(attacker, attackItem, options = {}) {
     drainHealing: 0,
     combatMonsterResolveSpent: 0,
     bulletProofPenalty: 0,
-    temporaryWoundBoxesDamageMultiplier: 1
+    allowArmorToReduceDamageToZero: false,
+    temporaryWoundBoxesDamageMultiplier: 1,
+    dataSpecialization: null,
+    areaInsideBaseSize: Boolean(options?.areaBatch?.insideBaseSize),
+    areaIgnoreDamageHalving: false,
+    areaEffectMinimumDamage: 0,
+    ignoresUncatchableTarget: false,
+    ignoreNegativeAccuracyModifiers: false,
+    stanceBlocked: false,
+    stanceBlockedMessage: "",
+    braveHeartBonusUsed: 0,
+    domainExploitPotency: 0,
+    domainTargetDodgePenalty: 0,
+    domainTargetArmorPenalty: 0
   };
+
+  /*
+   * [DOT] substitui completamente os Ataques do Digimon por dois Ataques
+   * básicos. Eles usam os Totais de Precisão e Dano, mas não recebem Tags,
+   * bônus de Qualidades de Ataque, Posturas ou Especializações.
+   */
+  if (attackItem?.flags?.[game.system.id]?.dotSynthetic) {
+    return modifierTotal;
+  }
+
+  const stanceModifier = getStanceAttackModifier(attacker, attackItem, options);
+  if (stanceModifier) {
+    modifierTotal.accuracyBonus += Number(stanceModifier.accuracyBonus ?? 0);
+    modifierTotal.damageBonus += Number(stanceModifier.damageBonus ?? 0);
+    modifierTotal.rangeBonus += Number(stanceModifier.rangeBonus ?? 0);
+    modifierTotal.effectiveLimitBonus += Number(stanceModifier.effectiveLimitBonus ?? 0);
+    modifierTotal.ignoreNegativeAccuracyModifiers = Boolean(stanceModifier.ignoreNegativeAccuracyModifiers);
+    modifierTotal.stanceBlocked = Boolean(stanceModifier.blocked);
+    modifierTotal.stanceBlockedMessage = String(stanceModifier.blockedMessage ?? "");
+    modifierTotal.braveHeartBonusUsed = Math.max(0, Number(stanceModifier.braveHeartBonusUsed ?? 0));
+    modifierTotal.qualities.push(...(stanceModifier.qualities ?? []));
+  }
+
+  const domainModifier = getDomainAttackModifier(attacker, options.defender);
+  if (domainModifier) {
+    modifierTotal.accuracyBonus += Number(domainModifier.accuracyBonus ?? 0);
+    modifierTotal.damageBonus += Number(domainModifier.damageBonus ?? 0);
+    modifierTotal.domainExploitPotency = Math.max(0, Number(domainModifier.exploitPotency ?? 0));
+    modifierTotal.domainTargetDodgePenalty += Math.max(0, Number(domainModifier.targetDodgePenalty ?? 0));
+    modifierTotal.domainTargetArmorPenalty += Math.max(0, Number(domainModifier.targetArmorPenalty ?? 0));
+    if (domainModifier.quality) modifierTotal.qualities.push(domainModifier.quality);
+    modifierTotal.qualities.push(...(domainModifier.qualities ?? []));
+  }
 
     const dataOptimizationModifier = getDataOptimizationAttackModifier(attacker, attackItem, {
     ...options,
@@ -4408,11 +5729,77 @@ function getAppliedAttackQualityModifier(attacker, attackItem, options = {}) {
     modifierTotal.qualities.push(dataOptimizationModifier.quality);
   }
 
+  const dataSpecializationModifier = getDataSpecializationAttackModifier(
+    attacker,
+    attackItem,
+    {
+      ...options,
+      rangeType,
+      functionType
+    }
+  );
+
+  if (dataSpecializationModifier) {
+    modifierTotal.damageBonus += dataSpecializationModifier.damageBonus;
+    modifierTotal.rangeBonus += dataSpecializationModifier.rangeBonus;
+    modifierTotal.effectiveLimitBonus += dataSpecializationModifier.effectiveLimitBonus;
+    modifierTotal.dataSpecialization = dataSpecializationModifier;
+    modifierTotal.ignoresUncatchableTarget = Boolean(
+      dataSpecializationModifier.sniper
+    );
+
+    const isInsideBaseSize = Boolean(options?.areaBatch?.insideBaseSize);
+    const isMeleeDamage = rangeType === "melee" && functionType === "damage";
+    const isRangedDamage = ["range", "ranged"].includes(rangeType) && functionType === "damage";
+
+    modifierTotal.areaIgnoreDamageHalving = Boolean(
+      isInsideBaseSize &&
+      (
+        (dataSpecializationModifier.fistfulOfForce && isMeleeDamage) ||
+        (dataSpecializationModifier.mobileArtillery && isRangedDamage)
+      )
+    );
+
+    modifierTotal.areaEffectMinimumDamage = Boolean(
+      isInsideBaseSize &&
+      dataSpecializationModifier.mobileArtillery &&
+      isRangedDamage
+    ) ? 4 : 0;
+
+    if (
+      dataSpecializationModifier.quality.parts.length ||
+      modifierTotal.areaIgnoreDamageHalving ||
+      modifierTotal.areaEffectMinimumDamage
+    ) {
+      const areaParts = [];
+      if (modifierTotal.areaIgnoreDamageHalving) {
+        areaParts.push(combatText(
+          "Alvo no Tamanho Base: o Dano não é reduzido pela metade.",
+          "Target within Base Size: Damage is not halved."
+        ));
+      }
+      if (modifierTotal.areaEffectMinimumDamage) {
+        areaParts.push(combatText(
+          "Tags de Efeito exigem ao menos 4 de Dano neste alvo do Tamanho Base.",
+          "Effect Tags require at least 4 Damage against this Base Size target."
+        ));
+      }
+      modifierTotal.qualities.push({
+        ...dataSpecializationModifier.quality,
+        parts: [
+          ...dataSpecializationModifier.quality.parts,
+          ...areaParts
+        ]
+      });
+    }
+  }
+
   const bulletProofModifier = getBulletProofAttackModifier(attacker, options.defender);
   if (bulletProofModifier) {
     modifierTotal.accuracyBonus += bulletProofModifier.accuracyBonus;
     modifierTotal.damageBonus += bulletProofModifier.damageBonus;
     modifierTotal.bulletProofPenalty = bulletProofModifier.penalty;
+    modifierTotal.allowArmorToReduceDamageToZero = true;
     modifierTotal.qualities.push(bulletProofModifier.quality);
   }
 
@@ -4420,6 +5807,67 @@ function getAppliedAttackQualityModifier(attacker, attackItem, options = {}) {
   if (watchfulHunterModifier) {
     modifierTotal.accuracyBonus += watchfulHunterModifier.accuracyBonus;
     modifierTotal.qualities.push(watchfulHunterModifier.quality);
+  }
+
+  const hordeDuelistModifier = getHordeDuelistAttackModifier(
+    attacker,
+    options.defender
+  );
+
+  if (hordeDuelistModifier?.accuracyBonus) {
+    modifierTotal.accuracyBonus += hordeDuelistModifier.accuracyBonus;
+    modifierTotal.qualities.push({
+      id: "horde-duelist",
+      name: hordeDuelistModifier.qualityName,
+      parts: [combatText(
+        `Inimigo adjacente sem aliados junto dele: +${hordeDuelistModifier.accuracyBonus} de Precisão.`,
+        `Adjacent enemy with no allies beside it: +${hordeDuelistModifier.accuracyBonus} Accuracy.`
+      )]
+    });
+  }
+
+  const directAttackTags = getAttackQualityTags(attackItem);
+  const sneakState = directAttackTags.has("sneak")
+    ? getSneakAttackState(attacker, options.defender)
+    : null;
+
+  if (sneakState?.active) {
+    const sneakBonus = Math.max(0, Number(sneakState.accuracyBonus ?? 0));
+    modifierTotal.accuracyBonus += sneakBonus;
+    modifierTotal.sneakAccuracyBonus = sneakBonus;
+    modifierTotal.sneakSuppressInterrupts = Boolean(
+      isSignature && rangeType === "melee"
+    );
+    modifierTotal.qualities.push({
+      id: "sneak-attack-hidden",
+      name: combatText("Ataque Furtivo", "Sneak Attack"),
+      parts: [
+        sneakBonus > 0
+          ? combatText(`Oculto e reposicionado: +${sneakBonus} de Precisão.`, `Hidden and repositioned: +${sneakBonus} Accuracy.`)
+          : combatText(
+              "Oculto, mas sem ter se movido desde que se escondeu neste turno: sem bônus de Precisão.",
+              "Hidden, but without moving since hiding this turn: no Accuracy bonus."
+            ),
+        modifierTotal.sneakSuppressInterrupts
+          ? combatText("Signature [MELEE]: o alvo não pode usar Interrupções nem Substituto.", "[MELEE] Signature: the target cannot use Interrupts or Substitute.")
+          : ""
+      ].filter(Boolean)
+    });
+  }
+
+  const reachData = getReachModeData(attacker);
+  if (rangeType === "melee" && ["wideswings", "longarms"].includes(reachData.mode)) {
+    modifierTotal.meleeReachBonus = Math.max(
+      modifierTotal.meleeReachBonus,
+      Math.max(0, Number(reachData.rank ?? 0))
+    );
+
+    if (reachData.mode === "longarms" && options.targetToken) {
+      const attackerToken = findSceneTokenForActor(attacker);
+      const distance = getTokenGridDistance(attackerToken, options.targetToken);
+      const maximumReach = 1 + Math.max(0, Number(reachData.rank ?? 0));
+      modifierTotal.longArmsAccuracyPenalty = Math.max(0, maximumReach - distance);
+    }
   }
 
   const qualities = attacker.items.filter((item) => item.type === "quality");
@@ -4463,6 +5911,13 @@ function getAppliedAttackQualityModifier(attacker, attackItem, options = {}) {
     if (!qualityModifierAppliesToAttack(quality, modifier, attackItem, { rangeType, functionType, isSignature, attackQualityTags, grantsTags })) continue;
 
 const rankValue = getAppliedAttackQualityRankValue(quality);
+
+const selectedAttackBinding = getSelectedChoices(quality).find((choice) => {
+  const attackId = String(
+    choice?.attackId ?? choice?.attackItemId ?? choice?.itemId ?? ""
+  );
+  return attackId && getAttackIdentityKeys(attackItem).has(attackId);
+}) ?? null;
 
 const hasWeaponTag = grantsTags.includes("weapon");
 const hasChargeTag = grantsTags.includes("charge");
@@ -4567,7 +6022,12 @@ let aggressiveFlankBonus = 0;
 
 if (modifier.aggressiveFlankAccuracyFrom && aggressiveFlankContext.active) {
   const statKey = String(modifier.aggressiveFlankAccuracyFrom);
-  aggressiveFlankBonus = Number(attacker.system.derivedStats?.[statKey]?.total ?? attacker.system.derivedStats?.[statKey]?.value ?? 0);
+  aggressiveFlankBonus = Number(
+    attacker.flags?.["digimon-digital-adventures"]?.evokerCreation?.sourceDerivedStats?.[statKey] ??
+    attacker.system.derivedStats?.[statKey]?.total ??
+    attacker.system.derivedStats?.[statKey]?.value ??
+    0
+  );
   accuracyBonus += aggressiveFlankBonus;
 }
 
@@ -4636,17 +6096,21 @@ if (
   );
 }
 
+const signatureCannotWaiveEffectActionCost = new Set([
+  "haste",
+  "paralyze",
+  "weak",
+  "strength",
+  "stun"
+]);
+
 const selectedEffectExtraActionCost =
-  (
-    !isSignature &&
-    selectedEffectChoices.some(
-      (choice) => {
-        return Boolean(
-          choice.extraActionRequired
-        );
-      }
-    )
-  )
+  selectedEffectChoices.some((choice) => {
+    if (!choice.extraActionRequired) return false;
+    return !isSignature || signatureCannotWaiveEffectActionCost.has(
+      normalizeAttackTag(choice.tag)
+    );
+  })
     ? 1
     : 0;
 
@@ -4737,8 +6201,11 @@ if (hasSneakTag && ["range", "ranged"].includes(rangeType) && !isSignature) {
 }
 
 if (modifier.reachMode && rangeType === "melee") {
-  const reachBonus = Math.max(0, Number(modifier.reachBonusPerRank ?? 1) * rankValue);
-  modifierTotal.meleeReachBonus = Math.max(modifierTotal.meleeReachBonus, reachBonus);
+  const selectedReach = getReachModeData(attacker);
+  if (["wideswings", "longarms"].includes(selectedReach.mode)) {
+    const reachBonus = Math.max(0, Number(modifier.reachBonusPerRank ?? 1) * rankValue);
+    modifierTotal.meleeReachBonus = Math.max(modifierTotal.meleeReachBonus, reachBonus);
+  }
 }
 
 if (hasVenomTag || modifier.venomous) {
@@ -4747,6 +6214,21 @@ if (hasVenomTag || modifier.venomous) {
 
 if (hasFocusTag || modifier.preciseFocus) {
   modifierTotal.preciseFocus = true;
+
+  if (functionType === "damage") {
+    modifierTotal.focusTemporaryWoundMultiplier = Math.max(
+      modifierTotal.focusTemporaryWoundMultiplier,
+      2
+    );
+  }
+
+  if (isSignature) {
+    const battery = Math.max(
+      0,
+      Number(attacker.system?.resources?.battery?.value ?? 0)
+    );
+    modifierTotal.rangeBonus += battery;
+  }
 }
 
 if (hasMightyTag || modifier.mightyBlow) {
@@ -4762,6 +6244,13 @@ if (
   modifier.lifesteal
 ) {
   modifierTotal.lifesteal = true;
+  modifierTotal.lifestealHealingCap = Math.max(
+    modifierTotal.lifestealHealingCap,
+    getActorDerivedStat(attacker, "dos") +
+      (isSignature
+        ? Math.max(0, Number(attacker.system?.resources?.battery?.value ?? 0))
+        : 0)
+  );
 }
 
 if (hasPunishTag || modifier.punishingStrike) {
@@ -4808,6 +6297,19 @@ if (
   modifierTotal.piercingUnalterableDamageRegular += piercingUnalterableDamageRegular;
   modifierTotal.piercingUnalterableDamageArea += piercingUnalterableDamageArea;
   modifierTotal.piercingRanks += rankValue;
+
+  if (
+    isSignature &&
+    selectedAttackBinding?.signatureBatteryAsUnalterable
+  ) {
+    modifierTotal.signatureBatteryUnalterableDamage = Math.max(
+      modifierTotal.signatureBatteryUnalterableDamage,
+      Math.min(
+        rankValue,
+        Math.max(0, Number(attacker.system?.resources?.battery?.value ?? 0))
+      )
+    );
+  }
 }
 
 if (effectTag) {
@@ -4848,7 +6350,12 @@ const grantedQualityTags =
       })
     : grantsTags;
 
-for (const tag of grantedQualityTags) {
+const attackBoundGrantedQualityTags = grantedQualityTags.filter((tag) => {
+  if (tag !== "offhand") return true;
+  return attackMatchesExplicitSelection || attackQualityTags.has("offhand");
+});
+
+for (const tag of attackBoundGrantedQualityTags) {
   modifierTotal.qualityTags.push(
     tag
   );
@@ -5146,9 +6653,26 @@ if (zonerData && modifierTotal.areaAttackTags.length) {
   modifierTotal.effectTags = [...new Set(modifierTotal.effectTags)];
   modifierTotal.qualityTags = [...new Set(modifierTotal.qualityTags)];
 
+applyDigizoidAttackRules(attacker, attackItem, modifierTotal, options);
+modifierTotal.effectTags = [...new Set(modifierTotal.effectTags)];
+modifierTotal.qualityTags = [...new Set(modifierTotal.qualityTags)];
+
+if (modifierTotal.longArmsAccuracyPenalty > 0) {
+    modifierTotal.accuracyBonus -= modifierTotal.longArmsAccuracyPenalty;
+    modifierTotal.qualities.push({
+      id: "reach-long-arms",
+      name: combatText("Alcance: Braços Longos", "Reach: Long Arms"),
+      parts: [combatText(
+        `Alvo ${modifierTotal.longArmsAccuracyPenalty} Espaço(s) mais próximo que o Alcance máximo: -${modifierTotal.longArmsAccuracyPenalty} de Precisão.`,
+        `Target ${modifierTotal.longArmsAccuracyPenalty} Space(s) closer than maximum Reach: -${modifierTotal.longArmsAccuracyPenalty} Accuracy.`
+      )]
+    });
+  }
+
   const coordinatedAssault = getCoordinatedAssaultBonus(attacker, options.defender);
   if (coordinatedAssault.bonus > 0) {
     modifierTotal.accuracyBonus += coordinatedAssault.bonus;
+    modifierTotal.ignoresUncatchableTarget = true;
     modifierTotal.qualities.push({
       id: "coordinated-assault-mark",
       name: localizeQ("DDA.Quality.CoordinatedAssault", "Coordinated Assault"),
@@ -5513,6 +7037,7 @@ function getZonerBombardmentDamageFloor({
   damageAfterArmor = 0
 } = {}) {
   if (!areaAttackDeclaration?.active) return 0;
+  if (areaAttackDeclaration?.targetMode !== "all") return 0;
   if (!hasZonerOption(qualityAttackModifier, "bombardment")) return 0;
 
   const derivedStatKey = getAreaAttackDerivedStatKey(areaAttackDeclaration.tag);
@@ -5630,6 +7155,18 @@ function getDataOptimizationAttackModifier(attacker, attackItem, context = {}) {
     }));
   }
 
+  const wrestlemaniaDamageBonus = Math.max(
+    0,
+    Number(clashContext?.wrestlemaniaDamageBonus ?? 0)
+  );
+
+  if (functionType === "damage" && wrestlemaniaDamageBonus > 0) {
+    damageBonus += wrestlemaniaDamageBonus;
+    parts.push(`${combatText("Wrestlemania", "Wrestlemania")}: ${formatI18n("DDA.Attack.QualityPart.Damage", {
+      value: `+${wrestlemaniaDamageBonus}`
+    })}`);
+  }
+
   if (
     accuracyBonus === 0 &&
     damageBonus === 0 &&
@@ -5654,6 +7191,73 @@ function getDataOptimizationAttackModifier(attacker, attackItem, context = {}) {
         choiceLabel,
         ...parts
       ].filter(Boolean)
+    }
+  };
+}
+
+function getDataSpecializationAttackModifier(attacker, attackItem, context = {}) {
+  const feature = getDataSpecializationFeature(attacker);
+  const rangeType = String(
+    context.rangeType ?? attackItem?.system?.baseTags?.rangeType ?? ""
+  ).trim().toLowerCase();
+  const functionType = String(
+    context.functionType ?? attackItem?.system?.baseTags?.functionType ?? ""
+  ).trim().toLowerCase();
+  const attackTags = getAttackQualityTags(attackItem);
+  const movementSpent = getCurrentMovementSpent(attacker);
+
+  let damageBonus = 0;
+  let rangeBonus = 0;
+  let effectiveLimitBonus = 0;
+  const parts = [];
+
+  if (feature.sniper && ["range", "ranged"].includes(rangeType)) {
+    rangeBonus += Number(feature.rangedRangeBonus ?? 3);
+    effectiveLimitBonus += Number(feature.rangedEffectiveLimitBonus ?? 3);
+    parts.push(combatText(
+      `Franco-Atirador: +${rangeBonus} Alcance e Limite Efetivo.`,
+      `Sniper: +${rangeBonus} Range and Effective Limit.`
+    ));
+  }
+
+  const usesChargeOrRecoil = attackTags.has("charge") || attackTags.has("recoil");
+  if (
+    feature.hitAndRunChargeRecoil &&
+    functionType === "damage" &&
+    usesChargeOrRecoil &&
+    movementSpent >= 2
+  ) {
+    const ram = Math.max(0, getActorDerivedStat(attacker, "ram"));
+    damageBonus += ram;
+    parts.push(combatText(
+      `Bater e Correr: +${ram} Dano por mover ${movementSpent} Espaços antes do Ataque.`,
+      `Hit and Run: +${ram} Damage after moving ${movementSpent} Spaces before the Attack.`
+    ));
+  }
+
+  const hasAnyEffect = Boolean(
+    damageBonus ||
+    rangeBonus ||
+    effectiveLimitBonus ||
+    feature.fistfulOfForce ||
+    feature.mobileArtillery ||
+    feature.codeWizardDamageTagBypass
+  );
+  if (!hasAnyEffect) return null;
+
+  return {
+    damageBonus,
+    rangeBonus,
+    effectiveLimitBonus,
+    movementSpent,
+    fistfulOfForce: Boolean(feature.fistfulOfForce),
+    mobileArtillery: Boolean(feature.mobileArtillery),
+    sniper: Boolean(feature.sniper),
+    codeWizardDamageTagBypass: Boolean(feature.codeWizardDamageTagBypass),
+    quality: {
+      id: "data-specialization",
+      name: feature.sourceName || combatText("Especialização de Dados", "Data Specialization"),
+      parts
     }
   };
 }
@@ -5922,6 +7526,24 @@ const attackMatchesExplicitSelection =
 const hasGrantedTagOnAttack = grantsTags.some(
   (tag) => attackQualityTags.has(tag)
 );
+
+if (appliesTo === "weaponAttacks") {
+  if (attackQualityTags.has("weapon") || attackQualityTags.has("offhand")) return true;
+  return (quality.parent?.items ?? []).some((item) => {
+    if (item.type !== "quality") return false;
+    const source = normalizeQualityChoiceKeyForAttack(item.system?.sourceId ?? item.system?.originalName ?? item.name);
+    if (!["arma", "weapon", "armamentodedigizoidepuro", "puredigizoidweaponry"].includes(source)) return false;
+    const choices = [
+      ...(Array.isArray(item.system?.choices?.selectedRanks) ? item.system.choices.selectedRanks : []),
+      ...(Array.isArray(item.system?.choices?.selected) ? item.system.choices.selected : [])
+    ];
+    return choices.some((choice) => {
+      const key = String(choice?.key ?? "").trim();
+      const attackId = String(choice?.attackId ?? choice?.attackItemId ?? choice?.itemId ?? choice?.attackKey ?? (key.includes(":") ? key.slice(0, key.indexOf(":")) : key)).trim();
+      return attackIdentityKeys.has(attackId);
+    });
+  });
+}
 
   if (attackMatchesExplicitSelection) return true;
 
@@ -6263,10 +7885,16 @@ function getAttackEffectPotencyBonus(
    * Support Signature Moves may scale Potency
    * with the current Battery.
    */
+  const functionType = String(
+    attackItem?.system?.baseTags?.functionType ?? ""
+  ).trim().toLowerCase();
+  const rangeType = String(
+    attackItem?.system?.baseTags?.rangeType ?? ""
+  ).trim().toLowerCase();
+
   if (
     attackItem?.system?.isSignature &&
-    attackItem?.system
-      ?.batteryScaling?.potency
+    functionType === "support"
   ) {
     total += Math.max(
       0,
@@ -6275,6 +7903,11 @@ function getAttackEffectPotencyBonus(
           ?.battery?.value ?? 0
       )
     );
+  }
+
+  /* [MELEE][SUPPORT] receives +1 Potency for the risk of touch range. */
+  if (functionType === "support" && rangeType === "melee") {
+    total += 1;
   }
 
   /*
@@ -6298,15 +7931,6 @@ function getAttackEffectPotencyBonus(
     );
   }
 
-  const rangeType = String(
-    attackItem?.system?.baseTags
-      ?.rangeType ?? ""
-  ).trim();
-
-  const functionType = String(
-    attackItem?.system?.baseTags
-      ?.functionType ?? ""
-  ).trim();
 
   const isSignature = Boolean(
     attackItem?.system?.isSignature
@@ -6387,11 +8011,18 @@ function getAttackEffectApplication({
   defender,
   cleanseDeclaration = null,
   targetIsAlly = false,
+  targetIsWilling = false,
+  positiveTargetHealthSuccesses = 0,
   cleanseTargetHealthSuccesses = 0,
+  forcedMovementTargetHealthSuccesses = 0,
+  confuseAffectedStat = "",
   accuracySuccesses = 0,
   qualityAttackModifier = {},
   areaAttackDeclaration = null,
-  ignoreEffectResistance = false
+  ignoreEffectResistance = false,
+  additionalDurationPenalty = 0,
+  effectResistanceMultiplier = 1,
+  effectResistanceCanNegate = false
 }) {
   
   const functionType = attackItem.system.baseTags?.functionType ?? "";
@@ -6407,7 +8038,7 @@ function getAttackEffectApplication({
     Number(
       qualityAttackModifier
         ?.fragileEffectPotencyPenalty ?? 0
-    )
+    ) + Math.max(0, Number(qualityAttackModifier?.luckyMissEffectPenalty ?? 0))
   );
 
   const fragileDurationPenalty = Math.max(
@@ -6422,7 +8053,7 @@ function getAttackEffectApplication({
     getAttackEffectPotencyBonus(
       attacker,
       attackItem
-    );
+    ) + Math.max(0, Number(qualityAttackModifier?.effectPotencyBonus ?? 0));
 
   if (!activeEffectTags.length) {
     result.reason = localize("DDA.Attack.EffectReason.NoEffectTags");
@@ -6446,6 +8077,23 @@ function getAttackEffectApplication({
   return result;
 }
 
+  const areaEffectMinimumDamage = Math.max(
+    0,
+    Number(qualityAttackModifier?.areaEffectMinimumDamage ?? 0)
+  );
+
+  if (
+    functionType === "damage" &&
+    areaEffectMinimumDamage > 0 &&
+    normalDamage < areaEffectMinimumDamage
+  ) {
+    result.reason = combatText(
+      `Artilharia Móvel exige ao menos ${areaEffectMinimumDamage} de Dano para aplicar Tags de Efeito a um alvo no Tamanho Base.`,
+      `Mobile Artillery requires at least ${areaEffectMinimumDamage} Damage to apply Effect Tags to a Base Size target.`
+    );
+    return result;
+  }
+
   if (functionType === "damage" && normalDamage < 2) {
     result.reason = localize("DDA.Attack.EffectReason.NotEnoughNormalDamage");
     return result;
@@ -6458,6 +8106,10 @@ for (const tag of activeEffectTags) {
   const effectKey =
     getEffectTagKey(tag);
 
+  if (effectKey === "blind" && hasQuality(defender, "justiceIsBlind")) {
+    continue;
+  }
+
   const effectDefinition =
     getAttackEffectDefinition({
       attacker,
@@ -6468,11 +8120,9 @@ for (const tag of activeEffectTags) {
   if (effectDefinition.onlyAffectsAllies && !targetIsAlly) {
     continue;
   }
-  const hasCodeWizard = (attacker?.items ?? []).some((item) => {
-    return item.type === "quality" && getSelectedChoices(item).some((choice) => {
-      return normalizeKey(choice?.key ?? choice?.value ?? choice?.id) === "codewizard";
-    });
-  });
+  const hasCodeWizard = Boolean(
+    attacker?.system?.qualityFeatures?.dataSpecialization?.codeWizardDamageTagBypass
+  );
 
   if (effectDefinition.requiresDamageTag && functionType !== "damage" && !hasCodeWizard) {
     continue;
@@ -6487,10 +8137,17 @@ const effectCalculation =
     effectKey,
     leftoverSuccesses,
     targetIsAlly,
+    targetIsWilling,
+    positiveTargetHealthSuccesses,
+    forcedMovementTargetHealthSuccesses,
+    confuseAffectedStat,
+    accuracySuccesses,
     areaAttackDeclaration,
     fragilePotencyPenalty,
-    fragileDurationPenalty,
-    ignoreEffectResistance
+    fragileDurationPenalty: fragileDurationPenalty + Math.max(0, Number(additionalDurationPenalty ?? 0)),
+    ignoreEffectResistance,
+    effectResistanceMultiplier,
+    effectResistanceCanNegate
   });
 
 const {
@@ -6513,12 +8170,28 @@ const {
   hasDuration,
   hasSpecialDuration,
 
-  duration,
-  remaining,
+  duration: rawDuration,
   maxDuration,
 
   areaEffectPenalty
 } = effectCalculation;
+
+const immuneDurationPenalty = ignoreEffectResistance
+  ? 0
+  : getIncomingEffectDurationPenalty(
+      defender,
+      effectType
+    );
+
+const adjustedDuration = hasDuration && rawDuration > 0 && immuneDurationPenalty > 0
+  ? Math.max(1, rawDuration - immuneDurationPenalty)
+  : rawDuration;
+
+const digizoidDuration = effectKey === "heavy" && Number(qualityAttackModifier?.heavyDigizoidDuration ?? 0) > 0
+  ? Number(qualityAttackModifier.heavyDigizoidDuration)
+  : hasDuration
+    ? Math.max(0, Number(adjustedDuration ?? 0) + Math.max(0, Number(qualityAttackModifier?.effectDurationBonus ?? 0)))
+    : adjustedDuration;
 
 const effectData = {
   id: foundry.utils.randomID(),
@@ -6549,6 +8222,8 @@ const effectData = {
   appliedCombatTurn: Number(game.combat?.turn ?? -1),
 
   effectType,
+  dpCost: getEffectDpCost(effectKey),
+  heavyDigizoidWeaponry: effectKey === "heavy" && Number(qualityAttackModifier?.heavyDigizoidDuration ?? 0) > 0,
   potencyStat,
   sourceStat,
   affectedStat,
@@ -6567,8 +8242,8 @@ const effectData = {
   hasDuration,
   hasSpecialDuration,
 
-  duration,
-  remaining,
+  duration: digizoidDuration,
+  remaining: digizoidDuration,
   maxDuration,
 
   leftoverSuccesses:
@@ -6586,8 +8261,20 @@ const effectData = {
 
 if (
   effectKey !== "cleanse" &&
+  usesPotency &&
+  potency <= 0
+) {
+  result.reason = combatText(
+    "Imunidade e Resistência negaram o Efeito.",
+    "Immunity and Resistance negated the Effect."
+  );
+  continue;
+}
+
+if (
+  effectKey !== "cleanse" &&
   hasDuration &&
-  duration <= 0
+  digizoidDuration <= 0
 ) {
   continue;
 }
@@ -6617,6 +8304,10 @@ if (effectKey === "cleanse") {
 
   effectData.cleanseSelectedEffectKeys =
     cleanseDeclaration?.selectedEffectKeys ?? [];
+
+  effectData.cleanseReduceResolve = Boolean(
+    cleanseDeclaration?.reduceResolve
+  );
 }
 
   result.applied.push(effectData);
@@ -6690,7 +8381,56 @@ function getEffectResistance(actor) {
   );
 }
 
-function getConfusePotencyData(defender) {
+async function getConfuseAffectedStatDeclaration(defender) {
+  const associations = [
+    { derivedStat: "bit", affectedStat: "accuracy" },
+    { derivedStat: "cpu", affectedStat: "damage" },
+    { derivedStat: "ram", affectedStat: "dodge" },
+    { derivedStat: "dos", affectedStat: "armor" }
+  ].map((entry) => ({
+    ...entry,
+    derivedValue: getEffectDerivedStatValue(defender, entry.derivedStat),
+    mainValue: Number(defender?.system?.mainStats?.[entry.affectedStat]?.total ?? 0)
+  }));
+
+  const highestDerived = Math.max(...associations.map((entry) => entry.derivedValue));
+  const derivedTies = associations.filter((entry) => entry.derivedValue === highestDerived);
+  if (derivedTies.length === 1) return derivedTies[0].affectedStat;
+
+  const highestMain = Math.max(...derivedTies.map((entry) => entry.mainValue));
+  const finalTies = derivedTies.filter((entry) => entry.mainValue === highestMain);
+  if (finalTies.length === 1) return finalTies[0].affectedStat;
+
+  const labels = {
+    accuracy: combatText("Precisão", "Accuracy"),
+    damage: combatText("Dano", "Damage"),
+    dodge: combatText("Esquiva", "Dodge"),
+    armor: combatText("Armadura", "Armor")
+  };
+
+  const options = finalTies.map((entry) => {
+    return `<option value="${entry.affectedStat}">${labels[entry.affectedStat]} (${entry.derivedStat.toUpperCase()} ${entry.derivedValue})</option>`;
+  }).join("");
+
+  const selected = await foundry.applications.api.DialogV2.prompt({
+    classes: ["dda", "dda-effect-quality-dialog"],
+    window: { title: combatText("[CONFUSE] — Estatística afetada", "[CONFUSE] — Affected Stat") },
+    content: `<div class="dda-roll-dialog"><p>${combatText(
+      "Há empate entre as Estatísticas elegíveis. Escolha qual Total será reduzido.",
+      "Eligible Stats are tied. Choose which Total is reduced."
+    )}</p><div class="form-group"><label>${combatText("Estatística", "Stat")}</label><select name="affectedStat">${options}</select></div></div>`,
+    ok: {
+      label: combatText("Confirmar", "Confirm"),
+      callback: (_event, button) => String(button.form.elements.affectedStat?.value ?? finalTies[0].affectedStat)
+    },
+    rejectClose: false,
+    modal: true
+  });
+
+  return String(selected ?? finalTies[0].affectedStat);
+}
+
+function getConfusePotencyData(defender, selectedAffectedStat = "") {
   /*
    * Associação determinada pelas regras:
    * BIT -> Accuracy
@@ -6737,6 +8477,12 @@ function getConfusePotencyData(defender) {
       };
     });
 
+  const selected = String(selectedAffectedStat ?? "").trim().toLowerCase();
+  if (selected) {
+    const explicit = candidates.find((candidate) => candidate.affectedStat === selected);
+    if (explicit) return explicit;
+  }
+
   /*
    * Primeiro usa o maior Derived Stat.
    * Em empate, usa o maior Main Stat associado.
@@ -6768,10 +8514,17 @@ function calculateAttackEffectValues({
   effectKey,
   leftoverSuccesses = 0,
   targetIsAlly = false,
+  targetIsWilling = false,
+  positiveTargetHealthSuccesses = 0,
+  forcedMovementTargetHealthSuccesses = 0,
+  confuseAffectedStat = "",
+  accuracySuccesses = 0,
   areaAttackDeclaration = null,
   fragilePotencyPenalty = 0,
   fragileDurationPenalty = 0,
-  ignoreEffectResistance = false
+  ignoreEffectResistance = false,
+  effectResistanceMultiplier = 1,
+  effectResistanceCanNegate = false
 } = {}) {
   const effectType = String(
     effectDefinition?.effectType ?? ""
@@ -6807,7 +8560,7 @@ function calculateAttackEffectValues({
    */
   if (effectKey === "confuse") {
     const confuseData =
-      getConfusePotencyData(defender);
+      getConfusePotencyData(defender, confuseAffectedStat);
 
     basePotency =
       confuseData.derivedValue;
@@ -6823,11 +8576,11 @@ function calculateAttackEffectValues({
    * POISON usa o CPU do alvo.
    */
   else if (effectKey === "poison") {
-    basePotency =
-      getEffectDerivedStatValue(
-        defender,
-        "cpu"
-      );
+    const creation = defender.flags?.["digimon-digital-adventures"]?.evokerCreation;
+    const summoner = creation?.kind === "minion"
+      ? game.actors?.get?.(creation.sourceActorId)
+      : null;
+    basePotency = getEffectDerivedStatValue(summoner ?? defender, "cpu");
 
     sourceStat = "cpu";
   }
@@ -6879,20 +8632,22 @@ function calculateAttackEffectValues({
 
   const resistance =
     usesPotency && !ignoreEffectResistance
-      ? getEffectResistance(defender)
+      ? getEffectResistance(defender) * Math.max(1, Number(effectResistanceMultiplier ?? 1))
       : 0;
 
   /*
-   * Resistance não pode reduzir uma Potência
-   * real abaixo de 2.
+   * Normally Resistance cannot reduce real Potency below 2. Immunity removes
+   * that floor and negates the incoming Effect when the result reaches 0.
    */
+  const rawPotency = Math.max(0, basePotency + potencyBonus);
+  const resistanceFloor = effectResistanceCanNegate
+    ? 0
+    : Math.min(2, rawPotency);
   const potencyAfterResistance =
     usesPotency
       ? Math.max(
-          2,
-          basePotency +
-            potencyBonus -
-            resistance
+          resistanceFloor,
+          rawPotency - resistance
         )
       : 0;
 
@@ -6912,6 +8667,17 @@ function calculateAttackEffectValues({
     isAreaAttack &&
     functionType === "support";
 
+  const zonerChoice = normalizeQualityChoiceKeyForAttack(
+    getZonerQualityDataForActor(attacker)?.key ?? ""
+  );
+  const bypassSupportAreaPenalty =
+    isSupportAreaAttack &&
+    areaAttackDeclaration?.targetMode === "all" &&
+    zonerChoice === "firewallbypass";
+  const applySupportAreaPenalty =
+    isSupportAreaAttack &&
+    !bypassSupportAreaPenalty;
+
   /*
    * Support Area:
    * -1 Potency e Duration.
@@ -6923,7 +8689,7 @@ function calculateAttackEffectValues({
     targetIsAlly ? 0 : 1;
 
   const potencyAfterArea =
-    isSupportAreaAttack &&
+    applySupportAreaPenalty &&
     usesPotency
       ? Math.max(
           areaMinimum,
@@ -6971,7 +8737,13 @@ function calculateAttackEffectValues({
     (effectKey === "pull" || effectKey === "push") &&
     functionType === "support"
   ) {
-    value += Math.floor(Math.max(0, Number(leftoverSuccesses ?? 0)) / 2);
+    if (targetIsAlly) {
+      const combinedSuccesses = Math.max(0, Number(accuracySuccesses ?? 0)) +
+        Math.max(0, Number(forcedMovementTargetHealthSuccesses ?? 0));
+      value += Math.floor(combinedSuccesses / 3);
+    } else {
+      value += Math.floor(Math.max(0, Number(leftoverSuccesses ?? 0)) / 2);
+    }
   }
 
   if (effectKey === "pull" || effectKey === "push") {
@@ -7019,32 +8791,39 @@ function calculateAttackEffectValues({
   const hasSpecialDuration =
     durationRule === "special";
 
-  const hasStatusWarlord = (attacker?.items ?? []).some((item) => {
-    return item.type === "quality" && getSelectedChoices(item).some((choice) => {
-      return normalizeKey(choice?.key ?? choice?.value ?? choice?.id) === "statuswarlord";
-    });
-  });
-  const maximumDuration = hasStatusWarlord ? 4 : 3;
+  const maximumDuration = 3 + Math.max(
+    0,
+    Number(
+      attacker?.system?.qualityFeatures?.dataSpecialization
+        ?.maximumEffectDurationBonus ?? 0
+    )
+  );
 
   /*
    * Um efeito que acerta tem Duração mínima 1,
    * usando os Successes restantes até o máximo.
    */
-  const baseDuration =
-    hasDuration
-      ? Math.min(
-          maximumDuration,
-          Math.max(
-            1,
-            Number(
-              leftoverSuccesses ?? 0
-            )
-          )
-        )
-      : 0;
+  /*
+   * 9.02b:
+   * - Negativo: Duração 1 ao acertar, +1 para cada 2 Sucessos depois do
+   *   primeiro Sucesso excedente necessário para assegurar o acerto.
+   * - Positivo/alvo disposto: Duração 1 automática, +1 para cada múltiplo
+   *   completo de 3 nos Sucessos combinados de Precisão e Saúde.
+   */
+  const calculatedDuration = calculateEffectDurationRounds({
+    targetIsWilling,
+    leftoverAccuracySuccesses: leftoverSuccesses,
+    accuracySuccesses,
+    targetHealthSuccesses: positiveTargetHealthSuccesses,
+    maximumDuration
+  });
+
+  const baseDuration = hasDuration
+    ? Math.min(maximumDuration, Math.max(1, calculatedDuration))
+    : 0;
 
   const durationAfterArea =
-    isSupportAreaAttack &&
+    applySupportAreaPenalty &&
     hasDuration
       ? Math.max(
           areaMinimum,
@@ -7098,7 +8877,7 @@ function calculateAttackEffectValues({
       ),
 
     areaEffectPenalty:
-      isSupportAreaAttack ? 1 : 0
+      applySupportAreaPenalty ? 1 : 0
   };
 }
 
@@ -7106,6 +8885,98 @@ function findSceneTokenForActor(actor) {
   return (canvas?.tokens?.placeables ?? []).find((token) => {
     return token.actor?.uuid === actor?.uuid || token.actor?.id === actor?.id;
   }) ?? null;
+}
+
+async function resolveOffensiveForcedMovement({
+  attacker,
+  defender,
+  targetToken,
+  qualityAttackModifier = {},
+  attackOptions = {},
+  hit = false,
+  attackFunctionType = "damage",
+  leftoverSuccesses = 0
+} = {}) {
+  const spaces = Math.max(
+    0,
+    Math.floor(Number(qualityAttackModifier.recoilDistance ?? 0))
+  );
+
+  if (!attacker || !defender || spaces <= 0) return false;
+
+  const isArea = Boolean(attackOptions?.areaBatch?.active);
+  const isFirstAreaTarget = !isArea || Number(attackOptions?.areaBatch?.index ?? 0) === 0;
+
+  if (isFirstAreaTarget) {
+    await applyForcedMovementEffect(attacker, {
+      value: spaces,
+      sourceActorUuid: defender.uuid
+    }, "push");
+  }
+
+  if (
+    hit &&
+    attackFunctionType === "damage" &&
+    Number(leftoverSuccesses ?? 0) >= 1
+  ) {
+    await applyForcedMovementEffect(defender, {
+      value: spaces,
+      sourceActorUuid: attacker.uuid
+    }, "push");
+  }
+
+  return true;
+}
+
+async function applyThereIsNoEscapeMovementPenalty({
+  attacker,
+  defender,
+  attackItem,
+  attackOptions = {},
+  hit = false,
+  normalDamage = 0
+} = {}) {
+  if (
+    !attackOptions?.punishingStrikeContext?.active ||
+    !hit ||
+    Number(normalDamage ?? 0) < 2 ||
+    !hasQuality(attacker, "noEscape") ||
+    !defender
+  ) {
+    return false;
+  }
+
+  const tags = getAttackQualityTags(attackItem);
+  const multiplier = tags.has("root") ? 0 : 0.5;
+  const offensiveState = foundry.utils.deepClone(
+    defender.system?.combat?.offensiveQualities ?? {}
+  );
+
+  offensiveState.noEscape = {
+    active: true,
+    multiplier,
+    combatId: getCombatId(),
+    round: getCombatRound(),
+    turn: getCombatTurn(),
+    sourceActorUuid: attacker.uuid,
+    sourceActorName: attacker.name
+  };
+
+  await defender.update({
+    "system.combat.offensiveQualities": offensiveState
+  });
+
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: attacker }),
+    content: `<div class="dda-chat-card dda-effect-card effect-negative">
+      <h2>${combatText("Não Há Escapatória", "There Is No Escape")}</h2>
+      <p><strong>${escapeHtml(defender.name)}</strong> ${multiplier === 0
+        ? combatText("teve o Movimento reduzido a 0 até o fim do turno atual.", "had Movement reduced to 0 until the end of the current turn.")
+        : combatText("teve o Movimento reduzido pela metade até o fim do turno atual.", "had Movement halved until the end of the current turn.")}</p>
+    </div>`
+  });
+
+  return true;
 }
 
 async function applyForcedMovementEffect(defender, effect, direction) {
@@ -7141,6 +9012,23 @@ async function applyForcedMovementEffect(defender, effect, direction) {
     ? canvas.grid.getSnappedPoint(destination, { mode: CONST.GRID_SNAPPING_MODES?.CENTER })
     : destination;
 
+  try {
+    const clashAutomation = await import("../combat/clash.js");
+    const clashResolution = await clashAutomation.handleClashForcedMovement?.({
+      defender,
+      source,
+      direction,
+      potency: Number(effect.potency ?? effect.value ?? spaces),
+      destination: {
+        x: Math.round(Number(snapped.x ?? destination.x)),
+        y: Math.round(Number(snapped.y ?? destination.y))
+      }
+    });
+    if (clashResolution?.handled) return Boolean(clashResolution.moved);
+  } catch (error) {
+    console.warn("DDA | Clash forced-movement handling failed.", error);
+  }
+
   await targetToken.document.update({
     x: Math.round(Number(snapped.x ?? destination.x)),
     y: Math.round(Number(snapped.y ?? destination.y))
@@ -7163,7 +9051,7 @@ async function applyForcedMovementEffect(defender, effect, direction) {
       ? Math.max(0, Number(defender.system?.combat?.effectDamageTakenThisRound ?? 0))
       : 0;
     const cap = Math.max(0, Number(getActorSv(defender)) * 2);
-    if (cap > 0) burnDamage = Math.min(burnDamage, Math.max(0, cap - previousDamage));
+    burnDamage = Math.min(burnDamage, Math.max(0, cap - previousDamage));
 
     if (burnDamage > 0) {
       const woundsPath = defender.type === "character"
@@ -7182,52 +9070,51 @@ async function applyForcedMovementEffect(defender, effect, direction) {
 }
 
 async function applyAttackEffectTags(defender, effectsToApply) {
-  if (!defender || !effectsToApply?.length) return;
+  if (!defender || !effectsToApply?.length) return { applied: [], denied: null };
 
   const supportsActiveEffects =
     defender.type === "digimon" ||
     defender.type === "npc" ||
     defender.type === "character";
 
-  if (!supportsActiveEffects) return;
+  if (!supportsActiveEffects) return { applied: [], denied: null };
 
   const currentEffects = foundry.utils.deepClone(defender.system.effects?.active ?? []);
   const cleanseReports = [];
-    let shouldClearShieldTemp = false;
-for (const originalEffect of effectsToApply) {
+  let shouldClearShieldTemp = false;
+  const appliedEffectKeys = [];
+
+  const gainForceResolution = await resolveIncomingDigizoidGainForceEffects(defender, effectsToApply);
+  const denyResolution = consumeDenyForIncomingEffects(defender, gainForceResolution.effects);
+  let incomingEffects = denyResolution.effects;
+  if (defender.flags?.["digimon-digital-adventures"]?.evokerCreation?.kind === "minion") {
+    const allowedMinionEffects = new Set([
+      "burn", "freeze", "poison", "ruin", "dot",
+      "root", "slow", "paralyze", "pull", "push", "swift", "tailwind", "nimble", "heavy"
+    ]);
+    incomingEffects = incomingEffects.filter((effect) => {
+      const key = getEffectTagKey(effect.tag);
+      const type = String(effect.effectType ?? effect.type ?? "").toLowerCase();
+      return type === "damage" || allowedMinionEffects.has(key);
+    });
+  }
+  if (denyResolution.denied) {
+    currentEffects.splice(0, currentEffects.length, ...denyResolution.activeEffects);
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: defender }),
+      content: `<div class="dda-chat-card dda-effect-card effect-special dda-deny-card">
+        <h2>${combatText("Efeito Negado", "Effect Denied")}</h2>
+        <p><strong>[DENY]</strong> ${combatText(
+          `negou [${getEffectTagKey(denyResolution.denied.tag).toUpperCase()}] e então terminou.`,
+          `negated [${getEffectTagKey(denyResolution.denied.tag).toUpperCase()}] and then ended.`
+        )}</p>
+      </div>`
+    });
+  }
+
+for (const originalEffect of incomingEffects) {
   let effect = originalEffect;
   const effectKey = getEffectTagKey(effect.tag);
-
-  /* [DENY] consome a si próprio para negar o próximo Efeito, exceto CLEANSE. */
-  const denyIndex = currentEffects.findIndex((existing) => {
-    return getEffectTagKey(existing.tag) === "deny";
-  });
-
-  if (!effect.focusedCalledShot && effectKey !== "cleanse" && effectKey !== "deny" && denyIndex >= 0) {
-    currentEffects.splice(denyIndex, 1);
-    continue;
-  }
-
-  /* [IMMUNE] reduz em 1 a Duração recebida de efeitos negativos/dano. */
-  const hasImmune = currentEffects.some((existing) => {
-    return getEffectTagKey(existing.tag) === "immune";
-  });
-
-  if (
-    !effect.focusedCalledShot &&
-    hasImmune &&
-    effectKey !== "immune" &&
-    ["negative", "damage"].includes(String(effect.effectType ?? "").toLowerCase()) &&
-    effect.hasDuration
-  ) {
-    const reducedDuration = Math.max(1, Number(effect.duration ?? 1) - 1);
-    effect = {
-      ...effect,
-      duration: reducedDuration,
-      remaining: reducedDuration,
-      leftoverSuccesses: Math.max(0, Number(effect.leftoverSuccesses ?? 0) - 1)
-    };
-  }
 
   /* FEAR e TAUNT se substituem imediatamente. */
   if (effectKey === "fear" || effectKey === "taunt") {
@@ -7264,16 +9151,50 @@ const cleanseData = applyCleanseToEffectList(
   effect.cleanseSelectedEffectKeys ?? []
 );
 
+if (hasQuality(defender, "vulnerable") && cleanseData.expiredEffects.length) {
+  const backlash = cleanseData.expiredEffects.reduce((total, expiredEffect) => (
+    total + Math.max(0, Number(expiredEffect.dpCost ?? getEffectDpCost(getEffectTagKey(expiredEffect.tag)) ?? 0))
+  ), 0);
+  if (backlash > 0) {
+    const woundPath = defender.type === "character" ? "system.derived.wounds.value" : "system.miscStats.wounds.value";
+    const currentWounds = Math.max(0, Number(foundry.utils.getProperty(defender, woundPath) ?? 0));
+    await defender.update({ [woundPath]: Math.max(0, currentWounds - backlash) });
+  }
+}
+
+if ([...(cleanseData.expiredEffects ?? []), ...(cleanseData.affectedEffects ?? [])].some((entry) => entry.gainForceUndyingRegen)) {
+  await markUndyingRegenCleanseSuppression(defender);
+}
+
+const resolveBeforeCleanse = getCombatMonsterResolve(defender);
+let resolveAfterCleanse = resolveBeforeCleanse;
+if (effect.cleanseReduceResolve && resolveBeforeCleanse > 0) {
+  resolveAfterCleanse = await setCombatMonsterResolve(
+    defender,
+    Math.max(0, resolveBeforeCleanse - cleanseAmount)
+  );
+}
+
 const restoredStunActions = cleanseData.expiredEffects.reduce((total, expiredEffect) => {
   return getEffectTagKey(expiredEffect.tag) === "stun"
     ? total + Math.max(0, Number(expiredEffect.actionRemoved ?? 0))
     : total;
 }, 0);
 
-if (restoredStunActions > 0) {
+const removedUnusedHaste = cleanseData.expiredEffects.some((expiredEffect) => {
+  return getEffectTagKey(expiredEffect.tag) === "haste" && Number(expiredEffect.actionGranted ?? 0) > 0;
+});
+
+if (restoredStunActions > 0 || removedUnusedHaste) {
   const actions = Math.max(0, Number(defender.system?.combat?.actions?.value ?? 0));
+  const maximum = Math.max(0, Number(defender.system?.combat?.actions?.max ?? 2));
+  const hasteStillActive = cleanseData.remainingEffects.some((remainingEffect) => {
+    return getEffectTagKey(remainingEffect.tag) === "haste" && Number(remainingEffect.actionGranted ?? 0) > 0;
+  });
+  const actionCap = maximum + (hasteStillActive ? 1 : 0);
+  const nextActions = Math.min(actionCap, actions + restoredStunActions);
   await defender.update({
-    "system.combat.actions.value": actions + restoredStunActions
+    "system.combat.actions.value": Math.max(0, nextActions)
   });
 }
 
@@ -7290,9 +9211,13 @@ cleanseReports.push({
   sourceName: effect.sourceAttackName ?? localize("DDA.Effect.Cleanse"),
   selective: Boolean(effect.cleanseSelective),
   combinedSuccesses: effect.cleanseCombinedSuccesses ?? null,
-  targetHealthSuccesses: effect.cleanseTargetHealthSuccesses ?? null
+  targetHealthSuccesses: effect.cleanseTargetHealthSuccesses ?? null,
+  resolveBefore: resolveBeforeCleanse,
+  resolveAfter: resolveAfterCleanse,
+  resolveReduced: Math.max(0, resolveBeforeCleanse - resolveAfterCleanse)
 });
 
+    appliedEffectKeys.push(effectKey);
     continue;
   }  
   if (effectKey === "shield") {
@@ -7328,11 +9253,13 @@ cleanseReports.push({
 
     await applyShieldTempWounds(defender, shieldAmount, shieldEffect);
 
+    appliedEffectKeys.push(effectKey);
     continue;
   }
 
   if (effectKey === "pull" || effectKey === "push") {
     await applyForcedMovementEffect(defender, effect, effectKey);
+    appliedEffectKeys.push(effectKey);
     continue;
   }
 
@@ -7424,24 +9351,51 @@ if (existingIndex >= 0) {
         )
       : oldRemaining;
 
+  const refreshUsesLatestCaster = effectKey === "fear" || effectKey === "taunt";
+
   currentEffects[existingIndex] = {
-    ...existing,
-    ...effect,
+    ...(refreshUsesLatestCaster ? { ...existing, ...effect } : existing),
 
     id:
       existing.id ??
       effect.id,
 
     remaining:
-      combinedRemaining
+      combinedRemaining,
+
+    maxDuration:
+      Math.max(
+        Number(existing.maxDuration ?? 0),
+        Number(effect.maxDuration ?? 0)
+      ),
+
+    refreshedCombatId: getCombatId(),
+    refreshedRound: getCombatRound(),
+    refreshedTurn: getCombatTurn()
   };
 } else {
   currentEffects.push(effect);
 }
+appliedEffectKeys.push(effectKey);
 }
 await defender.update({
   "system.effects.active": currentEffects
 });
+
+for (const effect of incomingEffects) {
+  const effectKey = getEffectTagKey(effect.tag);
+  if (!appliedEffectKeys.includes(effectKey)) continue;
+  if (!["fear", "stun", "paralyze"].includes(effectKey)) continue;
+  try {
+    const clashAutomation = await import("../combat/clash.js");
+    const sourceActor = effect.sourceActorUuid
+      ? await fromUuid(effect.sourceActorUuid).catch(() => null)
+      : null;
+    await clashAutomation.handleClashEffectApplied?.(defender, effectKey, sourceActor);
+  } catch (error) {
+    console.warn("DDA | Clash effect-ending integration failed.", error);
+  }
+}
 
 if (shouldClearShieldTemp) {
   await clearShieldTempFromCleanse(defender);
@@ -7452,9 +9406,37 @@ defender.sheet?.render(true);
 for (const cleanseReport of cleanseReports) {
   await createCleanseChatMessage(defender, cleanseReport);
 }
+
+return {
+  applied: [...new Set(appliedEffectKeys)],
+  denied: denyResolution.denied ? getEffectTagKey(denyResolution.denied.tag) : null
+};
 }
 
-async function increaseDodgePenalty(actor) {
+async function increaseDodgePenalty(actor, request = {}) {
+  const uncatchable = Boolean(
+    actor?.system?.qualityFeatures?.dataSpecialization
+      ?.ignoresStackingDodgePenalty
+  );
+
+  if (uncatchable && !request?.ignoresUncatchableTarget) return;
+
+  const speedsterIgnoreCount = Math.max(
+    0,
+    Number(actor?.system?.qualityFeatures?.dataOptimization?.speedsterDodgePenaltyIgnoreCount ?? 0)
+  );
+  const combatant = getCombatantForActor(game?.combat, actor);
+  const speedsterWindow = speedsterIgnoreCount > 0 && combatantEndedThisRound(combatant, game?.combat);
+  const speedsterUse = getRoundUseState(actor, "dataOptimization", "speedsterDodgePenalty");
+
+  if (speedsterWindow && !speedsterUse) {
+    await setUseState(actor, "dataOptimization", "speedsterDodgePenalty", {
+      source: "speedster",
+      ignored: 1
+    });
+    return;
+  }
+
   const current = Number(actor.system.combat?.dodgePenalty ?? 0);
 
   await actor.update({
@@ -7493,18 +9475,16 @@ async function consumeSpeedSurgeAttackWindow(actor, effectId = "") {
 async function markAttackUsed(
   actor,
   usedSignatureMove = false,
-  attacksMadeThisTurn = 1
+  attacksMadeThisTurn = 1,
+  options = {}
 ) {
-  const updateData = {
-    "system.combat.hasAttackedThisRound":
-      true,
-
-    "system.combat.attacksMadeThisTurn":
-      attacksMadeThisTurn,
-
-    "system.combat.multiattackPenalty":
-      0
-  };
+  const updateData = options.suppressRoundCount
+    ? {}
+    : {
+        "system.combat.hasAttackedThisRound": true,
+        "system.combat.attacksMadeThisTurn": attacksMadeThisTurn,
+        "system.combat.multiattackPenalty": 0
+      };
 
   if (usedSignatureMove) {
     /*
@@ -7526,6 +9506,12 @@ async function markAttackUsed(
 
   await actor.update(
     updateData
+  );
+
+  await recordDataSpecializationAttackUse(
+    actor,
+    options.attackItem ?? null,
+    options.dataSpecializationMode ?? "normal"
   );
 }
 
@@ -7595,6 +9581,224 @@ export function registerAttackDodgeResponseListener() {
   );
 }
 
+function getAreaAttackRequestFromMessage(message) {
+  return message?.getFlag?.(game.system.id, "areaAttackRequest")
+    ?? message?.flags?.[game.system.id]?.areaAttackRequest
+    ?? null;
+}
+
+function getAreaAttackProgressMessage(request = {}) {
+  const progressMessageId = String(request?.areaProgressMessageId ?? "");
+  if (progressMessageId) {
+    const direct = game.messages?.get(progressMessageId);
+    if (direct) return direct;
+  }
+
+  const areaRequestId = String(request?.areaRequestId ?? "");
+  if (!areaRequestId) return null;
+
+  return game.messages?.find?.((candidate) => {
+    const areaRequest = getAreaAttackRequestFromMessage(candidate);
+    return String(areaRequest?.requestId ?? "") === areaRequestId;
+  }) ?? null;
+}
+
+async function isEnemyAreaDodgeRequest(request, defender) {
+  if (!request?.areaAttack || !request?.areaRequestId || !defender) {
+    return false;
+  }
+
+  let attacker = null;
+
+  try {
+    attacker = await fromUuid(request.attackerUuid);
+  } catch (error) {
+    console.warn(
+      "DDA | Could not resolve the attacker for bulk Area Dodge.",
+      error
+    );
+  }
+
+  return Boolean(attacker && !areActorsAllies(attacker, defender));
+}
+
+async function shouldAutoResolveEnemyAreaDodge(request, defender) {
+  if (!game.user?.isGM) return false;
+  if (!await isEnemyAreaDodgeRequest(request, defender)) return false;
+
+  const progressMessage = getAreaAttackProgressMessage(request);
+  const areaRequest = getAreaAttackRequestFromMessage(progressMessage);
+  const bulkDodge = areaRequest?.bulkDodge ?? null;
+
+  return Boolean(
+    bulkDodge?.active &&
+    String(bulkDodge.requestedByUserId ?? "") === String(game.user.id ?? "")
+  );
+}
+
+async function queueAutomaticEnemyAreaDodge(message, request, defender) {
+  const requestId = String(request?.requestId ?? "");
+  if (!requestId) return false;
+
+  if (!await shouldAutoResolveEnemyAreaDodge(request, defender)) {
+    return false;
+  }
+
+  if (bulkAreaDodgeInFlightRequests.has(requestId)) {
+    return true;
+  }
+
+  bulkAreaDodgeInFlightRequests.add(requestId);
+
+  void resolveAttackDodgeFromChat(message)
+    .then((resolved) => {
+      if (!resolved) {
+        bulkAreaDodgeInFlightRequests.delete(requestId);
+        ui.notifications.warn(combatText(
+          `A Esquiva automática de ${request.defenderName ?? "um alvo"} precisa ser resolvida manualmente.`,
+          `The automatic Dodge for ${request.defenderName ?? "a target"} must be resolved manually.`
+        ));
+        return;
+      }
+
+      globalThis.setTimeout(() => {
+        bulkAreaDodgeInFlightRequests.delete(requestId);
+      }, 10_000);
+    })
+    .catch((error) => {
+      bulkAreaDodgeInFlightRequests.delete(requestId);
+      console.error(
+        "DDA | Could not automatically resolve an enemy Area Dodge.",
+        error
+      );
+    });
+
+  return true;
+}
+
+export async function bindAreaAttackBulkDodgeCard(message, root) {
+  if (!message || !root?.querySelectorAll) return;
+
+  const areaRequest = getAreaAttackRequestFromMessage(message);
+  if (!areaRequest?.requestId) return;
+
+  const buttons = root.querySelectorAll(
+    "[data-action='dda-roll-all-area-dodges']"
+  );
+
+  if (!buttons.length) return;
+
+  const finishedStatuses = new Set([
+    "resolved",
+    "prevented",
+    "cancelled",
+    "skipped"
+  ]);
+  const enemyPending = Array.isArray(areaRequest.targets)
+    ? areaRequest.targets.filter((target) => {
+        return Boolean(target?.isEnemy) &&
+          !finishedStatuses.has(String(target?.status ?? "pending"));
+      })
+    : [];
+  const complete = ["resolved", "prevented", "cancelled"].includes(
+    String(areaRequest.status ?? "")
+  );
+  const canUse = Boolean(game.user?.isGM && !complete && enemyPending.length);
+  const alreadyActive = Boolean(areaRequest.bulkDodge?.active);
+
+  for (const button of buttons) {
+    if (button.dataset.ddaAreaBulkDodgeBound === "true") continue;
+    button.dataset.ddaAreaBulkDodgeBound = "true";
+    button.hidden = !canUse;
+    button.disabled = !canUse || alreadyActive;
+
+    if (!canUse || alreadyActive) continue;
+
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+
+      if (button.dataset.ddaAreaBulkDodgeInFlight === "true") return;
+
+      button.dataset.ddaAreaBulkDodgeInFlight = "true";
+      button.disabled = true;
+      button.innerHTML = `
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        ${combatText(
+          "Resolvendo Esquivas inimigas…",
+          "Resolving enemy Dodges…"
+        )}
+      `;
+
+      const liveAreaRequest = foundry.utils.deepClone(
+        getAreaAttackRequestFromMessage(message) ?? areaRequest
+      );
+      liveAreaRequest.bulkDodge = {
+        active: true,
+        requestedByUserId: game.user.id,
+        requestedAt: Date.now()
+      };
+
+      try {
+        await message.update({
+          [`flags.${game.system.id}.areaAttackRequest`]: liveAreaRequest
+        });
+      } catch (error) {
+        delete button.dataset.ddaAreaBulkDodgeInFlight;
+        button.disabled = false;
+        console.error(
+          "DDA | Could not activate bulk enemy Dodges.",
+          error
+        );
+        ui.notifications.error(combatText(
+          "Não foi possível ativar as Esquivas inimigas automáticas.",
+          "Could not enable automatic enemy Dodges."
+        ));
+        return;
+      }
+
+      const currentDodgeMessage = game.messages?.find?.((candidate) => {
+        const request = getAttackDodgeRequestFromMessage(candidate);
+        return request?.status === "pending" &&
+          String(request.areaRequestId ?? "") ===
+            String(liveAreaRequest.requestId ?? "");
+      }) ?? null;
+
+      if (!currentDodgeMessage) {
+        ui.notifications.info(combatText(
+          "As próximas Esquivas dos inimigos serão roladas automaticamente.",
+          "The next enemy Dodges will be rolled automatically."
+        ));
+        return;
+      }
+
+      const currentRequest = getAttackDodgeRequestFromMessage(
+        currentDodgeMessage
+      );
+      let defender = null;
+
+      try {
+        defender = await fromUuid(currentRequest?.defenderUuid);
+      } catch (error) {
+        console.warn(
+          "DDA | Could not resolve the current Area Dodge defender.",
+          error
+        );
+      }
+
+      if (
+        defender &&
+        canCurrentUserResolveAttackDodge(currentRequest, defender)
+      ) {
+        await queueAutomaticEnemyAreaDodge(
+          currentDodgeMessage,
+          currentRequest,
+          defender
+        );
+      }
+    });
+  }
+}
+
 export async function bindAttackDodgeChatCard(
   message,
   root
@@ -7637,6 +9841,26 @@ export async function bindAttackDodgeChatCard(
       request,
       defender
     );
+
+  if (
+    canResolve &&
+    await queueAutomaticEnemyAreaDodge(
+      message,
+      request,
+      defender
+    )
+  ) {
+    root.classList?.add("dda-area-bulk-dodge-auto-resolving");
+
+    for (const button of root.querySelectorAll(
+      "[data-action='dda-roll-attack-dodge'], [data-action='dda-cancel-attack-dodge']"
+    )) {
+      button.hidden = true;
+      button.disabled = true;
+    }
+
+    return;
+  }
 
   const rollButtons =
     root.querySelectorAll(
@@ -7858,11 +10082,12 @@ export async function resolveAttackDodgeFromChat(message) {
     return false;
   }
 
-  const quickeningResult =
-    await getQuickeningDodgeResult(
-      defender,
-      request
-    );
+  const quickeningResult = request.suppressTargetInterrupts
+    ? null
+    : await getQuickeningDodgeResult(
+        defender,
+        request
+      );
 
   let dodgeResult =
     quickeningResult ??
@@ -7930,7 +10155,8 @@ export async function resolveAttackDodgeFromChat(message) {
     !dodgeResult.quickening
   ) {
     await increaseDodgePenalty(
-      defender
+      defender,
+      request
     );
   }
 
@@ -8068,7 +10294,11 @@ async function requestAttackDodgeResult({
   accuracySuccesses = 0,
   dodgeShouldHalve = false,
   equalAccuracyAndDodgeCountsAsMiss = false,
-  areaAttack = false
+  areaAttack = false,
+  areaRequestId = "",
+  areaProgressMessageId = "",
+  ignoresUncatchableTarget = false,
+  suppressTargetInterrupts = false
 } = {}) {
   if (!attacker || !defender || !attackItem) return null;
 
@@ -8094,9 +10324,13 @@ async function requestAttackDodgeResult({
     attackFunctionType,
     attackerSv: Math.max(0, Number(getActorSv(attacker) ?? 0)),
     areaAttack: Boolean(areaAttack),
+    areaRequestId: String(areaRequestId ?? ""),
+    areaProgressMessageId: String(areaProgressMessageId ?? ""),
     effectDodgeModifier: Number(effectDodgeModifier ?? 0),
     accuracySuccesses: Math.max(0, Number(accuracySuccesses ?? 0)),
     dodgeShouldHalve: Boolean(dodgeShouldHalve),
+    ignoresUncatchableTarget: Boolean(ignoresUncatchableTarget),
+    suppressTargetInterrupts: Boolean(suppressTargetInterrupts),
 
     equalAccuracyAndDodgeCountsAsMiss: Boolean(
       equalAccuracyAndDodgeCountsAsMiss
@@ -9444,21 +11678,45 @@ async function getShieldTempData(defender, effect) {
     }
   }
 
-  const bit = Number(sourceActor?.system.derivedStats?.bit?.value ?? 1);
-  const stageValue = Number(sourceActor?.system.stageValue ?? 0);
+  const bit = Math.max(
+    0,
+    Number(
+      effect.basePotency ??
+      sourceActor?.system?.derivedStats?.bit?.total ??
+      sourceActor?.system?.derivedStats?.bit?.value ??
+      0
+    )
+  );
+  const stageValue = Math.max(0, Number(sourceActor?.system?.stageValue ?? 0));
+  const potencyBonus = Math.max(0, Number(effect.potencyBonus ?? 0));
 
-  const resistance = Number(
-    defender.system.miscStats?.resistance?.value ??
-    defender.system.derived?.sv?.value ??
-    0
+  const resistance = Math.max(
+    0,
+    Number(
+      effect.resistance ??
+      defender.system.miscStats?.resistance?.total ??
+      defender.system.miscStats?.resistance?.value ??
+      defender.system.derived?.sv?.value ??
+      0
+    )
   );
 
-  const rawAmount = bit + stageValue;
-  const amount = Math.max(1, rawAmount - resistance);
+  /*
+   * [SHIELD] is BIT + Stage and is treated as a Positive Effect. Signature
+   * Battery, Effect Warrior and the [MELEE][SUPPORT] bonus are therefore
+   * included before Resistance. Resistance cannot reduce a real positive
+   * magnitude below 2.
+   */
+  const rawAmount = Math.max(0, bit + stageValue + potencyBonus);
+  const amount = Math.max(
+    Math.min(2, rawAmount),
+    rawAmount - resistance
+  );
 
   return {
     bit,
     stageValue,
+    potencyBonus,
     resistance,
     rawAmount,
     amount
@@ -9651,6 +11909,12 @@ ${localize("DDA.Cleanse.ExpiredEffects")}:
             : ""
         }
 
+        ${
+          Number(cleanseReport.resolveReduced ?? 0) > 0
+            ? `<li>${combatText("Resolve reduzido", "Resolve reduced")}: <strong>${cleanseReport.resolveBefore} → ${cleanseReport.resolveAfter}</strong>.</li>`
+            : ""
+        }
+
         <li>
 ${localize("DDA.Cleanse.ActiveEffects")}:
           <strong>${cleanseReport.beforeCount} → ${cleanseReport.afterCount}</strong>.
@@ -9684,14 +11948,6 @@ function actorsMatch(left, right) {
   );
 }
 
-function getCombatantForActor(actor, combat = game.combat) {
-  if (!actor || !combat) return null;
-
-  return (combat.combatants?.contents ?? []).find((combatant) => {
-    return actorsMatch(combatant.actor, actor);
-  }) ?? null;
-}
-
 function getTokenForActor(actor, combatant = null) {
   const tokenId = combatant?.tokenId ?? combatant?.token?.id ?? "";
   const combatToken = tokenId
@@ -9717,9 +11973,24 @@ function getAttackCombatContext(attacker, attackOptions = {}) {
     };
   }
 
-  const combatant = getCombatantForActor(attacker, combat);
+  const combatant = getCombatantForActor(combat, attacker);
 
   if (!combatant) {
+    if (
+      attackOptions.evokerMinionCommand &&
+      attacker.flags?.["digimon-digital-adventures"]?.evokerCreation?.kind === "minion"
+    ) {
+      const token = getTokenForActor(attacker);
+      return token
+        ? { ok: true, combat, combatant: null, token, evokerMinionCommand: true }
+        : {
+            ok: false,
+            message: combatText(
+              `${attacker.name} precisa ter um Token no canvas para atacar.`,
+              `${attacker.name} needs a Token on the canvas to Attack.`
+            )
+          };
+    }
     return {
       ok: false,
       message: combatText(
@@ -9778,7 +12049,8 @@ function validateAttackTargeting({
   attackItem,
   qualityAttackModifier,
   attackRangeTotal,
-  attackEffectiveLimitTotal
+  attackEffectiveLimitTotal,
+  attackOptions = {}
 } = {}) {
   const rangeType = String(attackItem?.system?.baseTags?.rangeType ?? "")
     .trim()
@@ -9811,7 +12083,10 @@ function validateAttackTargeting({
       1 + Number(qualityAttackModifier?.meleeReachBonus ?? 0)
     );
 
-    if (distance > reach) {
+    if (
+      distance > reach &&
+      !attackOptions?.punishingStrikeContext?.ignoreMeleeRange
+    ) {
       return {
         valid: false,
         reason: "melee-out-of-reach",
@@ -9825,12 +12100,18 @@ function validateAttackTargeting({
       };
     }
 
+    const longArmsPenalty = Math.max(
+      0,
+      Number(qualityAttackModifier?.longArmsAccuracyPenalty ?? 0)
+    );
+
     return {
       valid: true,
       distance,
       reach,
       rangeType,
-      accuracyPenalty: 0
+      longArmsPenalty,
+      accuracyPenalty: -longArmsPenalty
     };
   }
 
@@ -9848,9 +12129,12 @@ function validateAttackTargeting({
       };
     }
 
-    const beyondRangePenalty = Math.max(0, distance - range);
+    const beyondRangePenalty = attackOptions?.counterattackContext?.ignoreEffectiveLimitPenalty
+      ? 0
+      : Math.max(0, distance - range);
 
-    const adjacentEnemy = !qualityAttackModifier?.recoilIgnoreAdjacentAccuracyPenalty &&
+    const adjacentEnemy = !attackOptions.ignoreAdjacentEnemyPenalty &&
+      !qualityAttackModifier?.recoilIgnoreAdjacentAccuracyPenalty &&
       hasAdjacentEnemyToken(attacker, attackerToken);
 
     const adjacentEnemyPenalty = adjacentEnemy ? 3 : 0;
@@ -9876,7 +12160,7 @@ function validateAttackTargeting({
 }
 
 function getAttackCombatSide(actor) {
-  const combatant = getCombatantForActor(actor);
+  const combatant = getCombatantForActor(game.combat, actor);
 
   const rawSide =
     combatant?.getFlag?.(game.system.id, "initiative.side") ??
@@ -9920,17 +12204,20 @@ async function getCleanseDeclaration(defender, activeEffectTags = []) {
     return {
       enabled: false,
       selective: false,
-      selectedEffectKeys: []
+      selectedEffectKeys: [],
+      reduceResolve: false
     };
   }
 
   const activeEffects = defender.system.effects?.active ?? [];
+  const resolve = getCombatMonsterResolve(defender);
 
-  if (!activeEffects.length) {
+  if (!activeEffects.length && resolve <= 0) {
     return {
       enabled: true,
       selective: false,
-      selectedEffectKeys: []
+      selectedEffectKeys: [],
+      reduceResolve: false
     };
   }
 
@@ -9938,92 +12225,94 @@ async function getCleanseDeclaration(defender, activeEffectTags = []) {
     const key = getEffectTagKey(effect.tag);
     const label = effect.label ?? effect.tag ?? key;
     const remaining = Number(effect.remaining ?? effect.duration ?? 0);
-const source = effect.sourceAttackName || effect.sourceActorName || localize("DDA.Cleanse.UnknownSource");
+    const source = effect.sourceAttackName || effect.sourceActorName || localize("DDA.Cleanse.UnknownSource");
 
     return `
       <label class="cleanse-effect-choice">
-        <input type="checkbox" name="effect" value="${key}" />
+        <input type="checkbox" name="effect" value="${escapeHtml(key)}" />
         <span class="cleanse-effect-label">
-          <strong>${label}</strong>
+          <strong>${escapeHtml(label)}</strong>
           <small>${formatI18n("DDA.Cleanse.EffectSourceAndDuration", {
-  source,
-  duration: remaining
-})}</small>
+            source,
+            duration: remaining
+          })}</small>
         </span>
       </label>
     `;
   }).join("");
 
-  return Dialog.wait({
-title: localize("DDA.Effect.Cleanse"),
+  const resolveOption = resolve > 0
+    ? `<label class="cleanse-effect-choice cleanse-resolve-choice">
+        <input type="checkbox" name="resolve" value="1" checked />
+        <span class="cleanse-effect-label">
+          <strong>${combatText("Resolve de Monstro de Combate", "Combat Monster Resolve")}</strong>
+          <small>${combatText(
+            `Atual: ${resolve}. [CLEANSE] pode reduzi-lo em uma quantidade igual à força da Limpeza.`,
+            `Current: ${resolve}. [CLEANSE] may reduce it by the Cleanse amount.`
+          )}</small>
+        </span>
+      </label>`
+    : "";
+
+  return foundry.applications.api.DialogV2.prompt({
+    classes: ["dda", "dda-area-attack-dialog", "dda-defensive-quality-window", "dda-cleanse-window"],
+    window: { title: localize("DDA.Effect.Cleanse") },
     content: `
-      <div class="dda-cleanse-dialog">
+      <form class="dda-cleanse-dialog dda-defensive-quality-dialog">
         <div class="cleanse-dialog-header">
-<h2>${localize("DDA.Effect.Cleanse")}</h2>
+          <h2>${localize("DDA.Effect.Cleanse")}</h2>
           <p>${formatI18n("DDA.Cleanse.ChooseApplication", {
-  target: `<strong>${defender.name}</strong>`
-})}</p>
+            target: `<strong>${escapeHtml(defender.name)}</strong>`
+          })}</p>
         </div>
 
         <div class="cleanse-mode-grid">
           <label class="cleanse-mode-card">
             <input type="radio" name="mode" value="all" checked />
-            <span>
-<strong>${localize("DDA.Cleanse.Total")}</strong>
-<small>${localize("DDA.Cleanse.TotalDescription")}</small>
-            </span>
+            <span><strong>${localize("DDA.Cleanse.Total")}</strong><small>${localize("DDA.Cleanse.TotalDescription")}</small></span>
           </label>
-
           <label class="cleanse-mode-card">
             <input type="radio" name="mode" value="selective" />
-            <span>
-<strong>${localize("DDA.Cleanse.Selective")}</strong>
-<small>${localize("DDA.Cleanse.SelectiveDescription")}</small>
-            </span>
+            <span><strong>${localize("DDA.Cleanse.Selective")}</strong><small>${localize("DDA.Cleanse.SelectiveDescription")}</small></span>
           </label>
         </div>
 
         <div class="cleanse-effect-picker">
-<h3>${localize("DDA.Cleanse.ActiveEffectsOnTarget")}</h3>
-<p>${localize("DDA.Cleanse.SelectiveHint")}</p>
-
-          <div class="cleanse-effect-choice-list">
-            ${effectOptions}
-          </div>
+          <h3>${localize("DDA.Cleanse.ActiveEffectsOnTarget")}</h3>
+          <p>${localize("DDA.Cleanse.SelectiveHint")}</p>
+          <div class="cleanse-effect-choice-list">${effectOptions}${resolveOption}</div>
         </div>
-      </div>
+      </form>
     `,
-    buttons: {
-      ok: {
-label: localize("DDA.Button.Confirm"),
-        callback: (html) => {
-          const mode = html[0].querySelector('input[name="mode"]:checked')?.value ?? "all";
-
-          const selectedEffectKeys = Array.from(html[0].querySelectorAll('input[name="effect"]:checked'))
-            .map((input) => input.value)
-            .filter(Boolean);
-
-          return {
-            enabled: true,
-            selective: mode === "selective",
-            selectedEffectKeys
-          };
-        }
-      },
-      cancel: {
-label: localize("DDA.Button.Cancel"),
-        callback: () => null
+    ok: {
+      label: localize("DDA.Button.Confirm"),
+      callback: (_event, button) => {
+        const form = button.form;
+        const mode = form.elements.mode?.value ?? "all";
+        const selectedEffectKeys = Array.from(form.querySelectorAll('input[name="effect"]:checked'))
+          .map((input) => input.value)
+          .filter(Boolean);
+        const selective = mode === "selective";
+        return {
+          enabled: true,
+          selective,
+          selectedEffectKeys,
+          reduceResolve: resolve > 0 && Boolean(form.elements.resolve?.checked)
+        };
       }
     },
-    default: "ok"
+    rejectClose: false,
+    modal: true
   });
 }
 
-async function rollCleanseTargetHealthPool(actor) {
+async function rollCleanseTargetHealthPool(actor, { label = "" } = {}) {
+  const rollLabel = label || localize("DDA.Effect.Cleanse");
+
   if (actor.type === "digimon" || actor.type === "npc") {
     return rollPool(actor, "health", {
       allowZeroSuccesses: true,
-      externalLabel: localize("DDA.Effect.Cleanse")
+      externalLabel: rollLabel
     });
   }
 
@@ -10042,8 +12331,8 @@ async function rollCleanseTargetHealthPool(actor) {
       speaker: ChatMessage.getSpeaker({ actor }),
 flavor: `
   <div class="dda-chat-card dda-pool-card">
-    <h2>${localize("DDA.Attack.CleanseHealth")}</h2>
-    <p><strong>${actor.name}</strong> ${localize("DDA.Attack.AssistsCleanse")}</p>
+    <h2>${rollLabel}</h2>
+    <p><strong>${actor.name}</strong> ${combatText("rola sua Saúde para auxiliar o Efeito.", "rolls Health to assist the Effect.")}</p>
     <p><strong>${localize("DDA.MainStat.Health")}:</strong> ${woundsMax}</p>
     <p><strong>${localize("DDA.Roll.Result")}:</strong> ${total}</p>
     <p><strong>${localize("DDA.Roll.Successes")}:</strong> ${totalSuccesses}</p>
@@ -10062,15 +12351,11 @@ flavor: `
   return null;
 }
 
-function getActiveEffectAttackModifiers(actor, defender = null) {
+function getActiveEffectAttackModifiers(actor, defender = null, attackOptions = {}) {
   /*
-   * Os modificadores permanentes dos efeitos
-   * já fazem parte dos atributos preparados
-   * pelo actor-document.
-   *
-   * Manter valores zerados preserva a interface
-   * atual do attack-roll sem aplicar os efeitos
-   * uma segunda vez.
+   * Permanent Effect modifiers are already included in prepared Actor totals.
+   * FEAR and TAUNT remain conditional because their penalty depends on the
+   * chosen target (or on whether their Caster is included in an Area Attack).
    */
   let conditionalAccuracy = 0;
   const defenderKeys = new Set([
@@ -10079,13 +12364,30 @@ function getActiveEffectAttackModifiers(actor, defender = null) {
     defender?.id ? `Actor.${defender.id}` : ""
   ].filter(Boolean).map(String));
 
+  const areaTargetKeys = new Set(
+    (attackOptions?.areaBatch?.targetActorUuids ?? [])
+      .filter(Boolean)
+      .map(String)
+  );
+  const isAreaAttack = Boolean(attackOptions?.areaBatch?.active);
+
   for (const effect of actor?.system?.effects?.active ?? []) {
     const tag = getEffectTagKey(effect.tag);
-    const sourceMatchesTarget = defenderKeys.has(String(effect.sourceActorUuid ?? ""));
-    const penalty = Math.max(0, Number(effect.value ?? effect.potency ?? 0));
+    const sourceUuid = String(effect.sourceActorUuid ?? "");
+    const sourceMatchesTarget = defenderKeys.has(sourceUuid);
+    const sourceIsInArea = isAreaAttack && sourceUuid && areaTargetKeys.has(sourceUuid);
+    const fullPenalty = Math.max(0, Number(effect.value ?? effect.potency ?? 0));
+    const areaPenalty = Math.ceil(fullPenalty / 2);
 
-    if (tag === "fear" && sourceMatchesTarget) conditionalAccuracy -= penalty;
-    if (tag === "taunt" && !sourceMatchesTarget) conditionalAccuracy -= penalty;
+    if (tag === "fear") {
+      if (sourceIsInArea) conditionalAccuracy -= areaPenalty;
+      else if (sourceMatchesTarget) conditionalAccuracy -= fullPenalty;
+    }
+
+    if (tag === "taunt") {
+      if (sourceIsInArea) conditionalAccuracy -= areaPenalty;
+      else if (!sourceMatchesTarget) conditionalAccuracy -= fullPenalty;
+    }
   }
 
   return {
@@ -10366,4 +12668,40 @@ function getHasteAttackWindow(actor) {
   return effects.find((effect) => {
     return getEffectTagKey(effect.tag) === "haste" && Number(effect.actionGranted ?? 1) > 0;
   }) ?? null;
+}
+
+/** Resolve only Effect Tags for Digital Hazard after its automatic Damage was applied. */
+export async function applyDigitalHazardEffects({ attacker, defender, attackItem, normalDamage = 0 } = {}) {
+  if (!attacker || !defender || !attackItem || Number(normalDamage) < 4) {
+    return { applied: [], reason: "minimumDamage" };
+  }
+  const qualityAttackModifier = getAppliedAttackQualityModifier(attacker, attackItem, {
+    defender,
+    targetToken: canvas?.tokens?.placeables?.find((token) => token.actor?.uuid === defender.uuid) ?? null
+  });
+  const directTag = attackItem.system?.effectTag?.enabled ? attackItem.system.effectTag.tag : "";
+  const effectTags = [...new Set([directTag, ...(qualityAttackModifier.effectTags ?? [])]
+    .map(normalizeAttackTag)
+    .filter((tag) => Boolean(EFFECT_TAGS[tag])))];
+  if (!effectTags.length) return { applied: [], reason: "noEffectTags" };
+  const application = getAttackEffectApplication({
+    hit: true,
+    attackItem,
+    activeEffectTags: effectTags,
+    normalDamage: Number(normalDamage),
+    leftoverSuccesses: 0,
+    attacker,
+    defender,
+    cleanseDeclaration: null,
+    targetIsAlly: areActorsAllies(attacker, defender),
+    accuracySuccesses: 0,
+    qualityAttackModifier,
+    areaAttackDeclaration: { active: false },
+    ignoreEffectResistance: false,
+    effectResistanceMultiplier: 1,
+    effectResistanceCanNegate: hasQuality(defender, "immunity")
+  });
+  if (!application.applied.length) return application;
+  const resolution = await applyAttackEffectTags(defender, application.applied);
+  return { ...application, resolution };
 }

@@ -360,11 +360,14 @@
 
         <div class="resource-box">
           <label>{{localize "DDA.Label.Maximum"}}</label>
-          <input type="number" name="system.qualityTagLimit.max" value="{{system.qualityTagLimit.max}}" />
+          <input type="number" value="{{system.qualityTagLimit.max}}" readonly />
         </div>
       </div>
 
       <p class="muted">{{localize "DDA.AttackSheet.QualityTagLimitHint"}}</p>
+      {{#if system.qualityTagLimit.exceeded}}
+        <p class="dda-attack-tag-limit-warning">{{localize "DDA.EffectQualities.TagLimitExceeded"}}</p>
+      {{/if}}
     </section>
 
     <section class="tab dda-attack-notes-tab {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">
