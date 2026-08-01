@@ -50,7 +50,7 @@ Development is active. The alpha is intended for testing, feedback, regression d
 - visual evolution graphs and an evolution-choice browser;
 - Game Master tools for partner progression;
 - combat initiative that pairs a Tamer and their partner in the turn order;
-- rolls for Tests and Reserves, combat actions, and postures;
+- rolls for Tests and Reserves, combat actions, postures, and automated Core, Offensive, and Defensive Quality workflows;
 - Digimon derived statistics: BIT, DOS, RAM, and CPU;
 - compendium packs for Digimon stages and special-form templates;
 - English and Brazilian Portuguese localization;
@@ -222,7 +222,7 @@ O desenvolvimento está ativo. A alpha existe para testes, feedback, descoberta 
 - grafo visual e navegador de escolhas evolutivas;
 - ferramentas de Mestre para a progressão do parceiro;
 - iniciativa de combate que pareia Tamer e parceiro na ordem de turnos;
-- rolagens de Testes e Reservas, ações de combate e posturas;
+- rolagens de Testes e Reservas, ações de combate, posturas e fluxos automatizados de Qualidades Centrais, Ofensivas e Defensivas;
 - estatísticas derivadas BIT, DOS, RAM e CPU;
 - compêndios de Digimon por estágio e de modelos de formas especiais;
 - localização em inglês e português brasileiro;
