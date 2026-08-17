@@ -173,8 +173,8 @@
   "secondaryTokenAttribute": "combat.actions",
   "url": "https://github.com/lamegal/digimon-digital-adventures",
   "manifest": "https://raw.githubusercontent.com/lamegal/digimon-digital-adventures/main/system.json",
-  "download": "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.20-beta/digimon-digital-adventures-v2.0.20-beta.zip",
+  "download": "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.21-beta/digimon-digital-adventures-v2.0.21-beta.zip",
   "bugs": "https://github.com/lamegal/digimon-digital-adventures/issues",
-  "changelog": "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.20-beta",
+  "changelog": "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.21-beta",
   "license": "LICENSE"
 }
