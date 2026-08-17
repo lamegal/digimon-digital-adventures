@@ -1563,33 +1563,23 @@ export async function getStoredPartnerFormWizardContext(
 }
 
 export async function getFuturePartnerFormWizardContext(
-  tamerActor,
+  sourceActor,
   formTemplateActor,
   options = {}
 ) {
-  if (!tamerActor || tamerActor.type !== "character") {
-    ui.notifications.warn(localize("DDA.Warning.DigivolutionOnlyForTamers"));
-    return null;
-  }
-
   if (!formTemplateActor || formTemplateActor.type !== "digimon") {
     ui.notifications.warn(localize("DDA.Warning.ChosenEvolutionFormNotDigimon"));
     return null;
   }
 
-  const partnerUuid = tamerActor.system.partner?.uuid;
+  // Future-form planning must support the same actor entry points as the
+  // current/stored-form Wizards: Tamer, persistent Digimon, or Digimon NPC.
+  // resolveCurrentFormWizardActors also resolves the linked Tamer when one
+  // exists, while correctly allowing standalone Digimon/NPC actors.
+  const actors = await resolveCurrentFormWizardActors(sourceActor);
+  if (!actors) return null;
 
-  if (!partnerUuid) {
-    ui.notifications.warn(localize("DDA.Warning.NoPartnerLinked"));
-    return null;
-  }
-
-  const partnerActor = await resolveActor(partnerUuid);
-
-  if (!partnerActor || partnerActor.type !== "digimon") {
-    ui.notifications.warn(localize("DDA.Warning.PartnerNotFound"));
-    return null;
-  }
+  const { tamerActor, partnerActor } = actors;
 
   const requestedSnapshotReference = String(options?.snapshotReference ?? "").trim();
   const formTemplateReference = requestedSnapshotReference || getFormTemplateReference(formTemplateActor);
@@ -2290,6 +2280,14 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
     stage: String(snapshot?.stage || fallbackActor?.system?.stage || "child"),
     stageValue: Number(snapshot?.stageValue ?? fallbackActor?.system?.stageValue ?? 2),
     size: String(snapshot?.size || fallbackActor?.system?.size || "medium"),
+    tokenGridSize: Math.max(
+      0,
+      Number(
+        snapshot?.tokenGridSize ??
+        fallbackActor?.flags?.[DDA_SYSTEM_ID]?.tokenGridSizeOverride ??
+        0
+      )
+    ),
     type: String(snapshot?.type || fallbackActor?.system?.type || ""),
     attribute: String(snapshot?.attribute || fallbackActor?.system?.attribute || "data"),
     field: String(snapshot?.field || fallbackActor?.system?.field || "none"),
@@ -2744,6 +2742,10 @@ function buildFormSnapshotFromActor(actor, options = {}) {
     stage: system.stage ?? "child",
     stageValue: Number(system.stageValue ?? 2),
     size: system.size ?? "medium",
+    tokenGridSize: Math.max(
+      0,
+      Number(actor?.flags?.[DDA_SYSTEM_ID]?.tokenGridSizeOverride ?? 0)
+    ),
     type: system.type ?? "",
     attribute: system.attribute ?? "data",
     field: system.field ?? "none",
@@ -3049,6 +3051,13 @@ const shouldUsePortraitFlag = Boolean(
       ? { [`flags.${DDA_SYSTEM_ID}.digivicePortraitManual`]: true }
       : { [`flags.${DDA_SYSTEM_ID}.-=digivicePortraitManual`]: null }),
     "prototypeToken.texture.src": tokenImg,
+    ...(Number(normalized.tokenGridSize ?? 0) > 0
+      ? {
+          "prototypeToken.width": Number(normalized.tokenGridSize),
+          "prototypeToken.height": Number(normalized.tokenGridSize),
+          [`flags.${DDA_SYSTEM_ID}.tokenGridSizeOverride`]: Number(normalized.tokenGridSize)
+        }
+      : {}),
     "system.evolution.portraitImg": portraitImg,
     "system.evolution.tokenImg": tokenImg,
 
@@ -4696,49 +4705,99 @@ const actualUuid = persistentSnapshot?.sourceFormUuid || node.actorUuid;
   return forms;
 }
 
-function getEvolutionUnlockDataForTamer(tamerActor, form = {}, previousFormActor = null) {
-  if (!tamerActor || tamerActor.type !== "character") {
-    return { allowed: true, reason: "" };
-  }
-
-  const partner = tamerActor.system?.partner ?? {};
-  const unlockedStages = partner.unlockedEvolutionStages ?? {};
-  const unlockedForms = Array.isArray(partner.unlockedForms) ? partner.unlockedForms : [];
+function getEvolutionUnlockData(
+  tamerActor,
+  partnerActor,
+  form = {},
+  previousFormActor = null
+) {
   const stageKey = String(form.stageKey ?? form.slotKey ?? "").trim();
   const formUuid = String(form.uuid ?? "").trim();
-
   const previousStageKey = String(previousFormActor?.system?.stage ?? "").trim();
   const previousStageIndex = getStageIndex(previousStageKey);
   const targetStageIndex = getStageIndex(stageKey);
-  const isRegression = Number.isFinite(previousStageIndex) && Number.isFinite(targetStageIndex) && targetStageIndex < previousStageIndex;
+  const isRegression = Number.isFinite(previousStageIndex) &&
+    Number.isFinite(targetStageIndex) &&
+    targetStageIndex < previousStageIndex;
 
-  // A trava do Narrador controla avanço. Regressão deve continuar possível,
-  // especialmente voltar para Bebê I, sem revelar novas evoluções futuras.
+  // GM locks control advancement. Regression remains possible so an NPC or
+  // Partner can always return from a higher form without revealing another
+  // unreleased future evolution.
   if (isRegression || stageKey === "baby1") {
     return { allowed: true, reason: "" };
   }
 
-  const hasStageLocks = unlockedStages && typeof unlockedStages === "object" && Object.keys(unlockedStages).length > 0;
+  if (tamerActor?.type === "character") {
+    const partner = tamerActor.system?.partner ?? {};
+    const unlockedStages = partner.unlockedEvolutionStages ?? {};
+    const unlockedForms = Array.isArray(partner.unlockedForms)
+      ? partner.unlockedForms
+      : [];
+    const hasStageLocks = unlockedStages &&
+      typeof unlockedStages === "object" &&
+      Object.keys(unlockedStages).length > 0;
 
-  if (hasStageLocks && stageKey && unlockedStages[stageKey] === false) {
-    return {
-      allowed: false,
-      reason: localize("DDA.Warning.EvolutionStageLockedByGM")
-    };
-  }
-
-  if (unlockedForms.length > 0 && formUuid) {
-    const isUnlocked = unlockedForms.some((entry) => {
-      if (typeof entry === "string") return entry === formUuid;
-      return String(entry?.uuid ?? entry?.actorUuid ?? "") === formUuid && entry?.unlocked !== false;
-    });
-
-    if (!isUnlocked) {
+    if (hasStageLocks && stageKey && unlockedStages[stageKey] === false) {
       return {
         allowed: false,
-        reason: localize("DDA.Warning.EvolutionFormLockedByGM")
+        reason: localize("DDA.Warning.EvolutionStageLockedByGM")
       };
     }
+
+    if (unlockedForms.length > 0 && formUuid) {
+      const isUnlocked = unlockedForms.some((entry) => {
+        if (typeof entry === "string") return entry === formUuid;
+        return [
+          entry?.uuid,
+          entry?.actorUuid,
+          entry?.formUuid,
+          entry?.sourceFormUuid
+        ].some((value) => String(value ?? "").trim() === formUuid) &&
+          entry?.unlocked !== false;
+      });
+
+      if (!isUnlocked) {
+        return {
+          allowed: false,
+          reason: localize("DDA.Warning.EvolutionFormLockedByGM")
+        };
+      }
+    }
+
+    return { allowed: true, reason: "" };
+  }
+
+  const isIndependentNpc = Boolean(
+    partnerActor?.documentName === "Actor" &&
+    partnerActor?.type === "npc" &&
+    partnerActor?.system?.isDigimon
+  );
+
+  if (!isIndependentNpc) {
+    return { allowed: true, reason: "" };
+  }
+
+  const unlockedForms = Array.isArray(partnerActor.system?.evolution?.unlockedForms)
+    ? partnerActor.system.evolution.unlockedForms
+    : [];
+
+  const isUnlocked = Boolean(formUuid) && unlockedForms.some((entry) => {
+    if (typeof entry === "string") return String(entry).trim() === formUuid;
+
+    return [
+      entry?.uuid,
+      entry?.actorUuid,
+      entry?.formUuid,
+      entry?.sourceFormUuid
+    ].some((value) => String(value ?? "").trim() === formUuid) &&
+      entry?.unlocked !== false;
+  });
+
+  if (!isUnlocked) {
+    return {
+      allowed: false,
+      reason: localize("DDA.Warning.EvolutionFormLockedByGM")
+    };
   }
 
   return { allowed: true, reason: "" };
@@ -4780,7 +4839,12 @@ function chooseEvolutionForm(
       applyPreInitiativeEvolutionCost(costData, tamerActor);
     }
 
-    const gmUnlockData = getEvolutionUnlockDataForTamer(tamerActor, form, previousFormActor);
+    const gmUnlockData = getEvolutionUnlockData(
+      tamerActor,
+      partnerActor,
+      form,
+      previousFormActor
+    );
 
     if (!gmUnlockData.allowed) {
       costData.allowed = false;

@@ -2842,6 +2842,25 @@ function buildInventoryEffect(tamer, item, targetActor, kind = "none") {
   };
 }
 
+function getInventoryItemTypeLabelKey(type) {
+  const labels = {
+    attack: "DDA.Item.Attack",
+    quality: "DDA.Item.Quality",
+    torment: "DDA.Item.Torment",
+    tamerTalent: "DDA.Item.TamerTalent",
+    motif: "DDA.Item.Motif",
+    equipment: "DDA.Item.Equipment",
+    consumable: "DDA.Item.Consumable",
+    card: "DDA.Item.Card",
+    milestone: "DDA.Item.Milestone",
+    trait: "DDA.Item.Trait",
+    evolutionLink: "DDA.Item.EvolutionLink",
+    digimental: "DDA.Item.Digimental"
+  };
+
+  return labels[type] ?? "DDA.Item.Item";
+}
+
 function localize(key) {
   return game.i18n.localize(key);
 }

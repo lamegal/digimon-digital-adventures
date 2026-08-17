@@ -1003,6 +1003,30 @@
   min-width: 0;
 }
 
+#dda-partner-form-planner .dda-form-build-availability-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 42px;
+  padding: 8px 10px;
+  border: 1px solid rgba(102, 193, 255, 0.46);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(31, 91, 136, 0.96), rgba(18, 48, 78, 0.98));
+  color: #e8f7ff;
+  font-weight: 800;
+}
+
+#dda-partner-form-planner .dda-form-build-availability-button.is-available {
+  border-color: rgba(103, 230, 163, 0.58);
+  background: linear-gradient(180deg, rgba(29, 126, 88, 0.96), rgba(17, 70, 51, 0.98));
+  color: #eafff2;
+}
+
+#dda-partner-form-planner .dda-form-build-availability-button:hover {
+  filter: brightness(1.12);
+}
+
 #dda-partner-form-planner .dda-form-build-remove-button {
   display: inline-flex;
   align-items: center;

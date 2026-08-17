@@ -1001,6 +1001,10 @@ _prepareDigimonPersistentEvolutionState(system) {
     system.evolution.unlockedStages = ["baby1", "baby2", "child"];
   }
 
+  if (!Array.isArray(system.evolution.unlockedForms)) {
+    system.evolution.unlockedForms = [];
+  }
+
   if (!Array.isArray(system.evolution.forms)) {
     system.evolution.forms = [];
   }
@@ -4084,8 +4088,12 @@ _prepareDigimonDp(system) {
       itemGrantedDp = grantsDpTotal;
     }
 
-    if (legacyGrantsDp && itemGrantedDp === 0) {
-      itemGrantedDp = Math.abs(itemCost);
+    if ((isNegativeQuality || legacyGrantsDp) && itemGrantedDp === 0) {
+      const printedNegativeDp = Math.abs(Number(itemSystem.cost?.dp ?? 0));
+      const negativeRank = Math.max(1, Number(itemSystem.rank?.value ?? 1));
+      itemGrantedDp = itemSystem.cost?.perRank
+        ? printedNegativeDp * negativeRank
+        : printedNegativeDp;
     }
 
     if (isNegativeQuality || legacyGrantsDp) {
@@ -4186,6 +4194,17 @@ _prepareDigimonDp(system) {
       ? 0
       : Math.max(0, legacyNegative);
 
+  /*
+   * DDA 7.02 caps the DP GAINED from Negative Qualities at SV. It does not
+   * make a Quality illegal when its printed negative value is larger than the
+   * remaining allowance. Keep the raw total for diagnostics, but only add the
+   * capped amount to the creation pool.
+   */
+  const negativeLimitMax = Math.max(0, stageValue);
+  const rawNegativeQualityDp = Math.max(0, negativeQualityDp);
+  negativeQualityDp = Math.min(rawNegativeQualityDp, negativeLimitMax);
+  grantedDp = Math.min(Math.max(0, grantedDp), negativeLimitMax);
+
   const totalNegativeDp = (
     manualNegativeDp +
     negativeQualityDp
@@ -4250,15 +4269,13 @@ _prepareDigimonDp(system) {
     bonusDp
   );
 
-  const negativeLimitMax = Math.max(0, stageValue);
   const negativeLimitRemaining = Math.max(
     0,
     negativeLimitMax - negativeQualityDp
   );
 
-  const negativeLimitExceeded = (
-    negativeQualityDp > negativeLimitMax
-  );
+  const negativeLimitExceeded = false;
+  const negativeDpWasCapped = rawNegativeQualityDp > negativeLimitMax;
 
   creation.dp ??= {};
 
@@ -4270,6 +4287,8 @@ _prepareDigimonDp(system) {
   creation.dp.granted = grantedDp;
   creation.dp.negativeFromQualities =
     negativeQualityDp;
+  creation.dp.negativeFromQualitiesRaw = rawNegativeQualityDp;
+  creation.dp.negativeCapped = negativeDpWasCapped;
   creation.dp.totalNegative = totalNegativeDp;
 
   creation.dp.total = totalDp;
@@ -4303,6 +4322,7 @@ _prepareDigimonDp(system) {
   creation.negativeDp = manualNegativeDp;
   creation.grantedDp = grantedDp;
   creation.negativeQualityDp = negativeQualityDp;
+  creation.negativeQualityDpRaw = rawNegativeQualityDp;
   creation.totalNegativeDp = totalNegativeDp;
   creation.totalDp = totalDp;
   creation.spentDp = spentTotal;
@@ -4320,6 +4340,8 @@ _prepareDigimonDp(system) {
 
     system.qualityLimits.negativeDp.exceeded =
       negativeLimitExceeded;
+    system.qualityLimits.negativeDp.selected = rawNegativeQualityDp;
+    system.qualityLimits.negativeDp.capped = negativeDpWasCapped;
   }
 
   if (system.qualityLimits?.freeQualities) {
@@ -4356,6 +4378,8 @@ _prepareDigimonDp(system) {
       negativeLimitRemaining;
     creation.negativeDpLimit.exceeded =
       negativeLimitExceeded;
+    creation.negativeDpLimit.selected = rawNegativeQualityDp;
+    creation.negativeDpLimit.capped = negativeDpWasCapped;
   }
 
   creation.coreDiscount ??= {};
@@ -4389,6 +4413,17 @@ _prepareDigimonQualityRequirements(system) {
     const coreId = getCoreQualityId({ name: reference });
     if (coreId && hasCoreQuality(this, coreId)) return true;
     return ownedQualityNames.has(normalizeQualityName(reference));
+  };
+
+  const getOwnedQualityRank = (aliases = []) => {
+    const wanted = new Set(aliases.map(normalizeQualityName));
+    const owned = ownedQualities.find((quality) => (
+      [quality.name, quality.system?.originalName, quality.system?.sourceId]
+        .filter(Boolean)
+        .map(normalizeQualityName)
+        .some((key) => wanted.has(key))
+    ));
+    return Math.max(0, Number(owned?.system?.rank?.value ?? 0));
   };
 
   for (const item of ownedQualities) {
@@ -4429,6 +4464,33 @@ if (coreQualityId === CORE_QUALITY_IDS.advancedMobility) {
   const extraMovement = findCoreQuality(this, CORE_QUALITY_IDS.extraMovement);
   const extraChoices = getCoreSelectedChoices(extraMovement);
   effectiveRankMax = Math.min(5, extraChoices.length);
+}
+
+const qualityIdentity = normalizeQualityName(
+  itemSystem.sourceId ?? itemSystem.originalName ?? item.name ?? ""
+);
+const dependentRankCaps = {
+  fraquezanatural: ["passoNatural", "naturewalk"],
+  naturalweakness: ["passoNatural", "naturewalk"],
+  errodesistema: ["impulsoDeSistema", "systemBoost"],
+  systemerror: ["impulsoDeSistema", "systemBoost"],
+  perfuracaodesastrada: ["golpeCerteiro", "certainStrike"],
+  fumbledpiercing: ["golpeCerteiro", "certainStrike"],
+  golpeenfraquecido: ["golpeCerteiro", "certainStrike"],
+  weakenedstrike: ["golpeCerteiro", "certainStrike"],
+  decepcionante: ["poderBrutal", "hugePower"],
+  underwhelming: ["poderBrutal", "hugePower"],
+  flancoaberto: ["esquiva", "avoidance"],
+  broadside: ["esquiva", "avoidance"],
+  doenca: ["energiaVital", "vitalEnergy"],
+  illness: ["energiaVital", "vitalEnergy"]
+};
+
+if (dependentRankCaps[qualityIdentity]) {
+  effectiveRankMax = Math.min(
+    Math.max(0, Number(itemSystem.rank?.max ?? effectiveRankMax ?? 0)),
+    getOwnedQualityRank(dependentRankCaps[qualityIdentity])
+  );
 }
 
 if (itemSystem.rank) {

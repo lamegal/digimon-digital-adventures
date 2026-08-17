@@ -20151,3 +20151,8 @@ html body :is(.window-app, .application):has(.dda-roll-dialog) .dialog-buttons b
     gap: 5px !important;
   }
 }
+
+.dda-roll-dialog .dda-tamer-skill-attribute-hint {
+  margin: -4px 0 8px;
+  opacity: 0.78;
+}

@@ -32,6 +32,9 @@ import {
   applyIntrinsicQualityDiscount,
   getIntrinsicFirstPurchaseDiscount
 } from "../rules/core-qualities.js";
+import {
+  getDigimonTokenScaleForSize
+} from "../tokens/digimon-token-scale.js";
 
 const {
   ApplicationV2,
@@ -95,6 +98,23 @@ function normalizeWizardQualityIdentity(
     .trim();
 }
 
+function normalizeWizardElementKey(value = "") {
+  const key = normalizeWizardQualityIdentity(value);
+  const aliases = {
+    fire: "fire", fogo: "fire",
+    water: "water", agua: "water",
+    wind: "wind", vento: "wind",
+    earth: "earth", terra: "earth",
+    ice: "ice", gelo: "ice",
+    wood: "wood", flora: "wood",
+    steel: "steel", aco: "steel",
+    thunder: "thunder", trovao: "thunder", lightning: "thunder",
+    dark: "dark", darkness: "dark", trevas: "dark",
+    light: "light", luz: "light"
+  };
+  return aliases[key] ?? key;
+}
+
 function isWizardNaturewalkQuality(
   quality = {}
 ) {
@@ -125,6 +145,19 @@ const DDA_WIZARD_STAGE_ORDER = [
   "ultimate",
   "ultimatePlus"
 ];
+
+const DDA_WIZARD_SIZE_ORDER = [
+  "small", "medium", "large", "huge", "gigantic", "colossal"
+];
+
+const DDA_WIZARD_TOKEN_SIZE_RANGE = {
+  small: { min: 0.5, max: 1 },
+  medium: { min: 1, max: 2 },
+  large: { min: 1, max: 3 },
+  huge: { min: 2, max: 4 },
+  gigantic: { min: 3, max: 6 },
+  colossal: { min: 4, max: 8 }
+};
 
 const DDA_WIZARD_STARTING_STAGE_KEYS = [
   "baby1",
@@ -1486,6 +1519,13 @@ this._wizardStaticPortraitIndexPromise = null;
 
       formAttacks: [],
 
+      formAppearance: {
+        size: "medium",
+        tokenSize: 1,
+        sizeOptions: [],
+        tokenSizeOptions: []
+      },
+
       initialLineBuildStage: "baby1",
 
       initialLineBuilds: {
@@ -2022,9 +2062,9 @@ async _preloadWizardDatabase() {
     return wizard;
   }
 
-  static async openFutureFormWizard(tamerActor, formTemplateActor, options = {}) {
+  static async openFutureFormWizard(sourceActor, formTemplateActor, options = {}) {
     const formContext = await getFuturePartnerFormWizardContext(
-      tamerActor,
+      sourceActor,
       formTemplateActor,
       options
     );
@@ -2254,6 +2294,11 @@ async _onInputChange(event) {
   }
 
   foundry.utils.setProperty(this.data, path, value);
+
+  if (path === "formAppearance.size" && this.mode === "formSnapshot") {
+    this._refreshFormAppearanceOptions({ preserveTokenSize: false });
+    this._renderPreservingScroll();
+  }
 }
 
 _buildTemplatesCanBeUsed() {
@@ -4317,12 +4362,14 @@ _normalizeFutureFormAttackSlot(attack = {}) {
   const system = attack?.system ?? {};
 
   const rangeType = String(
+    attack?.rangeType ??
     system.baseTags?.rangeType ??
     system.rangeType ??
     "melee"
   ).toLowerCase();
 
   const functionType = String(
+    attack?.functionType ??
     system.baseTags?.functionType ??
     system.functionType ??
     (system.support?.enabled ? "support" : "damage")
@@ -4367,6 +4414,67 @@ _getFutureFormAttackItems(stageKey = this.data.stage) {
     .filter(Boolean);
 }
 
+_getFormSizeOptions(stageKey = this.data.stage) {
+  const stageData = this._getStageOptions().find((entry) => entry.key === stageKey);
+  const maximumSize = String(stageData?.maxSize ?? "colossal");
+  const maximumIndex = DDA_WIZARD_SIZE_ORDER.indexOf(maximumSize);
+
+  return DDA_WIZARD_SIZE_ORDER
+    .filter((_size, index) => maximumIndex < 0 || index <= maximumIndex)
+    .map((key) => ({
+      key,
+      label: game.i18n.localize(`DDA.Size.${key.charAt(0).toUpperCase()}${key.slice(1)}`)
+    }));
+}
+
+_getFormTokenSizeOptions(sizeKey = "medium") {
+  const range = DDA_WIZARD_TOKEN_SIZE_RANGE[sizeKey] ?? DDA_WIZARD_TOKEN_SIZE_RANGE.medium;
+  const values = [];
+
+  if (range.min === 0.5) values.push(0.5);
+  for (let value = Math.max(1, Math.ceil(range.min)); value <= Math.floor(range.max); value += 1) {
+    values.push(value);
+  }
+
+  return values.map((value) => ({
+    value,
+    label: `${value} × ${value}`
+  }));
+}
+
+_refreshFormAppearanceOptions({ preserveTokenSize = true } = {}) {
+  this.data.formAppearance ??= {};
+
+  const sizeOptions = this._getFormSizeOptions(this.data.stage);
+  const allowedSizes = new Set(sizeOptions.map((entry) => entry.key));
+  let size = String(this.data.formAppearance.size ?? "medium");
+  if (!allowedSizes.has(size)) {
+    size = sizeOptions.at(-1)?.key ?? "medium";
+  }
+
+  const tokenSizeOptions = this._getFormTokenSizeOptions(size);
+  const allowedTokenSizes = new Set(tokenSizeOptions.map((entry) => Number(entry.value)));
+  let tokenSize = Number(this.data.formAppearance.tokenSize ?? 1);
+
+  if (!preserveTokenSize || !allowedTokenSizes.has(tokenSize)) {
+    const configuredDefault = Number(getDigimonTokenScaleForSize(size));
+    tokenSize = allowedTokenSizes.has(configuredDefault)
+      ? configuredDefault
+      : Number(tokenSizeOptions[0]?.value ?? 1);
+  }
+
+  this.data.formAppearance.size = size;
+  this.data.formAppearance.tokenSize = tokenSize;
+  this.data.formAppearance.sizeOptions = sizeOptions.map((entry) => ({
+    ...entry,
+    selected: entry.key === size
+  }));
+  this.data.formAppearance.tokenSizeOptions = tokenSizeOptions.map((entry) => ({
+    ...entry,
+    selected: Number(entry.value) === tokenSize
+  }));
+}
+
 _initializeFormSnapshotData() {
   this.data.postCreate.createTamer = false;
   this.data.postCreate.hidden = true;
@@ -4400,6 +4508,20 @@ _initializeFormSnapshotData() {
     "";
   this.data.identity.source = templateActor?.uuid ?? snapshot.sourceFormUuid ?? "";
   this.data.stage = stageKey;
+  this.data.formAppearance.size = String(
+    snapshot.size ||
+    templateActor?.system?.size ||
+    partnerActor?.system?.size ||
+    "medium"
+  );
+  this.data.formAppearance.tokenSize = Number(
+    snapshot.tokenGridSize ??
+    templateActor?.flags?.["digimon-digital-adventures"]?.tokenGridSizeOverride ??
+    templateActor?.prototypeToken?.width ??
+    partnerActor?.prototypeToken?.width ??
+    1
+  );
+  this._refreshFormAppearanceOptions();
 
   /*
    * A forma futura pode ser preparada antes de o Estágio ser liberado e sem
@@ -4555,7 +4677,8 @@ tokenImg:
     species: this.data.identity.species || formTemplateActor?.system?.species || partnerActor.system?.species || this.data.identity.name,
     stage: stageKey,
     stageValue: this._getStageValue(stageKey),
-    size: existingSnapshot.size || formTemplateActor?.system?.size || partnerActor.system?.size || stageData?.maxSize || "medium",
+    size: this.data.formAppearance?.size || existingSnapshot.size || formTemplateActor?.system?.size || partnerActor.system?.size || stageData?.maxSize || "medium",
+    tokenGridSize: Number(this.data.formAppearance?.tokenSize ?? existingSnapshot.tokenGridSize ?? 1),
     type: this.data.identity.type || formTemplateActor?.system?.type || partnerActor.system?.type || "",
     attribute: this.data.identity.attribute || formTemplateActor?.system?.attribute || partnerActor.system?.attribute || "data",
     field: this.data.identity.field || formTemplateActor?.system?.field || partnerActor.system?.field || "none",
@@ -4938,9 +5061,11 @@ _recalculateFormBuild(build = null) {
     return total + Number(quality.cost ?? 0);
   }, 0);
 
-  const bonusFromNegativeQualities = build.qualities.negative.reduce((total, quality) => {
+  const rawBonusFromNegativeQualities = build.qualities.negative.reduce((total, quality) => {
     return total + Number(quality.cost ?? 0);
   }, 0);
+  const negativeLimit = Math.max(0, Number(stageData.negativeLimit ?? 0));
+  const bonusFromNegativeQualities = Math.min(rawBonusFromNegativeQualities, negativeLimit);
 
   const freeQualityUsed = [
     ...build.qualities.positive,
@@ -4958,7 +5083,8 @@ _recalculateFormBuild(build = null) {
   build.dp.spent = spentPositive;
   build.dp.remaining = totalAvailable - spentPositive;
   build.dp.negativeUsed = bonusFromNegativeQualities;
-  build.dp.negativeLimit = Number(stageData.negativeLimit ?? 0);
+  build.dp.negativeSelected = rawBonusFromNegativeQualities;
+  build.dp.negativeLimit = negativeLimit;
   build.dp.freeQualityUsed = freeQualityUsed;
   build.dp.freeQualityLimit = Number(stageData.freeQualityLimit ?? 0);
   build.dp.coreDiscountUsed = coreDiscount.used;
@@ -5149,11 +5275,12 @@ _getFormBuildValidationErrors() {
       ));
     }
 
-    if (Number(build.dp?.negativeUsed ?? 0) > Number(build.dp?.negativeLimit ?? 0)) {
-      errors.push(prefix + text(
-        "Você excedeu o limite de PD Negativo desta forma.",
-        "You exceeded this form's Negative DP limit."
-      ));
+    const buildRequirementErrors = this._getSelectedQualityRequirementErrors([
+      ...positiveQualities,
+      ...negativeQualities
+    ]);
+    for (const requirementError of buildRequirementErrors) {
+      errors.push(prefix + requirementError);
     }
 
     if (
@@ -9478,8 +9605,13 @@ if (!isFormSnapshotMode && (this.currentStep === "evolutionLine" || this.current
         errors.push(...this._getFormBuildValidationErrors());
       } else if (this.currentStep === "qualities" || this.currentStep === "summary") {
         const incompatibilityErrors = this._getSelectedQualityIncompatibilityErrors();
+        const requirementErrors = this._getSelectedQualityRequirementErrors();
 
         for (const error of incompatibilityErrors) {
+          errors.push(error);
+        }
+
+        for (const error of requirementErrors) {
           errors.push(error);
         }
 
@@ -9498,10 +9630,6 @@ if (!isFormSnapshotMode && (this.currentStep === "evolutionLine" || this.current
               `This form must spend ${requiredQualityBonus} Bonus DP on Qualities. It currently commits ${spentQualityBonus}.`
             ));
           }
-        }
-
-        if (this.data.dp.negativeUsed > this.data.dp.negativeLimit) {
-          errors.push(text("Você excedeu o limite de PD Negativo para este estágio.", "You exceeded the Negative DP limit for this stage."));
         }
 
         if (
@@ -9583,11 +9711,12 @@ if (this.currentStep === "partnerQuestions") {
         || this.data.dp.freeQualityUsed <= this.data.dp.freeQualityLimit;
 
       const incompatibilityOk = this._getSelectedQualityIncompatibilityErrors().length === 0;
+      const requirementsOk = this._getSelectedQualityRequirementErrors().length === 0;
 
       return this.data.dp.remaining >= 0
-        && this.data.dp.negativeUsed <= this.data.dp.negativeLimit
         && freeOk
-        && incompatibilityOk;
+        && incompatibilityOk
+        && requirementsOk;
     }
 
     return this.data.validation.errors.length === 0;
@@ -9613,9 +9742,11 @@ _recalculateStageData() {
     return total + Number(quality.cost ?? 0);
   }, 0);
 
-  const bonusFromNegativeQualities = this.data.qualities.negative.reduce((total, quality) => {
+  const rawBonusFromNegativeQualities = this.data.qualities.negative.reduce((total, quality) => {
     return total + Number(quality.cost ?? 0);
   }, 0);
+  const negativeLimit = Math.max(0, Number(stage.negativeLimit ?? 0));
+  const bonusFromNegativeQualities = Math.min(rawBonusFromNegativeQualities, negativeLimit);
 
   const freeQualityUsed = this._getFreeQualityUsed?.() ?? 0;
 
@@ -9647,7 +9778,8 @@ _recalculateStageData() {
   this.data.dp.statRemaining = Math.max(0, localRemaining);
 
   this.data.dp.negativeUsed = bonusFromNegativeQualities;
-  this.data.dp.negativeLimit = stage.negativeLimit ?? 0;
+  this.data.dp.negativeSelected = rawBonusFromNegativeQualities;
+  this.data.dp.negativeLimit = negativeLimit;
 
   this.data.dp.freeQualityUsed = freeQualityUsed;
   this.data.dp.freeQualityLimit = stage.freeQualityLimit ?? 0;
@@ -9976,7 +10108,7 @@ _getStageOptions() {
         attacks: 1,
         maxSize: "medium",
         maxSizeLabel: text("Médio", "Medium"),
-        negativeLimit: 2,
+        negativeLimit: 1,
         freeQualityLimit: 1,
         recommendation: text("Bom para começar com um parceiro um pouco mais ativo.", "Good for starting with a slightly more active partner."),
         recommended: true
@@ -9989,7 +10121,7 @@ _getStageOptions() {
         attacks: 3,
         maxSize: "large",
         maxSizeLabel: text("Grande", "Large"),
-        negativeLimit: 5,
+        negativeLimit: 2,
         freeQualityLimit: 1,
         recommendation: text("Recomendado para aventuras já começando no ritmo clássico.", "Recommended for adventures that already start at the classic pace."),
         recommended: true
@@ -10002,7 +10134,7 @@ _getStageOptions() {
         attacks: 3,
         maxSize: "huge",
         maxSizeLabel: text("Enorme", "Huge"),
-        negativeLimit: 10,
+        negativeLimit: 3,
         freeQualityLimit: 1,
         recommendation: text("Indicado para campanhas mais avançadas.", "Recommended for more advanced campaigns."),
         recommended: false
@@ -10015,7 +10147,7 @@ _getStageOptions() {
         attacks: 3,
         maxSize: "gigantic",
         maxSizeLabel: text("Gigantesco", "Gigantic"),
-        negativeLimit: 15,
+        negativeLimit: 4,
         freeQualityLimit: 1,
         recommendation: text("Use apenas se o Narrador quiser começar em nível alto.", "Use only if the GM wants to start at a high level."),
         recommended: false
@@ -10028,7 +10160,7 @@ _getStageOptions() {
   attacks: 4,
   maxSize: "colossal",
   maxSizeLabel: text("Colossal", "Colossal"),
-  negativeLimit: 20,
+  negativeLimit: 5,
   freeQualityLimit: 1,
   recommendation: text("Estágio final. Melhor para campanhas muito específicas.", "Final stage. Best for very specific campaigns."),
   recommended: false
@@ -10041,7 +10173,7 @@ _getStageOptions() {
   attacks: 4,
   maxSize: "colossal",
   maxSizeLabel: text("Colossal", "Colossal"),
-  negativeLimit: 25,
+  negativeLimit: 5,
   freeQualityLimit: 1,
   recommendation: text("Acima do Mega. Use apenas com aprovação do Narrador.", "Beyond Mega. Use only with GM approval."),
   recommended: false
@@ -10128,7 +10260,7 @@ async _onAddQuality(event) {
 
     const increaseCost = this._getQualityRankIncreaseCostInfo(quality);
 
-    if (increaseCost.effectiveCost > this.data.dp.remaining) {
+    if (quality.kind !== "negative" && increaseCost.effectiveCost > this.data.dp.remaining) {
       ui.notifications.warn(text("PD insuficiente para aumentar o Rank desta Qualidade.", "Not enough DP to increase this Quality Rank."));
       return;
 }
@@ -11310,14 +11442,36 @@ const isAttackChoice =
     "signatureMove"
   ].includes(choices.type);
 
-const options = isAttackChoice
+let options = isAttackChoice
   ? this._getAttackChoiceOptionsForQuality(
       quality,
       existingChoices
     )
   : Array.isArray(choices.options)
-    ? choices.options
+    ? choices.options.map((option) => {
+        if (typeof option !== "string") return option;
+        const key = choices.type === "twoElementsPerRank"
+          ? normalizeWizardElementKey(option)
+          : String(option).trim();
+        return {
+          key,
+          label: choices.type === "derivedStatPerRank" ? option.toUpperCase() : option,
+          originalLabel: option
+        };
+      })
     : [];
+
+if (choices.type === "derivedStatPerRank" && choices.cannotChooseStatsAffectedBySystemBoost) {
+  const systemBoost = this._getSelectedQualityById("impulsoDeSistema");
+  const boostedStats = new Set(
+    (systemBoost?.choices?.selectedRanks ?? [])
+      .map((choice) => normalizeWizardQualityIdentity(choice?.key ?? choice?.label ?? ""))
+      .filter(Boolean)
+  );
+  options = options.filter((option) => !boostedStats.has(
+    normalizeWizardQualityIdentity(option?.key ?? option?.label ?? "")
+  ));
+}
 
 if (!options.length) {
   ui.notifications.warn(
@@ -11361,6 +11515,87 @@ const availableOptions = isAttackChoice
     );
 
     return null;
+  }
+
+  if (choices.type === "twoElementsPerRank") {
+    const naturewalk = this._getSelectedQualityById("passoNatural");
+    const naturewalkElements = new Set(
+      (naturewalk?.choices?.selectedRanks ?? [])
+        .map((choice) => normalizeWizardElementKey(choice?.key ?? choice?.label ?? ""))
+        .filter(Boolean)
+    );
+    const alreadyChosen = new Set(
+      existingChoices.flatMap((choice) => choice?.elements ?? [])
+        .map((element) => normalizeWizardElementKey(element?.key ?? element?.label ?? element ?? ""))
+        .filter(Boolean)
+    );
+    const eligible = availableOptions.filter((option) => {
+      const key = normalizeWizardElementKey(option?.key ?? option?.label ?? "");
+      return key && !naturewalkElements.has(key) && !alreadyChosen.has(key);
+    });
+
+    if (eligible.length < 2) {
+      ui.notifications.warn(text(
+        `${quality.name} precisa de dois Elementos disponíveis que não tenham sido escolhidos por Passo Natural.`,
+        `${quality.name} needs two available Elements that were not chosen by Naturewalk.`
+      ));
+      return null;
+    }
+
+    const selectedKeys = await foundry.applications.api.DialogV2.prompt({
+      classes: ["dda", "dda-quality-choice-dialog", "dda-natural-weakness-choice-dialog"],
+      window: {
+        title: text(
+          `${quality.name} — Escolha do Rank ${rankNumber}`,
+          `${quality.name} — Rank ${rankNumber} Choice`
+        )
+      },
+      content: `
+        <div class="dda-quality-choice-form">
+          <p class="notes">${text(
+            "Escolha exatamente 2 Elementos que não estejam em Passo Natural.",
+            "Choose exactly 2 Elements that are not in Naturewalk."
+          )}</p>
+          <div class="dda-quality-choice-checkboxes">
+            ${eligible.map((option) => `
+              <label>
+                <input type="checkbox" name="elements" value="${this._escapeHtml(normalizeWizardElementKey(option.key))}">
+                <span>${this._escapeHtml(option.label ?? option.key)}</span>
+              </label>
+            `).join("")}
+          </div>
+        </div>
+      `,
+      ok: {
+        label: text("Confirmar", "Confirm"),
+        callback: (_event, button) => Array.from(
+          button.form?.querySelectorAll?.('[name="elements"]:checked') ?? []
+        ).map((input) => input.value)
+      },
+      rejectClose: false,
+      modal: true
+    });
+
+    if (!Array.isArray(selectedKeys) || selectedKeys.length !== 2) {
+      ui.notifications.warn(text("Escolha exatamente 2 Elementos.", "Choose exactly 2 Elements."));
+      return null;
+    }
+
+    const elements = selectedKeys.map((key) => {
+      const option = eligible.find((entry) => normalizeWizardElementKey(entry.key) === key);
+      return {
+        key,
+        label: option?.label ?? key,
+        originalLabel: option?.originalLabel ?? option?.label ?? key
+      };
+    });
+
+    return {
+      rank: rankNumber,
+      key: elements.map((element) => element.key).join("+"),
+      label: elements.map((element) => element.label).join(" + "),
+      elements
+    };
   }
 
   if (
@@ -12611,6 +12846,44 @@ _getQualityEffectiveMaxForWizard(
     return 2;
   }
 
+  const qualityIdentity = normalizeWizardQualityIdentity(
+    quality?.id ?? quality?.originalName ?? quality?.name ?? ""
+  );
+
+  if (["fraquezanatural", "naturalweakness"].includes(qualityIdentity)) {
+    return Math.min(
+      Number(quality?.rank?.max ?? 2),
+      this._getSelectedQualityRankByAliases(["passoNatural", "naturewalk"])
+    );
+  }
+
+  if (["errodesistema", "systemerror"].includes(qualityIdentity)) {
+    return Math.min(
+      Number(quality?.rank?.max ?? 2),
+      this._getSelectedQualityRankByAliases(["impulsoDeSistema", "systemBoost"])
+    );
+  }
+
+  const dependentRankCaps = {
+    perfuracaodesastrada: ["golpeCerteiro", "certainStrike"],
+    fumbledpiercing: ["golpeCerteiro", "certainStrike"],
+    golpeenfraquecido: ["golpeCerteiro", "certainStrike"],
+    weakenedstrike: ["golpeCerteiro", "certainStrike"],
+    decepcionante: ["poderBrutal", "hugePower"],
+    underwhelming: ["poderBrutal", "hugePower"],
+    flancoaberto: ["esquiva", "avoidance"],
+    broadside: ["esquiva", "avoidance"],
+    doenca: ["energiaVital", "vitalEnergy"],
+    illness: ["energiaVital", "vitalEnergy"]
+  };
+
+  if (dependentRankCaps[qualityIdentity]) {
+    return Math.min(
+      Number(quality?.rank?.max ?? 1),
+      this._getSelectedQualityRankByAliases(dependentRankCaps[qualityIdentity])
+    );
+  }
+
     /*
    * Basic, Advanced e Master Effect usam um Rank para cada Ataque que
    * ainda pode receber uma Tag de Efeito. rank.max = 0 representa um
@@ -13064,19 +13337,21 @@ _prepareQualityForBrowser(quality) {
   const availabilityCheck = this._checkQualityAvailability(quality);
   const purchaseCost = this._getQualityPurchaseCostInfo(quality);
   const canAfford = quality.kind === "negative"
-    ? this.data.dp.negativeUsed + this._getQualityFullCost(quality, 1) <= this.data.dp.negativeLimit
+    ? true
     : this.data.dp.remaining >= Number(purchaseCost.effectiveCost ?? 0);
   const canTakeFreeQuality = this._canTakeFreeQuality(quality, ownedEntry);
 
   const incompatibilityConflict = this._getQualityIncompatibilityConflict(quality);
   const digizoidGainForceRequirement = this._getDigizoidGainForceRequirementFailure(quality);
+  const qualityRequirement = this._getQualityRequirementFailure(quality);
 
   const canBuy = !owned
     && availabilityCheck.available
     && canAfford
     && canTakeFreeQuality
     && !incompatibilityConflict
-    && !digizoidGainForceRequirement;
+    && !digizoidGainForceRequirement
+    && !qualityRequirement;
 
   let blockedReason = "";
 
@@ -13084,12 +13359,12 @@ _prepareQualityForBrowser(quality) {
         blockedReason = incompatibilityConflict.message;
       } else if (digizoidGainForceRequirement) {
         blockedReason = digizoidGainForceRequirement;
+      } else if (qualityRequirement) {
+        blockedReason = qualityRequirement;
       } else if (!availabilityCheck.available) {
         blockedReason = availabilityCheck.reason;
       } else if (!canAfford) {
-    blockedReason = quality.kind === "negative"
-      ? text("Excede o limite de PD Negativo deste estágio.", "Exceeds the Negative DP limit for this stage.")
-      : text("PD insuficiente.", "Not enough DP.");
+    blockedReason = text("PD insuficiente.", "Not enough DP.");
   } else if (!canTakeFreeQuality) {
     blockedReason = this._getFreeQualityBlockedReason();
   }
@@ -13164,6 +13439,79 @@ _getQualityIdentityKeys(quality = {}) {
   ]
     .map((value) => normalizeDigimonLookupName(value))
     .filter(Boolean);
+}
+
+_getQualityRequiredNames(quality = {}) {
+  const raw = String(
+    quality?.requirements?.qualityNames ??
+    quality?.system?.requirements?.qualityNames ??
+    ""
+  ).trim();
+
+  if (!raw) return [];
+
+  return raw
+    .split(/[,;|]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+_getMissingRequiredQualitiesForWizard(quality = {}, selectedQualities = null) {
+  const requiredNames = this._getQualityRequiredNames(quality);
+  if (!requiredNames.length) return [];
+
+  const selected = selectedQualities ?? [
+    ...this.data.qualities.positive,
+    ...this.data.qualities.negative
+  ];
+
+  const missing = requiredNames.filter((requiredName) => {
+    const wanted = normalizeDigimonLookupName(requiredName);
+    return !selected.some((selectedQuality) => (
+      this._getQualityIdentityKeys(selectedQuality).includes(wanted) &&
+      Math.max(0, Number(selectedQuality?.rank?.value ?? 0)) >= 1
+    ));
+  });
+
+  const requirementText = String(
+    quality?.requirements?.text ??
+    quality?.system?.requirements?.text ??
+    ""
+  );
+  const anyMode = quality?.requirements?.mode === "any" || /\b(or|ou)\b/i.test(requirementText);
+
+  if (anyMode) {
+    return missing.length === requiredNames.length ? requiredNames : [];
+  }
+
+  return missing;
+}
+
+_getQualityRequirementFailure(quality = {}, selectedQualities = null) {
+  const missing = this._getMissingRequiredQualitiesForWizard(quality, selectedQualities);
+  if (!missing.length) return "";
+
+  return text(
+    `Requer: ${missing.join(", ")}.`,
+    `Requires: ${missing.join(", ")}.`
+  );
+}
+
+_getSelectedQualityRequirementErrors(selectedQualities = null) {
+  const selected = selectedQualities ?? [
+    ...this.data.qualities.positive,
+    ...this.data.qualities.negative
+  ];
+
+  return selected.flatMap((quality) => {
+    const failure = this._getQualityRequirementFailure(quality, selected);
+    return failure
+      ? [text(
+          `${quality.name}: ${failure}`,
+          `${quality.name}: ${failure}`
+        )]
+      : [];
+  });
 }
 
 _getDigizoidGainForceFamily(quality = {}) {

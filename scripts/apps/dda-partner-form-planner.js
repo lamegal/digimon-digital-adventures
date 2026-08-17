@@ -6,7 +6,8 @@ import {
   getPlannedFormCompatibility,
   releaseUnlockedPlannedPartnerForms,
   removePlannedPartnerForm,
-  repairPlannedPartnerFormData
+  repairPlannedPartnerFormData,
+  setIndependentNpcFormAvailability
 } from "./dda-partner-form-release.js";
 import { DDADigimonDatabase } from "../data/digimon-database.js";
 import {
@@ -178,7 +179,22 @@ function isNegativeQuality(item = {}) {
   return tier === "negative" || Boolean(item.system?.isNegative);
 }
 
-function getUnlockedStages(tamerActor = null) {
+function isIndependentNpcDigimon(actor = null) {
+  return Boolean(
+    actor &&
+    actor.documentName === "Actor" &&
+    actor.type === "npc" &&
+    actor.system?.isDigimon
+  );
+}
+
+function getUnlockedStages(tamerActor = null, partnerActor = null) {
+  if (!tamerActor && isIndependentNpcDigimon(partnerActor)) {
+    return Object.fromEntries(
+      DDA_STAGE_ORDER.map((stageKey) => [stageKey, true])
+    );
+  }
+
   const unlockedStages = foundry.utils.deepClone(
     tamerActor?.system?.partner?.unlockedEvolutionStages ?? {}
   );
@@ -282,12 +298,24 @@ function hasLineReference(line = {}, reference = "") {
   });
 }
 
-function isReferenceUnlockedForTamer(tamerActor = null, reference = "") {
-  const unlockedForms = Array.isArray(tamerActor?.system?.partner?.unlockedForms)
-    ? tamerActor.system.partner.unlockedForms
-    : [];
+function isReferenceUnlockedForOwner(
+  tamerActor = null,
+  partnerActor = null,
+  reference = ""
+) {
+  const independentNpc = !tamerActor && isIndependentNpcDigimon(partnerActor);
+  const unlockedForms = independentNpc
+    ? (Array.isArray(partnerActor?.system?.evolution?.unlockedForms)
+        ? partnerActor.system.evolution.unlockedForms
+        : [])
+    : (Array.isArray(tamerActor?.system?.partner?.unlockedForms)
+        ? tamerActor.system.partner.unlockedForms
+        : []);
 
-  if (!unlockedForms.length) return true;
+  /* Partners preserve the legacy empty-list = no whitelist behavior. For
+     autonomous NPCs, an empty list deliberately means no future form has been
+     made available by the GM yet. */
+  if (!unlockedForms.length) return !independentNpc;
 
   const wanted = String(reference ?? "").trim();
 
@@ -313,8 +341,9 @@ function isSnapshotReleased(partnerActor, tamerActor, snapshot = {}) {
   ) && hasLineReference(
     partnerActor?.system?.evolutionLine,
     reference
-  ) && isReferenceUnlockedForTamer(
+  ) && isReferenceUnlockedForOwner(
     tamerActor,
+    partnerActor,
     reference
   );
 }
@@ -538,6 +567,7 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
     actions: {
       refresh: DDAPartnerFormPlanner._onActionRefresh,
       releaseUnlockedForms: DDAPartnerFormPlanner._onActionReleaseUnlockedForms,
+      toggleNpcFormAvailability: DDAPartnerFormPlanner._onActionToggleNpcFormAvailability,
       adjustForm: DDAPartnerFormPlanner._onActionAdjustForm,
       removeForm: DDAPartnerFormPlanner._onActionRemoveForm,
       addForm: DDAPartnerFormPlanner._onActionAddForm,
@@ -631,7 +661,7 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       partnerActor?.isOwner
     );
 
-    const unlockedStages = getUnlockedStages(tamerActor);
+    const unlockedStages = getUnlockedStages(tamerActor, partnerActor);
 
     const currentFormUuid = String(
       partnerActor.system.evolution?.currentFormUuid ||
@@ -708,6 +738,7 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
      * O mesmo botão também repara formas já liberadas. Isso permite corrigir
      * retratos, metadados e vínculos sem apagar o planejamento existente.
      */
+    const independentNpc = !tamerActor && isIndependentNpcDigimon(partnerActor);
     const releaseableCount = forms.filter((form) => {
       return game.user?.isGM && form.prepared && form.unlocked && form.plannedEvolutionMethod !== "jogress";
     }).length;
@@ -724,9 +755,12 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       plannerModeLabel: this.darkEvolutionMode
         ? localize("DDA.PartnerFormPlanner.Dark.ModeLabel", "Dark Evolution")
         : localize("DDA.PartnerFormPlanner.Mode.Standard", "Evolution Plan"),
+      isIndependentNpc: independentNpc,
       tamer: {
         uuid: tamerActor?.uuid ?? "",
-        name: tamerActor?.name ?? ""
+        name: tamerActor?.name ?? (independentNpc
+          ? localize("DDA.PartnerFormPlanner.Npc.ManagedByGM", "GM-controlled NPC")
+          : "")
       },
       partner: (() => {
         const portraitSources = getActorPortraitSources(partnerActor);
@@ -934,6 +968,8 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       this.formContext?.tamerActor,
       snapshot
     );
+    const independentNpc = !this.formContext?.tamerActor &&
+      isIndependentNpcDigimon(this.formContext?.partnerActor);
 
     return {
       key: String(snapshot.key ?? sourceFormUuid),
@@ -953,6 +989,14 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       isCurrent,
       prepared,
       released,
+      npcAvailable: Boolean(independentNpc && released),
+      canToggleNpcAvailability: Boolean(
+        independentNpc &&
+        game.user?.isGM &&
+        prepared &&
+        !isCurrent &&
+        String(snapshot.wizard?.plannedEvolutionMethod || "normal") !== "jogress"
+      ),
       canRelease: Boolean(
         game.user?.isGM &&
         prepared &&
@@ -1104,6 +1148,48 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
     }
 
     await this.render();
+  }
+
+  static async _onActionToggleNpcFormAvailability(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!game.user?.isGM || !this.formContext) return;
+
+    const partnerActor = this.formContext.partnerActor;
+    if (this.formContext.tamerActor || !isIndependentNpcDigimon(partnerActor)) return;
+
+    const sourceFormUuid = String(target?.dataset?.formUuid ?? "").trim();
+    if (!sourceFormUuid) return;
+
+    const currentlyAvailable = String(target?.dataset?.available ?? "false") === "true";
+    if (target) target.disabled = true;
+
+    const result = await setIndependentNpcFormAvailability(
+      this.sourceActor ?? partnerActor,
+      sourceFormUuid,
+      !currentlyAvailable
+    );
+
+    if (result?.reason) {
+      ui.notifications.warn(localize(
+        "DDA.PartnerFormPlanner.Npc.AvailabilityFailed",
+        "The NPC form availability could not be changed."
+      ));
+      if (target) target.disabled = false;
+      return;
+    }
+
+    ui.notifications.info(localize(
+      currentlyAvailable
+        ? "DDA.PartnerFormPlanner.Npc.Locked"
+        : "DDA.PartnerFormPlanner.Npc.Unlocked",
+      currentlyAvailable
+        ? "Form removed from this NPC's available evolutions."
+        : "Form made available to this NPC."
+    ));
+
+    await this.render({ force: true });
   }
 
   static async _onActionRemoveForm(event, target) {
@@ -1379,7 +1465,7 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
     );
 
     return DDADigimonWizard.openFutureFormWizard(
-      this.formContext.tamerActor,
+      this.sourceActor ?? this.formContext.partnerActor,
       formTemplateActor,
       {
         returnApplication: this,

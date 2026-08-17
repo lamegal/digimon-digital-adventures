@@ -53,6 +53,15 @@ async function resolveActor(reference = "") {
   return game.actors?.get(clean) ?? null;
 }
 
+function isIndependentNpcDigimon(actor = null) {
+  return Boolean(
+    actor &&
+    actor.documentName === "Actor" &&
+    actor.type === "npc" &&
+    actor.system?.isDigimon
+  );
+}
+
 async function resolvePartnerPair(sourceActor = null) {
   if (!sourceActor) return null;
 
@@ -79,15 +88,26 @@ async function resolvePartnerPair(sourceActor = null) {
             cleanReference(actor.system?.partner?.uuid) === partnerActor.uuid;
         }) ?? null;
 
-    return tamerActor
-      ? { tamerActor, partnerActor }
-      : null;
+    if (tamerActor) return { tamerActor, partnerActor };
+
+    /*
+     * Ally/enemy Digimon NPCs are intentionally autonomous: their planned
+     * forms live on the NPC itself and are released by the GM rather than by
+     * Tamer milestone progression.
+     */
+    if (isIndependentNpcDigimon(partnerActor)) {
+      return { tamerActor: null, partnerActor };
+    }
   }
 
   return null;
 }
 
-function getUnlockedStages(tamerActor = null) {
+function getUnlockedStages(tamerActor = null, partnerActor = null) {
+  if (!tamerActor && isIndependentNpcDigimon(partnerActor)) {
+    return Object.fromEntries(STAGE_ORDER.map((stage) => [stage, true]));
+  }
+
   const unlocked = clone(
     tamerActor?.system?.partner?.unlockedEvolutionStages ?? {}
   );
@@ -1240,12 +1260,17 @@ async function tryAutoLink(graph = {}, snapshot = {}, node = null) {
   };
 }
 
-function updateFormWhitelist(unlockedForms = [], reference = "") {
+function updateFormWhitelist(
+  unlockedForms = [],
+  reference = "",
+  { allowCreate = false } = {}
+) {
   /*
-   * An empty list means that the system is not using a form whitelist.
-   * Starting one here would accidentally lock every previously available form.
+   * For Tamer partners, an empty list keeps the legacy "no whitelist"
+   * semantics. Autonomous NPCs opt into an explicit whitelist, so the GM may
+   * create the first available form from an empty list.
    */
-  if (!unlockedForms.length) return false;
+  if (!unlockedForms.length && !allowCreate) return false;
 
   const wanted = cleanReference(reference);
   const index = unlockedForms.findIndex((entry) => {
@@ -1573,7 +1598,8 @@ export async function releaseUnlockedPlannedPartnerForms(
   }
 
   const { tamerActor, partnerActor } = pair;
-  const unlockedStages = getUnlockedStages(tamerActor);
+  const independentNpc = !tamerActor && isIndependentNpcDigimon(partnerActor);
+  const unlockedStages = getUnlockedStages(tamerActor, partnerActor);
   const wanted = new Set(
     (Array.isArray(formReferences) ? formReferences : [])
       .map(cleanReference)
@@ -1603,12 +1629,16 @@ export async function releaseUnlockedPlannedPartnerForms(
   );
 
   const unlockedForms = clone(
-    Array.isArray(tamerActor.system?.partner?.unlockedForms)
-      ? tamerActor.system.partner.unlockedForms
-      : []
+    independentNpc
+      ? (Array.isArray(partnerActor.system?.evolution?.unlockedForms)
+          ? partnerActor.system.evolution.unlockedForms
+          : [])
+      : (Array.isArray(tamerActor?.system?.partner?.unlockedForms)
+          ? tamerActor.system.partner.unlockedForms
+          : [])
   );
 
-  const usesWhitelist = unlockedForms.length > 0;
+  const usesWhitelist = independentNpc || unlockedForms.length > 0;
   let whitelistChanged = false;
   let partnerChanged = false;
 
@@ -1679,7 +1709,8 @@ export async function releaseUnlockedPlannedPartnerForms(
     if (usesWhitelist) {
       whitelistChanged = updateFormWhitelist(
         unlockedForms,
-        reference
+        reference,
+        { allowCreate: independentNpc }
       ) || whitelistChanged;
     }
 
@@ -1710,22 +1741,28 @@ export async function releaseUnlockedPlannedPartnerForms(
     }
   }
 
-  if (partnerChanged) {
-    await partnerActor.update({
+  if (partnerChanged || (independentNpc && whitelistChanged)) {
+    const partnerUpdate = {
       "system.evolution.formSnapshots": snapshots,
       "system.evolutionGraph": graph,
       "system.evolutionLine": line
-    });
+    };
+
+    if (independentNpc && whitelistChanged) {
+      partnerUpdate["system.evolution.unlockedForms"] = unlockedForms;
+    }
+
+    await partnerActor.update(partnerUpdate);
   }
 
-  if (usesWhitelist && whitelistChanged) {
+  if (!independentNpc && usesWhitelist && whitelistChanged && tamerActor) {
     await tamerActor.update({
       "system.partner.unlockedForms": unlockedForms
     });
   }
 
   partnerActor.sheet?.render(true);
-  tamerActor.sheet?.render(false);
+  tamerActor?.sheet?.render(false);
 
   if (result.manualLinks.length) {
     console.groupCollapsed(
@@ -1754,6 +1791,71 @@ export async function releaseUnlockedPlannedPartnerForms(
     console.groupEnd();
   }
 
+  return result;
+}
+
+export async function setIndependentNpcFormAvailability(
+  sourceActor,
+  formReference = "",
+  available = true
+) {
+  const result = { changed: false, available: Boolean(available), reason: "" };
+
+  if (!game.user?.isGM) {
+    result.reason = "permission";
+    ui.notifications.warn(localize(
+      "DDA.PartnerFormPlanner.Release.GMOnly",
+      "Only the GM can release planned forms."
+    ));
+    return result;
+  }
+
+  const pair = await resolvePartnerPair(sourceActor);
+  const partnerActor = pair?.partnerActor ?? null;
+
+  if (!pair || pair.tamerActor || !isIndependentNpcDigimon(partnerActor)) {
+    result.reason = "notIndependentNpc";
+    return result;
+  }
+
+  const reference = cleanReference(formReference);
+  if (!reference) {
+    result.reason = "missingReference";
+    return result;
+  }
+
+  if (available) {
+    const release = await releaseUnlockedPlannedPartnerForms(sourceActor, {
+      formReferences: [reference]
+    });
+
+    result.changed = Boolean(
+      release.released.length ||
+      release.repaired.length ||
+      release.alreadyReleased.length
+    );
+    result.release = release;
+    return result;
+  }
+
+  const unlockedForms = Array.isArray(partnerActor.system?.evolution?.unlockedForms)
+    ? clone(partnerActor.system.evolution.unlockedForms)
+    : [];
+  const nextUnlockedForms = removeReferenceFromUnlockedForms(
+    unlockedForms,
+    reference
+  );
+
+  if (nextUnlockedForms.length === unlockedForms.length) {
+    return result;
+  }
+
+  await partnerActor.update({
+    "system.evolution.unlockedForms": nextUnlockedForms
+  });
+
+  result.changed = true;
+  partnerActor.sheet?.render(false);
   return result;
 }
 
@@ -1875,6 +1977,7 @@ export async function removePlannedPartnerForm(
   }
 
   const { tamerActor, partnerActor } = pair;
+  const independentNpc = !tamerActor && isIndependentNpcDigimon(partnerActor);
   const canEdit = Boolean(
     game.user?.isGM ||
     tamerActor?.isOwner ||
@@ -1890,7 +1993,7 @@ export async function removePlannedPartnerForm(
     partnerActor.uuid,
     partnerActor.system?.evolution?.currentFormUuid,
     partnerActor.system?.evolution?.sourceFormUuid,
-    tamerActor.system?.partner?.currentFormUuid
+    tamerActor?.system?.partner?.currentFormUuid
   ]
     .map(cleanReference)
     .filter(Boolean));
@@ -2013,11 +2116,13 @@ export async function removePlannedPartnerForm(
     ) || result.removedFromLine;
   }
 
-  const previousUnlockedForms = Array.isArray(
-    tamerActor.system?.partner?.unlockedForms
-  )
-    ? clone(tamerActor.system.partner.unlockedForms)
-    : [];
+  const previousUnlockedForms = independentNpc
+    ? (Array.isArray(partnerActor.system?.evolution?.unlockedForms)
+        ? clone(partnerActor.system.evolution.unlockedForms)
+        : [])
+    : (Array.isArray(tamerActor?.system?.partner?.unlockedForms)
+        ? clone(tamerActor.system.partner.unlockedForms)
+        : []);
 
   let nextUnlockedForms = previousUnlockedForms;
   for (const removedReference of referencesToRemove) {
@@ -2068,16 +2173,22 @@ export async function removePlannedPartnerForm(
   });
 
   if (result.removedFromWhitelist) {
-    await tamerActor.update({
-      "system.partner.unlockedForms": nextUnlockedForms
-    });
+    if (independentNpc) {
+      await partnerActor.update({
+        "system.evolution.unlockedForms": nextUnlockedForms
+      });
+    } else if (tamerActor) {
+      await tamerActor.update({
+        "system.partner.unlockedForms": nextUnlockedForms
+      });
+    }
   }
 
   if (partnerActor.sheet?.rendered) {
     partnerActor.sheet.render(false);
   }
 
-  if (tamerActor.sheet?.rendered) {
+  if (tamerActor?.sheet?.rendered) {
     tamerActor.sheet.render(false);
   }
 

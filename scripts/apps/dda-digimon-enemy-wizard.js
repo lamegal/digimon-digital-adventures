@@ -1429,13 +1429,7 @@ function getEnemyQualityNegativeLimit(form = {}) {
   const stageKey = String(form.stageKey ?? "");
 
   if (stageKey === "baby1") return 0;
-  if (stageKey === "baby2") return 2;
-  if (stageKey === "ultimatePlus") return 25;
-
-  return Math.max(
-    0,
-    (getEnemyStageValue(form) - 1) * 5
-  );
+  return Math.max(0, getEnemyStageValue(form));
 }
 
 function normalizeEnemyQualityName(value = "") {
@@ -7430,7 +7424,7 @@ const attackRows = this._getEnemyAttackRows();
       return total + Number(row.qualityDp ?? 0);
     }, 0);
 
-    const negativeQualityDp = selectedQualityRows.reduce((total, row) => {
+    const rawNegativeQualityDp = selectedQualityRows.reduce((total, row) => {
       return total + Number(row.negativeDp ?? 0);
     }, 0);
 
@@ -7440,6 +7434,7 @@ const attackRows = this._getEnemyAttackRows();
 
     const freeQualityLimit = getEnemyQualityFreeLimit(form);
     const negativeQualityLimit = getEnemyQualityNegativeLimit(form);
+    const negativeQualityDp = Math.min(rawNegativeQualityDp, negativeQualityLimit);
 
     const spentDp = statDp + qualityDp;
     const totalDp = baseDp + bonusDp + negativeQualityDp;
@@ -7448,8 +7443,7 @@ const attackRows = this._getEnemyAttackRows();
     const freeQualityOverrun =
       freeQualityCount > freeQualityLimit;
 
-    const negativeQualityOverrun =
-      negativeQualityDp > negativeQualityLimit;
+    const negativeQualityOverrun = false;
 
     const hasBudgetOverrun =
       remainingDp < 0 ||
@@ -8369,6 +8363,10 @@ const tokenCandidates = await getTokenCandidates(
         evolution: {
           autonomous:
             true,
+
+          /* Future forms are opt-in for autonomous NPCs. The GM releases
+             individual prepared forms from the Form Planner. */
+          unlockedForms: [],
 
           currentStage:
             form.stageKey,
