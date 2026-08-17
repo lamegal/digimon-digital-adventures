@@ -374,3 +374,18 @@
 .combat-tracker li.combatant.dda-pair-anchor:last-child {
   margin-bottom: 0 !important;
 }
+
+/* Jogress combines two Tamer/Digimon units into one shared activation. */
+.dda-combat-pair-card.dda-jogress-unit-card {
+  grid-template-columns: 42px repeat(3, minmax(0, 1fr));
+}
+
+.dda-jogress-unit-card .dda-pair-member--tamer {
+  grid-column: 3;
+  border-right: 1px solid rgba(177, 217, 248, 0.16);
+}
+
+.dda-jogress-unit-card .dda-pair-member--tamer:last-of-type {
+  grid-column: 4;
+  border-right: 0;
+}

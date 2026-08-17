@@ -4,6 +4,13 @@ import {
   spendLightDigizoidActionReserve
 } from "./digizoid-gain-force.js";
 
+import {
+  getBullrushActionReserve,
+  getStrikeFastActionReserve,
+  spendBullrushActionReserve,
+  spendStrikeFastActionReserve
+} from "../rules/tamer-talent-runtime.js";
+
 function localize(key, fallback = key) {
   const value = game?.i18n?.localize?.(key);
   return value && value !== key ? value : fallback;
@@ -41,13 +48,25 @@ export function checkActorActionSpend(
   {
     requireActiveUnit = true,
     notify = true,
-    lightDigizoidAction = ""
+    lightDigizoidAction = "",
+    actionKey = ""
   } = {}
 ) {
+  const charmController = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmController === "function" && !charmController(actor, { user: game?.user, notify })) {
+    return null;
+  }
+
   const cost = normalizeActionCost(amount);
   const { value: available, max } = getActorActionState(actor);
+  const bullrushReserve = getBullrushActionReserve(actor, actionKey);
+  const strikeFastReserve = getStrikeFastActionReserve(actor, actionKey);
   const lightReserve = getLightDigizoidActionReserve(actor, lightDigizoidAction);
-  const totalAvailable = available + lightReserve;
+  const totalAvailable =
+    available +
+    bullrushReserve +
+    strikeFastReserve +
+    lightReserve;
 
   if (requireActiveUnit) {
     const turnContext = getActiveDDAUnitContext(actor);
@@ -84,13 +103,23 @@ export function checkActorActionSpend(
     return null;
   }
 
+  const bullrushReserveSpent = Math.min(cost, bullrushReserve);
+  const afterBullrush = Math.max(0, cost - bullrushReserveSpent);
+  const strikeFastReserveSpent = Math.min(afterBullrush, strikeFastReserve);
+  const afterStrikeFast = Math.max(0, afterBullrush - strikeFastReserveSpent);
+  const lightReserveSpent = Math.min(afterStrikeFast, lightReserve);
+  const normalActionsSpent = Math.max(0, afterStrikeFast - lightReserveSpent);
+
   return {
     actor,
     cost,
     available,
     max,
-    remaining: Math.max(0, available - cost),
-    lightReserveSpent: Math.max(0, cost - available)
+    remaining: Math.max(0, available - normalActionsSpent),
+    normalActionsSpent,
+    bullrushReserveSpent,
+    strikeFastReserveSpent,
+    lightReserveSpent
   };
 }
 
@@ -101,13 +130,15 @@ export async function spendActorActions(
     requireActiveUnit = true,
     notify = true,
     additionalUpdates = {},
-    lightDigizoidAction = ""
+    lightDigizoidAction = "",
+    actionKey = ""
   } = {}
 ) {
   const payment = checkActorActionSpend(actor, amount, {
     requireActiveUnit,
     notify,
-    lightDigizoidAction
+    lightDigizoidAction,
+    actionKey
   });
 
   if (!payment) return null;
@@ -117,6 +148,22 @@ export async function spendActorActions(
     "system.combat.actions.value": payment.remaining
   });
 
+  if (payment.bullrushReserveSpent > 0) {
+    await spendBullrushActionReserve(
+      actor,
+      payment.bullrushReserveSpent,
+      actionKey
+    );
+  }
+
+  if (payment.strikeFastReserveSpent > 0) {
+    await spendStrikeFastActionReserve(
+      actor,
+      payment.strikeFastReserveSpent,
+      actionKey
+    );
+  }
+
   if (payment.lightReserveSpent > 0) {
     await spendLightDigizoidActionReserve(actor, payment.lightReserveSpent);
   }
@@ -125,6 +172,9 @@ export async function spendActorActions(
     actionCost: payment.cost,
     actionsBefore: payment.available,
     actionsAfter: payment.remaining,
+    normalActionsSpent: payment.normalActionsSpent,
+    bullrushReserveSpent: payment.bullrushReserveSpent,
+    strikeFastReserveSpent: payment.strikeFastReserveSpent,
     lightReserveSpent: payment.lightReserveSpent
   };
 }

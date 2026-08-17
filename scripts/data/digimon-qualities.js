@@ -4323,9 +4323,9 @@ const DDA_DIGIMON_QUALITIES_PT = [
       "byStage": {
         "baby1": 0,
         "baby2": 0,
-        "child": 1,
-        "adult": 2,
-        "perfect": 3,
+        "child": 2,
+        "adult": 3,
+        "perfect": 4,
         "ultimate": 4,
         "ultimatePlus": 4
       }
@@ -4336,7 +4336,7 @@ const DDA_DIGIMON_QUALITIES_PT = [
       "maximum": ""
     },
     "requirements": {
-      "text": "O número de Ranks que o Digimon pode comprar nesta Qualidade é igual ao seu Estágio, até o máximo de 4.",
+      "text": "O número de Ranks que o Digimon pode comprar nesta Qualidade é igual ao seu Valor de Estágio (SV), até o máximo de 4.",
       "qualityNames": ""
     },
     "incompatible": {
@@ -4390,7 +4390,7 @@ const DDA_DIGIMON_QUALITIES_PT = [
       "max": 0,
       "recharge": ""
     },
-    "effect": "Quando o Digimon compra um Rank nesta Qualidade, escolhe uma de suas Estatísticas Derivadas: RAM, CPU, BIT ou DOS. Ele recebe +1 na Estatística escolhida. O Digimon não pode escolher a mesma Estatística Derivada duas vezes. O número de Ranks que pode comprar é igual ao seu Estágio, até o máximo de 4. O Digimon recebe 1 PD de desconto na primeira compra desta Qualidade.",
+    "effect": "Quando o Digimon compra um Rank nesta Qualidade, escolhe uma de suas Estatísticas Derivadas: RAM, CPU, BIT ou DOS. Ele recebe +1 na Estatística escolhida. O Digimon não pode escolher a mesma Estatística Derivada duas vezes. O número de Ranks que pode comprar é igual ao seu Valor de Estágio (SV), até o máximo de 4. O Digimon recebe 1 PD de desconto na primeira compra desta Qualidade.",
     "description": "Impulso de Sistema melhora diretamente as Estatísticas Derivadas do Digimon, representando otimização estrutural de seus dados.",
     "tier": "starting",
     "originalTier": "Starting Qualities",
@@ -18060,9 +18060,9 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "byStage": {
         "baby1": 0,
         "baby2": 0,
-        "child": 1,
-        "adult": 2,
-        "perfect": 3,
+        "child": 2,
+        "adult": 3,
+        "perfect": 4,
         "ultimate": 4,
         "ultimatePlus": 4
       }
@@ -18073,7 +18073,7 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "maximum": ""
     },
     "requirements": {
-      "text": "O número de Ranks que o Digimon pode comprar nesta Quality é equal to the seu Stage, até o maximum de 4.",
+      "text": "The number of Ranks the Digimon can purchase in this Quality is equal to its Stage Value (SV), to a maximum of 4.",
       "qualityNames": ""
     },
     "incompatible": {
@@ -18090,22 +18090,22 @@ const DDA_DIGIMON_QUALITIES_EN = [
         {
           "key": "ram",
           "label": "RAM",
-          "effect": ","
+          "effect": "The Digimon gains +1 RAM."
         },
         {
           "key": "cpu",
           "label": "CPU",
-          "effect": ","
+          "effect": "The Digimon gains +1 CPU."
         },
         {
           "key": "bit",
           "label": "BIT",
-          "effect": ","
+          "effect": "The Digimon gains +1 BIT."
         },
         {
           "key": "dos",
           "label": "DOS",
-          "effect": "). It gains +1 to its choice.\nA Digimon cannot choose the same Derived Stat twice. The number of Ranks in this Quality a Digimon can purchase is equal to its Stage, to a maximum of 4.\nA Digimon has a 1 DP discount on the first purchase of this Quality."
+          "effect": "The Digimon gains +1 DOS."
         }
       ]
     },
@@ -18127,8 +18127,8 @@ const DDA_DIGIMON_QUALITIES_EN = [
       "max": 0,
       "recharge": ""
     },
-    "effect": "When the Digimon purchases a rank in this Quality, it choose one of its Derived Stats (RAM, CPU, BIT, DOS). It gains +1 to its choice.\nA Digimon cannot choose the same Derived Stat twice. The number of Ranks in this Quality a Digimon can purchase is equal to its Stage, to a maximum of 4.\nA Digimon has a 1 DP discount on the first purchase of this Quality.",
-    "description": "When the Digimon purchases a rank in this Quality, it choose one of its Derived Stats (RAM, CPU, BIT, DOS). ",
+    "effect": "When the Digimon purchases a Rank in this Quality, choose one of its Derived Stats (RAM, CPU, BIT, or DOS). It gains +1 to that stat.\nA Digimon cannot choose the same Derived Stat twice. The number of Ranks it can purchase is equal to its Stage Value (SV), to a maximum of 4.\nA Digimon has a 1 DP discount on the first purchase of this Quality.",
+    "description": "System Boost directly improves the Digimon’s Derived Stats by optimizing one subsystem per Rank.",
     "tier": "starting",
     "originalTier": "Starting Qualities",
     "availability": {

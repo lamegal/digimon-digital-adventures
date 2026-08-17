@@ -18,6 +18,8 @@ import { useUtilityQualityAction } from "../combat/utility-qualities.js";
 import { useEvokerQualityAction } from "../combat/evoker-qualities.js";
 import { useDigizoidGainForceQualityAction } from "../combat/digizoid-gain-force.js";
 import { useFreeNegativeQualityAction } from "../combat/free-negative-qualities.js";
+import { ensureBossQualityNotSuppressed, useBossQualityAction } from "../combat/boss-qualities.js";
+import { decorateBossTemplateContext } from "../combat/boss-encounters.js";
 import {
   reconcileDotAttacks,
   useEffectResistanceAction
@@ -62,7 +64,20 @@ import {
 } from "../helpers/digimon-portrait-resolver.js";
 import { DDAEvolutionChoiceBrowser } from "../apps/evolution-choice-browser.js";
 
-const ActorSheetV1 = foundry.appv1.sheets.ActorSheet;
+const { ActorSheetV2 } = foundry.applications.sheets;
+const {
+  ApplicationV2,
+  DialogV2,
+  HandlebarsApplicationMixin
+} = foundry.applications.api;
+
+const DDADigimonSheetBase = HandlebarsApplicationMixin(ActorSheetV2);
+
+function getApplicationElement(element) {
+  if (element instanceof HTMLElement) return element;
+  if (element?.[0] instanceof HTMLElement) return element[0];
+  return null;
+}
 
 function localize(key) {
   return game.i18n.localize(key);
@@ -70,6 +85,23 @@ function localize(key) {
 
 function formatI18n(key, data = {}) {
   return game.i18n.format(key, data);
+}
+
+async function confirmDdaDialog(title, content) {
+  const result = await DialogV2.confirm({
+    window: { title },
+    content,
+    yes: {
+      label: localize("DDA.Button.Confirm")
+    },
+    no: {
+      label: localize("DDA.Button.Cancel"),
+      default: true
+    },
+    rejectClose: false
+  });
+
+  return result === true;
 }
 
 function isVideoPath(path = "") {
@@ -418,23 +450,50 @@ export const DIGIMON_PROFILE_OPTIONS = new Proxy({}, {
   }
 });
 
-export class DDADigimonSheet extends ActorSheetV1 {
+export class DDADigimonSheet extends DDADigimonSheetBase {
 
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      classes: ["dda", "sheet", "actor", "digimon"],
-      template: "systems/digimon-digital-adventures/templates/actor/digimon-sheet.html",
+  static DEFAULT_OPTIONS = {
+    classes: [
+      "dda",
+      "sheet",
+      "actor",
+      "digimon",
+      "digimon-digital-adventures",
+      "dda-digimon-sheet-window"
+    ],
+    position: {
       width: 880,
-      height: 760,
+      height: 760
+    },
+    form: {
+      closeOnSubmit: false,
+      submitOnChange: true
+    },
+    window: {
+      resizable: true
+    }
+  };
+
+  static PARTS = {
+    form: {
+      template: "systems/digimon-digital-adventures/templates/actor/digimon-sheet.html",
+      scrollable: [".sheet-body"]
+    }
+  };
+
+  static TABS = {
+    primary: {
+      initial: "summary",
       tabs: [
-        {
-          navSelector: ".sheet-tabs",
-          contentSelector: ".sheet-body",
-          initial: "summary"
-        }
+        { id: "summary" },
+        { id: "stats" },
+        { id: "combat" },
+        { id: "qualities" },
+        { id: "evolution" },
+        { id: "notes" }
       ]
-    });
-  }
+    }
+  };
 
 get title() {
   const stageKey = this.actor.system.stage;
@@ -443,12 +502,17 @@ get title() {
   return `Digimon ${stageLabel}`;
 }  
 
-async getData(options = {}) {
+async _prepareContext(options = {}) {
   const context =
-    await super.getData(options);
+    await super._prepareContext(options);
 
+  context.cssClass = "dda sheet actor digimon dda-digimon-sheet-window";
+  context.actor = this.actor;
   context.system =
     this.actor.system;
+
+  context.tabs ??= {};
+  context.tabs.primary ??= this._prepareTabs("primary");
 
   const systemId =
     game.system?.id ??
@@ -525,6 +589,10 @@ async getData(options = {}) {
           : "DDA.AllyNpc.Evolution.ButtonHint"
       )
   };
+
+  context.bossTemplateRuntime = isEnemyNpc
+    ? decorateBossTemplateContext(this.actor, game.combat)
+    : null;
 
   const digimonAliases =
     getDigimonAliases(this.actor);
@@ -1039,8 +1107,18 @@ _getEvolutionGraphData() {
 }
 
 
-    activateListeners(html) {
-    super.activateListeners(html);
+    async _onRender(context, options) {
+    await super._onRender(context, options);
+
+    const root = getApplicationElement(this.element);
+    if (!root) return;
+    const html = $(root);
+
+    const activePrimaryTab = this.tabGroups.primary ?? "summary";
+    this._syncDigimonTabDom(root, "primary", activePrimaryTab);
+    for (const tab of root.querySelectorAll(".sheet-tabs [data-group][data-tab]")) {
+      tab.addEventListener("click", this._onDigimonTabClick.bind(this));
+    }
 
     this._applyEnemyNpcSheetClass(html);
     this._applyEvolutionSolarDynamicStyles(html);
@@ -1125,7 +1203,7 @@ _getEvolutionGraphData() {
     this._attachDigivicePortraitFallback(html);
 
     requestAnimationFrame(() => {
-      const root = this.element?.[0];
+      const root = getApplicationElement(this.element);
       if (!root?.querySelector?.("[data-evolution-map]")) return;
 
       if (!this._ddaEvolutionGraphView?.focusedOnce) {
@@ -1166,6 +1244,34 @@ html.find(".dda-device-button").on("dblclick", (event) => {
 
     html.find(".resist-active-effect").on("click", this._onResistActiveEffect.bind(this));
     html.find(".remove-active-effect").on("click", this._onRemoveActiveEffect.bind(this));
+  }
+
+  _onDigimonTabClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const target = event.currentTarget;
+    const group = target?.dataset?.group ?? target?.closest?.("[data-group]")?.dataset?.group ?? "primary";
+    const tab = target?.dataset?.tab ?? "";
+    if (!tab) return;
+
+    this.changeTab(tab, group, {
+      event,
+      force: true,
+      navElement: target,
+      updatePosition: false
+    });
+    this._syncDigimonTabDom(getApplicationElement(this.element), group, tab);
+  }
+
+  _syncDigimonTabDom(root, group, activeTab) {
+    if (!root) return;
+
+    for (const element of root.querySelectorAll("[data-group][data-tab], [data-group] [data-tab]")) {
+      const elementGroup = element.dataset.group ?? element.closest?.("[data-group]")?.dataset?.group;
+      if (elementGroup !== group) continue;
+      element.classList.toggle("active", element.dataset.tab === activeTab);
+    }
   }
 
   _applyEnemyNpcSheetClass(html) {
@@ -1223,7 +1329,7 @@ html.find(".dda-device-button").on("dblclick", (event) => {
     );
 
     const appElement =
-      root.closest(".window-app");
+      root.closest(".application, .window-app") ?? root;
 
     appElement?.classList.toggle(
       "dda-enemy-npc-window",
@@ -1239,68 +1345,70 @@ html.find(".dda-device-button").on("dblclick", (event) => {
 
 
   async _onEditDigimonName(event) {
-  event.preventDefault();
-  event.stopPropagation();
+    event.preventDefault();
+    event.stopPropagation();
 
-  const currentCustomName = String(this.actor.system?.customName ?? "").trim();
-  const currentDisplayName = currentCustomName || getDigimonSheetDisplayName(this.actor);
-  const currentSpeciesName = getDigimonDisplayName(this.actor) || this.actor.system?.species || this.actor.name;
+    const currentCustomName = String(this.actor.system?.customName ?? "").trim();
+    const currentDisplayName = currentCustomName || getDigimonSheetDisplayName(this.actor);
+    const currentSpeciesName = getDigimonDisplayName(this.actor) || this.actor.system?.species || this.actor.name;
 
-const content = `
-  <form class="dda-edit-digimon-name-dialog">
-    <p>
-      ${game.i18n.localize("DDA.DigimonNameEdit.WarningNameNotSpecies")}
-    </p>
+    const content = `
+      <div class="dda-edit-digimon-name-dialog">
+        <p>${game.i18n.localize("DDA.DigimonNameEdit.WarningNameNotSpecies")}</p>
+        <p>${game.i18n.localize("DDA.DigimonNameEdit.WarningSharedPartnerName")}</p>
+        <p>${game.i18n.localize("DDA.DigimonNameEdit.WarningBlankToReset")}</p>
 
-    <p>
-      ${game.i18n.localize("DDA.DigimonNameEdit.WarningSharedPartnerName")}
-    </p>
+        <div class="form-group">
+          <label>${game.i18n.localize("DDA.DigimonNameEdit.FieldLabel")}</label>
+          <input
+            type="text"
+            name="customName"
+            value="${foundry.utils.escapeHTML(currentCustomName || currentDisplayName)}"
+            placeholder="${foundry.utils.escapeHTML(currentSpeciesName)}"
+            autofocus
+          />
+        </div>
+      </div>
+    `;
 
-    <p>
-      ${game.i18n.localize("DDA.DigimonNameEdit.WarningBlankToReset")}
-    </p>
+    const nextCustomName = await DialogV2.wait({
+      window: { title: game.i18n.localize("DDA.DigimonNameEdit.Title") },
+      content,
+      buttons: [
+        {
+          action: "save",
+          label: localize("DDA.Button.Confirm"),
+          default: true,
+          callback: (_event, button) => String(button.form?.elements?.customName?.value ?? "").trim()
+        },
+        {
+          action: "cancel",
+          label: localize("DDA.Button.Cancel"),
+          callback: () => null
+        }
+      ],
+      rejectClose: false
+    });
 
-    <div class="form-group">
-      <label>${game.i18n.localize("DDA.DigimonNameEdit.FieldLabel")}</label>
-      <input
-        type="text"
-        name="customName"
-        value="${foundry.utils.escapeHTML(currentCustomName || currentDisplayName)}"
-        placeholder="${foundry.utils.escapeHTML(currentSpeciesName)}"
-        autofocus
-      />
-    </div>
-  </form>
-`;
+    if (nextCustomName === null) return;
 
-  await Dialog.confirm({
-    title: game.i18n.localize("DDA.DigimonNameEdit.Title"),
-    content,
-    yes: async (html) => {
-      const form = html[0]?.querySelector?.(".dda-edit-digimon-name-dialog");
-      const input = form?.querySelector?.('input[name="customName"]');
-      const nextCustomName = String(input?.value ?? "").trim();
-
-      if (nextCustomName) {
-        await this.actor.update({
-          name: nextCustomName,
-          "system.customName": nextCustomName
-        });
-        return;
-      }
-
-      const fallbackName = String(getDigimonDisplayName(this.actor) || this.actor.system?.species || this.actor.name || "").trim();
-
+    if (nextCustomName) {
       await this.actor.update({
-        name: fallbackName || this.actor.name,
-        "system.customName": ""
+        name: nextCustomName,
+        "system.customName": nextCustomName
       });
-    },
-    no: () => {},
-    defaultYes: false
-  });
-}
+      return;
+    }
 
+    const fallbackName = String(
+      getDigimonDisplayName(this.actor) || this.actor.system?.species || this.actor.name || ""
+    ).trim();
+
+    await this.actor.update({
+      name: fallbackName || this.actor.name,
+      "system.customName": ""
+    });
+  }
 
   async _onChooseEvolutionForm(event) {
     event.preventDefault();
@@ -1432,7 +1540,7 @@ const content = `
     return this._ddaEvolutionGraphView;
   }
 
-  _getEvolutionGraphElements(root = this.element?.[0]) {
+  _getEvolutionGraphElements(root = getApplicationElement(this.element)) {
     const elementRoot = root instanceof jQuery ? root[0] : root;
     const viewport = elementRoot?.querySelector?.("[data-evolution-viewport]");
     const map = elementRoot?.querySelector?.("[data-evolution-map]");
@@ -1455,7 +1563,7 @@ const content = `
     return Math.clamp(Number(zoomByStage[stageIndex] ?? 0.78), 0.48, 1.12);
   }
 
-  _getEvolutionGraphCenteredView(zoom = null, root = this.element?.[0]) {
+  _getEvolutionGraphCenteredView(zoom = null, root = getApplicationElement(this.element)) {
     const { viewport, map } = this._getEvolutionGraphElements(root);
     const current = this._getEvolutionGraphViewState();
     const nextZoom = Math.clamp(Number(zoom ?? current.zoom ?? this._getEvolutionGraphFocusZoom()), 0.42, 1.65);
@@ -1476,7 +1584,7 @@ const content = `
     }, root);
   }
 
-  _clampEvolutionGraphView(view, root = this.element?.[0]) {
+  _clampEvolutionGraphView(view, root = getApplicationElement(this.element)) {
     const { viewport, map } = this._getEvolutionGraphElements(root);
     const zoom = Math.clamp(Number(view?.zoom ?? this._getEvolutionGraphFocusZoom()), 0.42, 1.65);
 
@@ -1533,7 +1641,7 @@ const content = `
     viewport.dataset.zoom = String(view.zoom.toFixed(2));
   }
 
-  _setEvolutionGraphView(nextView = {}, root = this.element?.[0]) {
+  _setEvolutionGraphView(nextView = {}, root = getApplicationElement(this.element)) {
     const current = this._getEvolutionGraphViewState();
     const view = this._clampEvolutionGraphView({
       x: Number(nextView.x ?? current.x ?? 0),
@@ -1551,11 +1659,11 @@ const content = `
     event.stopPropagation();
 
     const popout = this._ddaEvolutionGraphPopout;
-    const popoutElement = popout?.element?.[0] ?? popout?._element?.[0] ?? null;
+    const popoutElement = getApplicationElement(popout?.element ?? popout?._element);
     const hasValidPopoutElement = popoutElement instanceof Element && document.body.contains(popoutElement);
 
     if (popout?.rendered && hasValidPopoutElement) {
-      popout.bringToTop?.();
+      popout.bringToFront?.();
       popout.render(false);
       return;
     }
@@ -1571,14 +1679,14 @@ const content = `
     }
 
     this._ddaEvolutionGraphPopout = new DDAEvolutionGraphPopout(this);
-    this._ddaEvolutionGraphPopout.render(true);
+    this._ddaEvolutionGraphPopout.render({ force: true });
   }
 
   _onEvolutionGraphZoom(event) {
     event.preventDefault();
     event.stopPropagation();
 
-    const root = event.currentTarget?.closest?.(".dda-evolution-graph-popout, .dda-digimon-sheet") ?? this.element?.[0];
+    const root = event.currentTarget?.closest?.(".dda-evolution-graph-popout, .dda-digimon-sheet") ?? getApplicationElement(this.element);
     const action = event.currentTarget?.dataset?.evolutionZoom ?? "reset";
     const view = this._getEvolutionGraphViewState();
 
@@ -1606,7 +1714,7 @@ const content = `
     rawEvent.preventDefault();
     rawEvent.stopPropagation();
 
-    const root = rawEvent.currentTarget?.closest?.(".dda-evolution-graph-popout, .dda-digimon-sheet") ?? this.element?.[0];
+    const root = rawEvent.currentTarget?.closest?.(".dda-evolution-graph-popout, .dda-digimon-sheet") ?? getApplicationElement(this.element);
 
     if (rawEvent.ctrlKey || rawEvent.shiftKey) {
       const factor = rawEvent.deltaY < 0 ? 1.1 : 1 / 1.1;
@@ -1640,7 +1748,7 @@ const content = `
       startY: rawEvent.clientY,
       viewX: view.x,
       viewY: view.y,
-      root: rawEvent.currentTarget?.closest?.(".dda-evolution-graph-popout, .dda-digimon-sheet") ?? this.element?.[0]
+      root: rawEvent.currentTarget?.closest?.(".dda-evolution-graph-popout, .dda-digimon-sheet") ?? getApplicationElement(this.element)
     };
 
     const viewport = rawEvent.currentTarget;
@@ -1676,14 +1784,14 @@ const content = `
   _onEvolutionGraphPanEnd() {
     document.removeEventListener("pointermove", this._onEvolutionGraphPanMoveBound);
 
-    const panRoot = this._ddaEvolutionGraphPan?.root ?? this.element?.[0] ?? document;
+    const panRoot = this._ddaEvolutionGraphPan?.root ?? getApplicationElement(this.element) ?? document;
     panRoot.querySelector("[data-evolution-viewport]")?.classList?.remove("is-panning");
 
     this._ddaEvolutionGraphPan = null;
   }
 
 
-  _getEvolutionGraphMapPointFromEvent(event, root = this.element?.[0]) {
+  _getEvolutionGraphMapPointFromEvent(event, root = getApplicationElement(this.element)) {
     const rawEvent = event.originalEvent ?? event;
     const { map } = this._getEvolutionGraphElements(root);
     if (!map) return null;
@@ -1711,7 +1819,7 @@ const content = `
     rawEvent.preventDefault();
     rawEvent.stopPropagation();
 
-    const root = nodeElement.closest?.(".dda-evolution-graph-popout, .dda-digimon-sheet") ?? this.element?.[0];
+    const root = nodeElement.closest?.(".dda-evolution-graph-popout, .dda-digimon-sheet") ?? getApplicationElement(this.element);
     const startPoint = this._getEvolutionGraphMapPointFromEvent(rawEvent, root);
     if (!startPoint) return;
 
@@ -1859,6 +1967,31 @@ const content = `
     await this.actor.deleteEmbeddedDocuments("Item", [itemId]);
   }
 
+/**
+ * Public bridge used by compact interfaces such as the radial Token HUD.
+ * The sheet remains the single authority for Quality activation behavior.
+ */
+async useQualityFromHud(itemId) {
+  const id = String(itemId ?? "").trim();
+  if (!id) return null;
+
+  const syntheticEvent = {
+    preventDefault() {},
+    currentTarget: {
+      closest: () => ({ dataset: { itemId: id } })
+    }
+  };
+
+  return this.#onQualityToggleActive(syntheticEvent);
+}
+
+/**
+ * Public bridge for the same Derived Stat workflow used by the full sheet.
+ */
+async rollDerivedStatFromHud(statKey) {
+  return this._rollDerivedStatCheck(String(statKey ?? ""));
+}
+
 async #onQualityToggleActive(event) {
   event.preventDefault();
 
@@ -1874,6 +2007,9 @@ async #onQualityToggleActive(event) {
 
     return;
   }
+
+  const charmController = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmController === "function" && !charmController(this.actor, { user: game?.user, notify: true })) return;
 
   if (
     qualityMatches(
@@ -1902,6 +2038,11 @@ async #onQualityToggleActive(event) {
 
     return;
   }
+
+  if (!(await ensureBossQualityNotSuppressed(this.actor, item))) return;
+
+  const bossQualityUse = await useBossQualityAction(this.actor, item);
+  if (bossQualityUse?.handled) return;
 
   const evokerQualityUse = await useEvokerQualityAction(this.actor, item);
   if (evokerQualityUse?.handled) return;
@@ -2185,49 +2326,42 @@ console.log("DDA | Custo da Qualidade", {
 async #onRestoreQualityUses(event) {
   event.preventDefault();
 
-  const rechargeType = await new Promise((resolve) => {
-    new Dialog(
-      {
-      title: localize("DDA.QualityRecharge.RestoreUses"),    
-content: `
-  <form class="dda-restore-uses-form">
-    <div class="dda-dialog-panel">
-      <p class="dda-dialog-help">
-        ${localize("DDA.QualityRecharge.ChooseRechargeType")}
-      </p>
+  const rechargeType = await DialogV2.wait({
+    window: { title: localize("DDA.QualityRecharge.RestoreUses") },
+    classes: ["dda-restore-uses-dialog"],
+    position: { width: 420 },
+    content: `
+      <div class="dda-restore-uses-form">
+        <div class="dda-dialog-panel">
+          <p class="dda-dialog-help">
+            ${localize("DDA.QualityRecharge.ChooseRechargeType")}
+          </p>
 
-      <div class="form-group">
-        <label>${localize("DDA.QualityRecharge.RechargeType")}</label>
-        <select name="rechargeType">
-          <option value="scene">${localize("DDA.Time.Scene")}</option>
-          <option value="session">${localize("DDA.Time.Session")}</option>
-          <option value="special">${localize("DDA.Time.Special")}</option>
-        </select>
+          <div class="form-group">
+            <label>${localize("DDA.QualityRecharge.RechargeType")}</label>
+            <select name="rechargeType">
+              <option value="scene">${localize("DDA.Time.Scene")}</option>
+              <option value="session">${localize("DDA.Time.Session")}</option>
+              <option value="special">${localize("DDA.Time.Special")}</option>
+            </select>
+          </div>
+        </div>
       </div>
-    </div>
-  </form>
-`,
-      buttons: {
-        restore: {
-          label: localize("DDA.Button.Restore"),
-          callback: (html) => {
-            const value = html.find("[name='rechargeType']").val();
-            resolve(value);
-          }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel"),
-          callback: () => resolve(null)
-        }
+    `,
+    buttons: [
+      {
+        action: "restore",
+        label: localize("DDA.Button.Restore"),
+        default: true,
+        callback: (_event, button) => button.form?.elements?.rechargeType?.value ?? null
       },
-      close: () => resolve(null),
-      default: "restore"
-    },
-    {
-      classes: ["dda-restore-uses-dialog"],
-      width: 420
-    }
-  ).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        callback: () => null
+      }
+    ],
+    rejectClose: false
   });
 
   if (!rechargeType) return;
@@ -2296,97 +2430,89 @@ async _promptDerivedStatCheckOptions(statKey) {
   const statLabel = localizeMaybe(stat?.displayLabel ?? stat?.label ?? `DDA.DerivedStat.${String(statKey ?? "").toUpperCase()}`) || String(statKey ?? "").toUpperCase();
 
   const availableSkills = (DIGIMON_SKILLS_BY_DERIVED_STAT[statKey] ?? [])
-  .map((skill) => {
-    const skillBonusData = this.actor.system.skillBonuses?.[skill.key];
-    const skillBonus = Number(skillBonusData?.value ?? 0);
+    .map((skill) => {
+      const skillBonusData = this.actor.system.skillBonuses?.[skill.key];
+      const skillBonus = Number(skillBonusData?.value ?? 0);
 
-    if (!skillBonusData || skillBonus === 0) return null;
+      if (!skillBonusData || skillBonus === 0) return null;
 
-    return {
-      ...skill,
-      label: skillBonusData.label ?? localize(skill.labelKey),
-      bonus: skillBonus
-    };
-  })
-  .filter(Boolean);
+      return {
+        ...skill,
+        label: skillBonusData.label ?? localize(skill.labelKey),
+        bonus: skillBonus
+      };
+    })
+    .filter(Boolean);
 
-const skillOptions = availableSkills
-  .map((skill) => {
-    const bonusLabel = skill.bonus > 0 ? ` (+${skill.bonus})` : ` (${skill.bonus})`;
-    return `<option value="${skill.key}">${skill.label}${bonusLabel}</option>`;
-  })
-  .join("");
+  const skillOptions = availableSkills
+    .map((skill) => {
+      const bonusLabel = skill.bonus > 0 ? ` (+${skill.bonus})` : ` (${skill.bonus})`;
+      return `<option value="${skill.key}">${skill.label}${bonusLabel}</option>`;
+    })
+    .join("");
 
   const skillFieldLabelKey = "DDA.Label.Skill";
-const noneLabelKey = "DDA.Label.None";
+  const noneLabelKey = "DDA.Label.None";
+  const skillFieldLabel = localize(skillFieldLabelKey) !== skillFieldLabelKey
+    ? localize(skillFieldLabelKey)
+    : "Skill";
+  const noneLabel = localize(noneLabelKey) !== noneLabelKey
+    ? localize(noneLabelKey)
+    : "None";
 
-const skillFieldLabel = localize(skillFieldLabelKey) !== skillFieldLabelKey
-  ? localize(skillFieldLabelKey)
-  : "Skill";
+  return await DialogV2.wait({
+    window: { title: formatI18n("DDA.DerivedCheck.DialogTitle", { stat: statLabel }) },
+    classes: ["dda-derived-stat-check-dialog"],
+    content: `
+      <div class="dda-derived-stat-check-form">
+        <div class="dda-dialog-panel">
+          <p class="dda-dialog-help">
+            ${formatI18n("DDA.DerivedCheck.FormulaHelp", { stat: `<strong>${statLabel}</strong>` })}
+          </p>
 
-const noneLabel = localize(noneLabelKey) !== noneLabelKey
-  ? localize(noneLabelKey)
-  : "None";
-
-  return await new Promise((resolve) => {
-    new Dialog({
-      title: formatI18n("DDA.DerivedCheck.DialogTitle", { stat: statLabel }),
-      content: `
-        <form class="dda-derived-stat-check-form">
-          <div class="dda-dialog-panel">
-            <p class="dda-dialog-help">
-              ${formatI18n("DDA.DerivedCheck.FormulaHelp", { stat: `<strong>${statLabel}</strong>` })}
-            </p>
-
-            <div class="form-group">
-              <label>${localize("DDA.Roll.TN")}</label>
-              <input type="number" name="tn" value="" placeholder="${localize("DDA.Check.NoTN")}" />
-            </div>
-
-${
-  availableSkills.length
-    ? `
-      <div class="form-group">
-        <label>${skillFieldLabel}</label>
-        <select name="skillKey">
-          <option value="">${noneLabel}</option>
-          ${skillOptions}
-        </select>
-      </div>
-    `
-    : ""
-}
-
-            <div class="form-group">
-              <label>${localize("DDA.TamerSkillDialog.ManualModifier")}</label>
-              <input type="number" name="modifier" value="0" />
-            </div>
+          <div class="form-group">
+            <label>${localize("DDA.Roll.TN")}</label>
+            <input type="number" name="tn" value="" placeholder="${localize("DDA.Check.NoTN")}" />
           </div>
-        </form>
-      `,
-      buttons: {
-        roll: {
-          label: localize("DDA.Button.Roll"),
-          callback: (html) => {
-            const root = html?.[0] ?? html;
-            const findValue = (name) => html.find ? html.find(`[name='${name}']`).val() : root?.querySelector(`[name='${name}']`)?.value;
-resolve({
-  tn: findValue("tn"),
-  modifier: Number(findValue("modifier") ?? 0),
-  skillKey: findValue("skillKey") ?? ""
-});
-          }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel"),
-          callback: () => resolve(null)
-        }
+
+          ${availableSkills.length ? `
+            <div class="form-group">
+              <label>${skillFieldLabel}</label>
+              <select name="skillKey">
+                <option value="">${noneLabel}</option>
+                ${skillOptions}
+              </select>
+            </div>
+          ` : ""}
+
+          <div class="form-group">
+            <label>${localize("DDA.TamerSkillDialog.ManualModifier")}</label>
+            <input type="number" name="modifier" value="0" />
+          </div>
+        </div>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "roll",
+        label: localize("DDA.Button.Roll"),
+        default: true,
+        callback: (_event, button) => ({
+          tn: button.form?.elements?.tn?.value ?? "",
+          modifier: Number(button.form?.elements?.modifier?.value ?? 0),
+          skillKey: button.form?.elements?.skillKey?.value ?? ""
+        })
       },
-      close: () => resolve(null),
-      default: "roll"
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        callback: () => null
+      }
+    ],
+    rejectClose: false
   });
 }
+
 
 async _rollDerivedStatCheck(statKey) {
   const stat = this.actor.system.derivedStats?.[statKey];
@@ -2664,13 +2790,10 @@ async _onUnlinkTamer(event) {
   const tamerUuid = this.actor.system.tamer?.uuid;
   const tamerName = this.actor.system.tamer?.name || localize("DDA.Actor.LinkedTamer");
 
-  const confirmed = await Dialog.confirm({
-    title: localize("DDA.Link.UnlinkPair"),
-    content: `<p>${formatI18n("DDA.Link.ConfirmUnlinkPair", { digimon: `<strong>${this.actor.name}</strong>`, tamer: `<strong>${tamerName}</strong>` })}</p>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
-  });
+  const confirmed = await confirmDdaDialog(
+    localize("DDA.Link.UnlinkPair"),
+    `<p>${formatI18n("DDA.Link.ConfirmUnlinkPair", { digimon: `<strong>${this.actor.name}</strong>`, tamer: `<strong>${tamerName}</strong>` })}</p>`
+  );
 
   if (!confirmed) return;
 
@@ -2856,15 +2979,12 @@ async _onClearEvolutionForm(event) {
         stage: `<strong>${stageLabel}</strong>`
       });
 
-  const confirmed = await Dialog.confirm({
-    title: formUuid
+  const confirmed = await confirmDdaDialog(
+    formUuid
       ? localize("DDA.EvolutionLine.RemoveEvolutionForm")
       : localize("DDA.EvolutionLine.ClearEvolutionForm"),
-    content: `<p>${confirmContent}</p>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
-  });
+    `<p>${confirmContent}</p>`
+  );
 
   if (!confirmed) return;
 
@@ -2898,7 +3018,7 @@ async _onEvolutionSolarDrop(event) {
   event.preventDefault();
 
   const rawEvent = event.originalEvent ?? event;
-  const root = this.element?.[0] ?? document;
+  const root = getApplicationElement(this.element) ?? document;
   root.querySelectorAll("[data-evolution-drop-target]").forEach((element) => element.classList.remove("drag-hover"));
 
   const droppedActor = await this._resolveDroppedActor(rawEvent);
@@ -2946,10 +3066,11 @@ async _onCreateEvolutionEdge(event) {
   event.preventDefault();
 
   const eventRoot = event.currentTarget?.closest?.(".dda-digimon-sheet, .dda-evolution-graph-popout, .window-content");
-  const root = eventRoot ?? this.element?.[0] ?? document;
-  const from = root.querySelector('[name="evolutionEdgeFrom"]')?.value ?? this.element?.[0]?.querySelector?.('[name="evolutionEdgeFrom"]')?.value ?? "";
-  const to = root.querySelector('[name="evolutionEdgeTo"]')?.value ?? this.element?.[0]?.querySelector?.('[name="evolutionEdgeTo"]')?.value ?? "";
-  const method = root.querySelector('[name="evolutionEdgeMethod"]')?.value ?? this.element?.[0]?.querySelector?.('[name="evolutionEdgeMethod"]')?.value ?? "normal";
+  const sheetRoot = getApplicationElement(this.element);
+  const root = eventRoot ?? sheetRoot ?? document;
+  const from = root.querySelector('[name="evolutionEdgeFrom"]')?.value ?? sheetRoot?.querySelector?.('[name="evolutionEdgeFrom"]')?.value ?? "";
+  const to = root.querySelector('[name="evolutionEdgeTo"]')?.value ?? sheetRoot?.querySelector?.('[name="evolutionEdgeTo"]')?.value ?? "";
+  const method = root.querySelector('[name="evolutionEdgeMethod"]')?.value ?? sheetRoot?.querySelector?.('[name="evolutionEdgeMethod"]')?.value ?? "normal";
 
   if (method === "dark" && !getDDASetting("enableDarkEvolution")) {
     ui.notifications.warn(localize("DDA.Evolution.Blocked.DarkDisabled"));
@@ -3003,13 +3124,10 @@ async _onRemoveEvolutionEdge(event) {
   const toNode = graph.nodes.find((node) => node.id === edge.to);
   const fromName = escapeHtml(fromNode?.name ?? edge.from);
   const toName = escapeHtml(toNode?.name ?? edge.to);
-  const confirmed = await Dialog.confirm({
-    title: localize("DDA.Button.Remove"),
-    content: `<p>Remover a ligação entre <strong>${fromName}</strong> e <strong>${toName}</strong>?</p>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
-  });
+  const confirmed = await confirmDdaDialog(
+    localize("DDA.Button.Remove"),
+    `<p>Remover a ligação entre <strong>${fromName}</strong> e <strong>${toName}</strong>?</p>`
+  );
 
   if (!confirmed) return;
 
@@ -3063,15 +3181,12 @@ async _onRemoveEvolutionNode(event) {
     return;
   }
 
-  const confirmed = await Dialog.confirm({
-    title: localize("DDA.EvolutionGraph.RemoveNode"),
-    content: `<p>${formatI18n("DDA.EvolutionGraph.ConfirmRemoveNode", {
+  const confirmed = await confirmDdaDialog(
+    localize("DDA.EvolutionGraph.RemoveNode"),
+    `<p>${formatI18n("DDA.EvolutionGraph.ConfirmRemoveNode", {
       form: `<strong>${escapeHtml(node.name ?? localize("DDA.Evolution.Form"))}</strong>`
-    })}</p>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
-  });
+    })}</p>`
+  );
 
   if (!confirmed) return;
 
@@ -3091,13 +3206,10 @@ async _onRemoveEvolutionNode(event) {
 async _onClearEvolutionGraph(event) {
   event.preventDefault();
 
-  const confirmed = await Dialog.confirm({
-    title: localize("DDA.EvolutionGraph.Clear"),
-    content: `<p>${localize("DDA.EvolutionGraph.ConfirmClear")}</p>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
-  });
+  const confirmed = await confirmDdaDialog(
+    localize("DDA.EvolutionGraph.Clear"),
+    `<p>${localize("DDA.EvolutionGraph.ConfirmClear")}</p>`
+  );
 
   if (!confirmed) return;
 
@@ -3118,7 +3230,7 @@ async _onClearEvolutionGraph(event) {
   this._refreshEvolutionGraphViews();
 }
 
-_captureEvolutionGraphViewForRefresh(root = this.element?.[0]) {
+_captureEvolutionGraphViewForRefresh(root = getApplicationElement(this.element)) {
   const current = this._getEvolutionGraphViewState();
   const elementRoot = root instanceof jQuery ? root[0] : root;
   const map = elementRoot?.querySelector?.("[data-evolution-map]");
@@ -3150,7 +3262,7 @@ _refreshEvolutionGraphViews(options = {}) {
   if (preserveView) this._ddaEvolutionGraphView = preserveView;
 
   const popout = this._ddaEvolutionGraphPopout;
-  const popoutElement = popout?.element?.[0] ?? popout?._element?.[0] ?? null;
+  const popoutElement = getApplicationElement(popout?.element ?? popout?._element);
 
   if (popout?.rendered && popoutElement instanceof Element && document.body.contains(popoutElement)) {
     if (preserveView) this._ddaEvolutionGraphView = preserveView;
@@ -3384,23 +3496,20 @@ _onDigiviceSheet(event) {
   event.stopPropagation();
 
   // Se estiver minimizado como Digivice, reabre visualmente a ficha antes.
-  const appElement = this.element?.[0]?.closest(".window-app");
+  const rootElement = getApplicationElement(this.element);
+  const appElement = rootElement?.closest(".application, .window-app") ?? rootElement;
   appElement?.classList.remove("dda-digivice-collapsed");
 
-  // Abre a Configuração de Ficha nativa do Foundry.
-  // É o mesmo painel do botão de engrenagem da barra superior.
-  if (typeof this._onConfigureSheet === "function") {
-    return this._onConfigureSheet(event);
-  }
-
-  // Fallback para versões/ambientes em que o método herdado não esteja disponível.
 const DocumentSheetConfigClass = getDdaDocumentSheetConfigClass();
 
 if (DocumentSheetConfigClass) {
-  new DocumentSheetConfigClass(this.actor, {
-    top: this.position.top + 40,
-    left: this.position.left + 40
-  }).render(true);
+  new DocumentSheetConfigClass({
+    document: this.actor,
+    position: {
+      top: Number(this.position?.top ?? 0) + 40,
+      left: Number(this.position?.left ?? 0) + 40
+    }
+  }).render({ force: true });
   return;
 }
 
@@ -3411,11 +3520,6 @@ _onDigivicePrototypeToken(event) {
   event.preventDefault();
 
   try {
-    if (typeof this._onConfigureToken === "function") {
-      this._onConfigureToken(event);
-      return;
-    }
-
     const prototypeToken = this.actor.prototypeToken;
 
     if (!prototypeToken) {
@@ -3423,7 +3527,7 @@ _onDigivicePrototypeToken(event) {
       return;
     }
 
-    prototypeToken.sheet?.render(true);
+    prototypeToken.sheet?.render({ force: true });
   } catch (error) {
     console.error("DDA | Erro ao abrir Protótipo de Token:", error);
     ui.notifications.error(localize("DDA.Error.OpenPrototypeTokenSeeConsole"));
@@ -3444,7 +3548,8 @@ _onDigiviceDoubleClick(event) {
     return;
   }
 
-  const appElement = this.element?.[0]?.closest(".window-app");
+  const rootElement = getApplicationElement(this.element);
+  const appElement = rootElement?.closest(".application, .window-app") ?? rootElement;
   if (!appElement) return;
 
   appElement.classList.toggle("dda-digivice-collapsed");
@@ -3456,7 +3561,8 @@ _onDigiviceDragStart(event) {
 
   event.preventDefault();
 
-  const appElement = this.element?.[0]?.closest(".window-app");
+  const rootElement = getApplicationElement(this.element);
+  const appElement = rootElement?.closest(".application, .window-app") ?? rootElement;
   if (!appElement) return;
 
   const rect = appElement.getBoundingClientRect();
@@ -3926,7 +4032,7 @@ async function applyAutomatedQualityUseSideEffects(actor, item) {
       return;
     }
     const tn = 12 + getActorDerivedStat(targetToken.actor, "ram");
-    const result = await rollDerivedCheck(actor, "dos", { skillKey: "awareness", tn, title: localizeQ("DDA.QualityAutomation.WatchfulHunter.Title", "Watchful Hunter") });
+    const result = await rollDerivedCheck(actor, "dos", { skillKey: "awareness", tn, title: localizeQ("DDA.QualityAutomation.WatchfulHunter.Title", "Watchful Hunter"), targetActor: targetToken.actor });
     if (result?.success) {
       const mode = result.criticalSuccess ? "all" : "melee";
       await setUseState(actor, "watchfulHunter", targetToken.actor.uuid, {
@@ -3963,7 +4069,7 @@ async function applyAutomatedQualityUseSideEffects(actor, item) {
       return;
     }
     const tn = 10 + getActorDerivedStat(targetToken.actor, "dos");
-    const result = await rollDerivedCheck(actor, "bit", { skillKey: "knowledge", tn, title: localizeQ("DDA.QualityAutomation.DataScan.Title", "Data Scan") });
+    const result = await rollDerivedCheck(actor, "bit", { skillKey: "knowledge", tn, title: localizeQ("DDA.QualityAutomation.DataScan.Title", "Data Scan"), targetActor: targetToken.actor });
     if (result?.success) {
       await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor }),
@@ -3975,19 +4081,33 @@ async function applyAutomatedQualityUseSideEffects(actor, item) {
 }
 
 async function promptNumber(title, value = 0) {
-  return await new Promise((resolve) => {
-    new Dialog({
-      title,
-      content: `<form><div class="form-group"><label>${title}</label><input type="number" name="value" value="${Number(value ?? 0)}" /></div></form>`,
-      buttons: {
-        ok: { label: localize("DDA.Button.Confirm"), callback: (html) => resolve(Number(html.find("[name='value']").val() ?? 0)) },
-        cancel: { label: localize("DDA.Button.Cancel"), callback: () => resolve(null) }
+  return await DialogV2.wait({
+    window: { title },
+    content: `
+      <div class="dda-number-prompt">
+        <div class="form-group">
+          <label>${title}</label>
+          <input type="number" name="value" value="${Number(value ?? 0)}" />
+        </div>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "ok",
+        label: localize("DDA.Button.Confirm"),
+        default: true,
+        callback: (_event, button) => Number(button.form?.elements?.value?.value ?? 0)
       },
-      default: "ok",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        callback: () => null
+      }
+    ],
+    rejectClose: false
   });
 }
+
 
 function getQualityActionCostLabel(value, batteryCost = 1) {
   const labels = {
@@ -4461,7 +4581,7 @@ function hasEvolutionGraphChange(changes = {}) {
   return Object.keys(changes).some((key) => key.startsWith("system.evolutionGraph"));
 }
 
-class DDAEvolutionGraphPopout extends Application {
+class DDAEvolutionGraphPopout extends ApplicationV2 {
   constructor(sheet, options = {}) {
     super(options);
     this.sheet = sheet;
@@ -4470,36 +4590,43 @@ class DDAEvolutionGraphPopout extends Application {
     this._pendingGraphRefresh = null;
   }
 
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: "dda-evolution-graph-popout",
-      title: localize("DDA.Evolution.GraphPopoutTitle"),
+  static DEFAULT_OPTIONS = {
+    id: "dda-evolution-graph-popout",
+    classes: ["dda", "dda-evolution-graph-popout-window"],
+    position: {
       width: 760,
-      height: 620,
+      height: 620
+    },
+    window: {
       resizable: true,
-      classes: ["dda", "dda-evolution-graph-popout-window"]
-    });
-  }
+      title: "DDA.Evolution.GraphPopoutTitle"
+    }
+  };
 
   get title() {
     return `${localize("DDA.Evolution.GraphPopoutTitle")} — ${this.actor?.name ?? "Digimon"}`;
   }
 
-  async getData(options = {}) {
-    const context = await super.getData(options);
+  async _prepareContext(options = {}) {
+    const context = await super._prepareContext(options);
     context.evolutionGraph = this.sheet._getEvolutionGraphData();
     return context;
   }
 
-  async _renderInner(data) {
-    return $(this._buildGraphHtml(data.evolutionGraph));
+  async _renderHTML(context) {
+    return this._buildGraphHtml(context.evolutionGraph);
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
+  _replaceHTML(result, content) {
+    content.innerHTML = result;
+  }
 
-    const root = html instanceof jQuery ? html[0] : html;
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+
+    const root = getApplicationElement(this.element);
     if (!root) return;
+    const html = $(root);
 
     for (const image of root.querySelectorAll(".dda-evolution-node img[data-fallback-srcs]")) {
       image.addEventListener("error", () => {
@@ -4566,7 +4693,7 @@ class DDAEvolutionGraphPopout extends Application {
     if (!this.rendered) return;
 
     const preservedView = this.sheet._captureEvolutionGraphViewForRefresh(
-      this.element?.[0] ?? this.sheet.element?.[0]
+      getApplicationElement(this.element) ?? getApplicationElement(this.sheet.element)
     );
 
     clearTimeout(this._pendingGraphRefresh);
@@ -4580,11 +4707,11 @@ class DDAEvolutionGraphPopout extends Application {
         initialized: true,
         focusedOnce: true
       };
-      this.render(false);
+      this.render();
     }, 60);
   }
 
-  close(options = {}) {
+  async _onClose(options = {}) {
     if (this._actorUpdateHook !== null && this._actorUpdateHook !== undefined) {
       Hooks.off("updateActor", this._actorUpdateHook);
       this._actorUpdateHook = null;
@@ -4597,7 +4724,7 @@ class DDAEvolutionGraphPopout extends Application {
       this.sheet._ddaEvolutionGraphPopout = null;
     }
 
-    return super.close(options);
+    return super._onClose(options);
   }
 
   _buildGraphHtml(evolutionGraph = {}) {

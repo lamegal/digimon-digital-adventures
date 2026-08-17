@@ -232,7 +232,8 @@ export function registerOwnershipSyncHooks() {
     if (actor.type === "digimon") await syncFromDigimonActor(actor, { notifyNoPlayerOwner: false });
   });
 
-  Hooks.on("updateActor", async (actor, changed) => {
+  Hooks.on("updateActor", async (actor, changed, options = {}) => {
+    if (options?.ddaCharmDelegation) return;
     if (syncing || !isWorldActor(actor) || !hasRelevantOwnershipChange(changed)) return;
 
     syncing = true;

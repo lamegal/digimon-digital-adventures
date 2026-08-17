@@ -729,12 +729,19 @@ export async function applyHumanScalingToAllDigimonTokens(humanScaling = null) {
 }
 
 export async function confirmApplyHumanScalingToAllDigimonTokens(humanScaling = null) {
-  const confirmed = await Dialog.confirm({
-    title: localize("DDA.HumanScaling.ApplyDialog.Title"),
+  const confirmed = await foundry.applications.api.DialogV2.confirm({
+    window: {
+      title: localize("DDA.HumanScaling.ApplyDialog.Title")
+    },
     content: `<p>${localize("DDA.HumanScaling.ApplyDialog.Content")}</p>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
+    yes: {
+      default: false
+    },
+    no: {
+      default: true
+    },
+    rejectClose: false,
+    modal: true
   });
 
   if (!confirmed) {

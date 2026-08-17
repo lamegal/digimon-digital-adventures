@@ -1,22 +1,38 @@
-<form class="dda-wizard-form dda-tamer-wizard-form">
+<form class="dda-wizard-form dda-tamer-wizard-form" data-step="{{step}}">
 
   <header class="dda-wizard-header">
-    <div>
-      <h1>{{localize "DDA.TamerWizard.Title"}}</h1>
-      <p>{{progressLabel}} — {{localize "DDA.Wizard.Step"}} {{stepIndex}} {{localize "DDA.Wizard.Of"}} {{totalSteps}}</p>
+    <div class="dda-wizard-title-group">
+      <span class="dda-wizard-header-mark" aria-hidden="true"><span></span></span>
+
+      <div class="dda-wizard-header-copy">
+        <h1>{{localize "DDA.TamerWizard.Title"}}</h1>
+        <p>
+          <strong>{{progressLabel}}</strong>
+          <span>{{localize "DDA.Wizard.Step"}} {{stepIndex}} {{localize "DDA.Wizard.Of"}} {{totalSteps}}</span>
+        </p>
+      </div>
     </div>
 
-    <div class="dda-wizard-progress">
+    <div
+      class="dda-wizard-progress"
+      role="progressbar"
+      aria-label="{{progressLabel}}"
+      aria-valuemin="1"
+      aria-valuemax="{{totalSteps}}"
+      aria-valuenow="{{stepIndex}}"
+    >
       {{#each progressSteps as |stepDot|}}
-        <span class="dda-wizard-dot {{#if stepDot.active}}active{{/if}} {{#if stepDot.done}}done{{/if}}"></span>
+        <span class="dda-wizard-dot {{#if stepDot.active}}active{{/if}} {{#if stepDot.done}}done{{/if}}" aria-hidden="true"></span>
       {{/each}}
     </div>
   </header>
 
-  <main class="dda-wizard-body">
+  <main class="dda-wizard-body" data-dda-scroll-container>
 
     <aside class="dda-wizard-guide">
-      <div class="dda-wizard-guide-portrait" aria-label="Wizardmon">W</div>
+      <div class="dda-wizard-guide-portrait" aria-label="Wizardmon">
+        <img src="systems/digimon-digital-adventures/assets/ui/wizardmon%20-%20portrait.webp" alt="Wizardmon">
+      </div>
 
       <div class="dda-wizard-guide-text">
         <strong>{{guide.title}}</strong>
@@ -306,7 +322,7 @@
   class="
     dda-wizard-final-card
     dda-wizard-image-card
-    {{#if imageMissing}}is-image-missing{{/if}}
+    {{#if imageMissing}}is-image-default{{/if}}
   "
 >
   <div>
@@ -357,9 +373,9 @@
       >
 
       {{#if imageMissing}}
-        <small class="dda-wizard-image-required">
+        <small class="dda-wizard-image-fallback">
           {{localize
-            "DDA.TamerWizard.Validation.ImageRequired"
+            "DDA.TamerWizard.Validation.ImageFallback"
           }}
         </small>
       {{/if}}
@@ -453,16 +469,19 @@
 
     <div class="dda-wizard-buttons">
       <button type="button" data-action="back" {{#if isFirstStep}}disabled{{/if}}>
+        <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
         {{localize "DDA.TamerWizard.Button.Back"}}
       </button>
 
       {{#if isLastStep}}
         <button type="button" class="primary" data-action="create">
+          <i class="fa-solid fa-check" aria-hidden="true"></i>
           {{localize "DDA.TamerWizard.Button.Create"}}
         </button>
       {{else}}
         <button type="button" class="primary" data-action="next">
           {{localize "DDA.TamerWizard.Button.Next"}}
+          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
         </button>
       {{/if}}
     </div>

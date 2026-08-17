@@ -1,7 +1,9 @@
 import { DDA_TAMER_TALENTS } from "../data/tamer-talents.js";
 import { getTamerTalentUsesMax } from "../rules/tamer-talent-automation.js";
 import {
-  getTamerEvolutionPointMaximum
+  getProjectedTamerDefaultRangeAfterRest,
+  getTamerEvolutionPointMaximum,
+  requestReleasePendingMilestonesForRest
 } from "../rules/tamer-progression.js";
 import {
   clearTamerTemporaryIp
@@ -11,6 +13,18 @@ import {
   requestClearBusyHandsItems
 } from "../rules/tamer-talent-socket.js";
 
+import {
+  clearGloriousWorldBenefit
+} from "../rules/tamer-talent-transversal.js";
+
+import {
+  clearNarrativeTalentRestStates
+} from "../rules/tamer-talent-narrative.js";
+
+import {
+  chooseDefaultPartnerFormDuringRest
+} from "./evolution.js";
+
 export async function takeTamerBreak(actor) {
   if (!actor || actor.type !== "character") {
     ui.notifications.warn(localize("DDA.Warning.BreakOnlyForTamers"));
@@ -19,14 +33,8 @@ export async function takeTamerBreak(actor) {
 
   const alreadyUsed = Boolean(actor.system.recovery?.breakUsedSinceCombat);
   if (alreadyUsed) {
-    const proceed = await Dialog.confirm({
-      title: localize("DDA.Break.AlreadyUsedTitle"),
-      content: `<p>${localize("DDA.Break.AlreadyUsedContent")}</p>`,
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
-    });
-    if (!proceed) return;
+    ui.notifications.warn(localize("DDA.Break.AlreadyUsedContent"));
+    return;
   }
 
   const updates = {
@@ -67,7 +75,7 @@ export async function takeTamerBreak(actor) {
 
   await actor.update(updates);
 
-  const partnerUuid = actor.system.partner?.currentFormUuid || actor.system.partner?.uuid;
+  const partnerUuid = actor.system.partner?.uuid || actor.system.partner?.currentFormUuid;
   let partner = null;
   if (partnerUuid) {
     try {
@@ -112,7 +120,6 @@ export async function takeTamerRest(actor) {
       actor
     );
   const maxActions = Number(actor.system.combat?.actions?.max ?? 2);
-  const blastUsesMax = Number(actor.system.blastEvolution?.uses?.max ?? actor.system.blastEvolution?.uses?.value ?? 0);
   const tamerTalentUsesUpdates = getTamerTalentUsesRestUpdates(actor);
 
   const actorUpdates = {
@@ -133,7 +140,6 @@ export async function takeTamerRest(actor) {
     "system.combat.actions.value":
       maxActions,
     "system.recovery.breakUsedSinceCombat": false,
-    "system.blastEvolution.uses.value": blastUsesMax,
 
     ...tamerTalentUsesUpdates
   };
@@ -168,6 +174,8 @@ export async function takeTamerRest(actor) {
     });
   }
 
+  await clearGloriousWorldBenefit(actor);
+  await clearNarrativeTalentRestStates(actor);
   await actor.update(actorUpdates);
 
   const clearedBusyHandsItems =
@@ -190,6 +198,53 @@ export async function takeTamerRest(actor) {
 
   const restedPartners =
     await restLinkedPartnerActors(actor);
+
+  const milestoneRelease =
+    await requestReleasePendingMilestonesForRest(actor);
+
+  // 8.05b: during a Rest the player may choose a Default Stage/Form within
+  // their current Default Range. Milestones are released first so a newly
+  // unlocked Default Range threshold is immediately usable when the GM is
+  // executing the release locally.
+  const projectedDefaultRange = getProjectedTamerDefaultRangeAfterRest(actor);
+  const defaultFormChange = await chooseDefaultPartnerFormDuringRest(actor, {
+    defaultRangeOverride: projectedDefaultRange
+  });
+
+  if (defaultFormChange?.selected && !defaultFormChange.selected.current) {
+    // Applying a different stored form can restore that form's saved Item
+    // state. Re-run Partner Rest after the transformation so rest-recharge
+    // Qualities and Actions remain correctly restored on the chosen default.
+    await restLinkedPartnerActors(actor);
+  }
+
+  const milestoneReleaseRow = milestoneRelease?.releasedTargets > 0
+    ? `
+      <li>
+        ${formatI18n(
+          "DDA.Progression.Rest.BenefitsReleased",
+          { count: milestoneRelease.releasedTargets }
+        )}
+      </li>
+    `
+    : milestoneRelease?.requested
+      ? `
+        <li>
+          ${localize("DDA.Progression.Rest.ReleaseRequested")}
+        </li>
+      `
+      : "";
+
+  const defaultFormRow = defaultFormChange?.selected
+    ? `
+      <li>
+        ${formatI18n(
+          "DDA.Evolution.DefaultStage.RestApplied",
+          { form: defaultFormChange.selected.name, stage: defaultFormChange.selected.stageLabel }
+        )}
+      </li>
+    `
+    : "";
 
   const linkedPartnerRows =
     restedPartners.length > 0
@@ -272,11 +327,6 @@ export async function takeTamerRest(actor) {
             <strong>${maxActions}</strong>.
           </li>
 
-<li>
-  ${localize("DDA.TamerSheet.BlastEvolution")}:
-  <strong>${blastUsesMax}</strong>.
-</li>
-
 ${
   clearedBusyHandsItems.cleared > 0
     ? `
@@ -311,6 +361,7 @@ ${
 }
 
 ${linkedPartnerRows}
+${milestoneReleaseRow}
         </ul>
       </div>
     `
@@ -390,6 +441,7 @@ async function restLinkedPartnerActors(tamer) {
       ] = actionMax;
     }
 
+    await clearGloriousWorldBenefit(partner);
     await partner.update(partnerUpdates);
     await rechargePartnerQualityUses(partner);
 

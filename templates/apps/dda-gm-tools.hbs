@@ -3,18 +3,20 @@
     <header class="dda-gm-tools-header">
       <img
         class="dda-gm-tools-logo"
-        src="systems/digimon-digital-adventures/assets/ui/Digimon-Logo.webp"
+        src="systems/digimon-digital-adventures/assets/ui/Digimon-Logo-3.webp"
         alt="DDA"
       />
 
-      <div>
+      <div class="dda-gm-tools-header-copy">
+        <span class="dda-gm-tools-kicker">DDA // GM CONSOLE</span>
         <h2>{{localize "DDA.GmTools.HeaderTitle"}}</h2>
         <p>{{localize "DDA.GmTools.HeaderHelp"}}</p>
       </div>
     </header>
   </section>
 
-  <section class="dda-gm-tools-section dda-gm-tools-session-section">
+  <section class="dda-gm-tools-section dda-gm-tools-session-section" data-section="session">
+    <div class="dda-gm-tools-section-accent"></div>
     <div class="dda-gm-tools-session-header">
       <div>
         <h3>{{localize "DDA.GmTools.Session.Title"}}</h3>
@@ -57,8 +59,13 @@
     </div>
   </section>
 
-  <section class="dda-gm-tools-section">
-    <h3>{{localize "DDA.GmTools.Targets"}}</h3>
+  <section class="dda-gm-tools-section" data-section="targets">
+    <div class="dda-gm-tools-section-accent"></div>
+    <div class="dda-gm-tools-title-row">
+      <span class="dda-gm-tools-section-icon"><i class="fas fa-crosshairs"></i></span>
+      <h3>{{localize "DDA.GmTools.Targets"}}</h3>
+      <span class="dda-gm-tools-count-badge">{{#if hasTargets}}{{targets.length}}{{else}}0{{/if}}</span>
+    </div>
 
     <label class="dda-gm-tools-field">
       <span>{{localize "DDA.GmTools.TargetModeLabel"}}</span>
@@ -101,8 +108,12 @@
     </button>
   </section>
 
-  <section class="dda-gm-tools-section dda-gm-tools-override-section">
-    <h3>{{localize "DDA.GmTools.Override.Title"}}</h3>
+  <section class="dda-gm-tools-section dda-gm-tools-override-section" data-section="overrides">
+    <div class="dda-gm-tools-section-accent"></div>
+    <div class="dda-gm-tools-title-row">
+      <span class="dda-gm-tools-section-icon"><i class="fas fa-sliders"></i></span>
+      <h3>{{localize "DDA.GmTools.Override.Title"}}</h3>
+    </div>
     <p class="dda-gm-tools-section-help">{{localize "DDA.GmTools.Override.Help"}}</p>
 
     <label class="dda-gm-tools-field">
@@ -138,8 +149,12 @@
     </p>
   </section>
 
-  <section class="dda-gm-tools-section">
-    <h3>{{localize "DDA.GmTools.ApplyDamageTitle"}}</h3>
+  <section class="dda-gm-tools-section" data-section="damage">
+    <div class="dda-gm-tools-section-accent"></div>
+    <div class="dda-gm-tools-title-row">
+      <span class="dda-gm-tools-section-icon"><i class="fas fa-bolt"></i></span>
+      <h3>{{localize "DDA.GmTools.ApplyDamageTitle"}}</h3>
+    </div>
 
     <label class="dda-gm-tools-field">
       <span>{{localize "DDA.GmTools.RawDamage"}}</span>

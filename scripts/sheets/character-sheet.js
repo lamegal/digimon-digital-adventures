@@ -11,6 +11,11 @@ import {
 import { evolvePartner, executeJogressEvolution, endJogressEvolution, executeHybridEvolution, executeBioMergeEvolution, endHybridEvolution, executeForcedEvolution, endForcedEvolution, executeBlastEvolution } from "../combat/evolution.js";
 import { DDA_TAMER_TALENTS } from "../data/tamer-talents.js";
 import {
+  getTamerTalentImplementation,
+  getTamerTalentImplementationLabelKey,
+  isTamerTalentTriggeredOnly
+} from "../data/tamer-talent-implementation.js";
+import {
   getCampaignLevelSummary,
   getStartingAttributePoints,
   getStartingSkillPoints,
@@ -21,6 +26,7 @@ import {
   getTamerSkillCap
 } from "../rules/tamer-progression.js";
 import { syncTamerAndPartnerOwnership } from "../utils/ownership.js";
+import { DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED } from "../rules/special-evolution-methods.js";
 import {
   getTamerTalentUses,
   validateTamerTalentUse,
@@ -33,8 +39,17 @@ import {
 import {
   openTamerActionMenu
 } from "../combat/tamer-actions.js";
-const ActorSheetV1 =
-  foundry.appv1.sheets.ActorSheet;
+import { DDATamerTalentBrowser } from "../apps/tamer-talent-browser.js";
+const { ActorSheetV2 } = foundry.applications.sheets;
+const { HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
+
+const DDACharacterSheetBase = HandlebarsApplicationMixin(ActorSheetV2);
+
+function getApplicationElement(element) {
+  if (element instanceof HTMLElement) return element;
+  if (element?.[0] instanceof HTMLElement) return element[0];
+  return null;
+}
 
 function hasExperiencedCreationBenefit(
   attributes = {}
@@ -73,32 +88,65 @@ function getDdaDocumentSheetConfigClass() {
   return globalThis.foundry?.applications?.apps?.DocumentSheetConfig ?? null;
 }
 
-export class DDACharacterSheet extends ActorSheetV1 {
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      classes: ["dda", "sheet", "actor", "character"],
-      template: "systems/digimon-digital-adventures/templates/actor/character-sheet.html",
+export class DDACharacterSheet extends DDACharacterSheetBase {
+  static DEFAULT_OPTIONS = {
+    classes: [
+      "dda",
+      "sheet",
+      "actor",
+      "character",
+      "digimon-digital-adventures",
+      "dda-tamer-sheet-window"
+    ],
+    tag: "form",
+    position: {
       width: 860,
-      height: 760,
-      submitOnChange: true,
-      submitOnClose: true,
+      height: 760
+    },
+    form: {
       closeOnSubmit: false,
+      submitOnChange: true
+    },
+    window: {
+      resizable: true
+    }
+  };
+
+  static PARTS = {
+    form: {
+      template: "systems/digimon-digital-adventures/templates/actor/character-sheet.html",
+      scrollable: [".sheet-body"]
+    }
+  };
+
+  static TABS = {
+    primary: {
+      initial: "stats",
       tabs: [
-        {
-          navSelector: ".sheet-tabs",
-          contentSelector: ".sheet-body",
-          initial: "stats"
-        }
+        { id: "stats" },
+        { id: "aspects" },
+        { id: "combat" },
+        { id: "inventory" },
+        { id: "torments" },
+        { id: "advancement" },
+        { id: "notes" }
       ]
-    });
+    }
+  };
+
+  get title() {
+    const label = game.i18n.localize("DDA.Sheet.Character");
+    return `${label}: ${this.actor?.name ?? ""}`;
   }
 
-  async getData(options = {}) {
-    const context = await super.getData(options);
-    
-    
+  async _prepareContext(options = {}) {
+    const context = await super._prepareContext(options);
 
+context.cssClass = "dda sheet actor character dda-tamer-window-sheet";
+context.actor = this.actor;
 context.system = this.actor.system;
+context.tabs ??= {};
+context.tabs.primary ??= this._prepareTabs("primary");
 context.temporaryIp = getTamerTemporaryIpTotal(this.actor);
 context.ipPool = getTamerIpPool(this.actor);
 context.sortedSkills = this._getSortedSkillViewData();
@@ -106,16 +154,20 @@ context.isGM = Boolean(game.user?.isGM);
 context.campaignRules = this._getCampaignRuleViewData();
 context.partnerCurrentSpecies = await this._getPartnerCurrentSpecies();
 context.partnerIdentityName = await this._getPartnerIdentityName();
+context.partnerHeaderName = await this._getPartnerHeaderName(
+  context.partnerCurrentSpecies
+);
 context.partnerStartingStage = this._getPartnerStartingStageViewData();
 context.crestPlaque = this._getCrestPlaqueViewData();
 context.digiviceSkin = this._getDigiviceSkinViewData();
 context.optionalRules = this._getOptionalRuleViewData();
 context.jogressActive = Boolean(this.actor.system.specialEvolutions?.jogress?.state?.active);
+context.forcedActive = Boolean(this.actor.system.specialEvolutions?.forced?.state?.active);
 context.hybridActive = Boolean(this.actor.system.specialEvolutions?.hybrid?.state?.active);
 context.hybridState = this._getHybridStateViewData();
 
-const enableHybridEvolution = Boolean(getDDASetting("enableHybridEvolution"));
-const enableBioMergeEvolution = Boolean(getDDASetting("enableBioMergeEvolution"));
+const enableHybridEvolution = DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED && Boolean(getDDASetting("enableHybridEvolution"));
+const enableBioMergeEvolution = DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED && Boolean(getDDASetting("enableBioMergeEvolution"));
 const enableJogressEvolution = Boolean(getDDASetting("enableJogressEvolution"));
 const enableForcedEvolution = Boolean(getDDASetting("enableForcedEvolution"));
 const enableBlastEvolution = Boolean(getDDASetting("enableBlastEvolution"));
@@ -263,8 +315,25 @@ return context;
     });
 }
 
-    activateListeners(html) {
-    super.activateListeners(html);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+
+    const root = getApplicationElement(this.element);
+    if (!root) return;
+
+    // ApplicationV2 may replace the inner HTML during a re-render. Keep the
+    // custom Digivice-only collapsed state on the outer Application element
+    // instead of relying on a transient DOM class alone.
+    const appElement = root.closest?.(".application, .window-app, .app") ?? root;
+    appElement?.classList.toggle("dda-digivice-collapsed", Boolean(this._ddaDigiviceCollapsed));
+
+    const html = $(root);
+
+    const activePrimaryTab = this.tabGroups.primary ?? "stats";
+    this._syncTamerTabDom(root, "primary", activePrimaryTab);
+    for (const tab of root.querySelectorAll(".sheet-tabs [data-group][data-tab]")) {
+      tab.addEventListener("click", this._onTamerTabClick.bind(this));
+    }
 
     this._ensureTamerEndTurnButton(html);
     this._lockTamerProgressionInputs(html);
@@ -333,6 +402,11 @@ html.find(".dda-device-button").on("dblclick", (event) => {
   this._onOpenTamerAdvancement.bind(this)
 );
 
+      html.find(".open-partner-bonus-dp").on(
+  "click",
+  this._onOpenPartnerBonusDp.bind(this)
+);
+
     html.find(".open-tamer-talent-compendium").on("click", this._onOpenTamerTalentCompendium.bind(this));
     html.find(
       ".open-tamer-action-menu"
@@ -343,6 +417,35 @@ html.find(".dda-device-button").on("dblclick", (event) => {
     html.find(".open-official-tamer-talent").on("click", this._onOpenOfficialTamerTalent.bind(this));
     html.find(".use-tamer-talent").on("click", this._onUseTamerTalent.bind(this));
     html.find(".inventory-use-item").on("click", this._onUseInventoryItem.bind(this));
+  }
+
+  _onTamerTabClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const target = event.currentTarget;
+    const group = target?.dataset?.group ?? target?.closest?.("[data-group]")?.dataset?.group ?? "primary";
+    const tab = target?.dataset?.tab ?? "";
+    if (!tab) return;
+
+    this.changeTab(tab, group, {
+      event,
+      force: true,
+      navElement: target,
+      updatePosition: false
+    });
+
+    this._syncTamerTabDom(getApplicationElement(this.element), group, tab);
+  }
+
+  _syncTamerTabDom(root, group, activeTab) {
+    if (!root) return;
+
+    for (const element of root.querySelectorAll("[data-group][data-tab], [data-group] [data-tab]")) {
+      const elementGroup = element.dataset.group ?? element.closest?.("[data-group]")?.dataset?.group;
+      if (elementGroup !== group) continue;
+      element.classList.toggle("active", element.dataset.tab === activeTab);
+    }
   }
 
   _ensureTamerEndTurnButton(html) {
@@ -417,27 +520,50 @@ html.find(".dda-device-button").on("dblclick", (event) => {
   }
 
 
-  async _updateObject(event, formData) {
-if (!game.user?.isGM) {
-  delete formData["system.partner.bonusDp"];
-  delete formData["system.partner.startingStageOverride"];
+  async _onOpenPartnerBonusDp(event) {
+    event.preventDefault();
 
-  for (const key of Object.keys(formData)) {
-    if (key.startsWith("system.partner.unlockedEvolutionStages") || key.startsWith("system.partner.unlockedForms")) {
-      delete formData[key];
+    if (!game.user?.isGM && !this.actor?.isOwner) {
+      ui.notifications.warn(
+        game.i18n.localize("DDA.Warning.NoPermission")
+      );
+      return;
     }
+
+    const { openPartnerBonusDpAdvancement } = await import(
+      "../apps/dda-partner-bonus-dp.js"
+    );
+
+    return openPartnerBonusDpAdvancement(this.actor);
   }
-}
 
-        this._stripSheetProgressionEdits(formData);
 
-    const validation = this._validateCampaignLevelFormData(formData);
+  _prepareSubmitData(event, form, formData, updateData = {}) {
+    const prepared = super._prepareSubmitData(event, form, formData, updateData);
+    const flatData = foundry.utils.flattenObject(prepared);
 
+    if (!game.user?.isGM) {
+      delete flatData["system.partner.bonusDp"];
+      delete flatData["system.partner.startingStageOverride"];
+
+      for (const key of Object.keys(flatData)) {
+        if (
+          key.startsWith("system.partner.unlockedEvolutionStages") ||
+          key.startsWith("system.partner.unlockedForms")
+        ) {
+          delete flatData[key];
+        }
+      }
+    }
+
+    this._stripSheetProgressionEdits(flatData);
+
+    const validation = this._validateCampaignLevelFormData(flatData);
     if (validation.messages.length) {
       ui.notifications.warn(validation.messages.join(" "));
     }
 
-    return super._updateObject(event, formData);
+    return foundry.utils.expandObject(flatData);
   }
 
   _validateCampaignLevelFormData(formData) {
@@ -755,6 +881,11 @@ _getOfficialTamerTalentViewData() {
       }
     });
 
+    const implementation = getTamerTalentImplementation(talent.id);
+    const implementationLabel = localize(
+      getTamerTalentImplementationLabelKey(implementation.mode)
+    );
+
     return {
       ...talent,
       type: "officialTamerTalent",
@@ -776,7 +907,13 @@ _getOfficialTamerTalentViewData() {
         specialOrder: talent.specialOrder ?? { name: "" },
         effect: talent.effect ?? "",
         description: talent.description ?? talent.effect ?? "",
-        automation: talent.automation ?? { enabled: false }
+        automation: {
+          ...(talent.automation ?? { enabled: false }),
+          triggeredOnly: Boolean(
+            talent.automation?.triggeredOnly ||
+            isTamerTalentTriggeredOnly(talent.id)
+          )
+        }
       },
       requirementMet,
       requirementCurrent: currentValue,
@@ -793,183 +930,18 @@ statusLabel: requirementMet
   ? game.i18n.localize("DDA.TamerTalent.Status.Unlocked")
   : game.i18n.localize("DDA.TamerTalent.Status.Locked"),
       statusClass: requirementMet ? "unlocked" : "locked",
+      implementation,
+      implementationLabel,
+      implementationClass: `is-${implementation.mode}`,
       source: "official"
     };
   });
 }
 async _onOpenTamerTalentCompendium(event) {
   event.preventDefault();
-
-  const talents = this._getOfficialTamerTalentViewData();
-
-  let activeFilter = "all";
-  let searchTerm = "";
-
-  const matchesSearch = (talent, term) => {
-    const normalizedTerm = String(term ?? "").trim().toLowerCase();
-    if (!normalizedTerm) return true;
-
-    const haystack = [
-      talent.name,
-      talent.requirementText,
-      talent.statusLabel,
-      talent.system?.specialOrder?.name,
-      talent.system?.effect,
-      talent.system?.description,
-talent.system?.isAdvanced
-  ? `${localize("DDA.TamerTalent.Advanced")} advanced avançado avancado`
-  : `${localize("DDA.TamerTalent.Initial")} initial inicial`,
-
-talent.system?.isSpecialOrder
-  ? `${localize("DDA.TamerTalent.SpecialOrder")} special order ordem especial`
-  : `${localize("DDA.TamerTalent.Talent")} talent talento`,
-      getTamerTalentUseTypeLabel(talent.system?.useType),
-      getTamerTalentActionCostLabel(talent.system?.actionCost),
-      getTamerTalentFrequencyLabel(talent.system?.frequency)
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return haystack.includes(normalizedTerm);
-  };
-
-  const matchesFilter = (talent, filter) => {
-    switch (filter) {
-      case "unlocked":
-        return talent.requirementMet;
-      case "locked":
-        return !talent.requirementMet;
-      case "initial":
-        return !talent.system?.isAdvanced;
-      case "advanced":
-        return Boolean(talent.system?.isAdvanced);
-      default:
-        return true;
-    }
-  };
-
-  const getVisibleTalents = () => {
-    return talents.filter((talent) => {
-      return matchesSearch(talent, searchTerm) && matchesFilter(talent, activeFilter);
-    });
-  };
-
-const renderResults = () => {
-  const visibleTalents = getVisibleTalents();
-
-  const unlockedTalents = visibleTalents.filter((talent) => talent.requirementMet);
-  const lockedTalents = visibleTalents.filter((talent) => !talent.requirementMet);
-
-  const entries = visibleTalents.length
-    ? visibleTalents.map((talent) => renderTamerTalentCompendiumEntry(talent)).join("")
-    : `<p class="dda-talent-compendium-empty">${localize("DDA.TamerTalentBrowser.NoTalentsFound")}</p>`;
-
-  return `
-    <div class="dda-talent-compendium-summary">
-      <div>
-        <strong>${unlockedTalents.length}</strong>
-        <span>${localize("DDA.TamerTalentBrowser.Unlocked")}</span>
-      </div>
-
-      <div>
-        <strong>${lockedTalents.length}</strong>
-        <span>${localize("DDA.TamerTalentBrowser.Locked")}</span>
-      </div>
-
-      <div>
-        <strong>${visibleTalents.length}</strong>
-        <span>${localize("DDA.TamerTalentBrowser.Total")}</span>
-      </div>
-    </div>
-
-    <section class="dda-talent-compendium-flat-section">
-      <div class="dda-talent-compendium-list">
-        ${entries}
-      </div>
-    </section>
-  `;
-};
-
-const content = `
-  <section class="dda-tamer-talent-compendium">
-    <header class="dda-tamer-talent-browser-header">
-      <input
-        type="search"
-        value=""
-        placeholder="${localize("DDA.TamerTalentBrowser.SearchPlaceholder")}"
-        data-tamer-talent-search
-      />
-
-      <nav class="dda-tamer-talent-browser-filters">
-        <button type="button" class="active" data-tamer-talent-filter="all">${localize("DDA.TamerTalentBrowser.Filter.All")}</button>
-        <button type="button" data-tamer-talent-filter="unlocked">${localize("DDA.TamerTalentBrowser.Filter.Unlocked")}</button>
-        <button type="button" data-tamer-talent-filter="locked">${localize("DDA.TamerTalentBrowser.Filter.Locked")}</button>
-        <button type="button" data-tamer-talent-filter="initial">${localize("DDA.TamerTalentBrowser.Filter.Initial")}</button>
-        <button type="button" data-tamer-talent-filter="advanced">${localize("DDA.TamerTalentBrowser.Filter.Advanced")}</button>
-      </nav>
-    </header>
-
-    <div class="dda-tamer-talent-results" data-tamer-talent-results>
-      ${renderResults()}
-    </div>
-  </section>
-`;
-
-  const dialog = new Dialog(
-    {
-      title: localize("DDA.TamerTalentBrowser.Title"),
-      content,
-      buttons: {
-        close: {
-          label: localize("DDA.Button.Close")
-        }
-      },
-      default: "null",
-      render: (html) => {
-        const root = html instanceof jQuery ? html : $(html);
-        const results = root.find("[data-tamer-talent-results]");
-        const searchInput = root.find("[data-tamer-talent-search]");
-        const filterButtons = root.find("[data-tamer-talent-filter]");
-
-        const refresh = () => {
-          results.html(renderResults());
-        };
-
-        searchInput.on("keydown", (event) => {
-          if (event.key !== "Enter") return;
-
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-
-          searchTerm = event.currentTarget.value ?? "";
-          refresh();
-        });
-
-        filterButtons.on("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-
-          activeFilter = event.currentTarget.dataset.tamerTalentFilter ?? "all";
-
-          filterButtons.removeClass("active");
-          event.currentTarget.classList.add("active");
-
-          refresh();
-        });
-      }
-    },
-    {
-      classes: ["dda", "dda-tamer-talent-compendium-dialog"],
-      width: 760,
-      height: 720,
-      resizable: true
-    }
-  );
-
-  dialog.render(true);
+  const browser = new DDATamerTalentBrowser(this);
+  await browser.render(true);
+  return browser;
 }
 
 async _onOpenOfficialTamerTalent(event) {
@@ -985,22 +957,24 @@ async _onOpenOfficialTamerTalent(event) {
 
   const content = renderTamerTalentDetail(talent);
 
-  new Dialog(
-    {
-      title: talent.name,
-      content,
-      buttons: {
-        close: {
-          label: localize("DDA.Button.Close")
-        }
-      },
-      default: "close"
-    },
-    {
-      classes: ["dda-tamer-talent-detail-dialog"],
-      width: 620
-    }
-  ).render(true);
+  const dialog = new foundry.applications.api.DialogV2({
+    classes: ["dda", "dda-tamer-talent-detail-dialog"],
+    position: { width: 620, height: "auto" },
+    window: { title: talent.name, resizable: true },
+    content,
+    buttons: [
+      {
+        action: "close",
+        label: localize("DDA.Button.Close"),
+        icon: "fa-solid fa-xmark",
+        default: true,
+        callback: () => null
+      }
+    ]
+  });
+
+  await dialog.render(true);
+  return dialog;
 }
 
 async _onUseTamerTalent(event) {
@@ -1048,14 +1022,15 @@ async _onUseTamerTalent(event) {
     return;
   }
 
-  const confirmed = await Dialog.confirm({
-    title: formatI18n("DDA.TamerTalent.UseTitle", {
-      talent: talent.name
-    }),
+  const confirmed = await DialogV2.confirm({
+    window: {
+      title: formatI18n("DDA.TamerTalent.UseTitle", {
+        talent: talent.name
+      })
+    },
     content: renderTamerTalentUseConfirmation(talent, this.actor),
-    yes: () => true,
-    no: () => false,
-    defaultYes: true
+    yes: { default: true },
+    rejectClose: false
   });
 
   if (!confirmed) return;
@@ -1077,15 +1052,17 @@ async _onUseTamerTalent(event) {
     talent.system.uses.value = automationResult.uses.value;
   }
 
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-    content: renderTamerTalentUseCard(talent, this.actor, {
-      actionCostNumber: automationResult.actionCostNumber,
-      actionCost: automationResult.actionCost,
-      source: talentSource,
-      automationResult
-    })
-  });
+  if (!automationResult.suppressDefaultChat) {
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: this.actor }),
+      content: renderTamerTalentUseCard(talent, this.actor, {
+        actionCostNumber: automationResult.actionCostNumber,
+        actionCost: automationResult.actionCost,
+        source: talentSource,
+        automationResult
+      })
+    });
+  }
 
   this.render(false);
 }
@@ -1323,27 +1300,30 @@ async _onUseTamerTalent(event) {
       </div>
     `;
 
-    return new Promise((resolve) => {
-      new Dialog({
-        title: game.i18n.format("DDA.Inventory.TargetDialog.Title", { item: item.name }),
-        content,
-        buttons: {
-          use: {
-            label: localize("DDA.Button.Use"),
-            callback: (html) => {
-              const root = html instanceof jQuery ? html : $(html);
-              const index = Number(root.find("select[name='targetIndex']").val() ?? 0);
-              resolve(targets[index] ?? null);
-            }
-          },
-          cancel: {
-            label: localize("DDA.Button.Cancel"),
-            callback: () => resolve(null)
+    return DialogV2.wait({
+      window: {
+        title: game.i18n.format("DDA.Inventory.TargetDialog.Title", { item: item.name })
+      },
+      content,
+      buttons: [
+        {
+          action: "use",
+          label: localize("DDA.Button.Use"),
+          icon: "fa-solid fa-check",
+          default: true,
+          callback: (_event, button) => {
+            const index = Number(button.form?.elements?.targetIndex?.value ?? 0);
+            return targets[index] ?? null;
           }
         },
-        default: "use",
-        close: () => resolve(null)
-      }).render(true);
+        {
+          action: "cancel",
+          label: localize("DDA.Button.Cancel"),
+          icon: "fa-solid fa-xmark",
+          callback: () => null
+        }
+      ],
+      rejectClose: false
     });
   }
 
@@ -1379,14 +1359,13 @@ async _onUseTamerTalent(event) {
 
     if (!item) return;
 
-const confirmed = await Dialog.confirm({
-  title: localize("DDA.Dialog.DeleteItem.Title"),
+const confirmed = await DialogV2.confirm({
+  window: { title: localize("DDA.Dialog.DeleteItem.Title") },
   content: `<p>${formatI18n("DDA.Dialog.DeleteItem.Content", {
     item: `<strong>${escapeHtml(item.name)}</strong>`
   })}</p>`,
-  yes: () => true,
-  no: () => false,
-  defaultYes: false
+  no: { default: true },
+  rejectClose: false
 });
 
     if (!confirmed) return;
@@ -1413,12 +1392,11 @@ const confirmed = await Dialog.confirm({
   async _onTakeRest(event) {
     event.preventDefault();
 
-const confirmed = await Dialog.confirm({
-  title: localize("DDA.Dialog.Rest.Title"),
+const confirmed = await DialogV2.confirm({
+  window: { title: localize("DDA.Dialog.Rest.Title") },
   content: `<p>${localize("DDA.Dialog.Rest.Content")}</p>`,
-  yes: () => true,
-  no: () => false,
-  defaultYes: false
+  no: { default: true },
+  rejectClose: false
 });
 
     if (!confirmed) return;
@@ -1449,40 +1427,43 @@ async _onOpenTamerActionMenu(event) {
 async _onRecoveryMenu(event) {
     event.preventDefault();
 
-    const choice = await new Promise((resolve) => {
-      new Dialog({
-        title: localize("DDA.Recovery.OptionsTitle"),
-        content: `
-          <div class="dda-roll-dialog dda-recovery-options-dialog">
-            <p>${localize("DDA.Recovery.OptionsHint")}</p>
-            <ul>
-              <li><strong>${localize("DDA.Button.PostCombatRecovery")}</strong> — ${localize("DDA.Recovery.PostCombatHint")}</li>
-              <li><strong>${localize("DDA.Button.Break")}</strong> — ${localize("DDA.Recovery.BreakHint")}</li>
-              <li><strong>${localize("DDA.Button.Rest")}</strong> — ${localize("DDA.Recovery.RestHint")}</li>
-            </ul>
-          </div>
-        `,
-        buttons: {
-          postCombat: {
-            label: localize("DDA.Button.PostCombatRecovery"),
-            callback: () => resolve("postCombat")
-          },
-          break: {
-            label: localize("DDA.Button.Break"),
-            callback: () => resolve("break")
-          },
-          rest: {
-            label: localize("DDA.Button.Rest"),
-            callback: () => resolve("rest")
-          },
-          cancel: {
-            label: localize("DDA.Button.Cancel"),
-            callback: () => resolve(null)
-          }
+    const choice = await DialogV2.wait({
+      window: { title: localize("DDA.Recovery.OptionsTitle") },
+      content: `
+        <div class="dda-roll-dialog dda-recovery-options-dialog">
+          <p>${localize("DDA.Recovery.OptionsHint")}</p>
+          <ul>
+            <li><strong>${localize("DDA.Button.PostCombatRecovery")}</strong> — ${localize("DDA.Recovery.PostCombatHint")}</li>
+            <li><strong>${localize("DDA.Button.Break")}</strong> — ${localize("DDA.Recovery.BreakHint")}</li>
+            <li><strong>${localize("DDA.Button.Rest")}</strong> — ${localize("DDA.Recovery.RestHint")}</li>
+          </ul>
+        </div>
+      `,
+      buttons: [
+        {
+          action: "postCombat",
+          label: localize("DDA.Button.PostCombatRecovery"),
+          icon: "fa-solid fa-heart-pulse",
+          default: true
         },
-        default: "postCombat",
-        close: () => resolve(null)
-      }).render(true);
+        {
+          action: "break",
+          label: localize("DDA.Button.Break"),
+          icon: "fa-solid fa-mug-hot"
+        },
+        {
+          action: "rest",
+          label: localize("DDA.Button.Rest"),
+          icon: "fa-solid fa-bed"
+        },
+        {
+          action: "cancel",
+          label: localize("DDA.Button.Cancel"),
+          icon: "fa-solid fa-xmark",
+          callback: () => null
+        }
+      ],
+      rejectClose: false
     });
 
     if (choice === "postCombat") {
@@ -1496,12 +1477,11 @@ async _onRecoveryMenu(event) {
     }
 
     if (choice === "rest") {
-      const confirmed = await Dialog.confirm({
-        title: localize("DDA.Dialog.Rest.Title"),
+      const confirmed = await DialogV2.confirm({
+        window: { title: localize("DDA.Dialog.Rest.Title") },
         content: `<p>${localize("DDA.Dialog.Rest.Content")}</p>`,
-        yes: () => true,
-        no: () => false,
-        defaultYes: false
+        no: { default: true },
+        rejectClose: false
       });
 
       if (!confirmed) return;
@@ -1654,15 +1634,14 @@ async _onUnlinkPartner(event) {
   const partnerUuid = this.actor.system.partner?.uuid;
   const partnerName = this.actor.system.partner?.name || localize("DDA.TamerSheet.LinkedPartner");
 
-const confirmed = await Dialog.confirm({
-  title: localize("DDA.Dialog.UnlinkPartner.Title"),
+const confirmed = await DialogV2.confirm({
+  window: { title: localize("DDA.Dialog.UnlinkPartner.Title") },
   content: `<p>${formatI18n("DDA.Dialog.UnlinkPartner.Content", {
     partner: `<strong>${escapeHtml(partnerName)}</strong>`,
     tamer: `<strong>${escapeHtml(this.actor.name)}</strong>`
   })}</p>`,
-  yes: () => true,
-  no: () => false,
-  defaultYes: false
+  no: { default: true },
+  rejectClose: false
 });
 
   if (!confirmed) return;
@@ -1729,50 +1708,61 @@ async _onEvolutionOptionsPartner(event) {
 
   const forcedEnabled = Boolean(getDDASetting("enableForcedEvolution"));
   const blastEnabled = Boolean(getDDASetting("enableBlastEvolution"));
+  const optionCount = 1 + Number(forcedEnabled) + Number(blastEnabled);
 
-  const choice = await new Promise((resolve) => {
-    const buttons = {
-      normal: {
-        label: localize("DDA.Evolution.Option.Normal"),
-        callback: () => resolve("normal")
-      }
-    };
-
-    if (forcedEnabled) {
-      buttons.forced = {
-        label: localize("DDA.Evolution.Option.Forced"),
-        callback: () => resolve("forced")
-      };
+  const buttons = [
+    {
+      action: "normal",
+      icon: "fa-solid fa-arrow-trend-up",
+      label: localize("DDA.Evolution.Option.Normal"),
+      tooltip: localize("DDA.Evolution.OptionHint.Normal"),
+      default: true
     }
+  ];
 
-    if (blastEnabled) {
-      buttons.blast = {
-        label: localize("DDA.Evolution.Option.Blast"),
-        callback: () => resolve("blast")
-      };
-    }
+  if (forcedEnabled) {
+    buttons.push({
+      action: "forced",
+      icon: "fa-solid fa-triangle-exclamation",
+      label: localize("DDA.Evolution.Option.Forced"),
+      tooltip: localize("DDA.Evolution.OptionHint.Forced")
+    });
+  }
 
-    buttons.cancel = {
-      label: localize("DDA.Button.Cancel"),
-      callback: () => resolve(null)
-    };
+  if (blastEnabled) {
+    buttons.push({
+      action: "blast",
+      icon: "fa-solid fa-bolt-lightning",
+      label: localize("DDA.Evolution.Option.Blast"),
+      tooltip: localize("DDA.Evolution.OptionHint.Blast")
+    });
+  }
 
-    new Dialog({
-      title: localize("DDA.Evolution.OptionsTitle"),
-      content: `
-        <div class="dda-roll-dialog dda-evolution-options-dialog">
-          <p>${localize("DDA.Evolution.OptionsHint")}</p>
-          <ul>
-            <li><strong>${localize("DDA.Evolution.Option.Normal")}</strong> — ${localize("DDA.Evolution.OptionHint.Normal")}</li>
-            ${forcedEnabled ? `<li><strong>${localize("DDA.Evolution.Option.Forced")}</strong> — ${localize("DDA.Evolution.OptionHint.Forced")}</li>` : ""}
-            ${blastEnabled ? `<li><strong>${localize("DDA.Evolution.Option.Blast")}</strong> — ${localize("DDA.Evolution.OptionHint.Blast")}</li>` : ""}
-          </ul>
+  buttons.push({
+    action: "cancel",
+    icon: "fa-solid fa-xmark",
+    label: localize("DDA.Button.Cancel"),
+    callback: () => null
+  });
+
+  const choice = await DialogV2.wait({
+    window: { title: localize("DDA.Evolution.OptionsTitle") },
+    position: { width: 680 },
+    content: `
+      <div class="dda-roll-dialog dda-evolution-options-dialog has-${optionCount}-options">
+        <div class="dda-evolution-options-hero">
+          <span class="dda-evolution-options-emblem" aria-hidden="true">
+            <i class="fa-solid fa-code-branch"></i>
+          </span>
+          <div>
+            <span class="dda-evolution-options-kicker">${localize("DDA.Evolution.Title")}</span>
+            <p>${localize("DDA.Evolution.OptionsHint")}</p>
+          </div>
         </div>
-      `,
-      buttons,
-      default: "normal",
-      close: () => resolve(null)
-    }).render(true);
+      </div>
+    `,
+    buttons,
+    rejectClose: false
   });
 
   if (choice === "normal") {
@@ -1860,19 +1850,23 @@ async _onEndJogressPartner(event) {
 
 _onDigiviceSheet(event) {
   event.preventDefault();
+  event.stopPropagation();
 
   try {
-    // Mesmo painel do botão de engrenagem/configuração da ficha.
-    if (typeof this._onConfigureSheet === "function") {
-      return this._onConfigureSheet(event);
-    }
+    const rootElement = getApplicationElement(this.element);
+    const appElement = rootElement?.closest(".application, .window-app") ?? rootElement;
+    this._ddaDigiviceCollapsed = false;
+    appElement?.classList.remove("dda-digivice-collapsed");
 
-    // Fallback para ambientes onde o método herdado não esteja disponível.
-    if (typeof DocumentSheetConfig !== "undefined") {
-      new DocumentSheetConfig(this.actor, {
-        top: this.position.top + 40,
-        left: this.position.left + 40
-      }).render(true);
+    const DocumentSheetConfigClass = getDdaDocumentSheetConfigClass();
+    if (DocumentSheetConfigClass) {
+      new DocumentSheetConfigClass({
+        document: this.actor,
+        position: {
+          top: Number(this.position?.top ?? 0) + 40,
+          left: Number(this.position?.left ?? 0) + 40
+        }
+      }).render({ force: true });
       return;
     }
 
@@ -1887,11 +1881,6 @@ _onDigivicePrototypeToken(event) {
   event.preventDefault();
 
   try {
-    if (typeof this._onConfigureToken === "function") {
-      this._onConfigureToken(event);
-      return;
-    }
-
     const prototypeToken = this.actor.prototypeToken;
 
     if (!prototypeToken) {
@@ -1899,7 +1888,7 @@ _onDigivicePrototypeToken(event) {
       return;
     }
 
-    prototypeToken.sheet?.render(true);
+    prototypeToken.sheet?.render({ force: true });
   } catch (error) {
     console.error("DDA | Erro ao abrir Protótipo de Token:", error);
     ui.notifications.error(localize("DDA.Error.OpenPrototypeToken"));
@@ -1915,15 +1904,37 @@ _onDigiviceClose(event) {
 
 _onDigiviceDoubleClick(event) {
   event.preventDefault();
+  event.stopPropagation();
 
   if (event.target.closest(".dda-device-button")) {
     return;
   }
 
-  const appElement = this.element?.[0]?.closest(".window-app, .app, .application");
+  const appElement = getApplicationElement(this.element)?.closest(".application, .window-app, .app");
   if (!appElement) return;
 
-  appElement.classList.toggle("dda-digivice-collapsed");
+  const collapse = !Boolean(this._ddaDigiviceCollapsed);
+
+  if (collapse) {
+    // Preserve the actual ApplicationV2 dimensions. The custom collapsed CSS
+    // intentionally shrinks the window to the Digivice, but those temporary
+    // dimensions must never become the restored sheet dimensions.
+    this._ddaDigiviceExpandedPosition = {
+      width: Number(this.position?.width) || 860,
+      height: Number(this.position?.height) || 760
+    };
+  }
+
+  this._ddaDigiviceCollapsed = collapse;
+  appElement.classList.toggle("dda-digivice-collapsed", collapse);
+
+  if (!collapse) {
+    const expanded = this._ddaDigiviceExpandedPosition ?? {};
+    this.setPosition?.({
+      width: Number(expanded.width) || 860,
+      height: Number(expanded.height) || 760
+    });
+  }
 }
 
 _onDigiviceDragStart(event) {
@@ -1958,7 +1969,7 @@ _onCustomSheetDragStart(event) {
     ".current-form-actions"
   ].join(","))) return;
 
-  const root = this.element?.[0];
+  const root = getApplicationElement(this.element);
   const frame = root?.querySelector?.(".dda-window-frame");
   const paper = root?.querySelector?.(".dda-window-paper");
   const header = root?.querySelector?.(".sheet-header");
@@ -1987,7 +1998,7 @@ _startSheetWindowDrag(event) {
   event.preventDefault();
   event.stopPropagation();
 
-  const appElement = this.element?.[0]?.closest(".window-app, .app, .application");
+  const appElement = getApplicationElement(this.element)?.closest(".window-app, .app, .application");
   if (!appElement) return;
 
   const rect = appElement.getBoundingClientRect();
@@ -2040,6 +2051,15 @@ _onDigiviceDragEnd(event) {
   if (!drag?.appElement) return;
 
   drag.appElement.classList.remove("dda-digivice-dragging");
+
+  // A normal click (including each click that composes a dblclick) is not a
+  // drag. Calling ApplicationV2#setPosition on every pointerup can update the
+  // frame between the two clicks and prevent the second dblclick from being
+  // delivered to the Digivice. Only persist position after real movement.
+  if (!drag.moved) {
+    this._ddaDigiviceDrag = null;
+    return;
+  }
 
   const rect = drag.appElement.getBoundingClientRect();
 
@@ -2241,6 +2261,82 @@ async _getPartnerCurrentSpecies() {
   }
 }
 
+async _getPartnerHeaderName(currentSpecies = "") {
+  const partner = this.actor.system.partner ?? {};
+  const partnerUuid = partner.uuid || partner.currentFormUuid;
+  const speciesName = String(
+    currentSpecies ||
+    partner.currentFormName ||
+    partner.name ||
+    ""
+  ).trim();
+
+  if (!partnerUuid) return speciesName;
+
+  try {
+    const partnerActor = await fromUuid(partnerUuid);
+
+    if (!partnerActor || partnerActor.documentName !== "Actor") {
+      return speciesName;
+    }
+
+    const explicitNickname = String(
+      partnerActor.system?.customName ||
+      partnerActor.system?.nickname ||
+      ""
+    ).trim();
+
+    if (explicitNickname) return explicitNickname;
+
+    /*
+     * Compatibilidade com Partners antigos: antes de system.customName e
+     * system.nickname, um apelido podia existir somente em Actor#name. Ele só
+     * é tratado como apelido quando não coincide com nenhuma forma conhecida.
+     */
+    const knownSpeciesNames = [
+      speciesName,
+      partner.currentFormName,
+      partnerActor.system?.species,
+      partnerActor.system?.evolution?.currentFormName,
+      partnerActor.system?.evolution?.sourceFormName,
+      ...Object.values(
+        partnerActor.system?.evolution?.formSnapshots ?? {}
+      ).flatMap((snapshot) => [
+        snapshot?.species,
+        snapshot?.sourceFormName
+      ]),
+      ...(
+        Array.isArray(partnerActor.system?.evolutionGraph?.nodes)
+          ? partnerActor.system.evolutionGraph.nodes
+          : []
+      ).flatMap((node) => [
+        node?.species,
+        node?.displayName,
+        node?.name
+      ])
+    ]
+      .map((value) => normalizeSheetLookup(value))
+      .filter(Boolean);
+
+    const actorName = String(partnerActor.name ?? "").trim();
+
+    if (
+      actorName &&
+      !knownSpeciesNames.includes(normalizeSheetLookup(actorName))
+    ) {
+      return actorName;
+    }
+
+    return speciesName || actorName;
+  } catch (error) {
+    console.warn(
+      "DDA | Não foi possível resolver o nome exibido do parceiro:",
+      error
+    );
+    return speciesName;
+  }
+}
+
 
 }
 
@@ -2309,69 +2405,6 @@ function getTamerRequirementLabel(requirementType, requirementKey) {
     : skillLabels[requirementKey];
 
   return game.i18n.localize(key ?? fallback);
-}
-
-function renderTamerTalentCompendiumEntry(talent) {
-  const specialOrderName = talent.system?.specialOrder?.name ?? "";
-  const effect = talent.system?.effect ?? "";
-  const requirementText = talent.requirementText ?? localize("DDA.TamerTalent.Requirement.None");
-
-  return `
-    <article class="dda-talent-compendium-entry ${talent.statusClass}">
-      <header>
-        <div>
-          <h4>${escapeHtml(talent.name)}</h4>
-          ${
-            specialOrderName
-              ? `<p class="dda-talent-special-order">${escapeHtml(specialOrderName)}</p>`
-              : ""
-          }
-        </div>
-
-        <span class="dda-talent-status ${talent.statusClass}">
-          ${escapeHtml(talent.statusLabel)}
-        </span>
-      </header>
-
-      <div class="dda-talent-meta">
-        <span>${escapeHtml(requirementText)}</span>
-
-        ${
-          talent.system?.isAdvanced
-            ? `<span>${escapeHtml(localize("DDA.TamerTalent.Advanced"))}</span>`
-            : `<span>${escapeHtml(localize("DDA.TamerTalent.Initial"))}</span>`
-        }
-
-        ${
-          talent.system?.isSpecialOrder
-            ? `<span>${escapeHtml(localize("DDA.TamerTalent.SpecialOrder"))}</span>`
-            : `<span>${escapeHtml(localize("DDA.TamerTalent.Talent"))}</span>`
-        }
-
-        <span>${escapeHtml(getTamerTalentUseTypeLabel(talent.system?.useType))}</span>
-
-        ${
-          talent.system?.actionCost
-            ? `<span>${escapeHtml(getTamerTalentActionCostLabel(talent.system.actionCost))}</span>`
-            : ""
-        }
-
-        ${
-          talent.system?.frequency
-            ? `<span>${escapeHtml(getTamerTalentFrequencyLabel(talent.system.frequency))}</span>`
-            : ""
-        }
-
-        ${
-          talent.system?.uses?.enabled
-            ? `<span>${escapeHtml(localize("DDA.Label.Uses"))} ${talent.system.uses.value}/${talent.system.uses.max}</span>`
-            : ""
-        }
-      </div>
-
-      <p class="dda-talent-effect">${escapeHtml(effect)}</p>
-    </article>
-  `;
 }
 
 function getTamerTalentUseTypeLabel(value) {
@@ -2469,9 +2502,15 @@ function renderTamerTalentDetail(talent) {
           }
         </div>
 
-        <span class="dda-talent-status ${talent.statusClass}">
-          ${escapeHtml(talent.statusLabel)}
-        </span>
+        <div class="dda-talent-entry-statuses">
+          <span class="dda-talent-implementation ${escapeHtml(talent.implementationClass ?? "is-unknown")}">
+            ${escapeHtml(talent.implementationLabel ?? localize("DDA.Automation.Status.Unknown"))}
+          </span>
+
+          <span class="dda-talent-status ${talent.statusClass}">
+            ${escapeHtml(talent.statusLabel)}
+          </span>
+        </div>
       </header>
 
       <div class="dda-talent-meta">

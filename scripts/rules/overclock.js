@@ -79,6 +79,9 @@ export async function useOverclockQuality(
 ) {
   if (!actor || !quality) return false;
 
+  const charmGate = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmGate === "function" && !charmGate(actor, { user: game?.user, notify: true })) return false;
+
   if (!game.combat?.started) {
     ui.notifications.warn(
       localizeQ(

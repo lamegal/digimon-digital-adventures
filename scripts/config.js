@@ -740,7 +740,12 @@ DDA.effectTags = {
   dot: localize("DDA.EffectTag.Dot"),
   stun: localize("DDA.EffectTag.Stun"),
   shield: localize("DDA.EffectTag.Shield"),
-  zero: localize("DDA.EffectTag.Zero")
+  zero: localize("DDA.EffectTag.Zero"),
+  charm: localize("DDA.EffectTag.Charm"),
+  bug: localize("DDA.EffectTag.Bug"),
+  demoralize: localize("DDA.EffectTag.Demoralize"),
+  frenzy: localize("DDA.EffectTag.Frenzy"),
+  invincible: localize("DDA.EffectTag.Invincible")
 };
 
 DDA.digimonAttributes = {

@@ -487,7 +487,7 @@ body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons button {
 /* ===================================================== */
 
 /* Janela interna: mesma casca visual nas duas */
-html body .window-app.dda.quality-browser-window .window-content,
+html body :is(.window-app, .application).dda.quality-browser-window .window-content,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-content {
   padding: 8px !important;
   overflow: hidden !important;
@@ -507,7 +507,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .window-content {
 }
 
 /* Abinha tipo pasta, sem absolute para não bagunçar o Foundry */
-html body .window-app.dda.quality-browser-window .window-header,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header {
   width: fit-content !important;
   min-width: 190px !important;
@@ -536,7 +536,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .window-header {
 }
 
 /* Título da abinha */
-html body .window-app.dda.quality-browser-window .window-title,
+html body :is(.window-app, .application).dda.quality-browser-window .window-title,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-title {
   margin: 0 !important;
   padding: 0 !important;
@@ -557,16 +557,16 @@ html body .window-app.dda-tamer-talent-compendium-dialog .window-title {
 }
 
 /* Remove o fechar de cima nas duas */
-html body .window-app.dda.quality-browser-window .window-header .header-button,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header .header-button,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header .header-button,
-html body .window-app.dda.quality-browser-window .window-header a,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header a,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header a {
   display: none !important;
 }
 
 /* Área interna clara, igualando o Tamer ao visual mais bonito das Qualidades */
 html body .window-app.dda-tamer-talent-compendium-dialog .dda-tamer-talent-compendium,
-html body .window-app.dda.quality-browser-window .dda-quality-browser {
+html body :is(.window-app, .application).dda.quality-browser-window .dda-quality-browser {
   border-radius: 4px !important;
   overflow: hidden !important;
 
@@ -575,7 +575,7 @@ html body .window-app.dda.quality-browser-window .dda-quality-browser {
 }
 
 /* Footer inferior das duas janelas */
-html body .window-app.dda.quality-browser-window .quality-browser-footer,
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer,
 html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons {
   flex: 0 0 auto !important;
 
@@ -596,7 +596,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons {
 }
 
 /* Fechar discreto no canto inferior direito */
-html body .window-app.dda.quality-browser-window .quality-browser-footer button,
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer button,
 html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons button {
   flex: 0 0 auto !important;
 
@@ -636,7 +636,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons button 
   cursor: pointer !important;
 }
 
-html body .window-app.dda.quality-browser-window .quality-browser-footer button:hover,
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer button:hover,
 html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons button:hover {
   filter: brightness(1.1) !important;
 }
@@ -664,7 +664,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dda-tamer-talent-compe
 }
 
 /* Abinha externa igual nas duas janelas */
-html body .window-app.dda.quality-browser-window .window-header,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header {
   width: fit-content !important;
   min-width: 190px !important;
@@ -693,7 +693,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .window-header {
 }
 
 /* Título da abinha */
-html body .window-app.dda.quality-browser-window .window-title,
+html body :is(.window-app, .application).dda.quality-browser-window .window-title,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-title {
   color: #eaf7ff !important;
 
@@ -708,15 +708,15 @@ html body .window-app.dda-tamer-talent-compendium-dialog .window-title {
 }
 
 /* Remove fechar do topo */
-html body .window-app.dda.quality-browser-window .window-header .header-button,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header .header-button,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header .header-button,
-html body .window-app.dda.quality-browser-window .window-header a,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header a,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header a {
   display: none !important;
 }
 
 /* Casca externa igual nas duas */
-html body .window-app.dda.quality-browser-window .window-content,
+html body :is(.window-app, .application).dda.quality-browser-window .window-content,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-content {
   padding: 8px !important;
   overflow: hidden !important;
@@ -734,7 +734,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .window-content {
 }
 
 /* Footer igual nas duas */
-html body .window-app.dda.quality-browser-window .quality-browser-footer,
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer,
 html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons {
   flex: 0 0 auto !important;
 
@@ -755,7 +755,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons {
 }
 
 /* Fechar discreto no canto inferior direito */
-html body .window-app.dda.quality-browser-window .quality-browser-footer button,
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer button,
 html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons button {
   flex: 0 0 auto !important;
 
@@ -793,14 +793,14 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons button 
 /* ===================================================== */
 
 /* 1) Abinha encaixada, sem "faixa escura" sobrando atrás */
-html body .window-app.dda.quality-browser-window .window-header,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header {
   margin: 0 0 -2px 16px !important;
   z-index: 5 !important;
 }
 
 /* 2) Casca externa das duas janelas */
-html body .window-app.dda.quality-browser-window .window-content,
+html body :is(.window-app, .application).dda.quality-browser-window .window-content,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-content {
   padding: 6px !important;
   overflow: hidden !important;
@@ -816,7 +816,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .window-content {
 }
 
 /* 3) Fundo INTERNO igual para os dois browsers */
-html body .window-app.dda.quality-browser-window .dda-quality-browser,
+html body :is(.window-app, .application).dda.quality-browser-window .dda-quality-browser,
 html body .window-app.dda-tamer-talent-compendium-dialog .dda-tamer-talent-compendium {
   margin: 0 !important;
   padding: 0.75rem !important;
@@ -834,7 +834,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dda-tamer-talent-compe
 }
 
 /* 5) Footer dos dois igual */
-html body .window-app.dda.quality-browser-window .quality-browser-footer,
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer,
 html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons {
   display: flex !important;
   justify-content: flex-end !important;
@@ -850,7 +850,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons {
 }
 
 /* 6) Botão fechar discreto igual nos dois */
-html body .window-app.dda.quality-browser-window .quality-browser-footer button,
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer button,
 html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons button {
   flex: 0 0 auto !important;
   width: auto !important;
@@ -882,7 +882,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons button 
 }
 
 /* 7) Garante que o fechar do Quality não fique esticado */
-html body .window-app.dda.quality-browser-window .quality-browser-footer button {
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer button {
   width: auto !important;
   flex: 0 0 auto !important;
 }
@@ -893,14 +893,14 @@ html body .window-app.dda.quality-browser-window .quality-browser-footer button 
 /* ===================================================== */
 
 /* Remove a chapa escura externa do Foundry nesses dois browsers */
-html body .window-app.dda.quality-browser-window,
+html body :is(.window-app, .application).dda.quality-browser-window,
 html body .window-app.dda-tamer-talent-compendium-dialog {
   background: transparent !important;
   box-shadow: none !important;
 }
 
 /* Igualar a casca das duas janelas */
-html body .window-app.dda.quality-browser-window .window-content,
+html body :is(.window-app, .application).dda.quality-browser-window .window-content,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-content {
   padding: 6px !important;
   overflow: hidden !important;
@@ -937,7 +937,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dialog-content {
 
 /* Faz o conteúdo real do Tamer preencher a área igual ao Quality */
 html body .window-app.dda-tamer-talent-compendium-dialog .dda-tamer-talent-compendium,
-html body .window-app.dda.quality-browser-window .dda-quality-browser {
+html body :is(.window-app, .application).dda.quality-browser-window .dda-quality-browser {
   flex: 1 1 auto !important;
   min-height: 0 !important;
 
@@ -971,7 +971,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dda-tamer-talent-compe
 }
 
 /* Abinha superior limpa e igual nas duas */
-html body .window-app.dda.quality-browser-window .window-header,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header {
   width: fit-content !important;
   min-width: 190px !important;
@@ -1000,7 +1000,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .window-header {
 }
 
 /* Título da abinha */
-html body .window-app.dda.quality-browser-window .window-title,
+html body :is(.window-app, .application).dda.quality-browser-window .window-title,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-title {
   color: #eaf7ff !important;
 
@@ -1015,15 +1015,15 @@ html body .window-app.dda-tamer-talent-compendium-dialog .window-title {
 }
 
 /* Remove Fechar do topo */
-html body .window-app.dda.quality-browser-window .window-header .header-button,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header .header-button,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header .header-button,
-html body .window-app.dda.quality-browser-window .window-header a,
+html body :is(.window-app, .application).dda.quality-browser-window .window-header a,
 html body .window-app.dda-tamer-talent-compendium-dialog .window-header a {
   display: none !important;
 }
 
 /* Footer igual e mais discreto */
-html body .window-app.dda.quality-browser-window .quality-browser-footer,
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer,
 html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons {
   flex: 0 0 auto !important;
 
@@ -1044,7 +1044,7 @@ html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons {
 }
 
 /* Botão Fechar discreto no canto inferior direito */
-html body .window-app.dda.quality-browser-window .quality-browser-footer button,
+html body :is(.window-app, .application).dda.quality-browser-window .quality-browser-footer button,
 html body .window-app.dda-tamer-talent-compendium-dialog .dialog-buttons button {
   flex: 0 0 auto !important;
 

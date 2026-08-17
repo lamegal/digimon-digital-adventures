@@ -1,5 +1,8 @@
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
 import { EFFECT_TAGS } from "../rules/quality-automation.js";
+
+const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
+const DDADigimonQualityBrowserBase = HandlebarsApplicationMixin(ApplicationV2);
 import {
   CORE_QUALITY_IDS,
   getCoreQualityId,
@@ -341,6 +344,8 @@ export function buildQualityItemData(quality) {
       grants: quality.grants ?? {},
       activation: quality.activation ?? {},
       uses: quality.uses ?? {},
+      bossQuality: Boolean(quality.bossQuality),
+      boss: quality.boss ?? {},
 
       superiorModeChange: {
         ...(quality.superiorModeChange ?? {}),
@@ -375,30 +380,45 @@ export function buildQualityItemData(quality) {
   };
 }
 
-export class DDADigimonQualityBrowser extends Application {
+export class DDADigimonQualityBrowser extends DDADigimonQualityBrowserBase {
   constructor(actor, options = {}) {
-    super(options);
+    const viewportHeight = Number(globalThis?.innerHeight ?? 820);
+    const safeHeight = Math.min(720, Math.max(520, viewportHeight - 96));
+    const position = { ...(options.position ?? {}) };
+
+    if (position.height === undefined) position.height = safeHeight;
+
+    super({
+      ...options,
+      position
+    });
+
     this.actor = actor;
     this.activeTier = "all";
     this.activeCategory = "all";
     this.searchTerm = "";
   }
 
-static get defaultOptions() {
-  const viewportHeight = Number(globalThis?.innerHeight ?? 820);
-  const safeHeight = Math.min(720, Math.max(520, viewportHeight - 96));
-
-  return foundry.utils.mergeObject(super.defaultOptions, {
+  static DEFAULT_OPTIONS = {
     id: "dda-digimon-quality-browser",
-    title: game.i18n.localize("DDA.QualityBrowser.Title"),
-    template: "systems/digimon-digital-adventures/templates/apps/digimon-quality-browser.html",
-    width: 760,
-    height: safeHeight,
-    resizable: true,
-    scrollY: [".quality-browser-list"],
-    classes: ["dda", "quality-browser-window"]
-  });
-}
+    classes: ["dda", "quality-browser-window"],
+    position: {
+      width: 760,
+      height: 720
+    },
+    window: {
+      title: "DDA.QualityBrowser.Title",
+      icon: "fa-solid fa-gem",
+      resizable: true
+    }
+  };
+
+  static PARTS = {
+    main: {
+      template: "systems/digimon-digital-adventures/templates/apps/digimon-quality-browser.html",
+      scrollable: [".quality-browser-list"]
+    }
+  };
 
   _normalizeSearchText(value) {
     return String(value ?? "")
@@ -545,7 +565,7 @@ _matchesQualitySearch(quality, searchTerm) {
   ) >= 0;
 }
 
-  getData() {
+  _getViewData() {
     const tiers = [
       { key: "all", label: "DDA.QualityBrowser.Filter.All" },
       { key: "starting", label: "DDA.QualityBrowser.Filter.Starting" },
@@ -680,6 +700,11 @@ _matchesQualitySearch(quality, searchTerm) {
       qualities,
       coreReview: this._getCoreReviewData()
     };
+  }
+
+  async _prepareContext(options) {
+    const context = await super._prepareContext(options);
+    return Object.assign(context, this._getViewData());
   }
 
   _getCoreReviewData() {
@@ -842,8 +867,13 @@ _matchesQualitySearch(quality, searchTerm) {
     this.render();
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+
+    const root = this.element;
+    if (!(root instanceof HTMLElement)) return;
+
+    const html = $(root);
 
     html.find("[data-tier-filter]").on("click", (event) => {
       event.preventDefault();
@@ -2325,42 +2355,18 @@ const availableOptions =
         })
         .join("");
 
-      const selectedKey =
-        await new Promise(
-          (resolve) => {
-            let settled = false;
-
-            let selectedTag =
-              effectGroups[0].tag;
-
-            let activeFilter =
-              "all";
-
-            const finish = (
-              value
-            ) => {
-              if (settled) return;
-
-              settled = true;
-              resolve(value);
-            };
-
-            new Dialog(
-              {
-                title:
-                  game.i18n.format(
-                    "DDA.QualityBrowser.ChoiceDialogTitle",
-                    {
-                      quality:
-                        quality.name,
-
-                      rank:
-                        rankNumber
-                    }
-                  ),
-
-                content: `
-                  <form class="dda-effect-picker">
+      const selectedKey = await DialogV2.wait({
+        classes: ["dda", "dda-effect-choice-dialog"],
+        position: { width: 780, height: "auto" },
+        window: {
+          title: game.i18n.format(
+            "DDA.QualityBrowser.ChoiceDialogTitle",
+            { quality: quality.name, rank: rankNumber }
+          )
+        },
+        modal: true,
+        content: `
+                  <div class="dda-effect-picker">
                     <header class="dda-effect-picker__header">
                       <span class="dda-effect-picker__eyebrow">
                         ${english
@@ -2501,56 +2507,27 @@ const availableOptions =
                         </p>
                       </section>
                     </div>
-                  </form>
+                  </div>
                 `,
-
-                buttons: {
-                  confirm: {
-                    icon:
-                      '<i class="fas fa-check"></i>',
-
-                    label:
-                      game.i18n.localize(
-                        "DDA.Button.Confirm"
-                      ),
-
-                    callback: (
-                      html
-                    ) => {
-                      finish(
-                        String(
-                          html
-                            .find(
-                              "[name='choiceKey']"
-                            )
-                            .val() ??
-                          ""
-                        )
-                      );
-                    }
-                  },
-
-                  cancel: {
-                    icon:
-                      '<i class="fas fa-times"></i>',
-
-                    label:
-                      game.i18n.localize(
-                        "DDA.Button.Cancel"
-                      ),
-
-                    callback: () => {
-                      finish(null);
-                    }
-                  }
-                },
-
-                default:
-                  "confirm",
-
-                render: (
-                  html
-                ) => {
+        buttons: [
+          {
+            action: "confirm",
+            icon: "fa-solid fa-check",
+            label: game.i18n.localize("DDA.Button.Confirm"),
+            default: true,
+            callback: (_event, button) => String(
+              button.form?.elements?.choiceKey?.value ?? ""
+            ) || null
+          },
+          {
+            action: "cancel",
+            icon: "fa-solid fa-xmark",
+            label: game.i18n.localize("DDA.Button.Cancel"),
+            callback: () => null
+          }
+        ],
+        render: (_event, dialog) => {
+          const html = $(dialog.element);
                   const search =
                     html.find(
                       ".dda-effect-picker__search"
@@ -2838,24 +2815,9 @@ const availableOptions =
                   selectGroup(
                     selectedTag
                   );
-                },
-
-                close: () => {
-                  finish(null);
-                }
-              },
-
-              {
-                width: 780,
-                height: "auto",
-
-                classes: [
-                  "dda-effect-choice-dialog"
-                ]
-              }
-            ).render(true);
-          }
-        );
+        },
+        rejectClose: false
+      });
 
       if (!selectedKey) {
         return null;
@@ -2948,22 +2910,52 @@ const availableOptions =
       };
     }
 
+    const escape = foundry.utils.escapeHTML;
+    const qualityIdentity = normalizeQualityBrowserIdentity(
+      quality.id ?? quality.originalName ?? quality.name ?? ""
+    );
+    const isSystemBoost = ["impulsodesistema", "systemboost"].includes(qualityIdentity);
+
     const optionHtml = availableOptions
       .map((option) => {
-        const label = option.label ?? option.key;
+        const label = escape(String(option.label ?? option.key));
+        const key = escape(String(option.key));
         
 
         return `
-          <option value="${option.key}">
+          <option value="${key}">
             ${label}
           </option>
         `;
       })
       .join("");
 
+    const systemBoostOptionsHtml = availableOptions
+      .map((option, index) => {
+        const key = escape(String(option.key));
+        const label = escape(String(option.label ?? option.key));
+        const effect = escape(String(option.effect ?? ""));
+
+        return `
+          <label class="dda-system-boost-option">
+            <input type="radio" name="choiceKey" value="${key}" ${index === 0 ? "checked" : ""}>
+            <span class="dda-system-boost-option-copy">
+              <strong>${label}</strong>
+              ${effect ? `<small>${effect}</small>` : ""}
+            </span>
+            <i class="fa-solid fa-microchip" aria-hidden="true"></i>
+          </label>
+        `;
+      })
+      .join("");
+
     const selectedKey = await foundry.applications.api.DialogV2.wait({
-      classes: ["dda", "dda-area-attack-dialog", "dda-offensive-quality-window"],
-      position: { width: 520, height: "auto" },
+      classes: [
+        "dda",
+        "dda-quality-choice-dialog",
+        ...(isSystemBoost ? ["dda-system-boost-choice-dialog"] : [])
+      ],
+      position: { width: isSystemBoost ? 620 : 520, height: "auto" },
       window: {
         title: game.i18n.format("DDA.QualityBrowser.ChoiceDialogTitle", {
           quality: quality.name,
@@ -2971,22 +2963,37 @@ const availableOptions =
         })
       },
       modal: true,
-      content: `
-        <form class="dda-quality-choice-form dda-offensive-quality-dialog">
-          <div class="form-group">
-            <label>${choices.label ?? game.i18n.localize("DDA.QualityBrowser.Choice")}</label>
-            <select name="choiceKey">
-              ${optionHtml}
-            </select>
-          </div>
-
-          <p class="notes">
-            ${game.i18n.format("DDA.QualityBrowser.ChoiceRegisteredRank", {
-              rank: rankNumber
-            })}
-          </p>
-        </form>
-      `,
+      content: isSystemBoost
+        ? `
+          <form class="dda-quality-choice-form dda-system-boost-choice-form">
+            <header class="dda-system-boost-choice-hero">
+              <span class="dda-system-boost-choice-icon"><i class="fa-solid fa-microchip"></i></span>
+              <span>
+                <strong>${escape(String(quality.name))}</strong>
+                <small>${isQualityBrowserEnglish() ? "Choose the subsystem that receives the boost." : "Escolha o subsistema que receberá o impulso."}</small>
+              </span>
+              <b>${isQualityBrowserEnglish() ? "Rank" : "Rank"} ${rankNumber}</b>
+            </header>
+            <fieldset class="dda-system-boost-choice-grid">
+              <legend>${escape(String(choices.label ?? game.i18n.localize("DDA.QualityBrowser.Choice")))}</legend>
+              ${systemBoostOptionsHtml}
+            </fieldset>
+            <p class="notes">
+              ${game.i18n.format("DDA.QualityBrowser.ChoiceRegisteredRank", { rank: rankNumber })}
+            </p>
+          </form>
+        `
+        : `
+          <form class="dda-quality-choice-form">
+            <div class="form-group">
+              <label>${escape(String(choices.label ?? game.i18n.localize("DDA.QualityBrowser.Choice")))}</label>
+              <select name="choiceKey">${optionHtml}</select>
+            </div>
+            <p class="notes">
+              ${game.i18n.format("DDA.QualityBrowser.ChoiceRegisteredRank", { rank: rankNumber })}
+            </p>
+          </form>
+        `,
       buttons: [
         {
           action: "confirm",
@@ -3015,9 +3022,7 @@ const availableOptions =
     if (!selectedOption) return null;
 
     let signatureBatteryAsUnalterable = false;
-    const qualityKey = normalizeQualityBrowserIdentity(
-      quality.id ?? quality.originalName ?? quality.name ?? ""
-    );
+    const qualityKey = qualityIdentity;
     const selectedAttack = selectedOption.attackId
       ? this.actor?.items?.get(selectedOption.attackId)
       : null;

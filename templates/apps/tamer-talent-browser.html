@@ -1,0 +1,60 @@
+<section class="dda-ttb-shell">
+  <header class="dda-ttb-fixed-header">
+    <div class="dda-ttb-hero">
+      <div class="dda-ttb-hero-copy">
+        <span class="dda-ttb-eyebrow"><i class="fa-solid fa-star"></i> {{localize "DDA.Button.Compendium"}}</span>
+        <h2>{{localize "DDA.TamerTalentBrowser.Title"}}</h2>
+        <p>{{subtitle}}</p>
+      </div>
+      <label class="dda-ttb-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" data-ttb-search placeholder="{{searchPlaceholder}}">
+        <button type="button" data-action="clearSearch" aria-label="{{localize 'DDA.Button.Clear'}}"><i class="fa-solid fa-xmark"></i></button>
+      </label>
+    </div>
+
+    <div class="dda-ttb-filter-board">
+      {{#each filters}}
+      <section class="dda-ttb-filter-group">
+        <h4>{{label}}</h4>
+        <div class="dda-ttb-pills">
+          {{#each options}}
+          <button type="button" data-action="filter" data-filter-group="{{../key}}" data-filter-value="{{value}}" class="{{#if active}}active{{/if}}">
+            <span>{{label}}</span>{{#if count}}<small>{{count}}</small>{{/if}}
+          </button>
+          {{/each}}
+        </div>
+      </section>
+      {{/each}}
+    </div>
+  </header>
+
+  <section class="dda-ttb-results-panel">
+    <div class="dda-ttb-toolbar">
+      <div class="dda-ttb-result-summary"><strong data-ttb-result-count>{{totals.total}}</strong><span>{{localize "DDA.TamerTalentBrowser.Results"}}</span></div>
+      <label><span>{{localize "DDA.TamerTalentBrowser.Toolbar.Sort"}}</span><select data-ttb-sort>{{#each sortOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+      <div class="dda-ttb-view-buttons">
+        <button type="button" data-action="view" data-view-mode="grid" class="{{#if gridActive}}active{{/if}}"><i class="fa-solid fa-table-cells-large"></i></button>
+        <button type="button" data-action="view" data-view-mode="list" class="{{#if listActive}}active{{/if}}"><i class="fa-solid fa-list"></i></button>
+      </div>
+    </div>
+
+    <div class="dda-ttb-results-scroll">
+      <div class="dda-ttb-list is-{{view}}" data-ttb-list>
+        {{#each talents}}
+        <article class="dda-ttb-card {{statusClass}}" data-ttb-card data-name="{{name}}" data-search="{{searchText}}" data-availability="{{#if requirementMet}}unlocked{{else}}locked{{/if}}" data-tier="{{#if isAdvanced}}advanced{{else}}initial{{/if}}" data-category="{{#if isSpecialOrder}}specialOrder{{else}}talent{{/if}}" data-automation="{{implementationMode}}" data-use-type="{{useType}}" data-reactive="{{isReactive}}" data-requirement="{{requirementSort}}">
+          <header>
+            <div class="dda-ttb-card-icon"><i class="fa-solid {{categoryIcon}}"></i></div>
+            <div class="dda-ttb-card-title"><h3>{{name}}</h3>{{#if specialOrderName}}<p>{{specialOrderName}}</p>{{/if}}</div>
+            <div class="dda-ttb-card-status"><span class="implementation {{implementationClass}}">{{implementationLabel}}</span><span class="availability {{statusClass}}">{{statusLabel}}</span></div>
+          </header>
+          <div class="dda-ttb-meta"><span>{{requirementText}}</span>{{#if isAdvanced}}<span>{{localize "DDA.TamerTalent.Advanced"}}</span>{{else}}<span>{{localize "DDA.TamerTalent.Initial"}}</span>{{/if}}{{#if isSpecialOrder}}<span>{{localize "DDA.TamerTalent.SpecialOrder"}}</span>{{/if}}{{#if isReactive}}<span>{{localize "DDA.TamerTalentBrowser.ReactiveOnly"}}</span>{{/if}}</div>
+          <p class="dda-ttb-effect">{{effectPreview}}</p>
+          <footer><button type="button" data-action="openTalent" data-talent-id="{{id}}"><i class="fa-solid fa-circle-info"></i>{{localize "DDA.Button.Open"}}</button><button type="button" data-action="useTalent" data-talent-id="{{id}}" {{#unless canUse}}disabled{{/unless}}><i class="fa-solid fa-bolt"></i>{{localize "DDA.Button.Use"}}</button></footer>
+        </article>
+        {{/each}}
+      </div>
+      <p class="dda-ttb-empty" data-ttb-empty hidden>{{localize "DDA.TamerTalentBrowser.NoTalentsFound"}}</p>
+    </div>
+  </section>
+</section>

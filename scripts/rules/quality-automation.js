@@ -2,6 +2,10 @@ import {
   applyLuckyNumberReward
 } from "../rolls/lucky-number.js";
 
+import {
+  applyHackersMemoryDerivedStatModifier
+} from "./tamer-talent-transversal.js";
+
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 
 export const QUALITY_ALIASES = {
@@ -223,7 +227,12 @@ export const EFFECT_TAGS = {
   dot: { type: "unique", duration: true, requiresDamage: true },
   stun: { type: "unique", duration: "special", extraActionCost: 1 },
   bastion: { type: "positive", duration: true, stat: "accuracyDamageDodgeArmor" },
-  drain: { type: "unique" }
+  drain: { type: "unique" },
+  charm: { type: "negative", duration: true },
+  bug: { type: "negative", duration: true },
+  demoralize: { type: "negative", duration: false },
+  frenzy: { type: "negative", duration: true },
+  invincible: { type: "positive", duration: "special" }
 };
 
 export function normalizeKey(value = "") {
@@ -263,8 +272,30 @@ export function qualityMatches(item, aliasKeyOrAliases) {
   return getQualitySourceCandidates(item).some((candidate) => aliasSet.has(normalizeKey(candidate)));
 }
 
+export function getBossSuppressionSources(actor) {
+  const state = actor?.system?.combat?.bossQualities?.suppression ?? {};
+  const combatId = String(getCombatId() ?? "");
+  if (!combatId || String(state.combatId ?? "") !== combatId) return [];
+  return Array.isArray(state.sources) ? state.sources : [];
+}
+
+export function isQualitySuppressedByBossState(actor, item) {
+  if (!actor || item?.type !== "quality") return false;
+  const category = item.system?.category ?? {};
+  return getBossSuppressionSources(actor).some((source) => {
+    const type = normalizeKey(source?.type ?? "");
+    if (type === "static") return Boolean(category.static);
+    if (type === "trigger") return Boolean(category.trigger);
+    if (type === "attack") return Boolean(category.attack);
+    return false;
+  });
+}
+
 export function findQuality(actor, aliasKeyOrAliases) {
-  return actor?.items?.find?.((item) => qualityMatches(item, aliasKeyOrAliases)) ?? null;
+  return actor?.items?.find?.((item) =>
+    qualityMatches(item, aliasKeyOrAliases) &&
+    !isQualitySuppressedByBossState(actor, item)
+  ) ?? null;
 }
 
 export function hasQuality(actor, aliasKeyOrAliases) {
@@ -309,11 +340,24 @@ export function getCombatTurn() {
   return Number(game?.combat?.turn ?? -1);
 }
 
+function getTalentVirtualRound(actor) {
+  return Math.max(
+    0,
+    Math.floor(
+      Number(
+        actor?.system?.combat?.tamerTalentRoundWindows?.speedSurge?.sequence ??
+        0
+      )
+    )
+  );
+}
+
 export function getRoundUseState(actor, bucket, key) {
   const entry = actor?.system?.combat?.qualityAttackUses?.[bucket]?.[key];
   if (!entry) return null;
   if (String(entry.combatId ?? "") !== String(getCombatId())) return null;
   if (Number(entry.round ?? -1) !== getCombatRound()) return null;
+  if (Number(entry.virtualRound ?? 0) !== getTalentVirtualRound(actor)) return null;
   return entry;
 }
 
@@ -332,6 +376,7 @@ export async function setUseState(actor, bucket, key, data = {}) {
     used: true,
     combatId: getCombatId(),
     round: getCombatRound(),
+    virtualRound: getTalentVirtualRound(actor),
     turn: getCombatTurn(),
     ...data
   };
@@ -383,13 +428,24 @@ export function canSpendQuality(quality) {
 
 export async function promptUseQuality(quality, { title = "", body = "", yes = "Yes", no = "No", defaultYes = false } = {}) {
   if (!quality) return false;
-  return await Dialog.confirm({
-    title: title || quality.name,
+  const { DialogV2 } = foundry.applications.api;
+  const confirmed = await DialogV2.confirm({
+    window: { title: title || quality.name },
     content: `<div class="dda-confirm-dialog"><p>${body || quality.name}</p></div>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes
+    yes: {
+      label: yes,
+      callback: () => true,
+      default: Boolean(defaultYes)
+    },
+    no: {
+      label: no,
+      callback: () => false,
+      default: !defaultYes
+    },
+    rejectClose: false,
+    modal: true
   });
+  return confirmed === true;
 }
 
 export function getSelectedChoices(quality) {
@@ -524,7 +580,9 @@ export async function rollDerivedCheck(
     tn = null,
     title = "",
     manualModifier = 0,
-    createChat = true
+    createChat = true,
+    targetActor = null,
+    applyHackersMemory = true
   } = {}
 ) {
   const stat =
@@ -535,11 +593,22 @@ export async function rollDerivedCheck(
     return null;
   }
 
-  const statValue =
+  const baseStatValue =
     getActorDerivedStat(
       actor,
       statKey
     );
+
+  const statValue = applyHackersMemory
+    ? applyHackersMemoryDerivedStatModifier(
+        actor,
+        targetActor,
+        baseStatValue
+      )
+    : baseStatValue;
+
+  const hackersMemoryModifier =
+    statValue - baseStatValue;
 
   const skillBonusData =
     skillKey
@@ -587,7 +656,7 @@ export async function rollDerivedCheck(
         );
       });
 
-  const total =
+  let total =
     Number(
       roll.total ?? 0
     );
@@ -602,22 +671,22 @@ export async function rollDerivedCheck(
       ? Number(tn)
       : null;
 
-  const success =
+  let success =
     hasTN
       ? total >= tnValue
       : null;
 
-  const criticalSuccess =
+  let criticalSuccess =
     hasTN
       ? total >= tnValue + 5
       : false;
 
-  const criticalFailure =
+  let criticalFailure =
     hasTN
       ? total <= tnValue - 5
       : false;
 
-  const outcome =
+  let outcome =
     !hasTN
       ? "none"
       : criticalSuccess
@@ -627,6 +696,33 @@ export async function rollDerivedCheck(
           : criticalFailure
             ? "criticalFailure"
             : "failure";
+
+  const { maybeApplyTakeTheLead } = await import(
+    "./tamer-talent-attack-direct.js"
+  );
+
+  const takeTheLead = await maybeApplyTakeTheLead(actor, {
+    title,
+    total,
+    tn: tnValue,
+    outcome
+  });
+
+  if (takeTheLead?.used) {
+    total += Number(takeTheLead.bonus ?? 5);
+    success = hasTN ? total >= tnValue : null;
+    criticalSuccess = hasTN ? total >= tnValue + 5 : false;
+    criticalFailure = hasTN ? total <= tnValue - 5 : false;
+    outcome = !hasTN
+      ? "none"
+      : criticalSuccess
+        ? "criticalSuccess"
+        : success
+          ? "success"
+          : criticalFailure
+            ? "criticalFailure"
+            : "failure";
+  }
 
   const statLabel =
     localizeQ(
@@ -693,10 +789,29 @@ export async function rollDerivedCheck(
 
             ${skillLine}
 
+            ${hackersMemoryModifier !== 0 ? `
+              <li>
+                <strong>Hacker’s Memory:</strong>
+                ${hackersMemoryModifier > 0 ? "+" : ""}${hackersMemoryModifier}
+                ${localizeQ(
+                  "DDA.Label.DerivedStat",
+                  "Derived Stat"
+                )}.
+              </li>
+            ` : ""}
+
             ${variableReroll.used ? `
               <li>
                 <strong>Variable:</strong>
                 ${localizeQ("DDA.QualityAutomation.VariableRerollUsed", "The original Check was rerolled and replaced by this result.")}
+              </li>
+            ` : ""}
+
+            ${takeTheLead?.used ? `
+              <li>
+                <strong>Take the Lead — NOW FOCUS:</strong>
+                +${Number(takeTheLead.bonus ?? 5)}
+                (${takeTheLead.tamerName ?? "Tamer"}).
               </li>
             ` : ""}
 
@@ -775,7 +890,8 @@ export async function rollDerivedCheck(
 
     diceResults,
     luckyNumberResult,
-    variableReroll
+    variableReroll,
+    takeTheLead
   };
 }
 
@@ -862,6 +978,12 @@ export function getEffectTagData(tag) {
   return EFFECT_TAGS[normalizeKey(String(tag).replace(/^\[|\]$/g, ""))] ?? null;
 }
 
+function actorIsCharmedBy(target, caster) {
+  if (!target || !caster) return false;
+  return (Array.isArray(target?.system?.effects?.active) ? target.system.effects.active : [])
+    .some((effect) => normalizeKey(String(effect?.tag ?? "").replace(/^\[|\]$/g, "")) === "charm" && String(effect?.sourceActorUuid ?? "") === String(caster?.uuid ?? ""));
+}
+
 export function areActorsAllies(actorA, actorB) {
   if (!actorA || !actorB) return false;
   if (actorA.uuid === actorB.uuid) return true;
@@ -896,6 +1018,15 @@ export function areActorsAllies(actorA, actorB) {
   const dispositionA = tokenDisposition(actorA, combatantA);
   const dispositionB = tokenDisposition(actorB, combatantB);
   return dispositionA !== 0 && dispositionA === dispositionB;
+}
+
+/**
+ * Directional ally relationship used only while resolving Qualities. [CHARM]
+ * does not change combat sides or ordinary targeting: the affected Target
+ * merely treats its Caster as an Ally for its own Qualities.
+ */
+export function areActorsAlliesForQualities(actor, other) {
+  return areActorsAllies(actor, other) || actorIsCharmedBy(actor, other);
 }
 
 export function clamp(number, min, max) {

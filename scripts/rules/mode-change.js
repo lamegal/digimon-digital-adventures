@@ -695,12 +695,16 @@ export async function useModeChangeQuality(
   quality,
   {
     actionCostOverride = null,
-    freeSource = ""
+    freeSource = "",
+    bypassCharmControl = false
   } = {}
 ) {
   if (!actor || !quality) {
     return false;
   }
+
+  const charmGate = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (!bypassCharmControl && typeof charmGate === "function" && !charmGate(actor, { user: game?.user, notify: true })) return false;
 
   if (!game.combat?.started) {
     ui.notifications.warn(

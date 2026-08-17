@@ -20,6 +20,16 @@ import {
   applyLuckyNumberReward
 } from "../rolls/lucky-number.js";
 
+import {
+  ensureBossEncounterRuntime,
+  getBossEncounterActorForCombatant,
+  getRaidActionCombatants,
+  healActiveBossTemplatePool,
+  isBossTemplateActivationCombatant,
+  isRaidActionCombatant,
+  processRaidActionTurn
+} from "./boss-encounters.js";
+
 const SYSTEM_ID = "digimon-digital-adventures";
 const FLAG = "initiative";
 const SOCKET_END_PARTICIPANT = "ddaEndParticipantTurn";
@@ -455,7 +465,7 @@ function buildUnits(combat) {
   const units = [];
 
   for (const combatant of combatants) {
-    if (!combatant.actor || used.has(combatant.id)) continue;
+    if (!combatant.actor || used.has(combatant.id) || isRaidActionCombatant(combatant)) continue;
 
     if (combatant.actor.type === "character") {
       const partner = findPartnerCombatant(combatant, combatants);
@@ -529,9 +539,12 @@ async function rollUnitInitiative(unit) {
         member.role === "digimon"
     );
 
-  const primaryActor =
-    digimonMember?.combatant.actor ??
-    unit.members[0]?.combatant.actor;
+  const primaryCombatant =
+    digimonMember?.combatant ??
+    unit.members[0]?.combatant;
+  const primaryActor = isBossTemplateActivationCombatant(primaryCombatant)
+    ? getBossEncounterActorForCombatant(primaryCombatant, primaryCombatant?.combat ?? game.combat)
+    : primaryCombatant?.actor;
 
   unit.primaryActor = primaryActor;
 
@@ -879,13 +892,18 @@ function initiativeCard(units) {
 
 
 function tacticalAdaptationActorOwners(actor) {
-  const owners = (game?.users?.contents ?? [])
-    .filter((user) => user.active)
-    .filter((user) => user.isGM || actor?.testUserPermission?.(
-      user,
-      CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER
-    ))
-    .map((user) => user.id);
+  const charmIds = game?.dda?.bossQualities?.getCharmAuthorizedUserIds?.(actor, { includeGMs: true });
+  const owners = Array.isArray(charmIds)
+    ? (game?.users?.contents ?? [])
+      .filter((user) => user.active && charmIds.includes(String(user.id)))
+      .map((user) => user.id)
+    : (game?.users?.contents ?? [])
+      .filter((user) => user.active)
+      .filter((user) => user.isGM || actor?.testUserPermission?.(
+        user,
+        CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER
+      ))
+      .map((user) => user.id);
   return [...new Set(owners)];
 }
 
@@ -994,6 +1012,18 @@ export async function rollDDACombatInitiative(
     return null;
   }
 
+    /*
+     * Boss encounter runtimes add their technical Combatants before initiative
+     * units are built. Boss Template activations join the normal order; Raid
+     * Action entries are excluded from normal rolls and are pinned to the top.
+     */
+    if (game.user?.isGM) {
+      await ensureBossEncounterRuntime(combat);
+    }
+
+    const raidCombatants = getRaidActionCombatants(combat)
+      .sort((left, right) => String(left.actor?.name ?? left.name ?? "").localeCompare(String(right.actor?.name ?? right.name ?? "")));
+
     const units = buildUnits(combat);
 
     for (const unit of units) {
@@ -1017,24 +1047,76 @@ if (!combat.started) {
  * Evasive Maneuvers nasce agora, depois
  * que o Combate possui um ID e está ativo.
  */
+const {
+  initializeOverlookedForInitiative,
+  processChallengerInitiative
+} = await import(
+  "../rules/tamer-talent-combat-survival.js"
+);
+
 for (const unit of ordered) {
   await initializeEvasiveManeuversReserve(
     unit,
     combat
   );
-  if (unit.primaryActor) await grantShiningDigizoidTemporaryIp(unit.primaryActor);
+
+  await processChallengerInitiative(
+    unit,
+    ordered,
+    combat
+  );
+
+  await initializeOverlookedForInitiative(
+    unit,
+    ordered,
+    combat
+  );
+
+  if (unit.primaryActor) {
+    await grantShiningDigizoidTemporaryIp(
+      unit.primaryActor
+    );
+  }
 }
 
 const updates = [];
 
+  raidCombatants.forEach((combatant, raidIndex) => {
+    const raidUnitId = `raid:${combatant.id}`;
+    updates.push({
+      _id: combatant.id,
+      initiative: Number((ordered.length + raidCombatants.length + 100 - (raidIndex * 0.001)).toFixed(3)),
+      [combatantFlag("unitId")]: raidUnitId,
+      [combatantFlag("role")]: "raid",
+      [combatantFlag("side")]: "enemies",
+      [combatantFlag("raw")]: 999999 - raidIndex,
+      [combatantFlag("dice")]: 0,
+      [combatantFlag("base")]: 0,
+      [combatantFlag("bonus")]: 0,
+      [combatantFlag("systemBonus")]: 0,
+      [combatantFlag("hyperAlertBonus")]: 0,
+      [combatantFlag("evasiveManeuversMax")]: 0,
+      [combatantFlag("orderIndex")]: raidIndex,
+      [combatantFlag("lastEndedRound")]: 0,
+      [combatantFlag("endedRound")]: 0
+    });
+  });
+
   ordered.forEach((unit, unitIndex) => {
+    const surprisedUnit = unit.members.some((member) => {
+      return Boolean(
+        member.combatant.actor?.system?.combat?.surprised &&
+        member.combatant.actor?.system?.combat?.bestLaidPlansSurprise
+      );
+    });
+
     unit.members.forEach((member, memberIndex) => {
       // O Foundry precisa de valores diferentes para manter
       // Tamer e Digimon consecutivos.
       // A iniciativa verdadeira fica nas flags DDA.
       const technicalInitiative = Number(
         (
-          ordered.length -
+          ordered.length + raidCombatants.length -
           unitIndex -
           (memberIndex * 0.001)
         ).toFixed(3)
@@ -1069,9 +1151,11 @@ const updates = [];
 [combatantFlag("evasiveManeuversMax")]:
   unit.evasiveManeuvers?.max ?? 0,
 
-        [combatantFlag("orderIndex")]: unitIndex,
+        [combatantFlag("orderIndex")]: unitIndex + raidCombatants.length,
         [combatantFlag("lastEndedRound")]: 0,
-        [combatantFlag("endedRound")]: 0
+        [combatantFlag("endedRound")]: surprisedUnit
+          ? getCurrentCombatRound(combat)
+          : 0
       });
     });
   });
@@ -1092,18 +1176,37 @@ const updates = [];
 
       processedActors.add(actorKey);
 
+      const bestLaidPlansSurprised = Boolean(
+        actor.system?.combat?.surprised &&
+        actor.system?.combat?.bestLaidPlansSurprise
+      );
+
+      const preInitiativeEvolution = actor.system?.combat?.preInitiativeEvolution ?? {};
+      const preInitiativeDebt = (
+        preInitiativeEvolution.pending &&
+        String(preInitiativeEvolution.combatId ?? "") === String(combat.id ?? "")
+      )
+        ? Math.max(0, number(preInitiativeEvolution.actionDebt, 0))
+        : 0;
+
+      const initiativeActions = Math.max(
+        0,
+        number(actor.system?.combat?.actions?.max, 2) - preInitiativeDebt
+      );
+
       await actor.update({
-        "system.combat.actions.value": number(
-          actor.system?.combat?.actions?.max,
-          2
-        ),
+        "system.combat.actions.value": bestLaidPlansSurprised
+          ? 0
+          : initiativeActions,
 
         "system.combat.hasAttackedThisRound": false,
         "system.combat.attacksMadeThisTurn": 0,
         "system.combat.multiattackPenalty": 0,
         "system.combat.signatureMoveUsedThisTurn": false,
         "system.combat.energizeUsedThisTurn": false,
-        "system.combat.surprised": false,
+        ...(!bestLaidPlansSurprised
+          ? { "system.combat.surprised": false }
+          : {}),
         "system.combat.digimonActionUses.-=tacticalAdaptationInitiative": null
       });
     }
@@ -1116,7 +1219,16 @@ const updates = [];
    */
   combat.setupTurns();
 
-  const firstUnitId = ordered[0]?.id ?? "";
+  const firstUnitId = raidCombatants.length
+    ? `raid:${raidCombatants[0].id}`
+    : ordered.find((unit) => {
+        return !isDDAUnitEndedForRound(
+          combat,
+          unit.id,
+          getCurrentCombatRound(combat)
+        );
+      })?.id ?? ordered[0]?.id ?? "";
+
   const firstTurnIndex = getDDAUnitAnchorIndex(
     combat.turns ?? [],
     firstUnitId
@@ -1125,14 +1237,23 @@ const updates = [];
   await combat.update({
     turn: firstTurnIndex >= 0 ? firstTurnIndex : 0,
 
-    [`flags.${SYSTEM_ID}.${FLAG}.order`]: ordered.map((unit) => ({
-      id: unit.id,
-      side: unit.side,
-      raw: unit.initiative.raw,
-      members: unit.members.map(
-        (member) => member.combatant.id
-      )
-    }))
+    [`flags.${SYSTEM_ID}.${FLAG}.order`]: [
+      ...raidCombatants.map((combatant) => ({
+        id: `raid:${combatant.id}`,
+        side: "enemies",
+        raw: 999999,
+        members: [combatant.id],
+        raidAction: true
+      })),
+      ...ordered.map((unit) => ({
+        id: unit.id,
+        side: unit.side,
+        raw: unit.initiative.raw,
+        members: unit.members.map(
+          (member) => member.combatant.id
+        )
+      }))
+    ]
   });
 
   await ChatMessage.create({
@@ -1154,6 +1275,16 @@ function sameActorReference(left, right) {
   }
 
   return false;
+}
+
+function sameCombatActorReference(left, right) {
+  if (!left || !right) return false;
+  const leftUuid = String(left.uuid ?? "");
+  const rightUuid = String(right.uuid ?? "");
+  const leftSynthetic = leftUuid.startsWith("Scene.");
+  const rightSynthetic = rightUuid.startsWith("Scene.");
+  if (leftSynthetic || rightSynthetic) return leftUuid === rightUuid;
+  return sameActorReference(left, right);
 }
 
 function getInitiativeFlag(combatant, key, fallback = null) {
@@ -1183,9 +1314,39 @@ export function combatantEndedThisRound(combatant, combat = game.combat) {
 }
 
 export function getCombatantForActor(combat, actor) {
-  return combat?.combatants?.find((combatant) => {
-    return sameActorReference(combatant?.actor, actor);
-  }) ?? null;
+  if (!combat || !actor) return null;
+
+  /*
+   * Boss Template may represent one Actor with several Combatants. When that
+   * Actor owns the active activation, always resolve to the active Combatant
+   * instead of the first document in the collection. This keeps action gates
+   * and End Turn tied to the correct Boss turn.
+   */
+  const activeCombatant = combat.combatant ?? null;
+  const activeActor = activeCombatant
+    ? getBossEncounterActorForCombatant(activeCombatant, combat)
+    : null;
+  if (activeCombatant && sameCombatActorReference(activeActor, actor) && !isRaidActionCombatant(activeCombatant)) {
+    return activeCombatant;
+  }
+
+  const matches = (combat.combatants?.contents ?? []).filter((combatant) => {
+    const sourceActor = getBossEncounterActorForCombatant(combatant, combat);
+    return sameCombatActorReference(sourceActor, actor) && !isRaidActionCombatant(combatant);
+  });
+  if (!matches.length) return null;
+
+  const activeUnitId = getCombatantUnitId(activeCombatant);
+  if (activeUnitId) {
+    const activeUnitMatch = matches.find((combatant) => {
+      return getCombatantUnitId(combatant) === activeUnitId;
+    });
+    if (activeUnitMatch) return activeUnitMatch;
+  }
+
+  return matches.find((combatant) => !combatantEndedThisRound(combatant, combat))
+    ?? matches[0]
+    ?? null;
 }
 
 function getUnitCombatants(combat, unitId) {
@@ -1196,6 +1357,55 @@ function getUnitCombatants(combat, unitId) {
   return combatants.filter((combatant) => {
     return getCombatantUnitId(combatant) === unitId;
   });
+}
+
+function isDDAUnitEndedForRound(combat, unitId, round) {
+  const members = getUnitCombatants(combat, unitId).filter((member) => {
+    return String(getInitiativeFlag(member, "role", "solo")) !== "suspended";
+  });
+  return Boolean(
+    members.length &&
+    members.every((member) => {
+      return number(getInitiativeFlag(member, "endedRound", 0), 0) === number(round, 0);
+    })
+  );
+}
+
+function findAvailableDDAUnitStep(
+  combat,
+  unitOrder,
+  currentUnitIndex,
+  step = 1
+) {
+  const currentRound = getCurrentCombatRound(combat);
+
+  for (let offset = 1; offset <= unitOrder.length; offset += 1) {
+    const rawIndex = currentUnitIndex + (step * offset);
+    const unitIndex = (
+      rawIndex % unitOrder.length + unitOrder.length
+    ) % unitOrder.length;
+
+    const wrapped = step > 0
+      ? rawIndex >= unitOrder.length
+      : rawIndex < 0;
+
+    const round = wrapped
+      ? step > 0
+        ? currentRound + 1
+        : Math.max(1, currentRound - 1)
+      : currentRound;
+
+    if (!isDDAUnitEndedForRound(combat, unitOrder[unitIndex], round)) {
+      return {
+        unitIndex,
+        unitId: unitOrder[unitIndex],
+        round,
+        wrapped
+      };
+    }
+  }
+
+  return null;
 }
 
 function getTurnIndex(combat, combatantId) {
@@ -1239,7 +1449,8 @@ export function getActiveDDAUnitContext(
 
   const unitId = getCombatantUnitId(combatant);
   const activeUnitId = getCombatantUnitId(activeCombatant);
-  const ended = combatantEndedThisRound(combatant, combat);
+  const suspended = String(getInitiativeFlag(combatant, "role", "solo")) === "suspended";
+  const ended = suspended || combatantEndedThisRound(combatant, combat);
   const sameActivation = unitId && activeUnitId
     ? unitId === activeUnitId
     : activeCombatant?.id === combatant.id;
@@ -1252,9 +1463,11 @@ export function getActiveDDAUnitContext(
     unitId,
     activeUnitId,
     ended,
-    reason: ended
-      ? "participant-ended"
-      : sameActivation
+    reason: suspended
+      ? "participant-suspended"
+      : ended
+        ? "participant-ended"
+        : sameActivation
         ? "active-unit"
         : "different-unit"
   };
@@ -1276,7 +1489,10 @@ export function getDDAUnitActorsForActor(actor, combat = game.combat) {
     ? getUnitCombatants(combat, unitId)
     : [combatant];
 
-  return members.map((member) => member.actor).filter(Boolean);
+  return members
+    .filter((member) => String(getInitiativeFlag(member, "role", "solo")) !== "suspended")
+    .map((member) => member.actor)
+    .filter(Boolean);
 }
 
 function effectTagKey(tag = "") {
@@ -1301,6 +1517,13 @@ function effectBearingActors() {
 
 export async function processDDAStartOfTurnEffects(activeActor, combat = game.combat) {
   if (!activeActor) return;
+
+  try {
+    const { applyDangerousTerrainStartOfTurn } = await import("../canvas/movement-tracker.js");
+    await applyDangerousTerrainStartOfTurn(activeActor);
+  } catch (error) {
+    console.error("DDA | Could not process Dangerous Terrain at start of turn.", error);
+  }
 
   const tick = `${combat?.id ?? "no-combat"}:${Number(combat?.round ?? 0)}:${Number(combat?.turn ?? -1)}`;
   const sourceKeys = actorReferenceKeys(activeActor);
@@ -1334,8 +1557,13 @@ export async function processDDAStartOfTurnEffects(activeActor, combat = game.co
           doom.value = doomValue - absorbed;
           if (doom.value <= 0) doom._ddaExpiredByDoom = true;
         }
-        if (current < maximum && healing > 0) {
-          await target.update({ [`${woundsPath}.value`]: Math.min(maximum, current + healing) });
+        if (healing > 0) {
+          const bossTemplateHealing = target.type === "npc"
+            ? await healActiveBossTemplatePool(target, healing, combat)
+            : null;
+          if (!bossTemplateHealing && current < maximum) {
+            await target.update({ [`${woundsPath}.value`]: Math.min(maximum, current + healing) });
+          }
         }
         effect.lastStartTurnTick = tick;
         changed = true;
@@ -1392,6 +1620,11 @@ export async function processDDAStartOfTurnEffects(activeActor, combat = game.co
 async function processDDAUnitStart(combat, anchorCombatant = combat?.combatant) {
   if (!anchorCombatant?.actor) return;
 
+  if (isRaidActionCombatant(anchorCombatant)) {
+    await processRaidActionTurn(combat, anchorCombatant);
+    return;
+  }
+
   const unitId = getCombatantUnitId(anchorCombatant);
   const members = unitId
     ? getUnitCombatants(combat, unitId)
@@ -1399,10 +1632,49 @@ async function processDDAUnitStart(combat, anchorCombatant = combat?.combatant) 
 
   for (const member of members) {
     if (!member?.actor) continue;
+    const memberActor = isBossTemplateActivationCombatant(member)
+      ? getBossEncounterActorForCombatant(member, combat)
+      : member.actor;
+    if (!memberActor) continue;
+    if (String(getInitiativeFlag(member, "role", "solo")) === "suspended") continue;
 
-    await expireStartOfTurnQualityEffects(member.actor);
-    await processDigizoidGainForceStartOfTurn(member.actor);
-    await processDDAStartOfTurnEffects(member.actor, combat);
+    if (
+      getCurrentCombatRound(combat) > 1 &&
+      memberActor.system?.combat?.surprised &&
+      memberActor.system?.combat?.bestLaidPlansSurprise
+    ) {
+      await memberActor.update({
+        "system.combat.actions.value": number(
+          memberActor.system?.combat?.actions?.max,
+          2
+        ),
+        "system.combat.surprised": false,
+        "system.combat.-=bestLaidPlansSurprise": null
+      });
+    }
+
+    const trueGuardianRefund =
+      memberActor.system?.combat?.intercedeUsage?.trueGuardianRefund ?? null;
+    if (trueGuardianRefund?.pending) {
+      const sameCombat = String(trueGuardianRefund.combatId ?? "") === String(combat?.id ?? "");
+      if (sameCombat) {
+        await memberActor.update({
+          "system.combat.actions.value": Math.max(
+            0,
+            number(memberActor.system?.combat?.actions?.value, 0) + 1
+          ),
+          "system.combat.intercedeUsage.-=trueGuardianRefund": null
+        });
+      } else {
+        await memberActor.update({
+          "system.combat.intercedeUsage.-=trueGuardianRefund": null
+        });
+      }
+    }
+
+    await expireStartOfTurnQualityEffects(memberActor);
+    await processDigizoidGainForceStartOfTurn(memberActor);
+    await processDDAStartOfTurnEffects(memberActor, combat);
   }
 }
 
@@ -1422,6 +1694,7 @@ function getDDACombatantRoleRank(combatant) {
 
   // The visible Digimon/solo row is always the unit anchor. The hidden Tamer
   // remains immediately after it only so both Actors keep independent Actions.
+  if (role === "suspended") return 2;
   return role === "tamer" ? 1 : 0;
 }
 
@@ -1539,27 +1812,24 @@ async function moveDDACombatByUnit(combat, direction = 1) {
     return combat;
   }
 
-  const nextUnitIndex = (
-    currentUnitIndex + step + unitOrder.length
-  ) % unitOrder.length;
+  const next = findAvailableDDAUnitStep(
+    combat,
+    unitOrder,
+    currentUnitIndex,
+    step
+  );
 
-  const nextUnitId = unitOrder[nextUnitIndex];
-  const nextTurnIndex = getDDAUnitAnchorIndex(turns, nextUnitId);
+  if (!next) return combat;
 
+  const nextTurnIndex = getDDAUnitAnchorIndex(turns, next.unitId);
   if (nextTurnIndex < 0) return combat;
-
-  const wrapped = step > 0
-    ? nextUnitIndex <= currentUnitIndex
-    : nextUnitIndex >= currentUnitIndex;
 
   const updateData = {
     turn: nextTurnIndex
   };
 
-  if (wrapped) {
-    updateData.round = step > 0
-      ? getCurrentCombatRound(combat) + 1
-      : Math.max(1, getCurrentCombatRound(combat) - 1);
+  if (next.round !== getCurrentCombatRound(combat)) {
+    updateData.round = next.round;
   }
 
   await combat.update(updateData);
@@ -1614,14 +1884,18 @@ async function advanceToNextUnit(combat, sourceCombatant) {
     return true;
   }
 
-  const nextUnitIndex = (
-    sourceUnitIndex + 1
-  ) % unitOrder.length;
+  const next = findAvailableDDAUnitStep(
+    combat,
+    unitOrder,
+    sourceUnitIndex,
+    1
+  );
 
-  const nextUnitId = unitOrder[nextUnitIndex];
+  if (!next) return false;
+
   const nextTurnIndex = getDDAUnitAnchorIndex(
     turns,
-    nextUnitId
+    next.unitId
   );
 
   if (nextTurnIndex < 0) return false;
@@ -1630,8 +1904,8 @@ async function advanceToNextUnit(combat, sourceCombatant) {
     turn: nextTurnIndex
   };
 
-  if (nextUnitIndex <= sourceUnitIndex) {
-    updateData.round = getCurrentCombatRound(combat) + 1;
+  if (next.round !== getCurrentCombatRound(combat)) {
+    updateData.round = next.round;
   }
 
   await combat.update(updateData);
@@ -1721,6 +1995,7 @@ async function advanceDDACombatTurnLocal(
   });
 
   const pendingMembers = getUnitCombatants(combat, unitId)
+    .filter((member) => String(getInitiativeFlag(member, "role", "solo")) !== "suspended")
     .filter((member) => !combatantEndedThisRound(member, combat));
 
   if (pendingMembers.length) {
@@ -1960,43 +2235,38 @@ function buildDdaPairMemberMarkup(combatant, role, combat) {
   `;
 }
 
-function buildDdaPairCard(unitId, digimon, tamer, combat) {
-  const raw =
-    getDdaRawInitiative(digimon) ??
-    getDdaRawInitiative(tamer);
-
+function buildDdaUnitCard(unitId, digimon, tamers, combat) {
+  const tamerList = Array.isArray(tamers) ? tamers.filter(Boolean) : [];
+  const raw = getDdaRawInitiative(digimon) ?? getDdaRawInitiative(tamerList[0]);
+  const isJogress = unitId.startsWith("jogress:") && tamerList.length > 1;
   const card = document.createElement("div");
-
   const isActive = getCombatantUnitId(combat?.combatant) === unitId;
 
-  card.className = `dda-combat-pair-card${isActive ? " is-active" : ""}`;
+  card.className = `dda-combat-pair-card${isActive ? " is-active" : ""}${isJogress ? " dda-jogress-unit-card" : ""}`;
   card.dataset.ddaUnitId = unitId;
 
   card.innerHTML = `
     <div class="dda-pair-shared-turn">
       <i class="fas fa-link" aria-hidden="true"></i>
-      ${html(label("Mesmo turno — ações separadas", "Same turn — separate Actions"))}
+      ${html(isJogress
+        ? label("Jogress — 2 Digi-Escolhidos / 1 Digimon", "Jogress — 2 Tamers / 1 Digimon")
+        : label("Mesmo turno — ações separadas", "Same turn — separate Actions"))}
     </div>
 
-    <div
-      class="dda-pair-initiative"
-      title="${html(label("Iniciativa", "Initiative"))}"
-    >
+    <div class="dda-pair-initiative" title="${html(label("Iniciativa", "Initiative"))}">
       ${formatDdaInitiative(raw)}
     </div>
 
     ${buildDdaPairMemberMarkup(digimon, "digimon", combat)}
-    ${buildDdaPairMemberMarkup(tamer, "tamer", combat)}
+    ${tamerList.map((tamer) => buildDdaPairMemberMarkup(tamer, "tamer", combat)).join("")}
   `;
 
   card.querySelectorAll("[data-dda-open-combatant]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-
       const combatantId = button.dataset.ddaOpenCombatant;
       const combatant = combat?.combatants?.get(combatantId);
-
       combatant?.actor?.sheet?.render(true);
     });
   });
@@ -2006,71 +2276,44 @@ function buildDdaPairCard(unitId, digimon, tamer, combat) {
 
 function decorateDdaPairRows(combat, root) {
   const rowByCombatantId = new Map();
-
   root.querySelectorAll("[data-combatant-id]").forEach((row) => {
     rowByCombatantId.set(row.dataset.combatantId, row);
   });
 
-  const turns =
-    combat?.turns ??
-    combat?.combatants?.contents ??
-    [];
-
+  const turns = combat?.turns ?? combat?.combatants?.contents ?? [];
   const processedUnits = new Set();
 
   for (const combatant of turns) {
     const unitId = getCombatantUnitId(combatant);
-
-    if (!unitId.startsWith("pair:")) continue;
-    if (processedUnits.has(unitId)) continue;
-
+    const supportedUnit = unitId.startsWith("pair:") || unitId.startsWith("jogress:");
+    if (!supportedUnit || processedUnits.has(unitId)) continue;
     processedUnits.add(unitId);
 
     const members = getUnitCombatants(combat, unitId);
-
-    const digimon = members.find((member) => {
-      return getInitiativeFlag(member, "role") === "digimon";
-    });
-
-    const tamer = members.find((member) => {
-      return getInitiativeFlag(member, "role") === "tamer";
-    });
-
-    if (!digimon || !tamer) continue;
+    const digimon = members.find((member) => getInitiativeFlag(member, "role") === "digimon");
+    const tamers = members.filter((member) => getInitiativeFlag(member, "role") === "tamer");
+    const suspended = members.filter((member) => getInitiativeFlag(member, "role") === "suspended");
+    if (!digimon || !tamers.length) continue;
 
     const digimonRow = rowByCombatantId.get(digimon.id);
-    const tamerRow = rowByCombatantId.get(tamer.id);
-
-    if (!digimonRow || !tamerRow) continue;
+    if (!digimonRow) continue;
 
     digimonRow.hidden = false;
     digimonRow.removeAttribute("aria-hidden");
-
-    digimonRow.classList.add(
-      "dda-pair-anchor",
-      "dda-pair-combatant"
-    );
-
+    digimonRow.classList.add("dda-pair-anchor", "dda-pair-combatant");
     digimonRow.classList.remove("dda-solo-combatant");
     digimonRow.dataset.ddaPairUnit = unitId;
 
-    tamerRow.classList.add(
-      "dda-pair-secondary",
-      "dda-pair-combatant"
-    );
+    for (const member of [...tamers, ...suspended]) {
+      const row = rowByCombatantId.get(member.id);
+      if (!row) continue;
+      row.classList.add("dda-pair-secondary", "dda-pair-combatant");
+      row.hidden = true;
+      row.setAttribute("aria-hidden", "true");
+      row.dataset.ddaPairUnit = unitId;
+    }
 
-    tamerRow.hidden = true;
-    tamerRow.setAttribute("aria-hidden", "true");
-    tamerRow.dataset.ddaPairUnit = unitId;
-
-    const pairCard = buildDdaPairCard(
-      unitId,
-      digimon,
-      tamer,
-      combat
-    );
-
-    digimonRow.replaceChildren(pairCard);
+    digimonRow.replaceChildren(buildDdaUnitCard(unitId, digimon, tamers, combat));
   }
 }
 
@@ -2109,8 +2352,8 @@ if (initiativeValue) {
   initiativeValue.textContent = formatDdaInitiative(raw);
 
   initiativeValue.parentElement.title = label(
-    "Iniciativa DDA",
-    "DDA Initiative"
+    "Rolar Iniciativa",
+    "Roll Initiative"
   );
 
   continue;
@@ -2135,6 +2378,31 @@ if (initiativeValue) {
   }
 }
 
+function decorateDdaRaidRows(combat, root) {
+  for (const row of root.querySelectorAll("[data-combatant-id]")) {
+    const combatant = combat?.combatants?.get(row.dataset.combatantId) ?? game.combat?.combatants?.get(row.dataset.combatantId);
+    if (!combatant || !isRaidActionCombatant(combatant)) continue;
+
+    row.classList.add("dda-raid-action-combatant");
+    const initiativeValue = row.querySelector(".token-initiative > span");
+    if (initiativeValue) {
+      initiativeValue.textContent = "RAID";
+      initiativeValue.parentElement.title = label(
+        "A Raid Action sempre age no início da rodada",
+        "The Raid Action always acts at the start of the round"
+      );
+    } else {
+      let badge = row.querySelector(".dda-raid-action-badge");
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "dda-raid-action-badge";
+        (row.querySelector(".token-name") ?? row.querySelector(".combatant-name") ?? row).append(badge);
+      }
+      badge.textContent = "RAID";
+    }
+  }
+}
+
 function ensureDdaInitiativeButton(root) {
   if (!game.user?.isGM) return;
 
@@ -2154,7 +2422,7 @@ function ensureDdaInitiativeButton(root) {
 
   button.innerHTML = `
     <i class="fas fa-dice-three"></i>
-    ${label("Iniciativa DDA", "DDA Initiative")}
+    ${label("Rolar Iniciativa", "Roll Initiative")}
   `;
 
   button.addEventListener("click", (event) => {
@@ -2226,12 +2494,23 @@ export function refreshDDAUnitVisuals(combat = game.combat) {
 }
 
 export function registerDDACombatInitiativeHooks() {
-  Hooks.on("updateCombat", (combat, changed) => {
+  Hooks.on("updateCombat", async (combat, changed, options = {}) => {
     refreshDDAUnitVisuals(combat);
-    if (!game.user?.isGM || !combat?.started) return;
+    if (options?.ddaJogressSync) return;
+    if (!isPrimaryActiveGM() || !combat?.started) return;
     if (!("turn" in changed || "round" in changed)) return;
 
-    void processDDAUnitStart(combat, combat.combatant).catch((error) => {
+    if ("round" in changed) {
+      try {
+        const evolution = await import("./evolution.js");
+        const jogressChanged = await evolution.applyPendingJogressInitiativeForCombat?.(combat);
+        if (jogressChanged) refreshDDAUnitVisuals(combat);
+      } catch (error) {
+        console.error("DDA | Could not apply pending Jogress initiative.", error);
+      }
+    }
+
+    await processDDAUnitStart(combat, combat.combatant).catch((error) => {
       console.error("DDA | Could not process start-of-turn effects.", error);
     });
   });
@@ -2252,8 +2531,76 @@ export function registerDDACombatInitiativeHooks() {
       if (remaining.length !== effects.length) await actor.update({ "system.effects.active": remaining });
     }
   };
-  Hooks.on("combatEnd", (combat) => void clearCombatBoundEffects(combat));
-  Hooks.on("deleteCombat", (combat) => void clearCombatBoundEffects(combat));
+  const resetTamerBreakAvailability = async (combat) => {
+    if (!game.user?.isGM) return;
+
+    const tamers = new Map();
+    for (const combatant of combat?.combatants ?? []) {
+      const actor = combatant?.actor;
+      if (!actor || actor.type !== "character") continue;
+      tamers.set(actor.uuid ?? actor.id, actor);
+    }
+
+    for (const actor of tamers.values()) {
+      if (!actor.system?.recovery?.breakUsedSinceCombat) continue;
+      await actor.update({ "system.recovery.breakUsedSinceCombat": false });
+    }
+  };
+
+  const resetPreInitiativeEvolutionDebt = async (combat) => {
+    if (!game.user?.isGM) return;
+
+    const combatId = String(combat?.id ?? "");
+    const tamers = new Map();
+
+    for (const combatant of combat?.combatants ?? []) {
+      const actor = combatant?.actor;
+      if (!actor || actor.type !== "character") continue;
+      tamers.set(actor.uuid ?? actor.id, actor);
+    }
+
+    for (const actor of tamers.values()) {
+      const state = actor.system?.combat?.preInitiativeEvolution ?? {};
+      if (!state.pending && !state.combatId && !state.actionDebt) continue;
+      if (state.combatId && combatId && String(state.combatId) !== combatId) continue;
+
+      await actor.update({
+        "system.combat.preInitiativeEvolution.combatId": "",
+        "system.combat.preInitiativeEvolution.actionDebt": 0,
+        "system.combat.preInitiativeEvolution.pending": false
+      });
+    }
+  };
+
+  const clearIntercedeTurnCredits = async (combat) => {
+    if (!game.user?.isGM) return;
+    const combatId = String(combat?.id ?? "");
+    const actors = new Map();
+    for (const combatant of combat?.combatants ?? []) {
+      const actor = combatant?.actor;
+      if (!actor) continue;
+      actors.set(actor.uuid ?? actor.id, actor);
+    }
+    for (const actor of actors.values()) {
+      const refund = actor.system?.combat?.intercedeUsage?.trueGuardianRefund ?? null;
+      if (!refund?.pending) continue;
+      if (refund.combatId && combatId && String(refund.combatId) !== combatId) continue;
+      await actor.update({
+        "system.combat.intercedeUsage.-=trueGuardianRefund": null
+      });
+    }
+  };
+
+  const handleCombatFinished = async (combat) => {
+    if (!isPrimaryActiveGM()) return;
+    await clearCombatBoundEffects(combat);
+    await resetTamerBreakAvailability(combat);
+    await resetPreInitiativeEvolutionDebt(combat);
+    await clearIntercedeTurnCredits(combat);
+  };
+
+  Hooks.on("combatEnd", (combat) => void handleCombatFinished(combat));
+  Hooks.on("deleteCombat", (combat) => void handleCombatFinished(combat));
 
   Hooks.on("renderCombatTracker", (app, htmlData) => {
     const root = elementFrom(htmlData);
@@ -2272,6 +2619,7 @@ export function registerDDACombatInitiativeHooks() {
 
     decorateDdaPairRows(combat, root);
     decorateDdaSoloRows(combat, root);
+    decorateDdaRaidRows(combat, root);
     refreshDDAUnitVisuals(combat);
 });
 

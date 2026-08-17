@@ -1,5 +1,6 @@
 import {
   areActorsAllies,
+  areActorsAlliesForQualities,
   findQuality,
   getActorDerivedStat,
   getActorSv,
@@ -14,6 +15,16 @@ import {
 import {
   spendActorActions
 } from "./action-economy.js";
+
+import {
+  hasBossQuality,
+  isBossTrueSightObserver
+} from "./boss-qualities.js";
+
+import {
+  getDDAMovementContext
+} from "../canvas/movement-context.js";
+
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const OFFENSIVE_STATE_PATH = "system.combat.offensiveQualities";
@@ -136,7 +147,7 @@ function isVisibleEnemy(source, candidate) {
     candidate &&
     token &&
     !token.document?.hidden &&
-    !areActorsAllies(source, candidate)
+    !areActorsAlliesForQualities(source, candidate)
   );
 }
 
@@ -222,8 +233,8 @@ async function useHordeDuelist(actor, item) {
   }
 
   const adjacent = getAdjacentActors(actor);
-  const allies = adjacent.filter((entry) => areActorsAllies(actor, entry.actor));
-  const enemies = adjacent.filter((entry) => !areActorsAllies(actor, entry.actor));
+  const allies = adjacent.filter((entry) => areActorsAlliesForQualities(actor, entry.actor));
+  const enemies = adjacent.filter((entry) => !areActorsAlliesForQualities(actor, entry.actor));
   if (!enemies.length || allies.length) {
     ui.notifications.warn(text(
       "Duelista de Hordas exige ao menos um inimigo adjacente e nenhum aliado adjacente.",
@@ -341,7 +352,7 @@ async function useShadeCloak(actor, item) {
   const sourceToken = tokenForActor(actor);
   const range = Math.max(0, getActorDerivedStat(actor, "ram"));
   const allies = uniqueActorsFromCanvas().filter((candidate) => {
-    if (candidate.uuid === actor.uuid || !areActorsAllies(actor, candidate)) return false;
+    if (candidate.uuid === actor.uuid || !areActorsAlliesForQualities(actor, candidate)) return false;
     return getTokenDistanceSpaces(sourceToken, tokenForActor(candidate)) <= range;
   });
 
@@ -462,7 +473,7 @@ async function useBattleCry(actor, item) {
   const sourceToken = tokenForActor(actor);
   const range = Math.max(0, getActorDerivedStat(actor, "dos"));
   const allies = uniqueActorsFromCanvas().filter((candidate) => {
-    if (!areActorsAllies(actor, candidate)) return false;
+    if (!areActorsAlliesForQualities(actor, candidate)) return false;
     return getTokenDistanceSpaces(sourceToken, tokenForActor(candidate)) <= range;
   });
 
@@ -540,7 +551,8 @@ async function useWatchfulHunter(actor, item) {
   const result = await rollDerivedCheck(actor, "dos", {
     skillKey: "awareness",
     tn,
-    title: item.name
+    title: item.name,
+    targetActor: target
   });
   if (!result) return null;
 
@@ -637,7 +649,7 @@ export function getHordeDuelistAttackModifier(attacker, defender) {
   const defenderToken = tokenForActor(defender);
   if (getTokenDistanceSpaces(attackerToken, defenderToken) > 1) return null;
   const allyAdjacentToTarget = getAdjacentActors(defender).some((entry) => {
-    return entry.actor?.uuid !== attacker.uuid && areActorsAllies(attacker, entry.actor);
+    return entry.actor?.uuid !== attacker.uuid && areActorsAlliesForQualities(attacker, entry.actor);
   });
   if (allyAdjacentToTarget) return null;
   return {
@@ -649,8 +661,24 @@ export function getHordeDuelistAttackModifier(attacker, defender) {
 export function getSneakAttackState(attacker, defender) {
   const state = attacker?.system?.combat?.offensiveQualities?.hideInPlainSight;
   if (!state?.active || !defender) return null;
+
+  // True Sight does not cancel Hide in Plain Sight globally. The attacker may
+  // still be hidden from everybody else, but this specific defender sees it
+  // automatically and therefore grants none of the hidden/Sneak benefits.
+  if (isBossTrueSightObserver(defender)) {
+    return {
+      active: false,
+      revealedByTrueSight: true,
+      accuracyBonus: 0,
+      movedSinceHide: Boolean(state.movedSinceHide),
+      sourceActorUuid: state.sourceActorUuid,
+      shared: Boolean(state.shared)
+    };
+  }
+
   return {
     active: true,
+    revealedByTrueSight: false,
     accuracyBonus: state.movedSinceHide ? getActorDerivedStat(attacker, "ram") : 0,
     movedSinceHide: Boolean(state.movedSinceHide),
     sourceActorUuid: state.sourceActorUuid,
@@ -768,7 +796,21 @@ export async function maybeTriggerCounterattack({ attacker, defender, attackItem
     ? Math.max(0, number(usesState.counterattack?.used))
     : 0;
   const remainingUses = Math.max(0, usesMax - used);
-  if (remainingUses <= 0) return null;
+
+  const chainCounter = hasBossQuality(defender, "chainCounter");
+  const combatRound = Math.max(0, getCombatRound());
+  const chainState = usesState.chainCounter ?? {};
+  const chainFreeAvailable = Boolean(
+    chainCounter &&
+    (
+      String(chainState.combatId ?? "") !== String(getCombatId() ?? "") ||
+      Number(chainState.round ?? -1) !== combatRound ||
+      !chainState.used
+    )
+  );
+
+  const availableCounterUses = remainingUses + (chainFreeAvailable ? 1 : 0);
+  if (availableCounterUses <= 0) return null;
 
   const instant = hasQualityAny(defender, ["contraAtaqueInstantaneo", "instantCounter"]);
   const instantUsed = String(usesState.instantCounter?.combatId ?? "") === getCombatId();
@@ -779,8 +821,8 @@ export async function maybeTriggerCounterattack({ attacker, defender, attackItem
           classes: ["dda", "dda-area-attack-dialog", "dda-offensive-quality-window"],
     window: { title: quality.name },
     content: `<div class="dda-confirm-dialog dda-offensive-quality-dialog"><p>${text(
-      `<strong>${escapeHtml(attacker.name)}</strong> abriu uma janela de Contra-Ataque. Usos restantes: <strong>${remainingUses}</strong>.`,
-      `<strong>${escapeHtml(attacker.name)}</strong> opened a Counterattack window. Remaining uses: <strong>${remainingUses}</strong>.`
+      `<strong>${escapeHtml(attacker.name)}</strong> abriu uma janela de Contra-Ataque. Usos disponíveis: <strong>${availableCounterUses}</strong>${chainFreeAvailable ? " (1 por Chain Counter)" : ""}.`,
+      `<strong>${escapeHtml(attacker.name)}</strong> opened a Counterattack window. Available uses: <strong>${availableCounterUses}</strong>${chainFreeAvailable ? " (1 from Chain Counter)" : ""}.`
     )}</p></div>`,
     yes: { label: text("Contra-atacar", "Counterattack") },
     no: { label: text("Ignorar", "Ignore") },
@@ -791,8 +833,12 @@ export async function maybeTriggerCounterattack({ attacker, defender, attackItem
 
   const responseAttack = await chooseCounterAttack(defender);
   if (!responseAttack) return null;
-  const mode = await getCounterMode(defender, responseAttack, remainingUses);
-  if (!mode || mode.uses > remainingUses) return null;
+  const mode = await getCounterMode(defender, responseAttack, availableCounterUses);
+  if (!mode || mode.uses > availableCounterUses) return null;
+
+  const chainFreeUse = chainFreeAvailable ? Math.min(1, mode.uses) : 0;
+  const regularCounterUsesSpent = Math.max(0, mode.uses - chainFreeUse);
+  if (regularCounterUsesSpent > remainingUses) return null;
 
   let usedInstant = false;
   const instantAvailable = Boolean(instant && !instantUsed);
@@ -825,7 +871,19 @@ export async function maybeTriggerCounterattack({ attacker, defender, attackItem
     const payment = await spendActorActions(defender, 1, { requireActiveUnit: false });
     if (!payment) return null;
   }
-  usesState.counterattack = { combatId: getCombatId(), used: used + mode.uses };
+  usesState.counterattack = {
+    combatId: getCombatId(),
+    used: used + regularCounterUsesSpent
+  };
+
+  if (chainFreeUse > 0) {
+    usesState.chainCounter = {
+      combatId: getCombatId(),
+      round: combatRound,
+      used: true
+    };
+  }
+
   await updateState(defender, usesState);
 
   const targetToken = tokenForActor(attacker);
@@ -843,13 +901,17 @@ export async function maybeTriggerCounterattack({ attacker, defender, attackItem
       halveDodge: mode.halveDodge,
       halveArmor: mode.halveArmor,
       ignoreEffectiveLimitPenalty: Boolean(hasQualityAny(defender, ["fogoDeRetorno", "returnFire"]) && incomingRange === "range"),
-      intercedeCrossCounter: Boolean(crossTrigger && intercedeDeclaration)
+      intercedeCrossCounter: Boolean(crossTrigger && intercedeDeclaration),
+      bossChainCounterFreeUse: chainFreeUse,
+      bossCounterattackUsesSpent: regularCounterUsesSpent,
+      bossMassDestructionEligible: hasBossQuality(defender, "massDestruction")
     }
   });
 }
 
-function isTeleportUpdate(changed = {}, options = {}) {
-  return Boolean(options?.teleport || options?.ddaTeleport || changed?.elevation !== undefined && changed?.x === undefined && changed?.y === undefined);
+function movementContextForToken(tokenDocument, options = {}) {
+  const session = tokenDocument?.getFlag?.(SYSTEM_ID, "movementTracker") ?? null;
+  return getDDAMovementContext(options, { session });
 }
 
 const pendingPunishingMoves = new Map();
@@ -869,9 +931,11 @@ function punishingAttack(actor) {
 
 function responsibleUser(actor) {
   const activeUsers = (game?.users?.contents ?? []).filter((user) => user.active);
-  return activeUsers.find((user) => !user.isGM && actor.testUserPermission(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER))
-    ?? activeUsers.find((user) => user.isGM)
-    ?? null;
+  const charmIds = game?.dda?.bossQualities?.getCharmAuthorizedUserIds?.(actor, { includeGMs: false });
+  const player = Array.isArray(charmIds)
+    ? activeUsers.find((user) => !user.isGM && charmIds.includes(String(user.id)))
+    : activeUsers.find((user) => !user.isGM && actor.testUserPermission(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER));
+  return player ?? activeUsers.find((user) => user.isGM) ?? null;
 }
 
 async function handlePunishingMove(tokenDocument, changed, options = {}) {
@@ -880,11 +944,13 @@ async function handlePunishingMove(tokenDocument, changed, options = {}) {
   const oldPoint = { x: number(tokenDocument.x), y: number(tokenDocument.y) };
   const nextPoint = { x: number(changed.x, oldPoint.x), y: number(changed.y, oldPoint.y) };
   if (oldPoint.x === nextPoint.x && oldPoint.y === nextPoint.y) return;
-  const teleport = isTeleportUpdate(changed, options);
+  const movementContext = movementContextForToken(tokenDocument, options);
+  if (!movementContext.voluntary) return;
+  const teleport = movementContext.mode === "teleport";
   const oldTokenLike = { document: { ...tokenDocument.toObject(), x: oldPoint.x, y: oldPoint.y } };
   const nextTokenLike = { document: { ...tokenDocument.toObject(), x: nextPoint.x, y: nextPoint.y } };
   const candidates = uniqueActorsFromCanvas().filter((actor) => {
-    if (actor.uuid === mover.uuid || areActorsAllies(actor, mover)) return false;
+    if (actor.uuid === mover.uuid || areActorsAlliesForQualities(actor, mover)) return false;
     const attack = punishingAttack(actor);
     if (!attack) return false;
     if (teleport && !hasQualityAny(actor, ["naoHaEscapatoria", "thereIsNoEscape", "thereIsNoEscape"])) return false;
@@ -978,10 +1044,17 @@ export function registerOffensiveQualities() {
   Hooks.on("preUpdateToken", (tokenDocument, changed, options) => {
     void handlePunishingMove(tokenDocument, changed, options);
   });
-  Hooks.on("updateToken", (tokenDocument, changed) => {
+  Hooks.on("updateToken", (tokenDocument, changed, options = {}) => {
     if (changed.x !== undefined || changed.y !== undefined) {
-      void trackHideMovement(tokenDocument);
-      void resolvePunishingMove(tokenDocument);
+      const movementContext = movementContextForToken(tokenDocument, options);
+      if (!movementContext.suppressMovementEffects) {
+        void trackHideMovement(tokenDocument);
+      }
+      if (!movementContext.voluntary) {
+        pendingPunishingMoves.delete(tokenDocument.id);
+      } else {
+        void resolvePunishingMove(tokenDocument);
+      }
     }
   });
   Hooks.on("updateCombat", (combat, changed) => {

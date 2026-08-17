@@ -1,12 +1,26 @@
+import { withDDAMovementContext } from "../../canvas/movement-context.js";
 import {
   areActorsAllies,
+  EFFECT_TAGS,
   getQualityRank,
   normalizeKey
 } from "../../rules/quality-automation.js";
 
 import {
-  applyDamage
+  applyDamage,
+  claimAttackDamageApplication,
+  finalizeAttackDamageApplication,
+  isAttackDamageApplicationInFlight,
+  resolveAttackDamagePostProcessing
 } from "../../rolls/damage-application.js";
+
+import {
+  maybeOfferHeroicExemplarAfterHit
+} from "../../rules/tamer-talent-special-orders.js";
+
+import {
+  requestAreaIntercede
+} from "../intercede.js";
 
 const AREA_TAGS_IMPLEMENTED = new Set([
   "t:blast",
@@ -214,8 +228,8 @@ async function promptMobileArtilleryTerrain({ attacker, attackItem } = {}) {
             ${elements.map((entry) => `<option value="${escapeHtml(entry.key)}">${escapeHtml(entry.label)}</option>`).join("")}
           </select>
           <p class="hint">${text(
-            "Apenas Digimon com Passo Natural do mesmo Elemento ignoram esta penalidade.",
-            "Only Digimon with Naturewalk of the same Element ignore this penalty."
+            "Digimon com Passo Natural do mesmo Elemento ignoram o custo de Ação de Terreno Difícil.",
+            "Digimon with Naturewalk of the same Element ignore the Difficult Terrain Action cost."
           )}</p>
         </div>
         <div class="form-group">
@@ -225,8 +239,8 @@ async function promptMobileArtilleryTerrain({ attacker, attackItem } = {}) {
             <option value="aerial">${text("Aérea", "Aerial")}</option>
           </select>
           <p class="hint">${text(
-            "A camada de Superfície é cobrada automaticamente pelo rastreador de Movimento. A camada Aérea permanece marcada para movimentação de Voo.",
-            "The Surface layer is charged automatically by the Movement tracker. The Aerial layer remains marked for Flight movement."
+            "O rastreador usa o Tipo de Movimento atual: Terrestre/Escalar/Escavar interagem com Superfície; Voo/Salto/Nado interagem com a camada Aérea.",
+            "The tracker uses the current Movement Type: Land/Climb/Dig interact with Surface; Flight/Jump/Swim interact with the Aerial layer."
           )}</p>
         </div>
       </form>
@@ -844,6 +858,58 @@ async function promptAreaConfiguration({
   });
 }
 
+export function canAreaAttackReachTarget({
+  attacker,
+  attackerToken,
+  targetToken,
+  attackItem,
+  qualityAttackModifier = {},
+  attackRangeTotal = 0
+} = {}) {
+  if (!attacker || !attackerToken || !targetToken || !attackItem) return false;
+
+  const tags = [
+    ...(Array.isArray(attackItem?.system?.baseTags?.tags) ? attackItem.system.baseTags.tags : []),
+    ...(Array.isArray(attackItem?.system?.qualityTags) ? attackItem.system.qualityTags : []),
+    ...(Array.isArray(attackItem?.system?.tags) ? attackItem.system.tags : []),
+    ...(Array.isArray(qualityAttackModifier?.areaAttackTags) ? qualityAttackModifier.areaAttackTags : [])
+  ]
+    .map(normalizeAreaTag)
+    .filter((tag) => AREA_TAGS_IMPLEMENTED.has(tag));
+
+  if (!tags.length) return false;
+
+  const source = getTokenCenter(attackerToken);
+  const target = getTokenCenter(targetToken);
+  const targetDistance = pixelsToSpaces(Math.hypot(
+    Number(target.x ?? 0) - Number(source.x ?? 0),
+    Number(target.y ?? 0) - Number(source.y ?? 0)
+  ));
+
+  return tags.some((tag) => {
+    const bounds = getAreaSizeBounds({ attacker, attackItem, tag, qualityAttackModifier });
+    if (!bounds) return false;
+    const maximum = Math.max(0, Number(bounds.maximum ?? bounds.base ?? 0));
+
+    // BLAST may place its center anywhere within the Attack's Range, then extends
+    // from that center by its selected Area size. Other implemented Areas are
+    // anchored on/adjacent to the attacker and can be rotated toward the Target.
+    if (tag === "t:blast") {
+      return targetDistance <= Math.max(0, Number(attackRangeTotal ?? 0)) + maximum + 0.001;
+    }
+
+    if (tag === "t:wave") {
+      const attackerRadius = Math.max(
+        Number(attackerToken.document?.width ?? 1),
+        Number(attackerToken.document?.height ?? 1)
+      ) / 2;
+      return targetDistance <= maximum + Math.ceil(attackerRadius + 1) + 0.001;
+    }
+
+    return targetDistance <= maximum + 0.001;
+  });
+}
+
 function getTemplateType(tag = "") {
   const normalizedTag = normalizeAreaTag(tag);
   if (["t:blast", "t:burst"].includes(normalizedTag)) return "circle";
@@ -1382,6 +1448,131 @@ async function confirmAreaTargets({
   });
 }
 
+
+async function resolveAreaIntercedeReactions({
+  attacker,
+  attackerToken,
+  attackItem,
+  attackOptions = {},
+  qualityAttackModifier = {},
+  templateDocument,
+  tag,
+  targetMode,
+  forcedAll = false,
+  selectedTargets = []
+} = {}) {
+  if (
+    !game?.combat?.started ||
+    qualityAttackModifier?.sneakSuppressInterrupts ||
+    attackOptions?.suppressTargetInterrupts
+  ) {
+    return {
+      selectedTargets: [...selectedTargets],
+      armorBonusesByTokenId: new Map(),
+      reactions: []
+    };
+  }
+
+  let currentTargets = [...selectedTargets];
+  const armorBonusesByTokenId = new Map();
+  const reactions = [];
+  const excludedCandidateKeys = new Set();
+
+  /*
+   * Each accepted reaction closes the current window and then re-opens the
+   * response step for any remaining valid pair. This permits multiple allies
+   * to Area Intercede against the same Area Attack without making one chat
+   * card attempt to coordinate several clients at once.
+   */
+  for (let guard = 0; guard < 20 && currentTargets.length; guard += 1) {
+    const response = await requestAreaIntercede({
+      attacker,
+      targetTokens: currentTargets,
+      attackItem,
+      templateId: String(templateDocument?.id ?? ""),
+      excludedCandidateKeys: [...excludedCandidateKeys]
+    });
+
+    if (!response) break;
+
+    const candidateKey = String(
+      response.candidateKey ?? `${response.actorUuid}|${response.protectedActorUuid}`
+    );
+    if (candidateKey) excludedCandidateKeys.add(candidateKey);
+
+    const intercederToken = canvas?.tokens?.get(response.tokenId) ?? null;
+    const protectedToken = canvas?.tokens?.get(response.protectedTokenId) ?? null;
+    const validNow = new Map(
+      filterAreaTargets({
+        attacker,
+        attackerToken,
+        templateDocument,
+        tag,
+        targetMode,
+        forcedAll
+      }).map((token) => [token.id, token])
+    );
+
+    if (protectedToken && !validNow.has(protectedToken.id)) {
+      currentTargets = currentTargets.filter((token) => token.id !== protectedToken.id);
+    }
+
+    if (
+      intercederToken &&
+      validNow.has(intercederToken.id) &&
+      !currentTargets.some((token) => token.id === intercederToken.id)
+    ) {
+      currentTargets.push(intercederToken);
+    }
+
+    const armorBonus = Math.max(0, Number(response.intercedeArmorBonus ?? 0));
+    if (intercederToken && armorBonus > 0 && validNow.has(intercederToken.id)) {
+      armorBonusesByTokenId.set(
+        intercederToken.id,
+        Math.max(
+          armorBonus,
+          Number(armorBonusesByTokenId.get(intercederToken.id) ?? 0)
+        )
+      );
+    }
+
+    reactions.push({
+      actorUuid: String(response.actorUuid ?? ""),
+      actorName: String(response.actorName ?? ""),
+      tokenId: String(response.tokenId ?? ""),
+      protectedActorUuid: String(response.protectedActorUuid ?? ""),
+      protectedActorName: String(response.protectedActorName ?? ""),
+      protectedTokenId: String(response.protectedTokenId ?? ""),
+      mode: String(response.mode ?? "area"),
+      actionCost: Math.max(0, Number(response.actionCost ?? 0)),
+      throwDistance: Math.max(0, Number(response.throwDistance ?? 0)),
+      intercedeArmorBonus: armorBonus
+    });
+  }
+
+  const finalValidIds = new Set(
+    filterAreaTargets({
+      attacker,
+      attackerToken,
+      templateDocument,
+      tag,
+      targetMode,
+      forcedAll
+    }).map((token) => token.id)
+  );
+  currentTargets = currentTargets.filter((token) => finalValidIds.has(token.id));
+
+  for (const tokenId of [...armorBonusesByTokenId.keys()]) {
+    if (!finalValidIds.has(tokenId)) armorBonusesByTokenId.delete(tokenId);
+  }
+
+  return {
+    selectedTargets: currentTargets,
+    armorBonusesByTokenId,
+    reactions
+  };
+}
+
 function getTargetModeLabel(targetMode = "") {
   const labels = {
     enemies: text("Somente inimigos", "Enemies only"),
@@ -1401,6 +1592,12 @@ function getEntryDamageApplication(entry = {}) {
   return entry.damageApplication ?? entry.result?.damageApplication ?? null;
 }
 
+function getEntryDamageState(entry = {}) {
+  const application = getEntryDamageApplication(entry);
+  if (application?.applied) return "applied";
+  return String(application?.state ?? "pending").trim().toLowerCase() || "pending";
+}
+
 function getEntryDamageAmount(entry = {}) {
   const application = getEntryDamageApplication(entry);
   const candidate = application?.damage ??
@@ -1417,7 +1614,8 @@ function isEntryDamageApplied(entry = {}) {
   return Boolean(
     entry.damageApplied ??
     application?.applied ??
-    entry.result?.damageApplied
+    entry.result?.damageApplied ??
+    getEntryDamageState(entry) === "applied"
   );
 }
 
@@ -1514,15 +1712,19 @@ function buildAreaStatusCard({
   const rows = entries.map((entry) => {
     const state = getAreaTargetState(entry);
     const damageAmount = getEntryDamageAmount(entry);
-    const damageApplied = isEntryDamageApplied(entry);
+    const damageState = getEntryDamageState(entry);
+    const damageApplied = damageState === "applied";
+    const damageApplying = isAttackDamageApplicationInFlight(getEntryDamageApplication(entry));
     const damage = damageAmount > 0
       ? `
-        <span class="damage ${damageApplied ? "applied" : "pending"}">
+        <span class="damage ${damageApplied ? "applied" : damageApplying ? "applying" : "pending"}">
           ${text("Dano", "Damage")}: <strong>${damageAmount}</strong>
           ${
             damageApplied
               ? `<i class="fa-solid fa-check"></i> ${text("Aplicado", "Applied")}`
-              : ""
+              : damageApplying
+                ? `<i class="fa-solid fa-spinner fa-spin"></i> ${text("Aplicando…", "Applying…")}`
+                : ""
           }
         </span>
       `
@@ -1570,30 +1772,65 @@ function buildAreaStatusCard({
     ? entries.filter((entry) => {
         return String(entry.status ?? "") === "resolved" &&
           getEntryDamageAmount(entry) > 0 &&
-          !isEntryDamageApplied(entry);
+          getEntryDamageState(entry) !== "applied" &&
+          !isAttackDamageApplicationInFlight(getEntryDamageApplication(entry));
       }).length
     : 0;
   const appliedDamageCount = entries.filter((entry) => {
     return getEntryDamageAmount(entry) > 0 && isEntryDamageApplied(entry);
   }).length;
   const bulkDodgeActive = Boolean(bulkDodge?.active);
-  const bulkDamageActive = Boolean(bulkDamage?.active);
+  const dodgeMode = String(bulkDodge?.mode ?? (bulkDodgeActive ? "bulk" : "")).trim();
+  const bulkDamageActive = isAreaBulkDamageActive(bulkDamage);
+  const awaitingDodgeMode = String(status ?? "") === "awaitingDodgeMode";
   const bulkDodgeActions = !complete && enemyPendingCount > 0
-    ? `
-      <div class="dda-area-attack-actions">
-        <button
-          type="button"
-          data-action="dda-roll-all-area-dodges"
-          data-area-request-id="${escapeHtml(requestId)}"
-          ${bulkDodgeActive ? "disabled" : ""}
-        >
-          <i class="fa-solid ${bulkDodgeActive ? "fa-spinner fa-spin" : "fa-shield-halved"}"></i>
-          ${bulkDodgeActive
-            ? text("Esquivas inimigas automáticas ativadas", "Automatic enemy Dodges enabled")
-            : text(`Rolar Esquiva de todos os inimigos (${enemyPendingCount})`, `Roll Dodge for all enemies (${enemyPendingCount})`)}
-        </button>
-      </div>
-    `
+    ? awaitingDodgeMode
+      ? `
+        <div class="dda-area-attack-actions dda-area-dodge-mode-actions">
+          <p class="dda-area-dodge-mode-hint">
+            ${text(
+              "Escolha como as Esquivas inimigas serão resolvidas. Nenhuma Esquiva foi solicitada ainda.",
+              "Choose how enemy Dodges will be resolved. No Dodge has been requested yet."
+            )}
+          </p>
+          <button
+            type="button"
+            data-action="dda-roll-all-area-dodges"
+            data-area-request-id="${escapeHtml(requestId)}"
+          >
+            <i class="fa-solid fa-shield-halved"></i>
+            ${text(
+              `Rolar Esquiva de todos os inimigos (${enemyPendingCount})`,
+              `Roll Dodge for all enemies (${enemyPendingCount})`
+            )}
+          </button>
+          <button
+            type="button"
+            data-action="dda-resolve-area-dodges-individually"
+            data-area-request-id="${escapeHtml(requestId)}"
+          >
+            <i class="fa-solid fa-list-ol"></i>
+            ${text("Resolver uma por vez", "Resolve one at a time")}
+          </button>
+        </div>
+      `
+      : `
+        <div class="dda-area-attack-actions">
+          <button
+            type="button"
+            data-action="dda-roll-all-area-dodges"
+            data-area-request-id="${escapeHtml(requestId)}"
+            ${dodgeMode ? "disabled" : ""}
+          >
+            <i class="fa-solid ${bulkDodgeActive ? "fa-spinner fa-spin" : "fa-shield-halved"}"></i>
+            ${bulkDodgeActive
+              ? text("Esquivas inimigas automáticas ativadas", "Automatic enemy Dodges enabled")
+              : dodgeMode === "individual"
+                ? text("Esquivas individuais selecionadas", "Individual Dodges selected")
+                : text(`Rolar Esquiva de todos os inimigos (${enemyPendingCount})`, `Roll Dodge for all enemies (${enemyPendingCount})`)}
+          </button>
+        </div>
+      `
     : "";
   const bulkDamageActions = complete && pendingDamageCount > 0
     ? damageSummaryMessageId
@@ -1667,31 +1904,43 @@ function buildAreaDamageResolutionCard({
     return String(entry.status ?? "") === "resolved" &&
       getEntryDamageAmount(entry) > 0;
   });
-  const pending = affected.filter((entry) => !isEntryDamageApplied(entry));
-  const applied = affected.length - pending.length;
-  const bulkDamageActive = Boolean(request.bulkDamage?.active);
+  const applying = affected.filter((entry) => {
+    return isAttackDamageApplicationInFlight(getEntryDamageApplication(entry));
+  });
+  const pending = affected.filter((entry) => {
+    return getEntryDamageState(entry) !== "applied" &&
+      !isAttackDamageApplicationInFlight(getEntryDamageApplication(entry));
+  });
+  const applied = affected.filter((entry) => getEntryDamageState(entry) === "applied").length;
+  const bulkDamageActive = isAreaBulkDamageActive(request.bulkDamage);
   const displayedAttackName = attackItem?.name ?? request.attackName ?? "Attack";
   const displayedAttackerName = attacker?.name ?? request.attackerName ?? "Attacker";
 
   const rows = affected.map((entry) => {
     const damageAmount = getEntryDamageAmount(entry);
-    const damageApplied = isEntryDamageApplied(entry);
+    const damageState = getEntryDamageState(entry);
+    const damageApplied = damageState === "applied";
+    const damageApplying = isAttackDamageApplicationInFlight(getEntryDamageApplication(entry));
 
     return `
-      <li class="hit ${damageApplied ? "damage-applied" : ""}">
+      <li class="hit ${damageApplied ? "damage-applied" : damageApplying ? "damage-applying" : ""}">
         <img src="${escapeHtml(getEntryPortrait(entry))}" alt="">
         <span class="target-name">${escapeHtml(getEntryName(entry))}</span>
         <span class="target-state">
-          <i class="fa-solid ${damageApplied ? "fa-circle-check" : "fa-burst"}"></i>
+          <i class="fa-solid ${damageApplied ? "fa-circle-check" : damageApplying ? "fa-spinner fa-spin" : "fa-burst"}"></i>
           ${damageApplied
             ? text("Aplicado", "Applied")
-            : text("Atingido", "Hit")}
+            : damageApplying
+              ? text("Aplicando…", "Applying…")
+              : text("Atingido", "Hit")}
         </span>
-        <span class="damage ${damageApplied ? "applied" : "pending"}">
+        <span class="damage ${damageApplied ? "applied" : damageApplying ? "applying" : "pending"}">
           ${text("Dano", "Damage")}: <strong>${damageAmount}</strong>
           ${damageApplied
             ? `<i class="fa-solid fa-check"></i> ${text("Aplicado", "Applied")}`
-            : ""}
+            : damageApplying
+              ? `<i class="fa-solid fa-spinner fa-spin"></i> ${text("Aplicando…", "Applying…")}`
+              : ""}
         </span>
       </li>
     `;
@@ -1716,12 +1965,19 @@ function buildAreaDamageResolutionCard({
         </button>
       </div>
     `
-    : `
-      <div class="dda-area-attack-damage-complete">
-        <i class="fa-solid fa-circle-check"></i>
-        ${text("Dano aplicado aos alvos afetados.", "Damage applied to affected targets.")}
-      </div>
-    `;
+    : applying.length > 0
+      ? `
+        <div class="dda-area-attack-damage-posted">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+          ${text("Há aplicações de dano em andamento…", "Damage applications are in progress…")}
+        </div>
+      `
+      : `
+        <div class="dda-area-attack-damage-complete">
+          <i class="fa-solid fa-circle-check"></i>
+          ${text("Dano aplicado aos alvos afetados.", "Damage applied to affected targets.")}
+        </div>
+      `;
 
   return `
     <div class="dda-chat-card dda-area-attack-summary dda-area-attack-damage-summary complete">
@@ -1735,7 +1991,8 @@ function buildAreaDamageResolutionCard({
 
       <div class="dda-area-attack-meta">
         <span>${text("Atingidos", "Hit")}: <strong>${affected.length}</strong></span>
-        <span>${text("Pendentes", "Pending")}: <strong>${pending.length}</strong></span>
+        <span>${text("Dano pendente", "Damage Pending")}: <strong>${pending.length}</strong></span>
+        ${applying.length > 0 ? `<span>${text("Aplicando", "Applying")}: <strong>${applying.length}</strong></span>` : ""}
         <span>${text("Aplicados", "Applied")}: <strong>${applied}</strong></span>
       </div>
 
@@ -1774,9 +2031,16 @@ function serializeAreaEntries(entries = [], attacker = null) {
       finalDamage: getEntryDamageAmount(entry),
       damageApplication: liveApplication
         ? {
+            applicationId: String(liveApplication.applicationId ?? ""),
             requestId: String(liveApplication.requestId ?? ""),
             progressMessageId: String(liveApplication.progressMessageId ?? ""),
             messageId: String(liveApplication.messageId ?? ""),
+            targetTokenId: String(
+              liveApplication.targetTokenId ??
+              entry.token?.id ??
+              entry.tokenId ??
+              ""
+            ),
             defenderUuid: String(liveApplication.defenderUuid ?? ""),
             attackerUuid: String(liveApplication.attackerUuid ?? ""),
             damage: getEntryDamageAmount(entry),
@@ -1796,6 +2060,14 @@ function serializeAreaEntries(entries = [], attacker = null) {
               Number(liveApplication.lifestealCap ?? 0)
             ),
             lifestealKey: String(liveApplication.lifestealKey ?? ""),
+            combatId: String(liveApplication.combatId ?? ""),
+            sceneId: String(liveApplication.sceneId ?? ""),
+            createdAt: Number(liveApplication.createdAt ?? 0),
+            state: getEntryDamageState({ damageApplication: liveApplication }),
+            claimedByUserId: String(liveApplication.claimedByUserId ?? ""),
+            claimedAt: liveApplication.claimedAt ?? null,
+            areaReady: Boolean(liveApplication.areaReady),
+            lastError: String(liveApplication.lastError ?? ""),
             applied: Boolean(
               liveApplication.applied ||
               isEntryDamageApplied(entry)
@@ -1863,11 +2135,26 @@ function getAreaDamageMessage(application = {}) {
     if (direct) return direct;
   }
 
+  const applicationId = String(application?.applicationId ?? "");
   const requestId = String(application?.requestId ?? "");
+  const targetTokenId = String(application?.targetTokenId ?? "");
   const defenderUuid = String(application?.defenderUuid ?? "");
 
   return game.messages?.find?.((candidate) => {
     const entry = getAreaDamageEntryFromMessage(candidate);
+
+    if (applicationId && String(entry?.applicationId ?? "") === applicationId) {
+      return true;
+    }
+
+    if (
+      requestId &&
+      targetTokenId &&
+      String(entry?.requestId ?? "") === requestId &&
+      String(entry?.targetTokenId ?? "") === targetTokenId
+    ) {
+      return true;
+    }
 
     return String(entry?.requestId ?? "") === requestId &&
       String(entry?.defenderUuid ?? "") === defenderUuid;
@@ -1981,37 +2268,51 @@ async function ensureAreaDamageSummaryMessage(
   return summaryMessage;
 }
 
-async function markIndividualAreaDamageMessageApplied(
-  application = {},
-  {
-    appliedAt = Date.now(),
-    appliedByUserId = game.user?.id ?? ""
-  } = {}
-) {
-  const damageMessage = getAreaDamageMessage(application);
-  if (!damageMessage) return;
+async function markAreaDamageEntriesReady(entries = []) {
+  for (const entry of entries) {
+    const application = getEntryDamageApplication(entry);
+    if (!application || getEntryDamageAmount(entry) <= 0) continue;
 
-  const liveEntry = foundry.utils.deepClone(
-    getAreaDamageEntryFromMessage(damageMessage) ?? application
-  );
+    const damageMessage = getAreaDamageMessage(application);
+    if (!damageMessage) continue;
 
-  liveEntry.applied = true;
-  liveEntry.appliedAt = appliedAt;
-  liveEntry.appliedByUserId = String(appliedByUserId ?? "");
+    const liveEntry = foundry.utils.deepClone(
+      getAreaDamageEntryFromMessage(damageMessage) ?? application
+    );
 
-  await damageMessage.update({
-    [`flags.${game.system.id}.areaAttackDamageEntry`]: liveEntry
-  });
+    liveEntry.areaReady = true;
+    if (!liveEntry.state) {
+      liveEntry.state = liveEntry.applied ? "applied" : "pending";
+    }
+
+    await damageMessage.update({
+      [`flags.${game.system.id}.areaAttackDamageEntry`]: liveEntry
+    });
+
+    if (entry?.result?.damageApplication) {
+      Object.assign(entry.result.damageApplication, liveEntry);
+    }
+    if (entry?.damageApplication) {
+      Object.assign(entry.damageApplication, liveEntry);
+    }
+  }
 }
 
-export async function markAreaAttackDamageApplied({
+export async function markAreaAttackDamageState({
   requestId = "",
+  applicationId = "",
+  targetTokenId = "",
   defenderUuid = "",
   messageId = "",
+  state = "pending",
+  applied = false,
+  claimedByUserId = "",
+  claimedAt = null,
   appliedAt = Date.now(),
-  appliedByUserId = game.user?.id ?? ""
+  appliedByUserId = game.user?.id ?? "",
+  lastError = ""
 } = {}) {
-  if (!requestId || !defenderUuid) return false;
+  if (!requestId || (!applicationId && !targetTokenId && !defenderUuid)) return false;
 
   const progressMessage = game.messages?.find?.((candidate) => {
     const request = getAreaAttackRequestFromMessage(candidate);
@@ -2025,20 +2326,69 @@ export async function markAreaAttackDamageApplied({
   );
   const target = request?.targets?.find?.((entry) => {
     const application = entry?.damageApplication ?? {};
-    return String(application.defenderUuid ?? entry.actorUuid ?? "") ===
-      String(defenderUuid);
+    if (
+      applicationId &&
+      String(application.applicationId ?? "") === String(applicationId)
+    ) {
+      return true;
+    }
+
+    const candidateTokenId = String(
+      application.targetTokenId ?? entry.tokenId ?? ""
+    );
+    if (targetTokenId && candidateTokenId === String(targetTokenId)) {
+      return true;
+    }
+
+    return defenderUuid &&
+      String(application.defenderUuid ?? entry.actorUuid ?? "") ===
+        String(defenderUuid);
   });
 
   if (!target?.damageApplication) return false;
 
   target.damageApplication.messageId =
     String(messageId || target.damageApplication.messageId || "");
-  target.damageApplication.applied = true;
-  target.damageApplication.appliedAt = appliedAt;
-  target.damageApplication.appliedByUserId = String(appliedByUserId ?? "");
+  target.damageApplication.state = String(state ?? "pending");
+  target.damageApplication.applied = Boolean(applied);
+  target.damageApplication.claimedByUserId = String(claimedByUserId ?? "");
+  target.damageApplication.claimedAt = claimedAt ?? null;
+  target.damageApplication.appliedAt = applied ? appliedAt : null;
+  target.damageApplication.appliedByUserId = applied
+    ? String(appliedByUserId ?? "")
+    : "";
+  target.damageApplication.lastError = String(lastError ?? "");
 
   await updateAreaProgressMessage(progressMessage, request);
   return true;
+}
+
+export async function markAreaAttackDamageApplied({
+  requestId = "",
+  applicationId = "",
+  targetTokenId = "",
+  defenderUuid = "",
+  messageId = "",
+  appliedAt = Date.now(),
+  appliedByUserId = game.user?.id ?? ""
+} = {}) {
+  return markAreaAttackDamageState({
+    requestId,
+    applicationId,
+    targetTokenId,
+    defenderUuid,
+    messageId,
+    state: "applied",
+    applied: true,
+    appliedAt,
+    appliedByUserId
+  });
+}
+
+function isAreaBulkDamageActive(bulkDamage = {}) {
+  if (!bulkDamage?.active) return false;
+  const requestedAt = Number(bulkDamage?.requestedAt ?? 0);
+  return Boolean(requestedAt && Date.now() - requestedAt < 2 * 60 * 1000);
 }
 
 export async function bindAreaAttackBulkDamageCard(message, root) {
@@ -2071,16 +2421,20 @@ export async function bindAreaAttackBulkDamageCard(message, root) {
   const pendingTargets = Array.isArray(areaRequest.targets)
     ? areaRequest.targets.filter((target) => {
         const application = target?.damageApplication;
+        const state = String(
+          application?.applied ? "applied" : application?.state ?? "pending"
+        ).toLowerCase();
         return String(target?.status ?? "") === "resolved" &&
           Number(application?.damage ?? target?.finalDamage ?? 0) > 0 &&
-          !Boolean(application?.applied);
+          state !== "applied" &&
+          !isAttackDamageApplicationInFlight(application);
       })
     : [];
   const canUse = Boolean(
     game.user?.isGM &&
     complete &&
     pendingTargets.length > 0 &&
-    !areaRequest.bulkDamage?.active
+    !isAreaBulkDamageActive(areaRequest.bulkDamage)
   );
 
   for (const button of buttons) {
@@ -2128,114 +2482,197 @@ export async function bindAreaAttackBulkDamageCard(message, root) {
 
       let appliedCount = 0;
       let failedCount = 0;
-      const attacker = await resolveActorDocument(request.attackerUuid);
+      let bulkUnhandledError = null;
 
-      for (const target of request.targets ?? []) {
-        const application = target?.damageApplication;
-        if (!application) continue;
-        if (String(target.status ?? "") !== "resolved") continue;
-        if (Number(application.damage ?? 0) <= 0) continue;
-        if (application.applied) continue;
+      try {
+        const attacker = await resolveActorDocument(request.attackerUuid);
 
-        const damageMessage = getAreaDamageMessage(application);
-        const liveDamageEntry = getAreaDamageEntryFromMessage(damageMessage);
+        for (const target of request.targets ?? []) {
+          const application = target?.damageApplication;
+          if (!application) continue;
+          if (String(target.status ?? "") !== "resolved") continue;
+          if (Number(application.damage ?? 0) <= 0) continue;
+          if (application.applied || String(application.state ?? "") === "applied") continue;
 
-        if (liveDamageEntry?.applied) {
-          application.applied = true;
-          application.appliedAt = liveDamageEntry.appliedAt ?? Date.now();
-          application.appliedByUserId =
-            String(liveDamageEntry.appliedByUserId ?? "");
-          await updateAreaProgressMessage(progressMessage, request);
-          continue;
-        }
+          const damageMessage = getAreaDamageMessage(application);
+          const liveDamageEntry = getAreaDamageEntryFromMessage(damageMessage) ?? application;
 
-        const defender = await resolveActorDocument(application.defenderUuid);
-
-        if (!defender) {
-          failedCount += 1;
-          continue;
-        }
-
-        let result = null;
-
-        try {
-          result = await applyDamage(
-            defender,
-            Number(application.damage),
-            {
-              damageType: application.damageType,
-              damageLabel: application.damageLabel,
-              holdBack: Boolean(application.holdBack),
-              tamerIntercede: Boolean(application.tamerIntercede),
-              digimonIntercede: Boolean(application.digimonIntercede),
-              unalterable: Boolean(application.unalterable),
-              unalterablePortion: Math.max(0, Number(application.unalterablePortion ?? 0)),
-              attacker,
-              focusTempMultiplier: Math.max(
-                1,
-                Number(application.focusTempMultiplier ?? 1)
-              ),
-              lifestealCap: Math.max(
-                0,
-                Number(application.lifestealCap ?? 0)
-              ),
-              lifestealKey: String(application.lifestealKey ?? "")
+          if (
+            liveDamageEntry?.applied ||
+            String(liveDamageEntry?.state ?? "") === "applied"
+          ) {
+            application.state = "applied";
+            application.applied = true;
+            application.appliedAt = liveDamageEntry.appliedAt ?? Date.now();
+            application.appliedByUserId = String(
+              liveDamageEntry.appliedByUserId ?? ""
+            );
+            try {
+              await updateAreaProgressMessage(progressMessage, request);
+            } catch (_error) {
+              // The final refresh below will retry the shared summary update.
             }
-          );
-        } catch (error) {
-          failedCount += 1;
-          console.error(
-            `DDA | Could not apply Area Attack damage to ${target.name ?? "target"}.`,
-            error
-          );
-          continue;
-        }
+            continue;
+          }
 
-        if (!result) {
-          failedCount += 1;
-          continue;
-        }
+          let claim = null;
+          try {
+            claim = damageMessage
+              ? await claimAttackDamageApplication(damageMessage, liveDamageEntry)
+              : { granted: true, legacy: true };
+          } catch (error) {
+            failedCount += 1;
+            console.error(
+              `DDA | Could not claim Area Attack damage for ${target.name ?? "target"}.`,
+              error
+            );
+            continue;
+          }
 
-        const appliedAt = Date.now();
-        application.applied = true;
-        application.appliedAt = appliedAt;
-        application.appliedByUserId = String(game.user.id ?? "");
-        appliedCount += 1;
+          if (!claim?.granted) {
+            if (claim?.reason === "applied") {
+              application.state = "applied";
+              application.applied = true;
+              continue;
+            }
+            failedCount += 1;
+            continue;
+          }
 
-        try {
-          await markIndividualAreaDamageMessageApplied(application, {
-            appliedAt,
-            appliedByUserId: game.user.id
-          });
-        } catch (error) {
-          console.warn(
-            "DDA | Damage was applied, but the individual Area Attack card could not be synchronized.",
-            error
-          );
+          const defender = await resolveActorDocument(application.defenderUuid);
+          if (!defender) {
+            failedCount += 1;
+            if (damageMessage && !claim?.legacyNoGM) {
+              try {
+                await finalizeAttackDamageApplication(damageMessage, liveDamageEntry, {
+                  success: false,
+                  errorMessage: "Defender could not be resolved."
+                });
+              } catch (_error) {
+                // A stale claim will become reclaimable automatically.
+              }
+            }
+            continue;
+          }
+
+          let result = null;
+          try {
+            result = await applyDamage(
+              defender,
+              Number(application.damage),
+              {
+                damageType: application.damageType,
+                damageLabel: application.damageLabel,
+                holdBack: Boolean(application.holdBack),
+                tamerIntercede: Boolean(application.tamerIntercede),
+                digimonIntercede: Boolean(application.digimonIntercede),
+                unalterable: Boolean(application.unalterable),
+                unalterablePortion: Math.max(
+                  0,
+                  Number(application.unalterablePortion ?? 0)
+                ),
+                attacker,
+                focusTempMultiplier: Math.max(
+                  1,
+                  Number(application.focusTempMultiplier ?? 1)
+                ),
+                lifestealCap: Math.max(
+                  0,
+                  Number(application.lifestealCap ?? 0)
+                ),
+                lifestealKey: String(application.lifestealKey ?? ""),
+                applicationId: String(application.applicationId ?? "")
+              }
+            );
+
+            if (!result) {
+              throw new Error("Damage application returned no result.");
+            }
+
+            await resolveAttackDamagePostProcessing(defender, result, {
+              digimonIntercede: Boolean(application.digimonIntercede)
+            });
+          } catch (error) {
+            failedCount += 1;
+            console.error(
+              `DDA | Could not apply Area Attack damage to ${target.name ?? "target"}.`,
+              error
+            );
+            if (damageMessage && !claim?.legacyNoGM) {
+              try {
+                await finalizeAttackDamageApplication(damageMessage, liveDamageEntry, {
+                  success: false,
+                  errorMessage: String(error?.message ?? error ?? "")
+                });
+              } catch (_finalizeError) {
+                // Actor-side application history prevents duplicate Wound loss
+                // if the card cannot be synchronized immediately.
+              }
+            }
+            continue;
+          }
+
+          application.state = "applied";
+          application.applied = true;
+          application.appliedAt = Date.now();
+          application.appliedByUserId = String(game.user.id ?? "");
+          appliedCount += 1;
+
+          if (damageMessage) {
+            try {
+              await finalizeAttackDamageApplication(damageMessage, liveDamageEntry, {
+                success: true
+              });
+            } catch (error) {
+              console.warn(
+                "DDA | Damage was applied, but the individual Area Attack card could not be synchronized.",
+                error
+              );
+            }
+          }
+
+          try {
+            await updateAreaProgressMessage(progressMessage, request);
+          } catch (error) {
+            console.warn(
+              "DDA | Damage was applied, but the Area Attack summary could not be refreshed immediately.",
+              error
+            );
+          }
         }
+      } catch (error) {
+        bulkUnhandledError = error;
+        failedCount += 1;
+        console.error("DDA | Bulk Area Attack damage aborted unexpectedly.", error);
+      } finally {
+        request.bulkDamage = {
+          active: false,
+          requestedByUserId: game.user.id,
+          requestedAt: request.bulkDamage?.requestedAt ?? Date.now(),
+          completedAt: Date.now(),
+          appliedCount,
+          failedCount
+        };
 
         try {
           await updateAreaProgressMessage(progressMessage, request);
         } catch (error) {
           console.warn(
-            "DDA | Damage was applied, but the Area Attack summary could not be refreshed immediately.",
+            "DDA | Bulk damage finished, but the Area Attack summary could not be finalized.",
             error
           );
         }
+
+        delete button.dataset.ddaAreaBulkDamageInFlight;
+        button.disabled = false;
       }
 
-      request.bulkDamage = {
-        active: false,
-        requestedByUserId: game.user.id,
-        requestedAt: request.bulkDamage.requestedAt,
-        completedAt: Date.now(),
-        appliedCount,
-        failedCount
-      };
-
-      await updateAreaProgressMessage(progressMessage, request);
-
-      if (failedCount > 0) {
+      if (bulkUnhandledError) {
+        ui.notifications.warn(text(
+          `A aplicação coletiva foi interrompida após ${appliedCount} alvo(s). Os danos restantes continuam disponíveis para resolução manual.`,
+          `Bulk damage was interrupted after ${appliedCount} target(s). Remaining damage can still be resolved manually.`
+        ));
+      } else if (failedCount > 0) {
         ui.notifications.warn(text(
           `Dano aplicado a ${appliedCount} alvo(s); ${failedCount} precisa(m) de resolução manual.`,
           `Damage applied to ${appliedCount} target(s); ${failedCount} require manual resolution.`
@@ -2249,7 +2686,6 @@ export async function bindAreaAttackBulkDamageCard(message, root) {
     });
   }
 }
-
 
 async function movePassAttackerToTemplateEnd(attackerToken, templateData) {
   if (!attackerToken?.document || !templateData) return false;
@@ -2281,12 +2717,64 @@ async function movePassAttackerToTemplateEnd(attackerToken, templateData) {
   await attackerToken.document.update({
     x: Math.round(Number(snapped.x ?? destination.x)),
     y: Math.round(Number(snapped.y ?? destination.y))
-  }, {
+  }, withDDAMovementContext({
     ddaForcedMovement: true,
     ddaAreaPassMovement: true
-  });
+  }, {
+    mode: "automated", movementBudget: "none", voluntary: true, reactions: true,
+    traversal: true, source: "areaPass", unwilling: false
+  }));
 
   return true;
+}
+
+function getAreaRequestFlag(message) {
+  return message?.getFlag?.(game.system.id, AREA_REQUEST_FLAG)
+    ?? message?.flags?.[game.system.id]?.[AREA_REQUEST_FLAG]
+    ?? null;
+}
+
+async function waitForAreaDodgeMode(message, requestId, { timeoutMs = 5 * 60 * 1000 } = {}) {
+  if (!message?.id || !requestId) return null;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let updateHook = null;
+    let deleteHook = null;
+    let timer = null;
+
+    const finish = (mode) => {
+      if (settled) return;
+      settled = true;
+      if (updateHook !== null) Hooks.off("updateChatMessage", updateHook);
+      if (deleteHook !== null) Hooks.off("deleteChatMessage", deleteHook);
+      if (timer !== null) globalThis.clearTimeout(timer);
+      resolve(mode);
+    };
+
+    const inspect = (candidate) => {
+      if (!candidate || String(candidate.id ?? "") !== String(message.id)) return;
+      const request = getAreaRequestFlag(candidate);
+      if (String(request?.requestId ?? "") !== String(requestId)) return;
+      const explicitMode = String(request?.bulkDodge?.mode ?? "").trim();
+      if (explicitMode === "bulk" || explicitMode === "individual") {
+        finish(explicitMode);
+        return;
+      }
+      if (request?.bulkDodge?.active) finish("bulk");
+    };
+
+    updateHook = Hooks.on("updateChatMessage", (updatedMessage) => {
+      inspect(updatedMessage);
+    });
+
+    deleteHook = Hooks.on("deleteChatMessage", (deletedMessage) => {
+      if (String(deletedMessage?.id ?? "") === String(message.id)) finish(null);
+    });
+
+    timer = globalThis.setTimeout(() => finish(null), Math.max(1_000, Number(timeoutMs) || 300_000));
+    inspect(game.messages?.get(message.id) ?? message);
+  });
 }
 
 export async function runAreaAttackWorkflow({
@@ -2464,11 +2952,62 @@ export async function runAreaAttackWorkflow({
       break;
     }
 
+    const frenzyAreaValidation = game?.dda?.bossQualities?.validateFrenzyAttack?.({
+      attacker,
+      targetToken: selectedTargets[0] ?? null,
+      attackFunctionType: String(attackItem?.system?.baseTags?.functionType ?? "damage"),
+      hasNegativeEffect: [
+        attackItem?.system?.effectTag?.enabled ? attackItem.system.effectTag.tag ?? "" : "",
+        ...(qualityAttackModifier?.effectTags ?? [])
+      ].filter(Boolean).some((tag) => {
+        const key = String(tag ?? "").trim().replace(/^\[|\]$/g, "").toLowerCase();
+        const type = String(EFFECT_TAGS?.[key]?.type ?? "").toLowerCase();
+        return type === "negative";
+      }),
+      areaTargetActorUuids: selectedTargets.map((token) => String(token.actor?.uuid ?? "")).filter(Boolean)
+    });
+    if (frenzyAreaValidation?.active && !frenzyAreaValidation.allowed) {
+      ui.notifications.warn(frenzyAreaValidation.message);
+      await deletePersistentTemplate(templateDocument);
+      return { handled: true, result: null };
+    }
+
     if (hasMobileArtillery(attacker, attackItem, qualityAttackModifier)) {
       mobileArtilleryTerrain = await promptMobileArtilleryTerrain({
         attacker,
         attackItem
       });
+    }
+
+    let areaIntercedeArmorBonuses = new Map();
+    let areaIntercedeReactions = [];
+    const areaIntercedeState = await resolveAreaIntercedeReactions({
+      attacker,
+      attackerToken,
+      attackItem,
+      attackOptions,
+      qualityAttackModifier,
+      templateDocument,
+      tag,
+      targetMode: configuration.targetMode,
+      forcedAll,
+      selectedTargets
+    });
+    selectedTargets = areaIntercedeState.selectedTargets;
+    areaIntercedeArmorBonuses = areaIntercedeState.armorBonusesByTokenId;
+    areaIntercedeReactions = areaIntercedeState.reactions;
+
+    if (!selectedTargets.length) {
+      ui.notifications.warn(text(
+        "Todos os alvos foram removidos da área por Intercedes. O ataque não possui mais um alvo válido.",
+        "All targets were removed from the area by Intercedes. The attack no longer has a valid target."
+      ));
+      await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: attacker }),
+        content: `<div class="dda-chat-card dda-intercede-card is-resolved"><h2>${text("Ataque em Área interceptado", "Area Attack intercepted")}</h2><p>${text("As Intercedes removeram todos os alvos da área antes das rolagens.", "The Intercedes removed every target from the area before rolls were made.")}</p></div>`
+      });
+      await deletePersistentTemplate(templateDocument);
+      return { handled: true, result: null };
     }
 
     const originDistance = getTemplateOriginDistance(
@@ -2484,11 +3023,17 @@ export async function runAreaAttackWorkflow({
     let sharedAccuracyResult = null;
     let sharedHugePowerReroll = null;
     let sharedOverpowerResult = null;
+    let sharedTamerAttackTalent = null;
     let sharedElementalForceUsed = null;
     let sharedAssuredDestructionConverted = 0;
     let finalizeAttackUse = null;
     let accuracySuccesses = null;
-    let workflowStatus = "awaitingAccuracy";
+    const hasEnemyTargets = selectedTargets.some((token) => {
+      return token?.actor && !areActorsAllies(attacker, token.actor);
+    });
+    let workflowStatus = hasEnemyTargets
+      ? "awaitingDodgeMode"
+      : "awaitingAccuracy";
     let progressMessage = null;
 
     const buildProgressFlags = ({
@@ -2500,31 +3045,44 @@ export async function runAreaAttackWorkflow({
       const targets = serializeAreaEntries(results, attacker);
 
       for (const target of targets) {
-        const defenderUuid = String(
-          target.damageApplication?.defenderUuid ??
-          target.actorUuid ??
-          ""
-        );
+        const application = target.damageApplication ?? null;
+        if (!application) continue;
+
+        const applicationId = String(application.applicationId ?? "");
+        const targetTokenId = String(application.targetTokenId ?? target.tokenId ?? "");
+        const defenderUuid = String(application.defenderUuid ?? target.actorUuid ?? "");
+
         const liveTarget = liveTargets.find?.((candidate) => {
+          const candidateApplication = candidate?.damageApplication ?? null;
+          if (!candidateApplication) return false;
+
+          if (applicationId) {
+            return String(candidateApplication.applicationId ?? "") === applicationId;
+          }
+
+          if (targetTokenId) {
+            return String(candidateApplication.targetTokenId ?? candidate?.tokenId ?? "") === targetTokenId;
+          }
+
           const candidateUuid = String(
-            candidate?.damageApplication?.defenderUuid ??
+            candidateApplication.defenderUuid ??
             candidate?.actorUuid ??
             ""
           );
-          return candidateUuid && candidateUuid === defenderUuid;
+          return Boolean(defenderUuid && candidateUuid === defenderUuid);
         });
 
-        if (
-          liveTarget?.damageApplication?.applied &&
-          target.damageApplication
-        ) {
-          target.damageApplication.applied = true;
-          target.damageApplication.appliedAt =
-            liveTarget.damageApplication.appliedAt ?? null;
-          target.damageApplication.appliedByUserId = String(
-            liveTarget.damageApplication.appliedByUserId ?? ""
-          );
-        }
+        if (!liveTarget?.damageApplication) continue;
+
+        const liveApplication = liveTarget.damageApplication;
+        application.state = getEntryDamageState({ damageApplication: liveApplication });
+        application.claimedByUserId = String(liveApplication.claimedByUserId ?? "");
+        application.claimedAt = liveApplication.claimedAt ?? null;
+        application.areaReady = Boolean(liveApplication.areaReady);
+        application.lastError = String(liveApplication.lastError ?? "");
+        application.applied = Boolean(liveApplication.applied);
+        application.appliedAt = liveApplication.appliedAt ?? null;
+        application.appliedByUserId = String(liveApplication.appliedByUserId ?? "");
       }
 
       return {
@@ -2627,6 +3185,20 @@ export async function runAreaAttackWorkflow({
       );
     }
 
+    if (hasEnemyTargets && progressMessage) {
+      const dodgeMode = await waitForAreaDodgeMode(progressMessage, requestId);
+
+      if (!dodgeMode) {
+        workflowStatus = "cancelled";
+        for (const entry of results) entry.status = "cancelled";
+        await updateProgressMessage();
+        return { handled: true, result: null };
+      }
+
+      workflowStatus = "awaitingAccuracy";
+      await updateProgressMessage();
+    }
+
     for (let index = 0; index < selectedTargets.length; index += 1) {
       const token = selectedTargets[index];
       const entry = results[index];
@@ -2673,6 +3245,7 @@ export async function runAreaAttackWorkflow({
           sharedAccuracyResult,
           sharedHugePowerReroll,
           sharedOverpowerResult,
+          sharedTamerAttackTalent,
           sharedElementalForceUsed,
           sharedAssuredDestructionConverted,
           originDistance,
@@ -2689,6 +3262,14 @@ export async function runAreaAttackWorkflow({
             selectedTargets,
             templateData
           }),
+          areaIntercedeArmorBonus: Math.max(
+            0,
+            Number(areaIntercedeArmorBonuses.get(token.id) ?? 0)
+          ),
+          areaInterceded: areaIntercedeReactions.some((reaction) => {
+            return String(reaction.tokenId ?? "") === String(token.id ?? "");
+          }),
+          areaIntercedeReactions,
           baseSize: Number(bounds.base ?? 0),
           selectedSize: Number(configuration.size ?? 0),
           mobileArtilleryTerrain,
@@ -2747,6 +3328,7 @@ export async function runAreaAttackWorkflow({
       sharedAccuracyResult ??= result.accuracyRollResult ?? null;
       sharedHugePowerReroll ??= result.hugePowerReroll ?? null;
       sharedOverpowerResult ??= result.overpowerResult ?? null;
+      sharedTamerAttackTalent ??= result.tamerAttackTalent ?? null;
       accuracySuccesses ??= Number(result.accuracySuccesses ?? 0);
       entry.status = "resolved";
       workflowStatus = "awaitingDodges";
@@ -2789,6 +3371,13 @@ export async function runAreaAttackWorkflow({
         const { consumeBraveHeartDamageBonus } = await import("../stance-qualities.js");
         await consumeBraveHeartDamageBonus(attacker);
       }
+
+      const firstHit = resolvedAttackResults.find((result) => Boolean(result.hit));
+      await maybeOfferHeroicExemplarAfterHit({
+        attacker,
+        defender: firstHit?.defender ?? null,
+        hit: Boolean(firstHit)
+      });
     }
 
     if (finalizeAttackUse) {
@@ -2816,6 +3405,18 @@ export async function runAreaAttackWorkflow({
     }
 
     await updateProgressMessage();
+
+    if (workflowStatus === "resolved") {
+      try {
+        await markAreaDamageEntriesReady(results);
+        await updateProgressMessage();
+      } catch (error) {
+        console.warn(
+          "DDA | Could not unlock the final Area Attack damage entries.",
+          error
+        );
+      }
+    }
 
     const finalRequest = foundry.utils.deepClone(
       getLiveAreaRequest() ?? {}

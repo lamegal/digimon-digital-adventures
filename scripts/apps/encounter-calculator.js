@@ -11,7 +11,7 @@ export async function openEncounterCalculator() {
     .join("");
 
   const content = `
-    <form class="dda-roll-dialog">
+    <div class="dda-roll-dialog">
       <h2>${game.i18n.localize("DDA.Encounter.Group")}</h2>
 
       <div class="form-group">
@@ -82,32 +82,42 @@ export async function openEncounterCalculator() {
         <label>${game.i18n.localize("DDA.Stage.UltimatePlus")}</label>
         <input type="number" name="enemy_ultimatePlus" value="0" min="0" />
       </div>
-    </form>
+    </div>
   `;
 
-  const data = await Dialog.prompt({
-    title: game.i18n.localize("DDA.Encounter.Calculator"),
+  const data = await foundry.applications.api.DialogV2.wait({
+    window: { title: game.i18n.localize("DDA.Encounter.Calculator") },
     content,
-    label: game.i18n.localize("DDA.Button.Calculate"),
-    callback: (html) => {
-      const form = html[0].querySelector("form");
+    buttons: [
+      {
+        action: "calculate",
+        label: game.i18n.localize("DDA.Button.Calculate"),
+        icon: "fa-solid fa-calculator",
+        default: true,
+        callback: (_event, button) => {
+          const form = button.form;
+          if (!form) return null;
 
-      return {
-        partySize: Number(form.elements.partySize.value ?? 1),
-        milestones: Number(form.elements.milestones.value ?? 0),
-        defaultStage: form.elements.defaultStage.value,
-        difficulty: form.elements.difficulty.value,
-        enemies: {
-          baby1: Number(form.elements.enemy_baby1.value ?? 0),
-          baby2: Number(form.elements.enemy_baby2.value ?? 0),
-          child: Number(form.elements.enemy_child.value ?? 0),
-          adult: Number(form.elements.enemy_adult.value ?? 0),
-          perfect: Number(form.elements.enemy_perfect.value ?? 0),
-          ultimate: Number(form.elements.enemy_ultimate.value ?? 0),
-          ultimatePlus: Number(form.elements.enemy_ultimatePlus.value ?? 0)
+          return {
+            partySize: Number(form.elements.partySize?.value ?? 1),
+            milestones: Number(form.elements.milestones?.value ?? 0),
+            defaultStage: form.elements.defaultStage?.value,
+            difficulty: form.elements.difficulty?.value,
+            enemies: {
+              baby1: Number(form.elements.enemy_baby1?.value ?? 0),
+              baby2: Number(form.elements.enemy_baby2?.value ?? 0),
+              child: Number(form.elements.enemy_child?.value ?? 0),
+              adult: Number(form.elements.enemy_adult?.value ?? 0),
+              perfect: Number(form.elements.enemy_perfect?.value ?? 0),
+              ultimate: Number(form.elements.enemy_ultimate?.value ?? 0),
+              ultimatePlus: Number(form.elements.enemy_ultimatePlus?.value ?? 0)
+            }
+          };
         }
-      };
-    }
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
 
   if (!data) return;

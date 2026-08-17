@@ -1,4 +1,5 @@
 import { executeJogressEvolution, endJogressEvolution } from "../combat/evolution.js";
+import { isJogressRulesMethod } from "../rules/special-evolution-methods.js";
 
 function localize(key) {
   return game.i18n.localize(key);
@@ -374,8 +375,12 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
       const currentFormTemplateUuid = tamer.system.partner?.currentFormUuid || partnerUuid;
       const partner = await resolveActor(partnerUuid);
       const currentFormTemplate = await resolveActor(currentFormTemplateUuid);
-      const currentFormActor = partner ?? currentFormTemplate;
-      const evolutionData = await this._getEvolutionGraphSummary(currentFormTemplate ?? partner);
+      const jogressState = tamer.system.specialEvolutions?.jogress?.state ?? {};
+      const jogressRuntimePartner = jogressState.active && jogressState.runtimePartnerUuid
+        ? await resolveActor(jogressState.runtimePartnerUuid)
+        : null;
+      const currentFormActor = jogressRuntimePartner ?? partner ?? currentFormTemplate;
+      const evolutionData = await this._getEvolutionGraphSummary(currentFormTemplate ?? currentFormActor ?? partner);
       const formSnapshots = Object.values(partner?.system?.evolution?.formSnapshots ?? {}).filter((snapshot) => {
         return snapshot && typeof snapshot === "object";
       });
@@ -452,6 +457,7 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
       if (stateMap.has(key)) continue;
 
       const resultActor = await resolveActor(state.resultUuid);
+      const runtimePartner = await resolveActor(state.runtimePartnerUuid);
       const primaryTamer = await resolveActor(state.primaryTamerUuid);
       const secondaryTamer = await resolveActor(state.secondaryTamerUuid);
       const primaryDigimon = await resolveActor(state.primaryDigimonUuid);
@@ -460,13 +466,13 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
       stateMap.set(key, {
         key,
         resultUuid: resultActor?.uuid ?? state.resultUuid ?? "",
-        resultName: resultActor?.name ?? state.resultName ?? localize("DDA.Jogress.UnknownResult"),
-        resultImg: resultActor?.img ?? "icons/svg/upgrade.svg",
+        resultName: state.resultName ?? runtimePartner?.system?.species ?? resultActor?.name ?? localize("DDA.Jogress.UnknownResult"),
+        resultImg: runtimePartner?.img ?? resultActor?.img ?? "icons/svg/upgrade.svg",
         primaryTamerUuid: primaryTamer?.uuid ?? state.primaryTamerUuid ?? "",
         primaryTamerName: primaryTamer?.name ?? state.primaryTamerName ?? localize("DDA.Jogress.UnknownTamer"),
         secondaryTamerName: secondaryTamer?.name ?? state.secondaryTamerName ?? localize("DDA.Jogress.UnknownTamer"),
-        primaryDigimonName: primaryDigimon?.name ?? state.primaryDigimonName ?? localize("DDA.Jogress.UnknownDigimon"),
-        secondaryDigimonName: secondaryDigimon?.name ?? state.secondaryDigimonName ?? localize("DDA.Jogress.UnknownDigimon"),
+        primaryDigimonName: state.primaryDigimonName ?? primaryDigimon?.system?.species ?? primaryDigimon?.name ?? localize("DDA.Jogress.UnknownDigimon"),
+        secondaryDigimonName: state.secondaryDigimonName ?? secondaryDigimon?.system?.species ?? secondaryDigimon?.name ?? localize("DDA.Jogress.UnknownDigimon"),
         sharedInitiative: Number(state.sharedInitiative ?? 0),
         componentBonusDp: Number(state.componentBonusDp ?? 0),
         firstSuccessfulUse: Boolean(state.firstSuccessfulUse)
@@ -494,7 +500,7 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
     const recipes = [];
 
     for (const recipe of recipeMap.values()) {
-      if (recipe.hidden) continue;
+      if (recipe.hidden || !isJogressRulesMethod(recipe.method)) continue;
 
       const components = matchRecipeComponentsToMembers(recipe.components, members);
 
@@ -532,6 +538,7 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
     return {
       id,
       label: String(recipe.label ?? recipe.name ?? recipe.result?.name ?? id).trim(),
+      method: String(recipe.method ?? "jogress").trim(),
       result: recipe.result ?? {},
       components: Array.isArray(recipe.components) ? recipe.components : [],
       hidden: Boolean(recipe.hidden)
@@ -550,7 +557,7 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
     const resultName = normalizeName(result.name ?? recipe?.label ?? "");
     const resultSpecies = normalizeName(result.species ?? result.name ?? recipe?.label ?? "");
 
-    return Array.from(game.actors ?? []).find((actor) => {
+    const worldActor = Array.from(game.actors ?? []).find((actor) => {
       if (!actor || actor.type !== "digimon") return false;
 
       const actorName = normalizeName(actor.name);
@@ -559,6 +566,23 @@ export class DDAGroupSheet extends DDAGroupSheetBase {
       return (resultName && (actorName === resultName || actorSpecies === resultName)) ||
         (resultSpecies && (actorName === resultSpecies || actorSpecies === resultSpecies));
     }) ?? null;
+
+    if (worldActor) return worldActor;
+
+    try {
+      const { DDADigimonDatabase } = await import("../data/digimon-database.js");
+      const databaseActors = await DDADigimonDatabase.getAll({ includeVirtualSpecialForms: true });
+      return databaseActors.find((actor) => {
+        if (!actor || actor.type !== "digimon") return false;
+        const actorName = normalizeName(actor.name);
+        const actorSpecies = normalizeName(actor.system?.species ?? "");
+        return (resultName && (actorName === resultName || actorSpecies === resultName)) ||
+          (resultSpecies && (actorName === resultSpecies || actorSpecies === resultSpecies));
+      }) ?? null;
+    } catch (error) {
+      console.warn("DDA | Could not resolve Jogress result from the Digimon database.", error);
+      return null;
+    }
   }
 
 _onMemberDragOver(event) {

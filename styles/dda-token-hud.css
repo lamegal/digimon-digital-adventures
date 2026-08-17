@@ -1,0 +1,483 @@
+/* DDA — Radial Token HUD ------------------------------------------------- */
+#token-hud.dda-radial-token-hud-enabled,
+.placeable-hud.dda-radial-token-hud-enabled {
+  overflow: visible !important;
+}
+
+/* Keep the Core HUD alive, but remove its rectangular visual controls.
+   DDA invokes the same document APIs from the radial controls. */
+#token-hud.dda-radial-token-hud-finalized > .col,
+.placeable-hud.dda-radial-token-hud-finalized > .col,
+#token-hud.dda-radial-token-hud-finalized .dda-movement-hud-controls,
+.placeable-hud.dda-radial-token-hud-finalized .dda-movement-hud-controls,
+#token-hud.dda-radial-token-hud-finalized .dda-token-effect-toggle,
+.placeable-hud.dda-radial-token-hud-finalized .dda-token-effect-toggle {
+  display: none !important;
+}
+
+.dda-radial-token-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.dda-radial-token-hud__orbit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--dda-radial-diameter, 200px);
+  height: var(--dda-radial-diameter, 200px);
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(90, 210, 255, 0.52);
+  border-radius: 50%;
+  box-shadow:
+    0 0 8px rgba(54, 185, 240, 0.20),
+    inset 0 0 8px rgba(54, 185, 240, 0.10);
+  pointer-events: none;
+}
+
+.dda-radial-token-hud__button {
+  position: absolute !important;
+  left: calc(50% + var(--dda-radial-x, 0px)) !important;
+  top: calc(50% + var(--dda-radial-y, 0px)) !important;
+  width: 52px !important;
+  height: 52px !important;
+  min-width: 52px !important;
+  min-height: 52px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: translate(-50%, -50%) !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  border: 0 !important;
+  border-radius: 50% !important;
+  outline: 0 !important;
+  background:
+    url("../assets/ui/token-hud-button.webp") center / contain no-repeat !important;
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.42),
+    0 0 8px rgba(72, 203, 255, 0.20) !important;
+
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  transition:
+    filter 110ms ease,
+    transform 110ms ease,
+    opacity 110ms ease !important;
+}
+
+.dda-radial-token-hud__button::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(128, 230, 255, 0.48);
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow: 0 0 12px rgba(72, 218, 255, 0.55);
+  transition: opacity 110ms ease;
+  pointer-events: none;
+}
+
+.dda-radial-token-hud__button:hover:not(:disabled),
+.dda-radial-token-hud__button:focus-visible:not(:disabled) {
+  transform: translate(-50%, -50%) scale(1.09) !important;
+  filter: brightness(1.18) saturate(1.08) !important;
+}
+
+.dda-radial-token-hud__button:hover:not(:disabled)::after,
+.dda-radial-token-hud__button:focus-visible:not(:disabled)::after,
+.dda-radial-token-hud__button.is-active::after {
+  opacity: 1;
+}
+
+.dda-radial-token-hud__button.is-active {
+  filter: brightness(1.25) saturate(1.22) drop-shadow(0 0 7px rgba(0, 212, 255, 0.78)) !important;
+}
+
+.dda-radial-token-hud__button.is-busy {
+  cursor: wait !important;
+  filter: saturate(0.7) brightness(1.08) !important;
+}
+
+.dda-radial-token-hud__button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.38 !important;
+  filter: grayscale(0.85) brightness(0.72) !important;
+}
+
+.dda-radial-token-hud__icon {
+  width: 27px !important;
+  height: 27px !important;
+  max-width: 27px !important;
+  max-height: 27px !important;
+  object-fit: contain !important;
+  /* Sprites-1bit are opaque 16x16 WEBPs: black is their background, not alpha.
+     Screen blending keeps black visually neutral over the blue HUD button while
+     preserving the white pixel glyph instead of turning the full square white. */
+  image-rendering: auto !important;
+  mix-blend-mode: screen !important;
+  opacity: 0.98 !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.70)) !important;
+}
+
+/* Re-anchor the existing DDA Effects palette to the radial HUD instead of
+   the removed right-hand Core HUD column. */
+#token-hud.dda-radial-token-hud-enabled .dda-token-effects-panel,
+.placeable-hud.dda-radial-token-hud-enabled .dda-token-effects-panel {
+  left: calc(100% + 86px);
+}
+
+#token-hud.dda-radial-token-hud-enabled .dda-token-effects-panel.opens-left,
+.placeable-hud.dda-radial-token-hud-enabled .dda-token-effects-panel.opens-left {
+  right: calc(100% + 86px);
+  left: auto;
+}
+
+@media (max-width: 760px) {
+  .dda-radial-token-hud__button {
+    width: 46px !important;
+    height: 46px !important;
+    min-width: 46px !important;
+    min-height: 46px !important;
+  }
+
+  .dda-radial-token-hud__icon {
+    width: 23px !important;
+    height: 23px !important;
+  }
+}
+
+/* Stage B.1 hardening --------------------------------------------------
+   This block deliberately duplicates the critical visibility rules so a
+   TokenHUD opened during a style-cache transition cannot expose raw Core HUD
+   columns underneath the radial interface. */
+#token-hud.dda-radial-token-hud-enabled,
+.placeable-hud.dda-radial-token-hud-enabled {
+  overflow: visible !important;
+}
+
+#token-hud.dda-radial-token-hud-finalized > [data-dda-radial-hidden="true"],
+.placeable-hud.dda-radial-token-hud-finalized > [data-dda-radial-hidden="true"] {
+  display: none !important;
+}
+
+#token-hud.dda-radial-token-hud-finalized > .dda-radial-token-hud,
+.placeable-hud.dda-radial-token-hud-finalized > .dda-radial-token-hud,
+#token-hud.dda-radial-token-hud-finalized > .dda-token-effects-panel,
+.placeable-hud.dda-radial-token-hud-finalized > .dda-token-effects-panel {
+  display: block !important;
+}
+
+#token-hud.dda-radial-token-hud-finalized > .dda-token-effects-panel[hidden],
+.placeable-hud.dda-radial-token-hud-finalized > .dda-token-effects-panel[hidden] {
+  display: none !important;
+}
+
+/* Stage C — expanding radial branches ----------------------------------- */
+.dda-radial-token-hud__button.is-submenu-open {
+  filter: brightness(1.35) saturate(1.35) drop-shadow(0 0 9px rgba(0, 220, 255, 0.92)) !important;
+  z-index: 5;
+}
+
+.dda-radial-token-hud__submenu {
+  position: absolute;
+  inset: 0;
+  z-index: 78;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.dda-radial-token-hud__branch-arc {
+  position: absolute;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.dda-radial-token-hud__branch-path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 2.5;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 4px rgba(49, 206, 255, 0.38));
+}
+
+.dda-radial-token-hud__branch-connector {
+  stroke: rgba(92, 220, 255, 0.78);
+}
+
+.dda-radial-token-hud__branch-orbit {
+  stroke: rgba(92, 220, 255, 0.62);
+}
+
+.dda-radial-token-hud__submenu-button {
+  position: absolute !important;
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  min-height: 46px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: translate(-50%, -50%) !important;
+
+  display: grid !important;
+  place-items: center !important;
+  overflow: visible !important;
+
+  border: 0 !important;
+  border-radius: 50% !important;
+  outline: 0 !important;
+  background: url("../assets/ui/token-hud-button.webp") center / contain no-repeat !important;
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 1px rgba(93, 218, 255, 0.20),
+    0 0 8px rgba(66, 202, 255, 0.25) !important;
+
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  transition: transform 100ms ease, filter 100ms ease, opacity 100ms ease !important;
+}
+
+.dda-radial-token-hud__submenu-button:hover:not(:disabled),
+.dda-radial-token-hud__submenu-button:focus-visible:not(:disabled) {
+  transform: translate(-50%, -50%) scale(1.12) !important;
+  filter: brightness(1.25) saturate(1.15) drop-shadow(0 0 7px rgba(0, 215, 255, 0.76)) !important;
+  z-index: 10;
+}
+
+.dda-radial-token-hud__submenu-button:disabled {
+  opacity: 0.42 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(0.8) brightness(0.72) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-busy {
+  cursor: wait !important;
+  filter: brightness(1.18) saturate(0.55) !important;
+}
+
+.dda-radial-token-hud__submenu-button .dda-radial-token-hud__icon {
+  width: 23px !important;
+  height: 23px !important;
+  max-width: 23px !important;
+  max-height: 23px !important;
+}
+
+
+
+@media (max-width: 760px) {
+  .dda-radial-token-hud__submenu-button {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+  }
+
+  .dda-radial-token-hud__submenu-button .dda-radial-token-hud__icon {
+    width: 21px !important;
+    height: 21px !important;
+  }
+}
+
+.dda-radial-token-hud__submenu.is-entering .dda-radial-token-hud__branch-arc {
+  animation: ddaRadialSubmenuArcIn 165ms ease-out both;
+}
+
+.dda-radial-token-hud__submenu.is-entering .dda-radial-token-hud__submenu-button {
+  animation: ddaRadialSubmenuButtonIn 175ms cubic-bezier(0.2, 0.85, 0.25, 1.15) both;
+  animation-delay: calc(var(--dda-submenu-index, 0) * 16ms);
+}
+
+.dda-radial-token-hud__submenu.is-closing .dda-radial-token-hud__branch-arc {
+  animation: ddaRadialSubmenuArcOut 135ms ease-in both;
+}
+
+.dda-radial-token-hud__submenu.is-closing .dda-radial-token-hud__submenu-button {
+  animation: ddaRadialSubmenuButtonOut 140ms ease-in both;
+}
+
+@keyframes ddaRadialSubmenuArcIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes ddaRadialSubmenuArcOut {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+@keyframes ddaRadialSubmenuButtonIn {
+  from {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dda-submenu-origin-x, 0px)), calc(-50% + var(--dda-submenu-origin-y, 0px))) scale(0.30);
+    filter: brightness(1.45) saturate(1.22);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    filter: none;
+  }
+}
+
+@keyframes ddaRadialSubmenuButtonOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dda-submenu-origin-x, 0px)), calc(-50% + var(--dda-submenu-origin-y, 0px))) scale(0.30);
+  }
+}
+
+/* Stage D/E — Action Console inside radial HUD -------------------------- */
+.dda-radial-token-hud__submenu-button.is-movement {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(50, 198, 255, 0.26),
+    0 0 11px rgba(50, 198, 255, 0.34) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-offense {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(255, 93, 105, 0.28),
+    0 0 11px rgba(255, 76, 88, 0.34) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-defense {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(99, 231, 220, 0.28),
+    0 0 11px rgba(72, 224, 208, 0.30) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-support {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(108, 236, 128, 0.28),
+    0 0 11px rgba(90, 230, 114, 0.30) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-tactical {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(255, 196, 69, 0.28),
+    0 0 11px rgba(255, 184, 46, 0.30) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-special {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(190, 111, 255, 0.30),
+    0 0 12px rgba(169, 80, 255, 0.34) !important;
+}
+
+.dda-radial-token-hud__action-cost {
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  min-width: 18px;
+  height: 15px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #fff7c7;
+  font-family: "PixelOperatorBold", Arial, sans-serif;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+
+  background: rgba(31, 42, 47, 0.97);
+  border: 1px solid rgba(245, 207, 86, 0.72);
+  border-radius: 999px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.45),
+    0 0 5px rgba(248, 203, 70, 0.18);
+  pointer-events: none;
+}
+
+
+/* Stage F — Movement / Stance radial branch ----------------------------- */
+.dda-radial-token-hud__submenu-button.is-current {
+  filter: brightness(1.28) saturate(1.18) drop-shadow(0 0 7px rgba(92, 226, 255, 0.78)) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-current::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 2px solid rgba(144, 239, 255, 0.88);
+  border-radius: 50%;
+  box-shadow:
+    0 0 8px rgba(85, 220, 255, 0.72),
+    inset 0 0 6px rgba(85, 220, 255, 0.22);
+  pointer-events: none;
+}
+
+.dda-radial-token-hud__submenu-button.is-movement {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 1px rgba(93, 218, 255, 0.24),
+    0 0 9px rgba(56, 194, 255, 0.30) !important;
+}
+
+
+/* Stage H — Buff / Debuff radial submenu -------------------------------- */
+.dda-radial-token-hud__submenu-button.is-effect-positive {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(88, 239, 125, 0.30),
+    0 0 12px rgba(71, 229, 112, 0.36) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-effect-negative {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(235, 75, 121, 0.32),
+    0 0 12px rgba(224, 58, 105, 0.38) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-effect-damage {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(255, 139, 57, 0.34),
+    0 0 12px rgba(246, 112, 38, 0.40) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-effect-unique {
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.46),
+    0 0 0 2px rgba(191, 108, 255, 0.34),
+    0 0 12px rgba(171, 78, 255, 0.40) !important;
+}
+
+.dda-radial-token-hud__submenu-button.is-effect-positive.is-current,
+.dda-radial-token-hud__submenu-button.is-effect-negative.is-current,
+.dda-radial-token-hud__submenu-button.is-effect-damage.is-current,
+.dda-radial-token-hud__submenu-button.is-effect-unique.is-current {
+  filter: brightness(1.30) saturate(1.25) drop-shadow(0 0 8px rgba(255,255,255,0.44)) !important;
+}
+
+
+.dda-radial-token-hud__button.has-effect-state::after {
+  opacity: 1;
+  border-color: rgba(177, 116, 255, 0.82);
+  box-shadow:
+    0 0 10px rgba(179, 89, 255, 0.70),
+    inset 0 0 7px rgba(140, 70, 235, 0.20);
+}
+
+.dda-radial-token-hud__button.has-effect-state {
+  filter: brightness(1.12) saturate(1.12) !important;
+}

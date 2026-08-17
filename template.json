@@ -25,7 +25,13 @@
           "surprised": false,
           "defeated": false,
           "incapacitated": false,
-          "tamerActionUses": {}
+          "tamerActionUses": {},
+          "preInitiativeEvolution": {
+            "combatId": "",
+            "actionDebt": 0,
+            "pending": false
+          },
+          "dangerousTerrainStartTurnTick": ""
         },
         "effects": {
           "active": []
@@ -398,8 +404,10 @@
       },
       "evolution": {
         "defaultRange": {
-          "value": 1,
-          "template": "limited"
+          "value": 2,
+          "template": "limited",
+          "manualValue": 2,
+          "defaultStagePolicy": "range"
         },
         "completedMilestones": 0
       },
@@ -479,6 +487,56 @@
         "assignedAt": ""
       },
       "specialEvolutions": {
+        "forced": {
+          "active": false,
+          "state": {
+            "active": false,
+            "method": "forced",
+            "combatId": "",
+            "startedRound": 0,
+            "expiresAfterRound": 0,
+            "resultUuid": "",
+            "resultName": "",
+            "previousFormUuid": "",
+            "previousFormName": "",
+            "revertUuid": "",
+            "revertName": "",
+            "revertStage": "",
+            "roundsRemaining": 0,
+            "checkTotal": 0,
+            "checkTn": 0,
+            "criticalSuccess": false,
+            "startedAt": ""
+          }
+        },
+        "blast": {
+          "active": false,
+          "state": {
+            "active": false,
+            "method": "blast",
+            "mode": "",
+            "combatId": "",
+            "resultUuid": "",
+            "resultName": "",
+            "resultStage": "",
+            "previousFormUuid": "",
+            "previousFormName": "",
+            "previousStage": "",
+            "previousWoundsValue": 0,
+            "previousTemporaryWounds": 0,
+            "previousDefeated": false,
+            "previousBatteryValue": 0,
+            "batterySpent": 0,
+            "checkTotal": 0,
+            "checkTn": 0,
+            "outcome": "",
+            "revertedToUuid": "",
+            "revertedToName": "",
+            "intercedeRequestId": "",
+            "startedAt": "",
+            "endedAt": ""
+          }
+        },
         "jogress": {
           "recipes": [],
           "state": {
@@ -486,6 +544,8 @@
             "recipeId": "",
             "resultUuid": "",
             "resultName": "",
+            "resultStage": "",
+            "runtimePartnerUuid": "",
             "primaryTamerUuid": "",
             "primaryDigimonUuid": "",
             "secondaryTamerUuid": "",
@@ -494,14 +554,40 @@
             "historyKey": "",
             "primaryTamerName": "",
             "primaryDigimonName": "",
+            "primaryFormUuid": "",
+            "primaryFormName": "",
             "secondaryTamerName": "",
             "secondaryDigimonName": "",
+            "secondaryFormUuid": "",
+            "secondaryFormName": "",
+            "primaryRevertUuid": "",
+            "primaryRevertName": "",
+            "secondaryRevertUuid": "",
+            "secondaryRevertName": "",
             "masteredBeforeUse": false,
             "firstSuccessfulUse": false,
             "sharedInitiative": 0,
             "componentBonusDp": 0,
             "primaryDigimonBonusDp": 0,
-            "secondaryDigimonBonusDp": 0
+            "secondaryDigimonBonusDp": 0,
+            "combinedSharedStatBonus": {},
+            "combinedSharedQualityDp": 0,
+            "combatId": "",
+            "pendingInitiativeRound": 0,
+            "initiativeApplied": false,
+            "initiativeUnitId": "",
+            "combatSnapshot": {},
+            "primaryAdvancementState": {},
+            "primaryOwnership": {},
+            "secondaryActionsValue": 0,
+            "secondaryActionsMax": 2,
+            "primaryRevertStage": "",
+            "secondaryRevertStage": "",
+            "preparedBuildUsed": false,
+            "preparedBuildReference": "",
+            "interruptTamerUuid": "",
+            "interruptTamerName": "",
+            "actingTamerUuid": ""
           },
           "masteredRecipes": []
         },
@@ -597,6 +683,16 @@
           "spentBaseQualities": 0,
           "spentBonusStats": 0,
           "spentBonusQualities": 0,
+          "sharedStatBonusApplied": {
+            "accuracy": 0,
+            "damage": 0,
+            "dodge": 0,
+            "armor": 0,
+            "health": 0
+          },
+          "sharedStatTotal": 0,
+          "sharedQualityAllocated": 0,
+          "bonusUnallocated": 0,
           "spentTotal": 0,
           "remaining": 10
         },
@@ -709,14 +805,24 @@
           "pinUses": 0,
           "comebackBonus": 0,
           "extendedReach": 0
-        }
+        },
+        "bossQualities": {}
       },
       "status": {
         "sight": "unobscured",
         "hidden": false,
         "submerged": false,
         "drowning": false,
-        "cover": "none"
+        "cover": "none",
+        "evolutionLockedUntilCombatEnd": false,
+        "batteryMaxReducedUntilCombatEnd": false,
+        "blastEvolutionCombatId": "",
+        "blastEvolutionCombatPenalty": {
+          "active": false,
+          "combatId": "",
+          "previousBatteryMax": 0,
+          "reducedBatteryMax": 0
+        }
       },
       "effects": {
         "active": []
@@ -754,7 +860,9 @@
         "previousFormName": "",
         "lastTransitionType": "",
         "lastEvolvedAt": "",
-        "formSnapshots": {}
+        "formSnapshots": {},
+        "defaultFormUuid": "",
+        "defaultFormName": ""
       },
       "advancement": {
         "bonusDp": {
@@ -856,6 +964,56 @@
         "assignedAt": ""
       },
       "specialEvolutions": {
+        "forced": {
+          "active": false,
+          "state": {
+            "active": false,
+            "method": "forced",
+            "combatId": "",
+            "startedRound": 0,
+            "expiresAfterRound": 0,
+            "resultUuid": "",
+            "resultName": "",
+            "previousFormUuid": "",
+            "previousFormName": "",
+            "revertUuid": "",
+            "revertName": "",
+            "revertStage": "",
+            "roundsRemaining": 0,
+            "checkTotal": 0,
+            "checkTn": 0,
+            "criticalSuccess": false,
+            "startedAt": ""
+          }
+        },
+        "blast": {
+          "active": false,
+          "state": {
+            "active": false,
+            "method": "blast",
+            "mode": "",
+            "combatId": "",
+            "resultUuid": "",
+            "resultName": "",
+            "resultStage": "",
+            "previousFormUuid": "",
+            "previousFormName": "",
+            "previousStage": "",
+            "previousWoundsValue": 0,
+            "previousTemporaryWounds": 0,
+            "previousDefeated": false,
+            "previousBatteryValue": 0,
+            "batterySpent": 0,
+            "checkTotal": 0,
+            "checkTn": 0,
+            "outcome": "",
+            "revertedToUuid": "",
+            "revertedToName": "",
+            "intercedeRequestId": "",
+            "startedAt": "",
+            "endedAt": ""
+          }
+        },
         "jogress": {
           "active": false,
           "componentBonusDp": 0,
@@ -864,6 +1022,8 @@
             "recipeId": "",
             "resultUuid": "",
             "resultName": "",
+            "resultStage": "",
+            "runtimePartnerUuid": "",
             "primaryTamerUuid": "",
             "primaryDigimonUuid": "",
             "secondaryTamerUuid": "",
@@ -872,14 +1032,40 @@
             "historyKey": "",
             "primaryTamerName": "",
             "primaryDigimonName": "",
+            "primaryFormUuid": "",
+            "primaryFormName": "",
             "secondaryTamerName": "",
             "secondaryDigimonName": "",
+            "secondaryFormUuid": "",
+            "secondaryFormName": "",
+            "primaryRevertUuid": "",
+            "primaryRevertName": "",
+            "secondaryRevertUuid": "",
+            "secondaryRevertName": "",
             "masteredBeforeUse": false,
             "firstSuccessfulUse": false,
             "sharedInitiative": 0,
             "componentBonusDp": 0,
             "primaryDigimonBonusDp": 0,
-            "secondaryDigimonBonusDp": 0
+            "secondaryDigimonBonusDp": 0,
+            "combinedSharedStatBonus": {},
+            "combinedSharedQualityDp": 0,
+            "combatId": "",
+            "pendingInitiativeRound": 0,
+            "initiativeApplied": false,
+            "initiativeUnitId": "",
+            "combatSnapshot": {},
+            "primaryAdvancementState": {},
+            "primaryOwnership": {},
+            "secondaryActionsValue": 0,
+            "secondaryActionsMax": 2,
+            "primaryRevertStage": "",
+            "secondaryRevertStage": "",
+            "preparedBuildUsed": false,
+            "preparedBuildReference": "",
+            "interruptTamerUuid": "",
+            "interruptTamerName": "",
+            "actingTamerUuid": ""
           }
         },
         "hybrid": {
@@ -971,6 +1157,16 @@
           "spentBaseQualities": 0,
           "spentBonusStats": 0,
           "spentBonusQualities": 0,
+          "sharedStatBonusApplied": {
+            "accuracy": 0,
+            "damage": 0,
+            "dodge": 0,
+            "armor": 0,
+            "health": 0
+          },
+          "sharedStatTotal": 0,
+          "sharedQualityAllocated": 0,
+          "bonusUnallocated": 0,
           "spentTotal": 0,
           "remaining": 10
         }
@@ -1023,14 +1219,24 @@
           "pinUses": 0,
           "comebackBonus": 0,
           "extendedReach": 0
-        }
+        },
+        "bossQualities": {}
       },
       "status": {
         "sight": "unobscured",
         "hidden": false,
         "submerged": false,
         "drowning": false,
-        "cover": "none"
+        "cover": "none",
+        "evolutionLockedUntilCombatEnd": false,
+        "batteryMaxReducedUntilCombatEnd": false,
+        "blastEvolutionCombatId": "",
+        "blastEvolutionCombatPenalty": {
+          "active": false,
+          "combatId": "",
+          "previousBatteryMax": 0,
+          "reducedBatteryMax": 0
+        }
       },
       "effects": {
         "active": []
@@ -1059,6 +1265,8 @@
             "recipeId": "",
             "resultUuid": "",
             "resultName": "",
+            "resultStage": "",
+            "runtimePartnerUuid": "",
             "primaryTamerUuid": "",
             "primaryDigimonUuid": "",
             "secondaryTamerUuid": "",
@@ -1067,14 +1275,40 @@
             "historyKey": "",
             "primaryTamerName": "",
             "primaryDigimonName": "",
+            "primaryFormUuid": "",
+            "primaryFormName": "",
             "secondaryTamerName": "",
             "secondaryDigimonName": "",
+            "secondaryFormUuid": "",
+            "secondaryFormName": "",
+            "primaryRevertUuid": "",
+            "primaryRevertName": "",
+            "secondaryRevertUuid": "",
+            "secondaryRevertName": "",
             "masteredBeforeUse": false,
             "firstSuccessfulUse": false,
             "sharedInitiative": 0,
             "componentBonusDp": 0,
             "primaryDigimonBonusDp": 0,
-            "secondaryDigimonBonusDp": 0
+            "secondaryDigimonBonusDp": 0,
+            "combinedSharedStatBonus": {},
+            "combinedSharedQualityDp": 0,
+            "combatId": "",
+            "pendingInitiativeRound": 0,
+            "initiativeApplied": false,
+            "initiativeUnitId": "",
+            "combatSnapshot": {},
+            "primaryAdvancementState": {},
+            "primaryOwnership": {},
+            "secondaryActionsValue": 0,
+            "secondaryActionsMax": 2,
+            "primaryRevertStage": "",
+            "secondaryRevertStage": "",
+            "preparedBuildUsed": false,
+            "preparedBuildReference": "",
+            "interruptTamerUuid": "",
+            "interruptTamerName": "",
+            "actingTamerUuid": ""
           }
         },
         "hybrid": {
@@ -1392,7 +1626,9 @@
         "duration": true,
         "extraActionRequired": false,
         "effectDpCost": 0
-      }
+      },
+      "bossQuality": false,
+      "boss": {}
     },
     "torment": {
       "templates": [

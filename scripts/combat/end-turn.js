@@ -19,6 +19,12 @@ import {
   reduceEnemyUnalterableDamageWithShiningArmor
 } from "./digizoid-gain-force.js";
 import { hasQuality } from "../rules/quality-automation.js";
+import {
+  applyBossTemplateEffectDamageEntries,
+  handleMultiStageBossDefeat,
+  isBossTemplateActor,
+  setBossTemplateDefeatedState
+} from "./boss-encounters.js";
 
 import {
   tryUndefeatedEndurance
@@ -29,6 +35,12 @@ export async function endDigimonTurn(actor, options = {}) {
     ui.notifications.warn(localize("DDA.Warning.EndTurnOnlyForDigimonNpc"));
     return;
   }
+
+  const charmGate = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmGate === "function" && !charmGate(actor, { user: game?.user, notify: true })) return null;
+
+  const frenzyEndTurn = await game?.dda?.bossQualities?.resolveFrenzyEndTurn?.(actor);
+  if (frenzyEndTurn?.active && frenzyEndTurn.allowEndTurn === false) return null;
 
   const system = actor.system;
 
@@ -71,7 +83,33 @@ export async function endDigimonTurn(actor, options = {}) {
   await resolveEndTurnEffectResistance(actor);
 
   /* Consequências de fim de turno usam as Ações gastas antes do reset. */
-  const effectConsequenceData = await applyEndTurnEffectConsequences(actor);
+  const bossTemplateEffectMode = Boolean(game.combat?.started && isBossTemplateActor(actor));
+  let effectConsequenceData = await applyEndTurnEffectConsequences(actor, {
+    deferWoundApplication: bossTemplateEffectMode
+  });
+  let bossTemplateEffectDamage = null;
+
+  if (bossTemplateEffectMode && effectConsequenceData.entries.some((entry) => entry.type === "damage" && Number(entry.amount) > 0)) {
+    bossTemplateEffectDamage = await applyBossTemplateEffectDamageEntries(
+      actor,
+      effectConsequenceData.entries,
+      game.combat
+    );
+
+    if (bossTemplateEffectDamage?.handled) {
+      effectConsequenceData = {
+        ...effectConsequenceData,
+        changed: effectConsequenceData.entries.length > 0,
+        oldWounds: bossTemplateEffectDamage.beforeSummary,
+        newWounds: bossTemplateEffectDamage.afterSummary,
+        woundDelta: bossTemplateEffectDamage.afterSummary - bossTemplateEffectDamage.beforeSummary,
+        effectDamageTakenThisRound:
+          Number(effectConsequenceData.previousEffectDamage ?? 0) +
+          Number(bossTemplateEffectDamage.totalApplied ?? 0),
+        bossTemplateHandled: true
+      };
+    }
+  }
 
   await actor.update({
     "system.combat.actions.value": turnRestrictionData.restoredActions,
@@ -98,15 +136,17 @@ export async function endDigimonTurn(actor, options = {}) {
   const updateData = {};
 
 if (effectConsequenceData.changed) {
-  updateData[
-    "system.miscStats.wounds.value"
-  ] =
-    effectConsequenceData.newWounds;
+  if (!effectConsequenceData.bossTemplateHandled) {
+    updateData[
+      "system.miscStats.wounds.value"
+    ] =
+      effectConsequenceData.newWounds;
 
-  updateData[
-    "system.combat.defeated"
-  ] =
-    effectConsequenceData.newWounds <= 0;
+    updateData[
+      "system.combat.defeated"
+    ] =
+      effectConsequenceData.newWounds <= 0;
+  }
 
   updateData["system.combat.effectDamageRoundKey"] =
     effectConsequenceData.effectDamageRoundKey;
@@ -129,12 +169,22 @@ if (effectConsequenceData.changed) {
   await applyCombatMonsterResolveFromEffectDamage({
     actor,
     entries: effectConsequenceData.entries,
-    healthDamage: Math.max(
-      0,
-      Number(effectConsequenceData.oldWounds ?? 0) -
-      Number(effectConsequenceData.newWounds ?? 0)
-    )
+    healthDamage: bossTemplateEffectDamage?.handled
+      ? Math.max(0, Number(bossTemplateEffectDamage.totalApplied ?? 0))
+      : Math.max(
+          0,
+          Number(effectConsequenceData.oldWounds ?? 0) -
+          Number(effectConsequenceData.newWounds ?? 0)
+        )
   });
+
+  if (bossTemplateEffectDamage?.multiStageContinuation) {
+    const transition = await handleMultiStageBossDefeat(actor, { combat: game.combat });
+    if (!transition?.handled) {
+      await actor.update({ "system.combat.defeated": true });
+      await setBossTemplateDefeatedState(actor, true, game.combat);
+    }
+  }
 
   const batteryMessage = usedSignatureMove && usedEnergize
     ? `<li>${formatI18n("DDA.EndTurn.Battery.SignatureAndEnergize", {
@@ -407,7 +457,7 @@ function reduceActiveEffectDurations(actor) {
   };
 }
 
-async function applyEndTurnEffectConsequences(actor) {
+async function applyEndTurnEffectConsequences(actor, { deferWoundApplication = false } = {}) {
   const activeEffects = Array.isArray(actor.system.effects?.active)
     ? actor.system.effects.active
     : [];
@@ -532,6 +582,20 @@ async function applyEndTurnEffectConsequences(actor) {
   const oldWounds = Number.isFinite(oldWoundsRaw) ? oldWoundsRaw : 0;
   const maxWounds = Number.isFinite(maxWoundsRaw) ? maxWoundsRaw : 1;
 
+  if (deferWoundApplication && woundDelta < 0) {
+    return {
+      changed: entries.length > 0,
+      oldWounds,
+      newWounds: oldWounds,
+      woundDelta: 0,
+      entries,
+      effectDamageRoundKey,
+      effectDamageTakenThisRound,
+      previousEffectDamage,
+      deferredWoundApplication: true
+    };
+  }
+
   if (woundDelta === 0) {
     return {
       changed: false,
@@ -540,7 +604,8 @@ async function applyEndTurnEffectConsequences(actor) {
       woundDelta: 0,
       entries,
       effectDamageRoundKey,
-      effectDamageTakenThisRound
+      effectDamageTakenThisRound,
+      previousEffectDamage
     };
   }
 
@@ -585,6 +650,7 @@ return {
   entries,
   effectDamageRoundKey,
   effectDamageTakenThisRound,
+  previousEffectDamage,
   undefeatedEndurance
 };
 }
@@ -1024,6 +1090,9 @@ export async function endTamerTurn(actor, options = {}) {
       effectTurnData.expiredEffects
     );
 
+  const preInitiativeEvolution = actor.system?.combat?.preInitiativeEvolution ?? {};
+  const clearPreInitiativeDebt = Boolean(preInitiativeEvolution.pending);
+
   await actor.update({
     "system.combat.actions.value":
       turnRestrictionData.restoredActions,
@@ -1032,7 +1101,13 @@ export async function endTamerTurn(actor, options = {}) {
       effectConsequenceData.newWounds,
 
     "system.effects.active":
-      effectTurnData.remainingEffects
+      effectTurnData.remainingEffects,
+
+    ...(clearPreInitiativeDebt ? {
+      "system.combat.preInitiativeEvolution.combatId": "",
+      "system.combat.preInitiativeEvolution.actionDebt": 0,
+      "system.combat.preInitiativeEvolution.pending": false
+    } : {})
   });
 
   await processPendingStunEndTurn(actor);

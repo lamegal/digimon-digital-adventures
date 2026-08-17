@@ -1,12 +1,19 @@
 import {
+  adjustCampaignExperience,
   clearCampaignMilestoneHistory,
   createPendingCampaignMilestone,
+  createXpCampaignMilestone,
   getCampaignMilestoneSummary,
+  getCampaignDefaultRangePolicy,
   getDigimonBonusDpSummary,
   getTamerProgressSummary,
-  releasePendingCampaignMilestones
+  releasePendingCampaignMilestones,
+  setCampaignDefaultRangePolicy,
+  setCampaignProgressionMethod,
+  synchronizeCampaignDefaultRanges
 } from "../rules/tamer-progression.js";
 import { DDAPartnerFormPlanner } from "./dda-partner-form-planner.js";
+import { DDAProgressionDiagnostics } from "./dda-progression-diagnostics.js";
 import {
   resolveDigimonPortraitSources,
   shouldTreatStoredPortraitAsManual
@@ -271,6 +278,10 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
         DDAGMPartnerProgressPanel
           ._onActionRefresh,
 
+      openProgressionDiagnostics:
+        DDAGMPartnerProgressPanel
+          ._onActionOpenProgressionDiagnostics,
+
       clearMilestoneHistory:
         DDAGMPartnerProgressPanel
           ._onActionClearMilestoneHistory,
@@ -286,6 +297,34 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
       releasePendingMilestones:
         DDAGMPartnerProgressPanel
           ._onActionReleasePendingMilestones,
+
+      setProgressionNarrative:
+        DDAGMPartnerProgressPanel
+          ._onActionSetProgressionNarrative,
+
+      setProgressionXp:
+        DDAGMPartnerProgressPanel
+          ._onActionSetProgressionXp,
+
+      addXp1:
+        DDAGMPartnerProgressPanel
+          ._onActionAddXp1,
+
+      addXp2:
+        DDAGMPartnerProgressPanel
+          ._onActionAddXp2,
+
+      subtractXp1:
+        DDAGMPartnerProgressPanel
+          ._onActionSubtractXp1,
+
+      createXpMilestone:
+        DDAGMPartnerProgressPanel
+          ._onActionCreateXpMilestone,
+
+      syncDefaultRanges:
+        DDAGMPartnerProgressPanel
+          ._onActionSyncDefaultRanges,
 
       openTamer:
         DDAGMPartnerProgressPanel
@@ -462,6 +501,16 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
         growthPointsAvailable: tamerProgress.growthPointsAvailable,
         pendingGrowthPackageCount: tamerProgress.pendingGrowthPackages.length,
 
+        defaultRange: Number(tamer.system?.evolution?.defaultRange?.value ?? 2),
+        defaultRangeTemplate: String(tamer.system?.evolution?.defaultRange?.template ?? "limited"),
+        defaultStageLabel: stageLabel(partner?.system?.evolution?.defaultStage ?? "child"),
+        defaultFormName: String(
+          partner?.system?.evolution?.defaultFormName ??
+          partner?.system?.evolution?.currentFormName ??
+          partner?.name ??
+          ""
+        ),
+
         bonusDpTotal: bonusDp.total,
         bonusDpMilestoneGranted: bonusDp.milestoneGranted,
         bonusDpMilestoneRemaining: bonusDp.milestoneRemaining,
@@ -475,7 +524,8 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
     }
 
     const campaign = this._getCampaignContext(
-      getCampaignMilestoneSummary()
+      getCampaignMilestoneSummary(),
+      getCampaignDefaultRangePolicy()
     );
 
     return {
@@ -536,7 +586,7 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
     );
   }
 
-  _getCampaignContext(summary) {
+  _getCampaignContext(summary, defaultRangePolicy = { template: "limited", manualValue: 2 }) {
     const history = summary.history.map((record) => ({
       ...record,
       scopeLabel: milestoneScopeLabel(record.scope),
@@ -547,13 +597,34 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
       releasedAtLabel: formatDateTime(record.releasedAt)
     }));
 
+    const experienceValue = Number(summary.experience?.value ?? 0);
+    const experienceMax = Math.max(1, Number(summary.experience?.max ?? 7));
+
     return {
       method: summary.method,
       methodLabel: milestoneMethodLabel(summary.method),
-      experience: summary.experience,
+      narrativeMethod: summary.method !== "xp",
+      xpMethod: summary.method === "xp",
+      experience: {
+        ...summary.experience,
+        value: experienceValue,
+        max: experienceMax,
+        ready: experienceValue >= experienceMax,
+        remaining: Math.max(0, experienceMax - experienceValue)
+      },
       pendingCount: summary.pendingRecords.length,
       releasedPartyCount: summary.releasedPartyCount,
       releasedIndividualCount: summary.releasedIndividualCount,
+      defaultRange: {
+        template: defaultRangePolicy.template,
+        manualValue: defaultRangePolicy.manualValue,
+        defaultStagePolicy: defaultRangePolicy.defaultStagePolicy ?? "range",
+        limited: defaultRangePolicy.template === "limited",
+        complete: defaultRangePolicy.template === "complete",
+        manual: defaultRangePolicy.template === "manual",
+        defaultStageRange: (defaultRangePolicy.defaultStagePolicy ?? "range") !== "rookie",
+        defaultStageRookie: defaultRangePolicy.defaultStagePolicy === "rookie"
+      },
       history
     };
   }
@@ -610,6 +681,27 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
       "change",
       this._onTamerChange.bind(this)
     );
+
+    root.querySelector(
+      "[data-progress-control='default-range-template']"
+    )?.addEventListener(
+      "change",
+      this._onDefaultRangePolicyChange.bind(this)
+    );
+
+    root.querySelector(
+      "[data-progress-control='default-range-manual']"
+    )?.addEventListener(
+      "change",
+      this._onDefaultRangePolicyChange.bind(this)
+    );
+
+    root.querySelector(
+      "[data-progress-control='default-stage-policy']"
+    )?.addEventListener(
+      "change",
+      this._onDefaultRangePolicyChange.bind(this)
+    );
   }
 
   async _onTargetModeChange(event) {
@@ -629,6 +721,34 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
     await this.render();
   }
 
+  async _onDefaultRangePolicyChange() {
+    if (!game.user?.isGM) return;
+
+    const root = this.element;
+    const template = String(
+      root?.querySelector("[data-progress-control='default-range-template']")?.value ?? "limited"
+    );
+    const manualValue = Number(
+      root?.querySelector("[data-progress-control='default-range-manual']")?.value ?? 2
+    );
+    const defaultStagePolicy = String(
+      root?.querySelector("[data-progress-control='default-stage-policy']")?.value ?? "range"
+    );
+
+    try {
+      const result = await setCampaignDefaultRangePolicy(template, manualValue, defaultStagePolicy);
+      ui.notifications.info(formatI18n(
+        "DDA.Progression.DefaultRange.PolicyUpdated",
+        { count: result.updated },
+        `Default Range policy updated for ${result.updated} Tamer(s).`
+      ));
+      await this.render();
+    } catch (error) {
+      console.error("DDA | Could not update Default Range policy.", error);
+      ui.notifications.error(error?.message ?? localize("DDA.Progression.DefaultRange.PolicyError"));
+    }
+  }
+
   static async _onActionRefresh(
     event,
     target
@@ -637,6 +757,12 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
       event,
       target
     );
+  }
+
+  static async _onActionOpenProgressionDiagnostics(event) {
+    event.preventDefault();
+    const app = new DDAProgressionDiagnostics();
+    await app.render(true);
   }
 
   static async _onActionClearMilestoneHistory(
@@ -662,6 +788,46 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
 
   static async _onActionReleasePendingMilestones(event, target) {
     return this._onReleasePendingMilestones(event, target);
+  }
+
+  static async _onActionSetProgressionNarrative(event, target) {
+    return this._onSetProgressionMethod(event, "narrative");
+  }
+
+  static async _onActionSetProgressionXp(event, target) {
+    return this._onSetProgressionMethod(event, "xp");
+  }
+
+  static async _onActionAddXp1(event, target) {
+    return this._onAdjustXp(event, 1);
+  }
+
+  static async _onActionAddXp2(event, target) {
+    return this._onAdjustXp(event, 2);
+  }
+
+  static async _onActionSubtractXp1(event, target) {
+    return this._onAdjustXp(event, -1);
+  }
+
+  static async _onActionCreateXpMilestone(event, target) {
+    return this._onCreateXpMilestone(event, target);
+  }
+
+  static async _onActionSyncDefaultRanges(event) {
+    event.preventDefault();
+    try {
+      const result = await synchronizeCampaignDefaultRanges();
+      ui.notifications.info(formatI18n(
+        "DDA.Progression.DefaultRange.PolicyUpdated",
+        { count: result.updated },
+        `Default Range policy synchronized for ${result.updated} Tamer(s).`
+      ));
+      await this.render();
+    } catch (error) {
+      console.error("DDA | Could not synchronize Default Range values.", error);
+      ui.notifications.error(error?.message ?? localize("DDA.Progression.DefaultRange.PolicyError"));
+    }
   }
 
   static async _onActionOpenActor(event, target) {
@@ -703,11 +869,13 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
       return;
     }
 
-    const confirmed = await Dialog.confirm({
-      title: localize(
-        "DDA.Progression.Dialog.ClearHistoryTitle",
-        "Clear Milestone History"
-      ),
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: {
+        title: localize(
+          "DDA.Progression.Dialog.ClearHistoryTitle",
+          "Clear Milestone History"
+        )
+      },
 
       content: `<p>${formatI18n(
         "DDA.Progression.Dialog.ClearHistoryContent",
@@ -717,9 +885,10 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
         `Clear ${recordCount} Milestone record(s)? Already applied benefits will not be reverted, but pending records will also be removed.`
       )}</p>`,
 
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
+      yes: { default: false },
+      no: { default: true },
+      rejectClose: false,
+      modal: true
     });
 
     if (!confirmed) return;
@@ -789,6 +958,75 @@ export class DDAGMPartnerProgressPanel extends DDAGMPartnerProgressPanelBase {
     );
 
     return createMilestoneTarget(tamer, partner);
+  }
+
+  async _onSetProgressionMethod(event, method) {
+    event.preventDefault();
+
+    try {
+      await setCampaignProgressionMethod(method);
+      await this.render();
+    } catch (error) {
+      console.error("DDA | Could not change progression method.", error);
+      ui.notifications.error(error?.message ?? localize(
+        "DDA.Progression.Warning.CouldNotChangeMethod",
+        "Could not change the campaign progression method."
+      ));
+    }
+  }
+
+  async _onAdjustXp(event, amount) {
+    event.preventDefault();
+
+    try {
+      const result = await adjustCampaignExperience(amount);
+      ui.notifications.info(formatI18n(
+        "DDA.Progression.Info.XPAdjusted",
+        { value: result.value, max: result.max },
+        `Party XP: ${result.value}/${result.max}.`
+      ));
+      await this.render();
+    } catch (error) {
+      console.error("DDA | Could not adjust campaign XP.", error);
+      ui.notifications.error(error?.message ?? localize(
+        "DDA.Progression.Warning.CouldNotAdjustXP",
+        "Could not adjust campaign XP."
+      ));
+    }
+  }
+
+  async _onCreateXpMilestone(event) {
+    event.preventDefault();
+
+    const composer = this._getMilestoneComposerData();
+    const tamers = this._getLinkedTamerActors();
+    const targets = [];
+
+    for (const tamer of tamers) {
+      const target = await this._getMilestoneTargetForTamer(tamer.uuid);
+      if (target) targets.push(target);
+    }
+
+    try {
+      const result = await createXpCampaignMilestone({
+        targets,
+        note: composer.note
+      });
+
+      ui.notifications.info(formatI18n(
+        "DDA.Progression.Info.XPMilestoneCreated",
+        { count: targets.length, xp: result.experience.max },
+        `XP Milestone created for ${targets.length} Tamer(s).`
+      ));
+
+      await this.render();
+    } catch (error) {
+      console.error("DDA | Could not create XP Milestone.", error);
+      ui.notifications.error(error?.message ?? localize(
+        "DDA.Progression.Warning.CouldNotCreateMilestone",
+        "Could not create the Milestone."
+      ));
+    }
   }
 
   async _onCreatePartyMilestone(event) {

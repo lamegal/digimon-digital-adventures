@@ -640,6 +640,97 @@ function applyMissingQualityAutomation(target, defaults) {
   }
 }
 
+
+const DDA_ITEM_SPRITE_BASE = "systems/digimon-digital-adventures/assets/ui/Sprites-1bit";
+const DDA_GENERIC_ITEM_ICONS = new Set([
+  "icons/svg/item-bag.svg",
+  "icons/svg/book.svg",
+  "icons/svg/wing.svg",
+  "icons/svg/shield.svg",
+  "icons/svg/d20.svg",
+  "icons/svg/target.svg",
+  "icons/svg/sword.svg",
+  "icons/svg/aura.svg",
+  "icons/svg/terror.svg"
+]);
+
+const DDA_MANAGED_ITEM_ICON_FILES = {
+  quality: "Tools_Crafting_Books_Manual_Documentation_Reading.webp",
+  tamerTalent: "RPG_Stat_Intelligence_Intellect_Brain_Wisdom_Thinking_IQ.webp",
+  torment: "RPG_Skull_Death_Dead_Bones_Pirates.webp",
+  digimental: "Warfare_Medal_Award_Achievement_Rank.webp",
+  motif: "Map_Markers_Flagpole_Triangle_Minesweeper.webp",
+  equipment: "RPG_Item_Armor_Equipment_Slot_Chestplate_Body_Armour.webp",
+  consumable: "Alchemy_Potion_Vial_Bottle_Full.webp",
+  card: "Boardgames_Cards_Deck_Pile.webp",
+  milestone: "Sports_Winner_Award_Cup_Achievement_Trophy.webp",
+  trait: "RPG_Stat_HP_Health_Heart.webp",
+  evolutionLink: "Software_Link_Chain_Shortcut_Combo.webp"
+};
+
+const DDA_ATTACK_ICON_FILES = {
+  ranged: "RPG_Item_Weapon_Bow_Ranged_Shooting.webp",
+  digimonMelee: "RPG_Skill_Claw_Scratch_Rake_Maul_Attack_Damage.webp",
+  tamerMelee: "RPG_Stat_Strength_Fist_Melee_Attack.webp"
+};
+
+function getDdaManagedIconPaths() {
+  const managed = new Set();
+  for (const file of Object.values(DDA_MANAGED_ITEM_ICON_FILES)) {
+    managed.add(`${DDA_ITEM_SPRITE_BASE}/${file}`);
+  }
+  for (const file of Object.values(DDA_ATTACK_ICON_FILES)) {
+    managed.add(`${DDA_ITEM_SPRITE_BASE}/${file}`);
+  }
+  return managed;
+}
+
+const DDA_MANAGED_ITEM_ICON_PATHS = getDdaManagedIconPaths();
+
+function getDdaSpritePath(fileName = "") {
+  const file = String(fileName ?? "").trim();
+  return file ? `${DDA_ITEM_SPRITE_BASE}/${file}` : "";
+}
+
+function normalizeAttackRangeType(value = "") {
+  const rangeType = String(value ?? "").trim().toLowerCase();
+  return ["range", "ranged"].includes(rangeType) ? "range" : "melee";
+}
+
+function isGenericDdaItemIcon(path = "") {
+  const clean = String(path ?? "").trim();
+  return !clean || DDA_GENERIC_ITEM_ICONS.has(clean) || DDA_MANAGED_ITEM_ICON_PATHS.has(clean);
+}
+
+function resolveDdaAttackIcon(item, { rangeType = null, parentType = null } = {}) {
+  const resolvedRangeType = normalizeAttackRangeType(
+    rangeType ?? item?.system?.baseTags?.rangeType ?? item?.system?.rangeType ?? "melee"
+  );
+
+  if (resolvedRangeType === "range") {
+    return getDdaSpritePath(DDA_ATTACK_ICON_FILES.ranged);
+  }
+
+  const ownerType = String(parentType ?? item?.parent?.type ?? "").trim().toLowerCase();
+  const meleeFile = ownerType === "character"
+    ? DDA_ATTACK_ICON_FILES.tamerMelee
+    : DDA_ATTACK_ICON_FILES.digimonMelee;
+
+  return getDdaSpritePath(meleeFile);
+}
+
+function resolveDdaItemDefaultIcon(item, { type = null, rangeType = null, parentType = null } = {}) {
+  const itemType = String(type ?? item?.type ?? "").trim();
+  if (!itemType) return "";
+
+  if (itemType === "attack") {
+    return resolveDdaAttackIcon(item, { rangeType, parentType });
+  }
+
+  const file = DDA_MANAGED_ITEM_ICON_FILES[itemType] ?? "";
+  return getDdaSpritePath(file);
+}
+
 function applyQualityAutomationDefaults(item) {
   const automationKey = getQualityAutomationKey(item);
   if (!automationKey) return;
@@ -651,6 +742,41 @@ function applyQualityAutomationDefaults(item) {
 }
 
 export class DDAItem extends Item {
+
+  async _preCreate(data, options, user) {
+    await super._preCreate(data, options, user);
+
+    const currentImg = String(data?.img ?? this.img ?? "").trim();
+    if (!isGenericDdaItemIcon(currentImg)) return;
+
+    const defaultImg = resolveDdaItemDefaultIcon(this);
+    if (!defaultImg) return;
+
+    this.updateSource({ img: defaultImg });
+  }
+
+  async _preUpdate(changed, options, user) {
+    await super._preUpdate(changed, options, user);
+
+    if (foundry.utils.hasProperty(changed, "img")) return;
+
+    const currentImg = String(this.img ?? "").trim();
+    if (!isGenericDdaItemIcon(currentImg)) return;
+
+    const nextType = String(changed.type ?? this.type ?? "").trim();
+    const nextRangeType = foundry.utils.getProperty(changed, "system.baseTags.rangeType")
+      ?? this.system?.baseTags?.rangeType
+      ?? "melee";
+
+    const nextImg = resolveDdaItemDefaultIcon(this, {
+      type: nextType,
+      rangeType: nextRangeType
+    });
+
+    if (!nextImg) return;
+    changed.img = nextImg;
+  }
+
   prepareDerivedData() {
     super.prepareDerivedData();
 

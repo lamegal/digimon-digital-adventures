@@ -154,8 +154,27 @@ export function isCoreQuality(documentOrSystem, canonicalId) {
   return getCoreQualityId(documentOrSystem) === canonicalId;
 }
 
+function isSuppressedCoreQuality(actor, item) {
+  if (!actor || item?.type !== "quality") return false;
+  const suppression = actor.system?.combat?.bossQualities?.suppression ?? {};
+  const combatId = String(game?.combat?.id ?? "");
+  if (!combatId || String(suppression.combatId ?? "") !== combatId) return false;
+  const sources = Array.isArray(suppression.sources) ? suppression.sources : [];
+  const category = item.system?.category ?? {};
+  return sources.some((source) => {
+    const type = String(source?.type ?? "").trim().toLowerCase();
+    return (type === "static" && category.static) ||
+      (type === "trigger" && category.trigger) ||
+      (type === "attack" && category.attack);
+  });
+}
+
 export function findCoreQuality(actor, canonicalId) {
-  return actor?.items?.find?.((item) => item?.type === "quality" && isCoreQuality(item, canonicalId)) ?? null;
+  return actor?.items?.find?.((item) =>
+    item?.type === "quality" &&
+    isCoreQuality(item, canonicalId) &&
+    !isSuppressedCoreQuality(actor, item)
+  ) ?? null;
 }
 
 export function hasCoreQuality(actor, canonicalId) {
@@ -458,9 +477,59 @@ export function actorOwnsQualityDefinition(actor, qualityDefinitionOrItem) {
   }));
 }
 
-export function getFirstPurchaseDiscount(actor, qualityDefinitionOrItem) {
+/**
+ * Return the intrinsic first-purchase DP discount declared by a Quality.
+ *
+ * This is intentionally separate from Core Discount and from external
+ * dpDiscountSources.  The source book treats "Discount Available" as a
+ * property of the Quality itself; currently System Boost is the only Quality
+ * which uses this metadata.
+ */
+export function getIntrinsicFirstPurchaseDiscount(qualityDefinitionOrItem) {
   const system = qualityDefinitionOrItem?.system ?? qualityDefinitionOrItem ?? {};
-  const amount = Math.max(0, Number(system?.cost?.discount?.firstPurchase ?? 0));
+  const cost = system?.costData
+    ?? (typeof system?.cost === "object" ? system.cost : null)
+    ?? qualityDefinitionOrItem?.costData
+    ?? (typeof qualityDefinitionOrItem?.cost === "object" ? qualityDefinitionOrItem.cost : null)
+    ?? {};
+
+  const amount = Math.max(
+    0,
+    Number(cost?.discount?.firstPurchase ?? 0)
+  );
+
+  // Legacy Items may predate discountAvailable while already carrying the
+  // firstPurchase metadata.  An explicit false still disables the discount.
+  if (cost?.discountAvailable === false) return 0;
+
+  return amount;
+}
+
+/**
+ * Apply intrinsic Quality discounts to a raw ranked DP cost.
+ *
+ * The first-purchase discount is applied once to the Quality as a whole, not
+ * once per Rank.  Therefore System Boost costs 1/3/5/7 DP at Ranks 1/2/3/4.
+ */
+export function applyIntrinsicQualityDiscount(
+  rawCost,
+  qualityDefinitionOrItem
+) {
+  const raw = Math.max(0, Number(rawCost ?? 0));
+  const discount = Math.min(
+    raw,
+    getIntrinsicFirstPurchaseDiscount(qualityDefinitionOrItem)
+  );
+
+  return {
+    raw,
+    discount,
+    payable: Math.max(0, raw - discount)
+  };
+}
+
+export function getFirstPurchaseDiscount(actor, qualityDefinitionOrItem) {
+  const amount = getIntrinsicFirstPurchaseDiscount(qualityDefinitionOrItem);
   if (amount <= 0 || actorOwnsQualityDefinition(actor, qualityDefinitionOrItem)) return 0;
   return amount;
 }
@@ -482,15 +551,19 @@ export function getMarginalQualityDpCost(actor, qualityDefinitionOrItem, { ranks
 export function getCoreDiscountPreview(actor, qualityDefinitionOrItem, { ranks = 1 } = {}) {
   const system = qualityDefinitionOrItem?.system ?? qualityDefinitionOrItem ?? {};
   const raw = Math.max(0, Number(system?.cost?.dp ?? 0)) * Math.max(1, Number(ranks ?? 1));
+  const firstPurchaseDiscount = getFirstPurchaseDiscount(actor, qualityDefinitionOrItem);
+  const afterIntrinsicDiscount = Math.max(0, raw - firstPurchaseDiscount);
   const eligible = isCoreDiscountEligible(system);
   const remaining = eligible ? getCoreDiscountRemaining(actor) : 0;
-  const discount = Math.min(raw, remaining);
+  const discount = Math.min(afterIntrinsicDiscount, remaining);
   return {
     eligible,
     raw,
+    firstPurchaseDiscount,
+    afterIntrinsicDiscount,
     remaining,
     discount,
-    payable: Math.max(0, raw - discount)
+    payable: Math.max(0, afterIntrinsicDiscount - discount)
   };
 }
 

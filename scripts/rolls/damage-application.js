@@ -25,6 +25,25 @@ import {
   reduceEnemyUnalterableDamageWithShiningArmor
 } from "../combat/digizoid-gain-force.js";
 
+import {
+  commitBossTemplatePoolResult,
+  getBossTemplateDamageContext,
+  previewBossTemplatePoolResult,
+  setBossTemplateDefeatedState,
+  handleMultiStageBossDefeat,
+  hasMultiStageBossContinuation
+} from "../combat/boss-encounters.js";
+
+import {
+  consumeChallengerTemporaryWounds,
+  maybeApplySurvivalInstinctDamage,
+  recordRevitalizeDefeatState
+} from "../rules/tamer-talent-combat-survival.js";
+
+import {
+  consumeGloriousWorldTemporaryWounds
+} from "../rules/tamer-talent-transversal.js";
+
 const DAMAGE_TYPE_LABEL_KEYS = {
   crash: "DDA.Damage.Type.Crash",
   burn: "DDA.Damage.Type.Burn",
@@ -39,46 +58,583 @@ const DAMAGE_REDUCTION_LABEL_KEYS = {
   poison: "DDA.Damage.Reduction.Poison"
 };
 
-function getAreaDamageEntryFromMessage(message) {
-  return message?.getFlag?.(game.system.id, "areaAttackDamageEntry")
-    ?? message?.flags?.[game.system.id]?.areaAttackDamageEntry
+const ATTACK_DAMAGE_FLAG = "attackDamageEntry";
+const AREA_DAMAGE_FLAG = "areaAttackDamageEntry";
+const DAMAGE_SOCKET_SCOPE = "attack-damage-application";
+const DAMAGE_SOCKET_CLAIM = "claim";
+const DAMAGE_SOCKET_CLAIM_RESULT = "claim-result";
+const DAMAGE_SOCKET_FINALIZE = "finalize";
+const DAMAGE_SOCKET_FINALIZE_RESULT = "finalize-result";
+const DAMAGE_CLAIM_STALE_MS = 2 * 60 * 1000;
+const DAMAGE_SOCKET_TIMEOUT_MS = 15 * 1000;
+const DAMAGE_HISTORY_LIMIT = 30;
+
+const pendingDamageSocketRequests = new Map();
+const authoritativeDamageClaims = new Set();
+let damageApplicationSocketRegistered = false;
+
+function primaryActiveGM() {
+  return (game?.users?.contents ?? [])
+    .filter((user) => user.active && user.isGM)
+    .sort((left, right) => String(left.id).localeCompare(String(right.id)))[0] ?? null;
+}
+
+function getAttackDamageEntryFromMessage(message) {
+  return message?.getFlag?.(game.system.id, ATTACK_DAMAGE_FLAG)
+    ?? message?.flags?.[game.system.id]?.[ATTACK_DAMAGE_FLAG]
     ?? null;
 }
 
-function isAreaDamageAppliedInProgress(entry = {}) {
-  const requestId = String(entry?.requestId ?? "");
-  const defenderUuid = String(entry?.defenderUuid ?? "");
-  if (!requestId || !defenderUuid) return false;
+function getAreaDamageEntryFromMessage(message) {
+  return message?.getFlag?.(game.system.id, AREA_DAMAGE_FLAG)
+    ?? message?.flags?.[game.system.id]?.[AREA_DAMAGE_FLAG]
+    ?? null;
+}
 
-  const progressMessage = game.messages?.find?.((candidate) => {
+function getCanonicalDamageEntryFromMessage(message) {
+  const area = getAreaDamageEntryFromMessage(message);
+  if (area) return { key: AREA_DAMAGE_FLAG, entry: area, area: true };
+
+  const attack = getAttackDamageEntryFromMessage(message);
+  if (attack) return { key: ATTACK_DAMAGE_FLAG, entry: attack, area: false };
+
+  return { key: "", entry: null, area: false };
+}
+
+function getDamageEntryState(entry = {}) {
+  if (entry?.applied) return "applied";
+  return String(entry?.state ?? "pending").trim().toLowerCase() || "pending";
+}
+
+function damageClaimIsStale(entry = {}) {
+  if (getDamageEntryState(entry) !== "applying") return false;
+  const claimedAt = Number(entry?.claimedAt ?? 0);
+  return !claimedAt || Date.now() - claimedAt > DAMAGE_CLAIM_STALE_MS;
+}
+
+export function isAttackDamageApplicationInFlight(entry = {}) {
+  return getDamageEntryState(entry) === "applying" && !damageClaimIsStale(entry);
+}
+
+function findAreaProgressMessage(requestId = "") {
+  const id = String(requestId ?? "");
+  if (!id) return null;
+
+  return game.messages?.find?.((candidate) => {
     const request = candidate?.getFlag?.(
       game.system.id,
       "areaAttackRequest"
     ) ?? candidate?.flags?.[game.system.id]?.areaAttackRequest;
 
-    return String(request?.requestId ?? "") === requestId;
+    return String(request?.requestId ?? "") === id;
   }) ?? null;
+}
+
+function getAreaTargetForDamageEntry(request = {}, entry = {}) {
+  const targets = Array.isArray(request?.targets) ? request.targets : [];
+  const applicationId = String(entry?.applicationId ?? "");
+  const targetTokenId = String(entry?.targetTokenId ?? "");
+  const defenderUuid = String(entry?.defenderUuid ?? "");
+
+  if (applicationId) {
+    const exact = targets.find((target) => {
+      return String(target?.damageApplication?.applicationId ?? "") === applicationId;
+    });
+    if (exact) return exact;
+  }
+
+  if (targetTokenId) {
+    const byToken = targets.find((target) => {
+      const candidateTokenId = String(
+        target?.damageApplication?.targetTokenId ??
+        target?.tokenId ??
+        ""
+      );
+      return candidateTokenId === targetTokenId;
+    });
+    if (byToken) return byToken;
+  }
+
+  return targets.find((target) => {
+    const candidateUuid = String(
+      target?.damageApplication?.defenderUuid ??
+      target?.actorUuid ??
+      ""
+    );
+    return defenderUuid && candidateUuid === defenderUuid;
+  }) ?? null;
+}
+
+function getAreaDamageLiveState(entry = {}) {
+  const progressMessage = findAreaProgressMessage(entry?.requestId);
   const request = progressMessage?.getFlag?.(
     game.system.id,
     "areaAttackRequest"
   ) ?? progressMessage?.flags?.[game.system.id]?.areaAttackRequest;
-  const target = request?.targets?.find?.((candidate) => {
-    const candidateUuid = String(
-      candidate?.damageApplication?.defenderUuid ??
-      candidate?.actorUuid ??
-      ""
-    );
-    return candidateUuid === defenderUuid;
-  });
+  const target = getAreaTargetForDamageEntry(request, entry);
 
-  return Boolean(target?.damageApplication?.applied);
+  return {
+    progressMessage,
+    request,
+    target,
+    application: target?.damageApplication ?? null
+  };
+}
+
+function damageApplicationInvalidReason(entry = {}, { area = false } = {}) {
+  if (!entry || typeof entry !== "object") return "missing";
+  if (getDamageEntryState(entry) === "applied") return "applied";
+
+  const combatId = String(entry?.combatId ?? "");
+  if (combatId) {
+    if (!game?.combat?.started || String(game.combat.id ?? "") !== combatId) {
+      return "combatEnded";
+    }
+  }
+
+  const sceneId = String(entry?.sceneId ?? "");
+  const currentSceneId = String(canvas?.scene?.id ?? game?.scenes?.current?.id ?? "");
+  if (sceneId && currentSceneId && sceneId !== currentSceneId) {
+    return "sceneChanged";
+  }
+
+  if (area) {
+    const live = getAreaDamageLiveState(entry);
+    const requestStatus = String(live.request?.status ?? "");
+    const targetStatus = String(live.target?.status ?? "");
+    const ready = Boolean(
+      entry?.areaReady ||
+      live.application?.areaReady ||
+      (
+        ["resolved", "prevented", "cancelled"].includes(requestStatus) &&
+        targetStatus === "resolved"
+      )
+    );
+    if (!ready) return "areaPending";
+  }
+
+  return "";
+}
+
+function damageEntryMatches(left = {}, right = {}) {
+  const leftId = String(left?.applicationId ?? "");
+  const rightId = String(right?.applicationId ?? "");
+  if (leftId && rightId) return leftId === rightId;
+
+  return String(left?.defenderUuid ?? "") === String(right?.defenderUuid ?? "") &&
+    String(left?.requestId ?? "") === String(right?.requestId ?? "");
+}
+
+function getDamageHistory(actor) {
+  const history = actor?.getFlag?.(game.system.id, "damageApplicationHistory")
+    ?? actor?.flags?.[game.system.id]?.damageApplicationHistory
+    ?? [];
+  return Array.isArray(history) ? history : [];
+}
+
+function hasAppliedDamageApplication(actor, applicationId = "") {
+  const id = String(applicationId ?? "");
+  if (!id || !actor) return false;
+  return getDamageHistory(actor).some((entry) => String(entry?.id ?? "") === id);
+}
+
+function buildNextDamageHistory(actor, applicationId = "") {
+  const id = String(applicationId ?? "");
+  if (!id) return getDamageHistory(actor);
+
+  const next = getDamageHistory(actor)
+    .filter((entry) => String(entry?.id ?? "") !== id)
+    .slice(-(DAMAGE_HISTORY_LIMIT - 1));
+  next.push({ id, at: Date.now() });
+  return next;
+}
+
+function damageButtonLabel(reason = "") {
+  const english = String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en");
+  const labels = {
+    applied: english ? "Damage Applied" : "Dano Aplicado",
+    applying: english ? "Applying Damage…" : "Aplicando Dano…",
+    areaPending: english ? "Waiting for Dodges…" : "Aguardando Esquivas…",
+    combatEnded: english ? "Expired Damage" : "Dano Expirado",
+    sceneChanged: english ? "Different Scene" : "Outra Cena"
+  };
+  return labels[reason] ?? (english ? "Apply Damage" : "Aplicar Dano");
+}
+
+function canUserApplyDamageToActor(actor, user = game?.user) {
+  if (!actor || !user) return false;
+  if (user.isGM) return true;
+  try {
+    const ownerLevel = CONST?.DOCUMENT_OWNERSHIP_LEVELS?.OWNER ?? 3;
+    return Boolean(actor.testUserPermission?.(user, ownerLevel));
+  } catch (_error) {
+    return Boolean(user.id === game?.user?.id && actor.isOwner);
+  }
+}
+
+function userCanUpdateMessage(message, user = game?.user) {
+  if (!message || !user) return false;
+  if (user.isGM) return true;
+  try {
+    return Boolean(message.canUserModify?.(user, "update"));
+  } catch (_error) {
+    return Boolean(message.author?.id && message.author.id === user.id);
+  }
+}
+
+async function updateDamageEntryOnMessage(message, key, entry) {
+  if (!message || !key || !entry) return false;
+  await message.update({
+    [`flags.${game.system.id}.${key}`]: entry
+  });
+  return true;
+}
+
+async function claimDamageApplicationAsGM({
+  messageId = "",
+  applicationId = "",
+  requestingUserId = game?.user?.id ?? ""
+} = {}) {
+  const message = game.messages?.get(String(messageId ?? ""));
+  if (!message) return { granted: false, reason: "messageMissing" };
+
+  const canonical = getCanonicalDamageEntryFromMessage(message);
+  const entry = foundry.utils.deepClone(canonical.entry ?? {});
+  if (!entry?.applicationId || String(entry.applicationId) !== String(applicationId ?? "")) {
+    return { granted: false, reason: "applicationMismatch" };
+  }
+
+  const user = game.users?.get(String(requestingUserId ?? ""));
+  const defender = await resolveDamageTargetActor(entry.defenderUuid);
+  if (!user || !canUserApplyDamageToActor(defender, user)) {
+    return { granted: false, reason: "notAuthorized" };
+  }
+
+  const invalidReason = damageApplicationInvalidReason(entry, { area: canonical.area });
+  if (invalidReason && invalidReason !== "applied") {
+    return { granted: false, reason: invalidReason };
+  }
+  if (invalidReason === "applied") {
+    return { granted: false, reason: "applied", applied: true };
+  }
+
+  const state = getDamageEntryState(entry);
+  if (state === "applying" && !damageClaimIsStale(entry)) {
+    return {
+      granted: false,
+      reason: "applying",
+      claimedByUserId: String(entry.claimedByUserId ?? "")
+    };
+  }
+
+  const claimKey = `${message.id}|${entry.applicationId}`;
+  if (authoritativeDamageClaims.has(claimKey)) {
+    return { granted: false, reason: "applying" };
+  }
+
+  authoritativeDamageClaims.add(claimKey);
+  try {
+    const liveCanonical = getCanonicalDamageEntryFromMessage(message);
+    const liveEntry = foundry.utils.deepClone(liveCanonical.entry ?? {});
+    if (!damageEntryMatches(liveEntry, entry)) {
+      return { granted: false, reason: "applicationMismatch" };
+    }
+
+    if (
+      getDamageEntryState(liveEntry) === "applying" &&
+      !damageClaimIsStale(liveEntry)
+    ) {
+      return { granted: false, reason: "applying" };
+    }
+
+    liveEntry.state = "applying";
+    liveEntry.claimedByUserId = String(requestingUserId ?? "");
+    liveEntry.claimedAt = Date.now();
+    liveEntry.lastError = "";
+
+    await updateDamageEntryOnMessage(message, liveCanonical.key, liveEntry);
+
+    if (liveCanonical.area && liveEntry.requestId) {
+      try {
+        const areaController = await import(
+          "../combat/area-attacks/area-attack-controller.js"
+        );
+        await areaController.markAreaAttackDamageState?.({
+          requestId: liveEntry.requestId,
+          applicationId: liveEntry.applicationId,
+          targetTokenId: liveEntry.targetTokenId,
+          defenderUuid: liveEntry.defenderUuid,
+          messageId: message.id,
+          state: "applying",
+          applied: false,
+          claimedByUserId: liveEntry.claimedByUserId,
+          claimedAt: liveEntry.claimedAt
+        });
+      } catch (error) {
+        console.warn(
+          "DDA | Damage was claimed, but the Area Attack summary could not be synchronized immediately.",
+          error
+        );
+      }
+    }
+
+    return {
+      granted: true,
+      messageId: message.id,
+      applicationId: String(liveEntry.applicationId ?? ""),
+      entry: liveEntry,
+      area: liveCanonical.area
+    };
+  } finally {
+    authoritativeDamageClaims.delete(claimKey);
+  }
+}
+
+async function finalizeDamageApplicationAsGM({
+  messageId = "",
+  applicationId = "",
+  requestingUserId = game?.user?.id ?? "",
+  success = true,
+  errorMessage = ""
+} = {}) {
+  const message = game.messages?.get(String(messageId ?? ""));
+  if (!message) return { ok: false, reason: "messageMissing" };
+
+  const canonical = getCanonicalDamageEntryFromMessage(message);
+  const entry = foundry.utils.deepClone(canonical.entry ?? {});
+  if (!entry?.applicationId || String(entry.applicationId) !== String(applicationId ?? "")) {
+    return { ok: false, reason: "applicationMismatch" };
+  }
+
+  const claimantId = String(entry.claimedByUserId ?? "");
+  const requester = String(requestingUserId ?? "");
+  const requestingUser = game.users?.get(requester);
+  if (claimantId && claimantId !== requester && !requestingUser?.isGM) {
+    return { ok: false, reason: "notClaimant" };
+  }
+
+  if (success) {
+    entry.state = "applied";
+    entry.applied = true;
+    entry.appliedAt = Date.now();
+    entry.appliedByUserId = requester;
+    entry.lastError = "";
+  } else {
+    entry.state = "pending";
+    entry.applied = false;
+    entry.claimedByUserId = "";
+    entry.claimedAt = null;
+    entry.lastError = String(errorMessage ?? "");
+  }
+
+  await updateDamageEntryOnMessage(message, canonical.key, entry);
+
+  if (canonical.area && entry.requestId) {
+    try {
+      const areaController = await import(
+        "../combat/area-attacks/area-attack-controller.js"
+      );
+      await areaController.markAreaAttackDamageState?.({
+        requestId: entry.requestId,
+        applicationId: entry.applicationId,
+        targetTokenId: entry.targetTokenId,
+        defenderUuid: entry.defenderUuid,
+        messageId: message.id,
+        state: entry.state,
+        applied: Boolean(entry.applied),
+        claimedByUserId: String(entry.claimedByUserId ?? ""),
+        claimedAt: entry.claimedAt ?? null,
+        appliedAt: entry.appliedAt ?? null,
+        appliedByUserId: String(entry.appliedByUserId ?? ""),
+        lastError: String(entry.lastError ?? "")
+      });
+    } catch (error) {
+      console.warn(
+        "DDA | Damage state was updated, but the Area Attack summary could not be synchronized.",
+        error
+      );
+    }
+  }
+
+  return { ok: true, entry };
+}
+
+function requestDamageSocket(type, payload = {}) {
+  const gm = primaryActiveGM();
+  if (!gm) return Promise.resolve({ ok: false, reason: "noGM" });
+
+  const requestId = foundry.utils.randomID();
+  return new Promise((resolve) => {
+    const timeoutId = globalThis.setTimeout(() => {
+      pendingDamageSocketRequests.delete(requestId);
+      resolve({ ok: false, reason: "timeout" });
+    }, DAMAGE_SOCKET_TIMEOUT_MS);
+
+    pendingDamageSocketRequests.set(requestId, { resolve, timeoutId });
+    game.socket.emit(`system.${game.system.id}`, {
+      scope: DAMAGE_SOCKET_SCOPE,
+      type,
+      requestId,
+      targetGmId: gm.id,
+      requestingUserId: game.user.id,
+      ...payload
+    });
+  });
+}
+
+export async function claimAttackDamageApplication(message, entry = null) {
+  if (!message) return { granted: true, legacy: true };
+
+  const canonical = entry
+    ? { ...getCanonicalDamageEntryFromMessage(message), entry }
+    : getCanonicalDamageEntryFromMessage(message);
+  if (!canonical.entry?.applicationId) {
+    return { granted: true, legacy: true };
+  }
+
+  const gm = primaryActiveGM();
+  if (gm?.id === game.user?.id) {
+    return claimDamageApplicationAsGM({
+      messageId: message.id,
+      applicationId: canonical.entry.applicationId,
+      requestingUserId: game.user.id
+    });
+  }
+
+  if (!gm) {
+    // Preserve legacy GM-less play. The Actor-side application history still
+    // protects a later retry from re-applying the same damage, but there is no
+    // cross-client claim authority without an active GM.
+    return {
+      granted: true,
+      legacyNoGM: true,
+      entry: canonical.entry,
+      area: canonical.area
+    };
+  }
+
+  const response = await requestDamageSocket(DAMAGE_SOCKET_CLAIM, {
+    messageId: message.id,
+    applicationId: canonical.entry.applicationId
+  });
+  return response?.result ?? response;
+}
+
+export async function finalizeAttackDamageApplication(
+  message,
+  entry = null,
+  { success = true, errorMessage = "" } = {}
+) {
+  if (!message) return { ok: true, legacy: true };
+
+  const canonical = getCanonicalDamageEntryFromMessage(message);
+  const application = entry ?? canonical.entry;
+  if (!application?.applicationId) return { ok: true, legacy: true };
+
+  const gm = primaryActiveGM();
+  if (gm?.id === game.user?.id) {
+    return finalizeDamageApplicationAsGM({
+      messageId: message.id,
+      applicationId: application.applicationId,
+      requestingUserId: game.user.id,
+      success,
+      errorMessage
+    });
+  }
+
+  if (!gm) {
+    if (userCanUpdateMessage(message)) {
+      const liveCanonical = getCanonicalDamageEntryFromMessage(message);
+      const liveEntry = foundry.utils.deepClone(liveCanonical.entry ?? application);
+      if (success) {
+        liveEntry.state = "applied";
+        liveEntry.applied = true;
+        liveEntry.appliedAt = Date.now();
+        liveEntry.appliedByUserId = String(game.user?.id ?? "");
+      } else {
+        liveEntry.state = "pending";
+        liveEntry.applied = false;
+        liveEntry.claimedAt = null;
+        liveEntry.claimedByUserId = "";
+        liveEntry.lastError = String(errorMessage ?? "");
+      }
+      await updateDamageEntryOnMessage(message, liveCanonical.key, liveEntry);
+    }
+    return { ok: true, legacyNoGM: true };
+  }
+
+  const response = await requestDamageSocket(DAMAGE_SOCKET_FINALIZE, {
+    messageId: message.id,
+    applicationId: application.applicationId,
+    success,
+    errorMessage
+  });
+  return response?.result ?? response;
+}
+
+export function registerDamageApplicationSocket() {
+  if (damageApplicationSocketRegistered || !game.socket) return;
+  damageApplicationSocketRegistered = true;
+
+  game.socket.on(`system.${game.system.id}`, async (payload = {}) => {
+    if (payload?.scope !== DAMAGE_SOCKET_SCOPE) return;
+
+    if (
+      payload.type === DAMAGE_SOCKET_CLAIM_RESULT ||
+      payload.type === DAMAGE_SOCKET_FINALIZE_RESULT
+    ) {
+      if (String(payload.targetUserId ?? "") !== String(game.user?.id ?? "")) return;
+      const pending = pendingDamageSocketRequests.get(String(payload.requestId ?? ""));
+      if (!pending) return;
+      globalThis.clearTimeout(pending.timeoutId);
+      pendingDamageSocketRequests.delete(String(payload.requestId ?? ""));
+      pending.resolve(payload);
+      return;
+    }
+
+    const gm = primaryActiveGM();
+    if (!game.user?.isGM || gm?.id !== game.user.id) return;
+    if (String(payload.targetGmId ?? "") !== String(game.user.id)) return;
+
+    if (payload.type === DAMAGE_SOCKET_CLAIM) {
+      const result = await claimDamageApplicationAsGM(payload);
+      game.socket.emit(`system.${game.system.id}`, {
+        scope: DAMAGE_SOCKET_SCOPE,
+        type: DAMAGE_SOCKET_CLAIM_RESULT,
+        requestId: payload.requestId,
+        targetUserId: payload.requestingUserId,
+        result
+      });
+      return;
+    }
+
+    if (payload.type === DAMAGE_SOCKET_FINALIZE) {
+      const result = await finalizeDamageApplicationAsGM(payload);
+      game.socket.emit(`system.${game.system.id}`, {
+        scope: DAMAGE_SOCKET_SCOPE,
+        type: DAMAGE_SOCKET_FINALIZE_RESULT,
+        requestId: payload.requestId,
+        targetUserId: payload.requestingUserId,
+        result
+      });
+    }
+  });
+}
+
+function isAreaDamageAppliedInProgress(entry = {}) {
+  const live = getAreaDamageLiveState(entry);
+  return Boolean(
+    live.application?.applied ||
+    getDamageEntryState(live.application ?? {}) === "applied"
+  );
 }
 
 export async function bindDamageApplicationButtons(root, message = null) {
   if (!root?.querySelectorAll) return;
 
   const buttons = Array.from(root.querySelectorAll(".dda-apply-damage"));
-  const areaDamageEntry = getAreaDamageEntryFromMessage(message);
+  const canonical = getCanonicalDamageEntryFromMessage(message);
+  const damageEntry = canonical.entry;
 
   for (const button of buttons) {
     if (button.dataset.ddaDamageBound === "true") continue;
@@ -90,20 +646,36 @@ export async function bindDamageApplicationButtons(root, message = null) {
     }
 
     if (
-      areaDamageEntry?.applied ||
-      isAreaDamageAppliedInProgress(areaDamageEntry)
+      damageEntry?.applied ||
+      getDamageEntryState(damageEntry) === "applied" ||
+      (canonical.area && isAreaDamageAppliedInProgress(damageEntry))
     ) {
       button.dataset.ddaDamageApplied = "true";
       button.disabled = true;
-      button.innerText = localizeWithFallback(
-        "DDA.Damage.Applied",
-        "Dano Aplicado"
-      );
+      button.innerText = damageButtonLabel("applied");
       continue;
     }
 
+    if (damageEntry) {
+      const invalidReason = damageApplicationInvalidReason(damageEntry, {
+        area: canonical.area
+      });
+
+      if (invalidReason) {
+        button.disabled = true;
+        button.innerText = damageButtonLabel(invalidReason);
+        continue;
+      }
+
+      if (isAttackDamageApplicationInFlight(damageEntry)) {
+        button.disabled = true;
+        button.innerText = damageButtonLabel("applying");
+        continue;
+      }
+    }
+
     const defender = await resolveDamageTargetActor(
-      button.dataset.defenderUuid
+      damageEntry?.defenderUuid ?? button.dataset.defenderUuid
     );
 
     const canApplyDamage = canCurrentUserApplyDamage(defender);
@@ -141,10 +713,7 @@ async function resolveDamageTargetActor(uuid = "") {
 }
 
 function canCurrentUserApplyDamage(actor) {
-  return Boolean(
-    actor &&
-    (game.user.isGM || actor.isOwner)
-  );
+  return canUserApplyDamageToActor(actor, game.user);
 }
 
 export async function applyDamageFromChat(event) {
@@ -154,36 +723,71 @@ export async function applyDamageFromChat(event) {
 
   if (button.dataset.ddaDamageApplied === "true") return;
 
-  const defenderUuid = button.dataset.defenderUuid;
-  const attackerUuid = String(button.dataset.attackerUuid ?? "").trim();
-  const damage = Number(button.dataset.damage ?? 0);
-  const damageType = normalizeDamageType(button.dataset.damageType ?? "");
-  const damageLabel = String(button.dataset.damageLabel ?? "").trim();
-  const holdBack = button.dataset.holdBack === "true";
-  const tamerIntercede = button.dataset.tamerIntercede === "true";
-  const digimonIntercede = button.dataset.digimonIntercede === "true";
-  const unalterable = button.dataset.unalterable === "true";
-  const unalterablePortion = Math.max(0, Number(button.dataset.unalterablePortion ?? 0));
+  if (button.dataset.ddaDamageInFlight === "true") return;
+  button.dataset.ddaDamageInFlight = "true";
+  button.disabled = true;
+
+  const messageId = String(button.dataset.ddaMessageId ?? "");
+  const message = messageId ? game.messages?.get(messageId) : null;
+  const canonical = getCanonicalDamageEntryFromMessage(message);
+  const storedEntry = canonical.entry ?? null;
+
+  const defenderUuid = String(
+    storedEntry?.defenderUuid ?? button.dataset.defenderUuid ?? ""
+  );
+  const attackerUuid = String(
+    storedEntry?.attackerUuid ?? button.dataset.attackerUuid ?? ""
+  ).trim();
+  const damage = Number(storedEntry?.damage ?? button.dataset.damage ?? 0);
+  const damageType = normalizeDamageType(
+    storedEntry?.damageType ?? button.dataset.damageType ?? ""
+  );
+  const damageLabel = String(
+    storedEntry?.damageLabel ?? button.dataset.damageLabel ?? ""
+  ).trim();
+  const holdBack = storedEntry
+    ? Boolean(storedEntry.holdBack)
+    : button.dataset.holdBack === "true";
+  const tamerIntercede = storedEntry
+    ? Boolean(storedEntry.tamerIntercede)
+    : button.dataset.tamerIntercede === "true";
+  const digimonIntercede = storedEntry
+    ? Boolean(storedEntry.digimonIntercede)
+    : button.dataset.digimonIntercede === "true";
+  const unalterable = storedEntry
+    ? Boolean(storedEntry.unalterable)
+    : button.dataset.unalterable === "true";
+  const unalterablePortion = Math.max(
+    0,
+    Number(storedEntry?.unalterablePortion ?? button.dataset.unalterablePortion ?? 0)
+  );
   const focusTempMultiplier = Math.max(
     1,
-    Number(button.dataset.focusTempMultiplier ?? 1)
+    Number(storedEntry?.focusTempMultiplier ?? button.dataset.focusTempMultiplier ?? 1)
   );
   const lifestealCap = Math.max(
     0,
-    Number(button.dataset.lifestealCap ?? 0)
+    Number(storedEntry?.lifestealCap ?? button.dataset.lifestealCap ?? 0)
   );
-  const lifestealKey = String(button.dataset.lifestealKey ?? "").trim();
+  const lifestealKey = String(
+    storedEntry?.lifestealKey ?? button.dataset.lifestealKey ?? ""
+  ).trim();
+  const applicationId = String(storedEntry?.applicationId ?? "");
 
   if (!defenderUuid) {
     warnLocalized(
       "DDA.Warning.DefenderNotFoundInAttackCard",
       "Defensor não encontrado no card de ataque."
     );
+    delete button.dataset.ddaDamageInFlight;
+    button.disabled = false;
     return;
   }
 
   if (!Number.isFinite(damage) || damage <= 0) {
     warnLocalized("DDA.Warning.InvalidDamage", "Dano inválido.");
+    delete button.dataset.ddaDamageInFlight;
+    button.disabled = false;
     return;
   }
 
@@ -194,6 +798,8 @@ export async function applyDamageFromChat(event) {
       "DDA.Warning.DefenderActorNotFound",
       "Não foi possível encontrar o Actor do defensor."
     );
+    delete button.dataset.ddaDamageInFlight;
+    button.disabled = false;
     return;
   }
 
@@ -202,7 +808,20 @@ export async function applyDamageFromChat(event) {
       "DDA.Warning.NoPermissionToApplyDamage",
       "Apenas o dono do alvo ou o Mestre pode aplicar este dano."
     );
+    delete button.dataset.ddaDamageInFlight;
+    button.disabled = false;
     return;
+  }
+
+  if (storedEntry) {
+    const invalidReason = damageApplicationInvalidReason(storedEntry, {
+      area: canonical.area
+    });
+    if (invalidReason) {
+      button.innerText = damageButtonLabel(invalidReason);
+      delete button.dataset.ddaDamageInFlight;
+      return;
+    }
   }
 
   const attackerDocument = attackerUuid
@@ -213,7 +832,22 @@ export async function applyDamageFromChat(event) {
     ? attackerDocument.actor
     : attackerDocument;
 
+  let claim = { granted: true, legacy: true };
+
   try {
+    if (storedEntry) {
+      claim = await claimAttackDamageApplication(message, storedEntry);
+      if (!claim?.granted) {
+        const reason = claim?.reason ?? "applying";
+        if (reason === "applied") {
+          button.dataset.ddaDamageApplied = "true";
+        }
+        button.innerText = damageButtonLabel(reason);
+        delete button.dataset.ddaDamageInFlight;
+        return;
+      }
+    }
+
     const result = await applyDamage(defender, damage, {
       damageType,
       damageLabel,
@@ -223,66 +857,92 @@ export async function applyDamageFromChat(event) {
       unalterable,
       unalterablePortion,
       attacker,
+      attackerUserId: String(message?.user?.id ?? message?.author?.id ?? ""),
       focusTempMultiplier,
       lifestealCap,
-      lifestealKey
+      lifestealKey,
+      applicationId
     });
 
-    if (!result) return;
+    if (!result) {
+      if (storedEntry && !claim?.legacyNoGM) {
+        await finalizeAttackDamageApplication(message, storedEntry, {
+          success: false,
+          errorMessage: "Damage application returned no result."
+        });
+      }
+      delete button.dataset.ddaDamageInFlight;
+      button.disabled = false;
+      return;
+    }
 
-    if (digimonIntercede) {
-      await resolveBraveHeartAfterIntercede(defender, result, { interceded: true });
+    await resolveAttackDamagePostProcessing(defender, result, {
+      digimonIntercede
+    });
+
+    try {
+      const bossQualities = await import("../combat/boss-qualities.js");
+      await bossQualities.resolveBossDamagePostProcessing?.({
+        attacker,
+        defender,
+        damageResult: result,
+        damageEntry: storedEntry ?? {}
+      });
+    } catch (error) {
+      console.error("DDA | Boss Quality damage post-processing failed.", error);
+    }
+
+    if (storedEntry) {
+      await finalizeAttackDamageApplication(message, storedEntry, {
+        success: true
+      });
     }
 
     button.dataset.ddaDamageApplied = "true";
     button.disabled = true;
-    button.innerText = localizeWithFallback(
-      "DDA.Damage.Applied",
-      "Dano Aplicado"
-    );
+    button.innerText = damageButtonLabel("applied");
+    delete button.dataset.ddaDamageInFlight;
+  } catch (error) {
+    console.error("DDA | Could not apply damage from attack card.", error);
 
-    const messageId = String(button.dataset.ddaMessageId ?? "");
-    const message = messageId ? game.messages?.get(messageId) : null;
-    const areaDamageEntry = getAreaDamageEntryFromMessage(message);
-
-    if (message && areaDamageEntry?.requestId) {
-      const appliedAt = Date.now();
-      const updatedEntry = foundry.utils.deepClone(areaDamageEntry);
-
-      updatedEntry.applied = true;
-      updatedEntry.appliedAt = appliedAt;
-      updatedEntry.appliedByUserId = String(game.user?.id ?? "");
-
+    if (storedEntry && claim?.granted && !claim?.legacyNoGM) {
       try {
-        await message.update({
-          [`flags.${game.system.id}.areaAttackDamageEntry`]: updatedEntry
+        await finalizeAttackDamageApplication(message, storedEntry, {
+          success: false,
+          errorMessage: String(error?.message ?? error ?? "")
         });
-
-        const areaController = await import(
-          "../combat/area-attacks/area-attack-controller.js"
-        );
-
-        await areaController.markAreaAttackDamageApplied?.({
-          requestId: updatedEntry.requestId,
-          defenderUuid: updatedEntry.defenderUuid,
-          messageId: message.id,
-          appliedAt,
-          appliedByUserId: game.user?.id ?? ""
-        });
-      } catch (error) {
+      } catch (finalizeError) {
         console.warn(
-          "DDA | Damage was applied, but the Area Attack summary could not be synchronized.",
-          error
+          "DDA | Could not release the failed damage application claim.",
+          finalizeError
         );
       }
     }
-  } catch (error) {
-    console.error("DDA | Could not apply damage from attack card.", error);
 
     warnLocalized(
       "DDA.Warning.CouldNotApplyDamage",
       "Não foi possível aplicar o dano."
     );
+    delete button.dataset.ddaDamageInFlight;
+    button.disabled = false;
+  }
+}
+
+export async function resolveAttackDamagePostProcessing(
+  defender,
+  result,
+  { digimonIntercede = false } = {}
+) {
+  if (!defender || !result) return;
+  if (!digimonIntercede) return;
+
+  await resolveBraveHeartAfterIntercede(defender, result, { interceded: true });
+
+  try {
+    const evolution = await import("../combat/evolution.js");
+    await evolution.finishBlastIntercedeForPartner?.(defender);
+  } catch (error) {
+    console.error("DDA | Could not finish Blast Intercede after damage.", error);
   }
 }
 
@@ -705,11 +1365,13 @@ async function maybeUseStandardFatesProtection(actor, options = {}) {
 
   if (ipBefore < ipCost) return null;
 
-  const confirmed = await Dialog.confirm({
-    title: localizeWithFallback(
-      "DDA.FatesProtection.Title",
-      "Proteção do Destino"
-    ),
+  const confirmed = await foundry.applications.api.DialogV2.confirm({
+    window: {
+      title: localizeWithFallback(
+        "DDA.FatesProtection.Title",
+        "Proteção do Destino"
+      )
+    },
     content: `<div class="dda-confirm-dialog dda-fates-protection-dialog">
       <p>${escapeHtml(localizeWithFallback(
         "DDA.FatesProtection.Prompt",
@@ -724,9 +1386,13 @@ async function maybeUseStandardFatesProtection(actor, options = {}) {
           : "A primeira utilização no Combate custa 1 Ação e nenhum PI."
       ))}</p>
     </div>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
+    yes: {
+      default: false
+    },
+    no: {
+      default: true
+    },
+    rejectClose: false
   });
 
   if (!confirmed) return null;
@@ -758,12 +1424,139 @@ async function applyDamageToActor(actor, damage, options = {}, config = {}) {
     return;
   }
 
-  const currentWounds = Number(wounds.value ?? 0);
+  const applicationId = String(options?.applicationId ?? "").trim();
+  if (applicationId && hasAppliedDamageApplication(actor, applicationId)) {
+    const currentWounds = Number(wounds.value ?? 0);
+    const currentTemp = Number(wounds.temp?.value ?? 0);
+    return {
+      actor,
+      applicationId,
+      alreadyApplied: true,
+      before: {
+        wounds: currentWounds,
+        temp: currentTemp
+      },
+      after: {
+        wounds: currentWounds,
+        temp: currentTemp
+      }
+    };
+  }
+
+  const bossTemplateContext = await getBossTemplateDamageContext(actor, options);
+  if (bossTemplateContext?.cancelled) {
+    ui.notifications?.info?.(localizeWithFallback(
+      "DDA.BossTemplate.PoolSelectionCancelled",
+      "A aplicação foi cancelada porque nenhum Wound Pool do Boss Template foi selecionado."
+    ));
+    return null;
+  }
+
+  const currentWounds = bossTemplateContext
+    ? Number(bossTemplateContext.currentWounds ?? 0)
+    : Number(wounds.value ?? 0);
   const currentTemp = Number(wounds.temp?.value ?? 0);
 
-  const shiningDigizoid = await reduceEnemyUnalterableDamageWithShiningArmor(actor, damage, options);
-  const damageInfo = getDamageApplicationInfo(actor, shiningDigizoid.damage, options);
-  damageInfo.shiningDigizoidReduction = shiningDigizoid.reduction;
+  /*
+   * Once a player's Boss Template pool is depleted, further actions from that
+   * player do not spill into another player's pool. Treat the damage step as a
+   * no-op instead of re-triggering survival mechanics from zero Wounds.
+   */
+  if (bossTemplateContext && currentWounds <= 0) {
+    if (applicationId) {
+      await actor.update({
+        [`flags.${game.system.id}.damageApplicationHistory`]:
+          buildNextDamageHistory(actor, applicationId)
+      });
+    }
+
+    const bossTemplate = {
+      poolId: bossTemplateContext.pool.id,
+      poolIndex: bossTemplateContext.pool.index,
+      poolLabel: bossTemplateContext.pool.label,
+      assignedUserName: bossTemplateContext.pool.assignedUserName ?? "",
+      before: 0,
+      after: 0,
+      max: Number(bossTemplateContext.pool.max ?? bossTemplateContext.maximumWounds),
+      remainingPools: bossTemplateContext.state.pools.filter((pool) => Number(pool.value ?? 0) > 0).length,
+      allDefeated: bossTemplateContext.state.pools.every((pool) => Number(pool.value ?? 0) <= 0),
+      alreadyDepleted: true
+    };
+
+    const noOp = {
+      actor,
+      applicationId,
+      alreadyApplied: false,
+      noEffect: true,
+      reason: "boss-template-pool-depleted",
+      damageInfo: { rawDamage: Number(damage ?? 0), effectiveDamage: 0 },
+      result: {
+        wounds: 0,
+        temp: currentTemp,
+        tempDamage: 0,
+        healthDamage: 0,
+        absorbedByTemp: 0
+      },
+      bossTemplate,
+      before: { wounds: 0, temp: currentTemp },
+      after: { wounds: 0, temp: currentTemp }
+    };
+
+    if (options.createChat !== false) {
+      await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor }),
+        content: `
+          <div class="dda-chat-card dda-effect-card effect-negative dda-damage-card">
+            <h2>${escapeHtml(localizeWithFallback("DDA.BossTemplate.Title", "Boss Template"))}</h2>
+            <p><strong>${escapeHtml(bossTemplate.poolLabel)}</strong>${bossTemplate.assignedUserName ? ` — ${escapeHtml(bossTemplate.assignedUserName)}` : ""}: ${escapeHtml(localizeWithFallback("DDA.BossTemplate.PoolAlreadyDepleted", "este Wound Pool já foi esgotado; o dano não transborda para outro pool."))}</p>
+          </div>`
+      });
+    }
+
+    return noOp;
+  }
+
+  const shiningDigizoid =
+    await reduceEnemyUnalterableDamageWithShiningArmor(
+      actor,
+      damage,
+      options
+    );
+
+  const survivalInstinct =
+    await maybeApplySurvivalInstinctDamage(
+      actor,
+      shiningDigizoid.damage,
+      {
+        ...options,
+        shiningReduction:
+          shiningDigizoid.reduction
+      }
+    );
+
+  const adjustedDamage = survivalInstinct?.used
+    ? survivalInstinct.damage
+    : shiningDigizoid.damage;
+
+  const adjustedOptions = survivalInstinct?.used
+    ? {
+        ...options,
+        unalterable: false,
+        unalterablePortion: 0
+      }
+    : options;
+
+  const damageInfo = getDamageApplicationInfo(
+    actor,
+    adjustedDamage,
+    adjustedOptions
+  );
+
+  damageInfo.shiningDigizoidReduction =
+    shiningDigizoid.reduction;
+
+  damageInfo.survivalInstinct =
+    survivalInstinct;
   let effectiveDamage = damageInfo.effectiveDamage;
   const evokerCreation = actor.flags?.["digimon-digital-adventures"]?.evokerCreation;
   const damageThreshold = evokerCreation?.kind === "structure"
@@ -798,16 +1591,22 @@ if (intercedePending) {
   const combatId = String(getCombatId() ?? "");
   const fateAlreadyUsed = String(actor.system?.combat?.fatesProtectionCombatId ?? "") === combatId;
   const canUseFatesProtection = ipCurrent >= 2 && !fateAlreadyUsed;
-  const useFatesProtection = canUseFatesProtection && await Dialog.confirm({
-    title: localizeWithFallback("DDA.Intercede.FatesProtectionTitle", "Fate's Protection"),
+  const useFatesProtection = canUseFatesProtection && await foundry.applications.api.DialogV2.confirm({
+    window: {
+      title: localizeWithFallback("DDA.Intercede.FatesProtectionTitle", "Fate's Protection")
+    },
     content: `<p>${localizeWithFallback(
       "DDA.Intercede.FatesProtectionPrompt",
       "Spend 2 IP so {actor} remains at 1 Wound Box after Interceding?",
       { actor: actor.name }
     )}</p>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
+    yes: {
+      default: false
+    },
+    no: {
+      default: true
+    },
+    rejectClose: false
   });
 
   result.temp = 0;
@@ -896,9 +1695,9 @@ const undefeatedEndurance = intercedePending || fatesProtection?.used
         result.wounds,
 
       maximumWounds:
-        Number(
-          wounds.max ?? 0
-        )
+        bossTemplateContext
+          ? Number(bossTemplateContext.maximumWounds ?? wounds.max ?? 0)
+          : Number(wounds.max ?? 0)
     }
   );
 
@@ -914,15 +1713,40 @@ if (heldBack) {
   result.healthDamage = Math.max(0, currentWounds - 1);
 }
 
+const bossTemplatePreview = bossTemplateContext
+  ? previewBossTemplatePoolResult(bossTemplateContext, result.wounds)
+  : null;
+
+const phaseDefeated = bossTemplatePreview
+  ? Boolean(bossTemplatePreview.allDefeated)
+  : result.wounds <= 0;
+
+const multiStageContinuation = phaseDefeated && hasMultiStageBossContinuation(
+  actor,
+  bossTemplateContext?.combat ?? game.combat
+);
+
+let actorDefeated = Boolean(phaseDefeated && !multiStageContinuation);
+
+if (actorDefeated) {
+  await recordRevitalizeDefeatState(actor);
+}
+
+const bossTemplateCommit = bossTemplateContext
+  ? await commitBossTemplatePoolResult(bossTemplateContext, result.wounds)
+  : null;
+
 await actor.update({
   [config.woundsValuePath]:
-    result.wounds,
+    bossTemplateCommit
+      ? bossTemplateCommit.summaryWounds
+      : result.wounds,
 
   [config.tempValuePath]:
     result.temp,
 
   "system.combat.defeated":
-    result.wounds <= 0,
+    actorDefeated,
 
   ...(heldBack ? { "system.combat.incapacitated": true } : {}),
 
@@ -937,8 +1761,32 @@ await actor.update({
     "system.resources.ip.value": fatesProtection.ipAfter,
     "system.combat.fatesProtectionStandardCombatId": fatesProtection.combatId,
     "system.combat.fatesProtectionStandardUses": fatesProtection.usesAfter
+  } : {}),
+
+  ...(applicationId ? {
+    [`flags.${game.system.id}.damageApplicationHistory`]:
+      buildNextDamageHistory(actor, applicationId)
   } : {})
 });
+
+if (bossTemplateCommit) {
+  await setBossTemplateDefeatedState(actor, actorDefeated, bossTemplateContext.combat);
+}
+
+const gloriousWorldConsumed =
+  await consumeGloriousWorldTemporaryWounds(
+    actor,
+    result.tempDamage
+  );
+
+await consumeChallengerTemporaryWounds(
+  actor,
+  Math.max(
+    0,
+    result.tempDamage -
+      gloriousWorldConsumed
+  )
+);
 
 let shieldBroken = false;
 
@@ -965,8 +1813,33 @@ const lifesteal = await applyLifestealFromDamage({
   key: String(options.lifestealKey ?? "")
 });
 
+/*
+ * Multi-Stage resolves only after every consequence of the defeating hit has
+ * finished against the form that actually received it. This prevents the new
+ * form from retroactively changing Shield, Combat Monster/Resolve, Lifesteal,
+ * temporary-wound consumption, or other post-damage behavior from the old
+ * stage.
+ */
+let multiStageTransition = null;
+if (multiStageContinuation) {
+  multiStageTransition = await handleMultiStageBossDefeat(actor, {
+    combat: bossTemplateContext?.combat ?? game.combat
+  });
+
+  if (!multiStageTransition?.handled) {
+    actorDefeated = true;
+    await actor.update({ "system.combat.defeated": true });
+    if (bossTemplateContext?.combat) {
+      await setBossTemplateDefeatedState(actor, true, bossTemplateContext.combat);
+    }
+    await recordRevitalizeDefeatState(actor);
+  }
+}
+
 const applicationResult = {
   actor,
+  applicationId,
+  alreadyApplied: false,
   damageInfo,
   result,
 shieldBroken,
@@ -977,6 +1850,21 @@ undefeatedEndurance,
 regenSurvival,
 intercedeSurvival,
 fatesProtection,
+survivalInstinct,
+multiStageTransition,
+bossTemplate: bossTemplateCommit
+  ? {
+      poolId: bossTemplateCommit.pool?.id ?? bossTemplateContext.pool?.id,
+      poolIndex: bossTemplateCommit.pool?.index ?? bossTemplateContext.pool?.index,
+      poolLabel: bossTemplateCommit.pool?.label ?? bossTemplateContext.pool?.label,
+      assignedUserName: bossTemplateCommit.pool?.assignedUserName ?? bossTemplateContext.pool?.assignedUserName ?? "",
+      before: currentWounds,
+      after: Number(bossTemplateCommit.pool?.value ?? result.wounds),
+      max: Number(bossTemplateCommit.pool?.max ?? bossTemplateContext.maximumWounds),
+      remainingPools: bossTemplateCommit.remainingPools,
+      allDefeated: bossTemplateCommit.allDefeated
+    }
+  : null,
 before: {
     wounds: currentWounds,
     temp: currentTemp
@@ -1003,7 +1891,10 @@ content: buildDamageChatContent({
   combatMonsterResolve,
   gritSurvival,
   fatesProtection,
+  survivalInstinct,
   lifesteal,
+  bossTemplate: applicationResult.bossTemplate,
+  multiStageTransition: applicationResult.multiStageTransition,
   currentWounds,
   currentTemp,
   effectiveDamage
@@ -1032,7 +1923,10 @@ function buildDamageChatContent({
   combatMonsterResolve,
   gritSurvival,
   fatesProtection,
+  survivalInstinct,
   lifesteal,
+  bossTemplate,
+  multiStageTransition,
   currentWounds,
   currentTemp,
   effectiveDamage
@@ -1114,6 +2008,22 @@ function buildDamageChatContent({
             : ""
         }
 
+        ${
+          bossTemplate
+            ? `
+              <li class="damage-boss-template-pool">
+                <strong>${escapeHtml(localizeWithFallback("DDA.BossTemplate.Pool", "Boss Wound Pool"))} ${bossTemplate.poolIndex}:</strong>
+                ${bossTemplate.assignedUserName ? `${escapeHtml(bossTemplate.assignedUserName)} — ` : ""}
+                <strong>${bossTemplate.before} → ${bossTemplate.after} / ${bossTemplate.max}</strong>.
+              </li>
+              <li class="damage-boss-template-remaining">
+                ${escapeHtml(localizeWithFallback("DDA.BossTemplate.RemainingPools", "Wound Pools restantes", { count: bossTemplate.remainingPools }))}:
+                <strong>${bossTemplate.remainingPools}</strong>.
+              </li>
+            `
+            : ""
+        }
+
         <li>
           ${escapeHtml(localizeWithFallback("DDA.Damage.Temporary", "Temporárias"))}:
           <strong>${currentTemp} → ${result.temp}</strong>.
@@ -1129,6 +2039,21 @@ function buildDamageChatContent({
               <li class="damage-fates-protection">
                 <strong>${escapeHtml(localizeWithFallback("DDA.FatesProtection.Title", "Proteção do Destino"))}:</strong>
                 ${escapeHtml(localizeWithFallback("DDA.FatesProtection.Applied", "Todo o Dano deste Ataque foi evitado."))}
+              </li>
+            `
+            : ""
+        }
+        ${
+          survivalInstinct?.used
+            ? `
+              <li class="damage-survival-instinct">
+                <strong>FLOW WITH IT:</strong>
+                ${escapeHtml(
+                  localizeWithFallback(
+                    "DDA.TamerTalent.SurvivalInstinct.Applied",
+                    "O Dano Inalterável associado foi ignorado e o restante foi reduzido pela metade."
+                  )
+                )}
               </li>
             `
             : ""
@@ -1180,7 +2105,7 @@ function buildDamageChatContent({
         }
 
         ${
-          result.wounds <= 0
+          !multiStageTransition?.handled && (bossTemplate ? bossTemplate.allDefeated : result.wounds <= 0)
             ? `
               <li class="damage-defeated">
                 <strong>${escapeHtml(localizeWithFallback("DDA.Damage.Defeated", "Derrotado."))}</strong>

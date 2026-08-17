@@ -1,0 +1,155 @@
+<section class="dda-bonus-dp-shell">
+  {{#unless hasPartner}}
+    <div class="dda-bonus-dp-empty">
+      <i class="fa-solid fa-link-slash"></i>
+      <p>{{labels.noPartner}}</p>
+    </div>
+  {{else}}
+    <header class="dda-bonus-dp-hero">
+      <img src="{{partnerImg}}" alt="{{partnerName}}" />
+      <div>
+        <span class="dda-bonus-dp-kicker">{{tamerName}}</span>
+        <h2>{{partnerName}}</h2>
+        <p>{{labels.subtitle}}</p>
+      </div>
+    </header>
+
+    <div class="dda-bonus-dp-summary">
+      <article>
+        <span>{{labels.total}}</span>
+        <strong>{{total}}</strong>
+      </article>
+      <article>
+        <span>{{labels.sharedStats}}</span>
+        <strong data-bonus-stat-total>{{statAllocated}}</strong>
+      </article>
+      <article>
+        <span>{{labels.quality}}</span>
+        <strong data-bonus-quality-total>{{qualityAllocated}}</strong>
+      </article>
+      <article class="{{#if unallocated}}is-open{{else}}is-complete{{/if}}">
+        <span>{{labels.unallocated}}</span>
+        <strong data-bonus-unallocated>{{unallocated}}</strong>
+      </article>
+    </div>
+
+    <div class="dda-bonus-dp-body">
+      <section class="dda-bonus-dp-rule-card">
+        <div class="dda-bonus-dp-rule-icon"><i class="fa-solid fa-code-branch"></i></div>
+        <div>
+          <h3>{{labels.ruleTitle}}</h3>
+          <p>{{labels.ruleText}}</p>
+        </div>
+      </section>
+
+      <section class="dda-bonus-dp-panel">
+        <header>
+          <div>
+            <h3>{{labels.statsTitle}}</h3>
+            <p>{{labels.statsHint}}</p>
+          </div>
+          <span class="dda-bonus-dp-budget-chip">{{statAllocated}} / {{total}}</span>
+        </header>
+
+        <div class="dda-bonus-dp-stat-grid">
+          {{#each stats}}
+            <label class="dda-bonus-dp-stat-card">
+              <span>{{label}}</span>
+              <input
+                type="number"
+                min="0"
+                max="{{max}}"
+                step="1"
+                value="{{value}}"
+                data-bonus-stat="{{key}}"
+                {{#unless ../canEdit}}disabled{{/unless}}
+              />
+            </label>
+          {{/each}}
+        </div>
+      </section>
+
+      <section class="dda-bonus-dp-panel">
+        <header>
+          <div>
+            <h3>{{labels.qualitiesTitle}}</h3>
+            <p>{{labels.qualitiesHint}}</p>
+          </div>
+        </header>
+
+        <div class="dda-bonus-dp-quality-allocation">
+          <label>
+            <span>{{labels.quality}}</span>
+            <input
+              type="number"
+              min="0"
+              max="{{qualityMax}}"
+              step="1"
+              value="{{qualityAllocated}}"
+              data-bonus-quality
+              {{#unless canEdit}}disabled{{/unless}}
+            />
+          </label>
+
+          <div class="dda-bonus-dp-quality-state {{#if parityComplete}}is-complete{{else}}is-pending{{/if}}">
+            {{#if parityComplete}}
+              <i class="fa-solid fa-circle-check"></i>
+              <span>{{localize "DDA.Progression.BonusDP.ParityComplete"}}</span>
+            {{else}}
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <span>{{localize "DDA.Progression.BonusDP.ParityPending"}}</span>
+            {{/if}}
+          </div>
+        </div>
+      </section>
+
+      <section class="dda-bonus-dp-panel dda-bonus-dp-forms-panel">
+        <header>
+          <div>
+            <h3>{{labels.formsTitle}}</h3>
+            <p>{{labels.formsHint}}</p>
+          </div>
+          <button type="button" data-action="openPlanner">
+            <i class="fa-solid fa-diagram-project"></i>
+            {{labels.planner}}
+          </button>
+        </header>
+
+        {{#if hasForms}}
+          <div class="dda-bonus-dp-form-list">
+            {{#each forms}}
+              <article class="dda-bonus-dp-form-row {{statusClass}}">
+                <div class="dda-bonus-dp-form-name">
+                  <strong>{{name}}</strong>
+                  <span>{{stageLabel}}</span>
+                </div>
+                <div>
+                  <span>{{../labels.qualitySpent}}</span>
+                  <strong>{{qualityDisplay}}</strong>
+                </div>
+                <div>
+                  <span>{{../labels.localBase}}</span>
+                  <strong>{{baseRemaining}}</strong>
+                </div>
+                <span class="dda-bonus-dp-form-status {{statusClass}}">{{statusLabel}}</span>
+              </article>
+            {{/each}}
+          </div>
+        {{else}}
+          <p class="dda-bonus-dp-no-forms">{{localize "DDA.Progression.BonusDP.NoPreparedForms"}}</p>
+        {{/if}}
+      </section>
+    </div>
+
+    <footer class="dda-bonus-dp-footer">
+      <button type="button" data-action="resetDraft">
+        <i class="fa-solid fa-rotate-left"></i>
+        {{labels.reset}}
+      </button>
+      <button type="button" class="primary" data-action="saveAllocation" {{#unless canEdit}}disabled{{/unless}}>
+        <i class="fa-solid fa-floppy-disk"></i>
+        {{labels.save}}
+      </button>
+    </footer>
+  {{/unless}}
+</section>

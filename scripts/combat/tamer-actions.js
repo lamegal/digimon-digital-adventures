@@ -4,8 +4,35 @@ import {
 } from "../rules/tamer-resources.js";
 
 import {
+  getTamerTalentImplementation,
+  getTamerTalentImplementationLabelKey
+} from "../data/tamer-talent-implementation.js";
+
+import {
   useTamerTalent
 } from "../rules/tamer-talent-automation.js";
+
+import {
+  getVanishTamerActionRestriction
+} from "../rules/tamer-talent-special-orders.js";
+
+import {
+  getNaturalExplorerFollowerEffect,
+  isCalculatedAvailable,
+  leadNaturalExplorerAllies,
+  markBestLaidPlansSurprise,
+  markCalculatedUsed,
+  postBusyHandsPlantCard
+} from "../rules/tamer-talent-runtime.js";
+
+import {
+  getNextOrderTargetRestriction,
+  useBeTheWinners
+} from "../rules/tamer-talent-attack-direct.js";
+
+import {
+  revealOverlookedToEnemy
+} from "../rules/tamer-talent-combat-survival.js";
 
 import {
   rollDerivedCheck,
@@ -357,7 +384,8 @@ async function spendOncePerRestTalent(
 export async function payPartnerInterruptAction(
   partner,
   {
-    reason = ""
+    reason = "",
+    partnerActionCost = 1
   } = {}
 ) {
   if (
@@ -369,6 +397,11 @@ export async function payPartnerInterruptAction(
     return null;
   }
 
+  const requiredPartnerActions = Math.max(
+    0,
+    Number(partnerActionCost ?? 1) || 0
+  );
+
   /*
    * Fora de Combate não existe economia de
    * Ações de Interrupção para consumir.
@@ -378,7 +411,8 @@ export async function payPartnerInterruptAction(
       success: true,
       payer: "none",
       partner,
-      tamer: null
+      tamer: null,
+      actionCost: 0
     };
   }
 
@@ -406,7 +440,7 @@ export async function payPartnerInterruptAction(
     );
 
   const partnerCanPay =
-    partnerActions >= 1;
+    partnerActions >= requiredPartnerActions;
 
   if (
     !dangerSenseAvailable &&
@@ -415,7 +449,7 @@ export async function payPartnerInterruptAction(
     ui.notifications.warn(
       localize(
         "DDA.TamerTalent.DangerSense.NoActions",
-        "Nem o parceiro nem o Digi-Escolhido possuem uma Ação disponível para esta Interrupção."
+        "Nem o parceiro nem o Digi-Escolhido possuem Ações suficientes para esta Interrupção."
       )
     );
 
@@ -425,95 +459,79 @@ export async function payPartnerInterruptAction(
   let payer = "partner";
 
   if (dangerSenseAvailable) {
-    payer =
-      await new Promise((resolve) => {
-        const buttons = {
-          dangerSense: {
-            label: localize(
-              "DDA.TamerTalent.DangerSense.Use",
-              "Usar Danger Sense"
-            ),
-
-            callback: () => {
-              resolve("tamer");
-            }
-          }
-        };
-
-        if (partnerCanPay) {
-          buttons.partner = {
-            label: localize(
-              "DDA.TamerTalent.DangerSense.PartnerPays",
-              "Parceiro paga"
-            ),
-
-            callback: () => {
-              resolve("partner");
-            }
-          };
-        }
-
-        buttons.cancel = {
+    const DialogV2 = foundry.applications.api.DialogV2;
+    payer = await DialogV2.wait({
+      classes: ["dda", "dda-danger-sense-dialog"],
+      window: {
+        title: localize(
+          "DDA.TamerTalent.DangerSense.Title",
+          "Danger Sense"
+        )
+      },
+      content: `
+        <div class="dda-danger-sense-dialog-content">
+          ${reason
+            ? `<p>${escapeHtml(
+                formatI18n(
+                  "DDA.TamerTalent.DangerSense.Reason",
+                  { reason },
+                  `Interrupção: ${reason}.`
+                )
+              )}</p>`
+            : ""}
+          <p>${escapeHtml(
+            formatI18n(
+              "DDA.TamerTalent.DangerSense.Prompt",
+              {
+                tamer: tamer.name,
+                partner: partner.name
+              },
+              `${tamer.name} pode gastar 1 Ação no lugar de ${partner.name}.`
+            )
+          )}</p>
+          ${requiredPartnerActions > 1
+            ? `<p class="muted">${escapeHtml(
+                `${partner.name}: ${requiredPartnerActions} Ações · ${tamer.name} (Danger Sense): 1 Ação.`
+              )}</p>`
+            : ""}
+        </div>
+      `,
+      buttons: [
+        {
+          action: "dangerSense",
+          label: localize(
+            "DDA.TamerTalent.DangerSense.Use",
+            "Usar Danger Sense"
+          ),
+          icon: "fa-solid fa-eye",
+          default: true,
+          callback: () => "tamer"
+        },
+        ...(partnerCanPay
+          ? [{
+              action: "partner",
+              label: localize(
+                "DDA.TamerTalent.DangerSense.PartnerPays",
+                "Parceiro paga"
+              ),
+              icon: "fa-solid fa-bolt",
+              callback: () => "partner"
+            }]
+          : []),
+        {
+          action: "cancel",
           label: localize(
             "DDA.Button.Cancel",
             "Cancelar"
           ),
-
-          callback: () => {
-            resolve("");
-          }
-        };
-
-        new Dialog({
-          title: localize(
-            "DDA.TamerTalent.DangerSense.Title",
-            "Danger Sense"
-          ),
-
-          content: `
-            <div class="dda-danger-sense-dialog">
-              ${
-                reason
-                  ? `
-                    <p>
-                      ${escapeHtml(
-                        formatI18n(
-                          "DDA.TamerTalent.DangerSense.Reason",
-                          { reason },
-                          `Interrupção: ${reason}.`
-                        )
-                      )}
-                    </p>
-                  `
-                  : ""
-              }
-
-              <p>
-                ${escapeHtml(
-                  formatI18n(
-                    "DDA.TamerTalent.DangerSense.Prompt",
-                    {
-                      tamer:
-                        tamer.name,
-
-                      partner:
-                        partner.name
-                    },
-                    `${tamer.name} pode gastar 1 Ação no lugar de ${partner.name}.`
-                  )
-                )}
-              </p>
-            </div>
-          `,
-
-          buttons,
-          default: "dangerSense",
-
-          close: () => {
-            resolve("");
-          }
-        }).render(true);
-      });
+          icon: "fa-solid fa-xmark",
+          callback: () => ""
+        }
+      ],
+      rejectClose: false,
+      close: () => "",
+      modal: true
+    });
 
     if (!payer) {
       return null;
@@ -564,13 +582,14 @@ export async function payPartnerInterruptAction(
       payer: "tamer",
       partner,
       tamer,
-      usedDangerSense: true
+      usedDangerSense: true,
+      actionCost: 1
     };
   }
 
   const currentPartnerActions = getActorActionState(partner).value;
 
-  if (currentPartnerActions < 1) {
+  if (currentPartnerActions < requiredPartnerActions) {
     ui.notifications.warn(
       localize(
         "DDA.TamerTalent.DangerSense.PaymentFailed",
@@ -581,14 +600,16 @@ export async function payPartnerInterruptAction(
     return null;
   }
 
-  const payment = await spendActorActions(
-    partner,
-    1,
-    {
-      requireActiveUnit: false,
-      notify: false
-    }
-  );
+  const payment = requiredPartnerActions > 0
+    ? await spendActorActions(
+        partner,
+        requiredPartnerActions,
+        {
+          requireActiveUnit: false,
+          notify: false
+        }
+      )
+    : { success: true };
 
   if (!payment) {
     ui.notifications.warn(
@@ -605,7 +626,8 @@ export async function payPartnerInterruptAction(
     payer: "partner",
     partner,
     tamer,
-    usedDangerSense: false
+    usedDangerSense: false,
+    actionCost: requiredPartnerActions
   };
 }
 
@@ -691,8 +713,8 @@ async function resolvePartnerActor(tamer) {
    * O UUID-base é utilizado como fallback.
    */
   const references = [
-    partnerData.currentFormUuid,
-    partnerData.uuid
+    partnerData.uuid,
+    partnerData.currentFormUuid
   ]
     .map((value) => {
       return String(value ?? "").trim();
@@ -799,34 +821,36 @@ async function chooseDigimonTarget(tamer, { partnerOnly = false } = {}) {
     return `<option value="${index}">${escapeHtml(actor.name)}${escapeHtml(partnerSuffix)}</option>`;
   }).join("");
 
-  return await new Promise((resolve) => {
-    new Dialog({
-      title: localize("DDA.TamerAction.TargetDialog.Title", "Escolher Digimon"),
-      content: `
-        <form class="dda-roll-dialog dda-tamer-action-target-dialog">
-          <div class="form-group">
-            <label>${localize("DDA.TamerAction.Target", "Alvo")}</label>
-            <select name="targetIndex">${options}</select>
-          </div>
-        </form>
-      `,
-      buttons: {
-        confirm: {
-          label: localize("DDA.Button.Confirm", "Confirmar"),
-          callback: (html) => {
-            const root = html instanceof jQuery ? html : $(html);
-            const index = Number(root.find("select[name='targetIndex']").val() ?? -1);
-            resolve(actors[index] ?? null);
-          }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel", "Cancelar"),
-          callback: () => resolve(null)
+  return await foundry.applications.api.DialogV2.wait({
+    window: {
+      title: localize("DDA.TamerAction.TargetDialog.Title", "Escolher Digimon")
+    },
+    content: `
+      <div class="dda-roll-dialog dda-tamer-action-target-dialog">
+        <div class="form-group">
+          <label>${localize("DDA.TamerAction.Target", "Alvo")}</label>
+          <select name="targetIndex">${options}</select>
+        </div>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm", "Confirmar"),
+        default: true,
+        callback: (_event, button) => {
+          const index = Number(button.form.elements.targetIndex?.value ?? -1);
+          return actors[index] ?? null;
         }
       },
-      default: "confirm",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel", "Cancelar"),
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -868,114 +892,114 @@ function getActionModeOptions(tamer, baseAttributeKey, { allowCalculated = true 
     },
     calculatedAvailable:
       allowCalculated &&
-      hasUnlockedOfficialTamerTalent(tamer, "calculated") &&
-      !wasUsedThisTurn(tamer, "calculated")
+      isCalculatedAvailable(tamer)
   };
 }
 
 async function promptPoolActionOptions(tamer, actionKey, baseAttributeKey) {
   const modeData = getActionModeOptions(tamer, baseAttributeKey);
 
-  return await new Promise((resolve) => {
-    new Dialog({
-      title: localize(`DDA.TamerAction.${actionKey}.Title`, actionKey),
-      content: `
-        <form class="dda-roll-dialog dda-tamer-pool-action-dialog">
-          <div class="form-group">
-            <label>${localize("DDA.TamerAction.AttributeMode", "Modo do Atributo")}</label>
-            <select name="mode">
-              <option value="base">
-                1 ${localize("DDA.Resource.Actions", "Ação")} —
-                ${escapeHtml(modeData.base.label)} ${modeData.base.value}
-              </option>
-              <option value="highest">
-                2 ${localize("DDA.Resource.Actions", "Ações")} —
-                ${localize("DDA.TamerAction.HighestAttribute", "Maior Atributo")}:
-                ${escapeHtml(modeData.highest.label)} ${modeData.highest.value}
-              </option>
-            </select>
-          </div>
+  return await foundry.applications.api.DialogV2.wait({
+    window: {
+      title: localize(`DDA.TamerAction.${actionKey}.Title`, actionKey)
+    },
+    content: `
+      <div class="dda-roll-dialog dda-tamer-pool-action-dialog">
+        <div class="form-group">
+          <label>${localize("DDA.TamerAction.AttributeMode", "Modo do Atributo")}</label>
+          <select name="mode">
+            <option value="base">
+              1 ${localize("DDA.Resource.Actions", "Ação")} —
+              ${escapeHtml(modeData.base.label)} ${modeData.base.value}
+            </option>
+            <option value="highest">
+              2 ${localize("DDA.Resource.Actions", "Ações")} —
+              ${localize("DDA.TamerAction.HighestAttribute", "Maior Atributo")}:
+              ${escapeHtml(modeData.highest.label)} ${modeData.highest.value}
+            </option>
+          </select>
+        </div>
 
-          <label class="dda-tamer-action-check">
-            <input type="checkbox" name="bolster" />
-            <span>
-              ${localize("DDA.TamerAction.Bolster", "Fortalecer")}
-              — +1 ${localize("DDA.Resource.Actions", "Ação")}, +2 ${localize("DDA.Pool.Dice", "dados")}
-            </span>
-          </label>
+        <label class="dda-tamer-action-check">
+          <input type="checkbox" name="bolster" />
+          <span>
+            ${localize("DDA.TamerAction.Bolster", "Fortalecer")}
+            — +1 ${localize("DDA.Resource.Actions", "Ação")}, +2 ${localize("DDA.Pool.Dice", "dados")}
+          </span>
+        </label>
 
-          ${
-            modeData.calculatedAvailable
-              ? `
-                <label class="dda-tamer-action-check dda-tamer-action-calculated">
-                  <input type="checkbox" name="calculated" />
-                  <span>
-                    ${localize("DDA.TamerTalent.Name.Calculated", "Calculated")}
-                    — ${localize(
-                      "DDA.TamerAction.CalculatedHint",
-                      "trocar os +2 dados de Fortalecer por +1 Sucesso automático"
-                    )}
-                  </span>
-                </label>
-              `
-              : ""
-          }
-        </form>
-      `,
-      buttons: {
-        confirm: {
-          label: localize("DDA.Button.Confirm", "Confirmar"),
-          callback: (html) => {
-            const root = html instanceof jQuery ? html : $(html);
-            const mode = String(root.find("select[name='mode']").val() ?? "base");
-            const requestedBolster = root.find("input[name='bolster']").is(":checked");
-            const bolster = mode === "base" && requestedBolster;
-            const calculated = bolster && root.find("input[name='calculated']").is(":checked");
+        ${
+          modeData.calculatedAvailable
+            ? `
+              <label class="dda-tamer-action-check dda-tamer-action-calculated">
+                <input type="checkbox" name="calculated" />
+                <span>
+                  ${localize("DDA.TamerTalent.Name.Calculated", "Calculated")}
+                  — ${localize(
+                    "DDA.TamerAction.CalculatedHint",
+                    "trocar os +2 dados de Fortalecer por +1 Sucesso automático"
+                  )}
+                </span>
+              </label>
+            `
+            : ""
+        }
+      </div>
+    `,
+    render: (_event, dialog) => {
+      const mode = dialog.element.querySelector("select[name='mode']");
+      const bolster = dialog.element.querySelector("input[name='bolster']");
+      const calculated = dialog.element.querySelector("input[name='calculated']");
 
-            resolve({
-              mode,
-              bolster,
-              calculated,
-              attribute: mode === "highest" ? modeData.highest : modeData.base,
-              actionCost: mode === "highest" || bolster ? 2 : 1,
-              bolsterDice: bolster && !calculated ? 2 : 0,
-              automaticSuccesses: calculated ? 1 : 0
-            });
-          }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel", "Cancelar"),
-          callback: () => resolve(null)
+      const refresh = () => {
+        const usesHighest = String(mode?.value ?? "base") === "highest";
+        if (bolster) bolster.disabled = usesHighest;
+
+        if (usesHighest) {
+          if (bolster) bolster.checked = false;
+          if (calculated) calculated.checked = false;
+        }
+
+        if (calculated) {
+          calculated.disabled = usesHighest || !Boolean(bolster?.checked);
+        }
+      };
+
+      if (mode) mode.onchange = refresh;
+      if (bolster) bolster.onchange = refresh;
+      refresh();
+    },
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm", "Confirmar"),
+        default: true,
+        callback: (_event, button) => {
+          const form = button.form.elements;
+          const mode = String(form.mode?.value ?? "base");
+          const requestedBolster = Boolean(form.bolster?.checked);
+          const bolster = mode === "base" && requestedBolster;
+          const calculated = bolster && Boolean(form.calculated?.checked);
+
+          return {
+            mode,
+            bolster,
+            calculated,
+            attribute: mode === "highest" ? modeData.highest : modeData.base,
+            actionCost: mode === "highest" || bolster ? 2 : 1,
+            bolsterDice: bolster && !calculated ? 2 : 0,
+            automaticSuccesses: calculated ? 1 : 0
+          };
         }
       },
-      render: (html) => {
-        const root = html instanceof jQuery ? html : $(html);
-        const mode = root.find("select[name='mode']");
-        const bolster = root.find("input[name='bolster']");
-        const calculated = root.find("input[name='calculated']");
-
-        const refresh = () => {
-          const usesHighest = String(mode.val() ?? "base") === "highest";
-          bolster.prop("disabled", usesHighest);
-
-          if (usesHighest) {
-            bolster.prop("checked", false);
-            calculated.prop("checked", false);
-          }
-
-          calculated.prop(
-            "disabled",
-            usesHighest || !bolster.is(":checked")
-          );
-        };
-
-        mode.on("change", refresh);
-        bolster.on("change", refresh);
-        refresh();
-      },
-      default: "confirm",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel", "Cancelar"),
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -1093,117 +1117,162 @@ async function useDirect(tamer) {
 
   const target = targetedDigimon[0];
 
+  if (game?.dda?.bossQualities?.isFrenzyTamerInfluenceBlocked?.(target)) {
+    ui.notifications.warn(String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+      ? `[FRENZY]: ${target.name} cannot be affected by Tamer Actions or Special Orders.`
+      : `[FRENZY]: ${target.name} não pode ser afetado por Ações do Tamer ou Ordens Especiais.`);
+    return null;
+  }
+
+  if (getNextOrderTargetRestriction(tamer, target)) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerTalent.NextOrder.DirectRestriction",
+        "Este Digimon já recebeu WE CAN DO THIS, TOGETHER neste turno e não pode ser alvo do Direcionar normal."
+      )
+    );
+    return null;
+  }
+
   const partner = isPartnerActor(tamer, target);
   const charisma = getAttributeValue(tamer, "charisma");
   const highest = getHighestAttribute(tamer);
   const directTeam = hasUnlockedOfficialTamerTalent(tamer, "directTeam");
+  const calculatedAvailable = isCalculatedAvailable(tamer);
 
-  const result = await new Promise((resolve) => {
-    new Dialog({
-      title: localize("DDA.TamerAction.Direct.Title", "Direcionar"),
-      content: `
-        <form class="dda-roll-dialog dda-tamer-direct-dialog">
-          <div class="form-group">
-            <label>${localize("DDA.TamerAction.Target", "Alvo")}</label>
-            <input type="text" value="${escapeHtml(target.name)}" readonly />
-          </div>
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: {
+      title: localize("DDA.TamerAction.Direct.Title", "Direcionar")
+    },
+    content: `
+      <div class="dda-roll-dialog dda-tamer-direct-dialog">
+        <div class="form-group">
+          <label>${localize("DDA.TamerAction.Target", "Alvo")}</label>
+          <input type="text" value="${escapeHtml(target.name)}" readonly />
+        </div>
 
-          <div class="form-group">
-            <label>${localize("DDA.TamerAction.Direct.Stat", "Pool afetado")}</label>
-            <select name="statKey">
-              <option value="accuracy">${localize("DDA.MainStat.Accuracy", "Precisão")}</option>
-              <option value="dodge">${localize("DDA.MainStat.Dodge", "Esquiva")}</option>
-            </select>
-          </div>
+        <div class="form-group">
+          <label>${localize("DDA.TamerAction.Direct.Stat", "Pool afetado")}</label>
+          <select name="statKey">
+            <option value="accuracy">${localize("DDA.MainStat.Accuracy", "Precisão")}</option>
+            <option value="dodge">${localize("DDA.MainStat.Dodge", "Esquiva")}</option>
+          </select>
+        </div>
 
-          <div class="form-group">
-            <label>${localize("DDA.TamerAction.AttributeMode", "Modo do Atributo")}</label>
-            <select name="mode">
-              <option value="charisma">
-                1 ${localize("DDA.Resource.Actions", "Ação")} —
-                ${localize("DDA.TamerAttribute.Charisma", "Carisma")} ${charisma}
-              </option>
-              <option value="highest">
-                2 ${localize("DDA.Resource.Actions", "Ações")} —
-                ${escapeHtml(highest.label)} ${highest.value}
-              </option>
-            </select>
-          </div>
+        <div class="form-group">
+          <label>${localize("DDA.TamerAction.AttributeMode", "Modo do Atributo")}</label>
+          <select name="mode">
+            <option value="charisma">
+              1 ${localize("DDA.Resource.Actions", "Ação")} —
+              ${localize("DDA.TamerAttribute.Charisma", "Carisma")} ${charisma}
+            </option>
+            <option value="highest">
+              2 ${localize("DDA.Resource.Actions", "Ações")} —
+              ${escapeHtml(highest.label)} ${highest.value}
+            </option>
+          </select>
+        </div>
 
-          <label class="dda-tamer-action-check">
-            <input type="checkbox" name="bolster" />
-            <span>
-              ${localize("DDA.TamerAction.Bolster", "Fortalecer")}
-              — +1 ${localize("DDA.Resource.Actions", "Ação")}, +2 ${localize("DDA.TamerAction.Direct.Bonus", "bônus")}
-            </span>
-          </label>
-        </form>
-      `,
-      buttons: {
-        confirm: {
-          label: localize("DDA.Button.Confirm", "Confirmar"),
-          callback: (html) => {
-            const root = html instanceof jQuery ? html : $(html);
-            const statKey = String(root.find("select[name='statKey']").val() ?? "accuracy");
-            const mode = String(root.find("select[name='mode']").val() ?? "charisma");
-            const requestedBolster = root.find("input[name='bolster']").is(":checked");
-            const bolster = mode === "charisma" && requestedBolster;
-            const sourceAttribute = mode === "highest"
-              ? highest
-              : {
-                  key: "charisma",
-                  value: charisma,
-                  label: localize("DDA.TamerAttribute.Charisma", "Carisma")
-                };
+        <label class="dda-tamer-action-check">
+          <input type="checkbox" name="bolster" />
+          <span>
+            ${localize("DDA.TamerAction.Bolster", "Fortalecer")}
+            — +1 ${localize("DDA.Resource.Actions", "Ação")}, +2 ${localize("DDA.TamerAction.Direct.Bonus", "bônus")}
+          </span>
+        </label>
 
-            const otherPenalty = partner ? 0 : (directTeam ? -1 : -2);
-            const aimAssist =
-              partner &&
-              statKey === "accuracy" &&
-              mode === "highest" &&
-              hasUnlockedOfficialTamerTalent(tamer, "aimAssist");
-            const bonus = Math.max(
-              0,
-              sourceAttribute.value +
-                (bolster ? 2 : 0) +
-                (aimAssist ? 2 : 0) +
-                otherPenalty
-            );
+        ${
+          calculatedAvailable
+            ? `
+              <label class="dda-tamer-action-check dda-tamer-action-calculated">
+                <input type="checkbox" name="calculated" />
+                <span>
+                  ${localize("DDA.TamerTalent.Name.Calculated", "Calculated")}
+                  — ${localize(
+                    "DDA.TamerAction.CalculatedHint",
+                    "trocar os +2 dados de Fortalecer por +1 Sucesso automático"
+                  )}
+                </span>
+              </label>
+            `
+            : ""
+        }
+      </div>
+    `,
+    render: (_event, dialog) => {
+      const mode = dialog.element.querySelector("select[name='mode']");
+      const bolster = dialog.element.querySelector("input[name='bolster']");
+      const calculated = dialog.element.querySelector("input[name='calculated']");
 
-            resolve({
-              statKey,
-              mode,
-              bolster,
-              aimAssist,
-              sourceAttribute,
-              otherPenalty,
-              bonus,
-              actionCost: mode === "highest" || bolster ? 2 : 1
-            });
-          }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel", "Cancelar"),
-          callback: () => resolve(null)
+      const refresh = () => {
+        const usesHighest = String(mode?.value ?? "charisma") === "highest";
+        if (bolster) bolster.disabled = usesHighest;
+        if (usesHighest) {
+          if (bolster) bolster.checked = false;
+          if (calculated) calculated.checked = false;
+        }
+        if (calculated) calculated.disabled = usesHighest || !Boolean(bolster?.checked);
+      };
+
+      if (mode) mode.onchange = refresh;
+      if (bolster) bolster.onchange = refresh;
+      refresh();
+    },
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm", "Confirmar"),
+        default: true,
+        callback: (_event, button) => {
+          const form = button.form.elements;
+          const statKey = String(form.statKey?.value ?? "accuracy");
+          const mode = String(form.mode?.value ?? "charisma");
+          const requestedBolster = Boolean(form.bolster?.checked);
+          const bolster = mode === "charisma" && requestedBolster;
+          const calculated = bolster && Boolean(form.calculated?.checked);
+          const sourceAttribute = mode === "highest"
+            ? highest
+            : {
+                key: "charisma",
+                value: charisma,
+                label: localize("DDA.TamerAttribute.Charisma", "Carisma")
+              };
+
+          const otherPenalty = partner ? 0 : (directTeam ? -1 : -2);
+          const aimAssist =
+            partner &&
+            statKey === "accuracy" &&
+            mode === "highest" &&
+            hasUnlockedOfficialTamerTalent(tamer, "aimAssist");
+          const bonus = Math.max(
+            0,
+            sourceAttribute.value +
+              (bolster && !calculated ? 2 : 0) +
+              (aimAssist ? 2 : 0) +
+              otherPenalty
+          );
+
+          return {
+            statKey,
+            mode,
+            bolster,
+            calculated,
+            aimAssist,
+            sourceAttribute,
+            otherPenalty,
+            bonus,
+            actionCost: mode === "highest" || bolster ? 2 : 1
+          };
         }
       },
-      render: (html) => {
-        const root = html instanceof jQuery ? html : $(html);
-        const mode = root.find("select[name='mode']");
-        const bolster = root.find("input[name='bolster']");
-
-        const refresh = () => {
-          const usesHighest = String(mode.val() ?? "charisma") === "highest";
-          bolster.prop("disabled", usesHighest);
-          if (usesHighest) bolster.prop("checked", false);
-        };
-
-        mode.on("change", refresh);
-        refresh();
-      },
-      default: "confirm",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel", "Cancelar"),
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
 
   if (!result) return null;
@@ -1214,6 +1283,7 @@ async function useDirect(tamer) {
     label: localize("DDA.TamerAction.Direct.Effect", "Direcionado"),
     value: result.bonus,
     potency: result.bonus,
+    automaticSuccesses: result.calculated ? 1 : 0,
     poolStat: result.statKey,
     consumeOn: "matchingPool",
     expiresOn: "consumed",
@@ -1222,7 +1292,16 @@ async function useDirect(tamer) {
     targetIsPartner: partner,
     actionMode: result.mode,
     bolstered: result.bolster,
-    otherDigimonPenalty: result.otherPenalty
+    calculated: result.calculated,
+    otherDigimonPenalty: result.otherPenalty,
+    sourceActionCost: result.actionCost,
+    personalCheerleader: hasUnlockedOfficialTamerTalent(tamer, "personalCheerleader"),
+    fakeout: Boolean(
+      partner &&
+      result.statKey === "accuracy" &&
+      result.actionCost >= 2 &&
+      hasUnlockedOfficialTamerTalent(tamer, "fakeout")
+    )
   });
 
   await removePreviousDirectFromTamer(tamer);
@@ -1232,6 +1311,10 @@ async function useDirect(tamer) {
     targetName: target.name,
     statKey: result.statKey
   });
+
+  if (result.calculated) {
+    await markCalculatedUsed(tamer, "direct");
+  }
 
   await postActionCard(
     tamer,
@@ -1300,6 +1383,12 @@ async function useReposition(tamer) {
 
   const partner = await chooseDigimonTarget(tamer, { partnerOnly: true });
   if (!partner) return null;
+  if (game?.dda?.bossQualities?.isFrenzyTamerInfluenceBlocked?.(partner)) {
+    ui.notifications.warn(String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+      ? `[FRENZY]: ${partner.name} cannot be affected by Tamer Actions or Special Orders.`
+      : `[FRENZY]: ${partner.name} não pode ser afetado por Ações do Tamer ou Ordens Especiais.`);
+    return null;
+  }
 
   const options = await promptPoolActionOptions(tamer, "Reposition", "agility");
   if (!options) return null;
@@ -1327,9 +1416,7 @@ async function useReposition(tamer) {
   });
 
   if (options.calculated) {
-    await markUsedThisTurn(tamer, "calculated", {
-      action: "reposition"
-    });
+    await markCalculatedUsed(tamer, "reposition");
   }
 
   let movementGranted = false;
@@ -1406,6 +1493,12 @@ async function useReinforce(tamer) {
 
   const partner = await chooseDigimonTarget(tamer, { partnerOnly: true });
   if (!partner) return null;
+  if (game?.dda?.bossQualities?.isFrenzyTamerInfluenceBlocked?.(partner)) {
+    ui.notifications.warn(String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+      ? `[FRENZY]: ${partner.name} cannot be affected by Tamer Actions or Special Orders.`
+      : `[FRENZY]: ${partner.name} não pode ser afetado por Ações do Tamer ou Ordens Especiais.`);
+    return null;
+  }
 
   const options = await promptPoolActionOptions(tamer, "Reinforce", "body");
   if (!options) return null;
@@ -1426,9 +1519,7 @@ async function useReinforce(tamer) {
   });
 
   if (options.calculated) {
-    await markUsedThisTurn(tamer, "calculated", {
-      action: "reinforce"
-    });
+    await markCalculatedUsed(tamer, "reinforce");
   }
 
   if (rollResult.totalSuccesses > 0) {
@@ -1534,74 +1625,53 @@ async function chooseEnemyDigimonTarget() {
     })
     .join("");
 
-  return await new Promise((resolve) => {
-    new Dialog({
+  return await foundry.applications.api.DialogV2.wait({
+    window: {
       title: localize(
         "DDA.TamerTalent.EnemyScan.ChooseTarget",
         "Escolher inimigo"
-      ),
+      )
+    },
+    content: `
+      <div class="dda-roll-dialog">
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Target",
+              "Alvo"
+            )}
+          </label>
 
-      content: `
-        <form class="dda-roll-dialog">
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Target",
-                "Alvo"
-              )}
-            </label>
-
-            <select name="targetIndex">
-              ${options}
-            </select>
-          </div>
-        </form>
-      `,
-
-      buttons: {
-        confirm: {
-          label: localize(
-            "DDA.Button.Confirm",
-            "Confirmar"
-          ),
-
-          callback: (html) => {
-            const root =
-              html instanceof jQuery
-                ? html
-                : $(html);
-
-            const index = Number(
-              root.find(
-                "[name='targetIndex']"
-              ).val() ?? -1
-            );
-
-            resolve(
-              actors[index] ??
-              null
-            );
-          }
-        },
-
-        cancel: {
-          label: localize(
-            "DDA.Button.Cancel",
-            "Cancelar"
-          ),
-
-          callback: () => {
-            resolve(null);
-          }
+          <select name="targetIndex">
+            ${options}
+          </select>
+        </div>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize(
+          "DDA.Button.Confirm",
+          "Confirmar"
+        ),
+        default: true,
+        callback: (_event, button) => {
+          const index = Number(button.form.elements.targetIndex?.value ?? -1);
+          return actors[index] ?? null;
         }
       },
-
-      default: "confirm",
-
-      close: () => {
-        resolve(null);
+      {
+        action: "cancel",
+        label: localize(
+          "DDA.Button.Cancel",
+          "Cancelar"
+        ),
+        callback: () => null
       }
-    }).render(true);
+    ],
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -2085,176 +2155,156 @@ async function promptHoldOptions(
       "bestLaidPlans"
     );
 
-  return await new Promise((resolve) => {
-    new Dialog({
+  return await foundry.applications.api.DialogV2.wait({
+    window: {
       title: localize(
         "DDA.TamerAction.Hold.Title",
         "Segurar"
-      ),
-
-      content: `
-        <form class="dda-roll-dialog dda-tamer-hold-dialog">
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Target",
-                "Alvo"
-              )}
-            </label>
-
-            <input
-              type="text"
-              value="${escapeHtml(partner.name)}"
-              readonly
-            />
-          </div>
-
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Hold.Trigger",
-                "Gatilho específico"
-              )}
-            </label>
-
-            <textarea
-              name="trigger"
-              rows="3"
-              placeholder="${escapeHtml(
-                localize(
-                  "DDA.TamerAction.Hold.TriggerPlaceholder",
-                  "Ex.: quando o inimigo à esquerda atacar meu parceiro"
-                )
-              )}"
-            ></textarea>
-          </div>
-
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Hold.BonusPool",
-                "Pool beneficiada"
-              )}
-            </label>
-
-            <select name="responseAction">
-              <option value="attack">
-                ${localize(
-                  "DDA.TamerAction.Hold.ResponseAttack",
-                  "Precisão do Ataque responsivo"
-                )}
-              </option>
-
-              <option value="dodge">
-                ${localize(
-                  "DDA.TamerAction.Hold.ResponseDodge",
-                  "Esquiva contra o Ataque previsto"
-                )}
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Hold.Response",
-                "Resposta declarada"
-              )}
-            </label>
-
-            <textarea
-              name="responseDetail"
-              rows="2"
-              placeholder="${escapeHtml(
-                localize(
-                  "DDA.TamerAction.Hold.ResponsePlaceholder",
-                  "Ex.: usar Pepper Breath contra o inimigo"
-                )
-              )}"
-            ></textarea>
-          </div>
-
-          <p class="hint">
-            ${formatI18n(
-              "DDA.TamerAction.Hold.IntelligenceHint",
-              {
-                value: intelligence
-              },
-              `A Pool escolhida receberá +${intelligence} dados de Inteligência.`
+      )
+    },
+    content: `
+      <div class="dda-roll-dialog dda-tamer-hold-dialog">
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Target",
+              "Alvo"
             )}
-          </p>
+          </label>
 
-          ${
-            bestLaidPlans
-              ? `
-                <p class="hint dda-tamer-action-talent-hint">
-                  <strong>
-                    ${localize(
-                      "DDA.TamerTalent.Name.BestLaidPlans",
-                      "Best Laid Plans"
-                    )}:
-                  </strong>
+          <input
+            type="text"
+            value="${escapeHtml(partner.name)}"
+            readonly
+          />
+        </div>
 
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Hold.Trigger",
+              "Gatilho específico"
+            )}
+          </label>
+
+          <textarea
+            name="trigger"
+            rows="3"
+            placeholder="${escapeHtml(
+              localize(
+                "DDA.TamerAction.Hold.TriggerPlaceholder",
+                "Ex.: quando o inimigo à esquerda atacar meu parceiro"
+              )
+            )}"
+          ></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Hold.BonusPool",
+              "Pool beneficiada"
+            )}
+          </label>
+
+          <select name="responseAction">
+            <option value="attack">
+              ${localize(
+                "DDA.TamerAction.Hold.ResponseAttack",
+                "Precisão do Ataque responsivo"
+              )}
+            </option>
+
+            <option value="dodge">
+              ${localize(
+                "DDA.TamerAction.Hold.ResponseDodge",
+                "Esquiva contra o Ataque previsto"
+              )}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Hold.Response",
+              "Resposta declarada"
+            )}
+          </label>
+
+          <textarea
+            name="responseDetail"
+            rows="2"
+            placeholder="${escapeHtml(
+              localize(
+                "DDA.TamerAction.Hold.ResponsePlaceholder",
+                "Ex.: usar Pepper Breath contra o inimigo"
+              )
+            )}"
+          ></textarea>
+        </div>
+
+        <p class="hint">
+          ${formatI18n(
+            "DDA.TamerAction.Hold.IntelligenceHint",
+            {
+              value: intelligence
+            },
+            `A Pool escolhida receberá +${intelligence} dados de Inteligência.`
+          )}
+        </p>
+
+        ${
+          bestLaidPlans
+            ? `
+              <p class="hint dda-tamer-action-talent-hint">
+                <strong>
                   ${localize(
-                    "DDA.TamerAction.Hold.BestLaidPlansHint",
-                    "+1 Sucesso automático quando a resposta for executada."
-                  )}
-                </p>
-              `
-              : ""
-          }
-        </form>
-      `,
+                    "DDA.TamerTalent.Name.BestLaidPlans",
+                    "Best Laid Plans"
+                  )}:
+                </strong>
 
-      buttons: {
-        confirm: {
-          label: localize(
-            "DDA.Button.Confirm",
-            "Confirmar"
-          ),
-
-          callback: (html) => {
-            const root = html instanceof jQuery
-              ? html
-              : $(html);
-
-            resolve({
-              trigger: String(
-                root.find("[name='trigger']").val() ??
-                ""
-              ).trim(),
-
-              responseAction: String(
-                root.find(
-                  "[name='responseAction']"
-                ).val() ?? "attack"
-              ),
-
-              responseDetail: String(
-                root.find(
-                  "[name='responseDetail']"
-                ).val() ?? ""
-              ).trim(),
-
-              intelligence,
-              bestLaidPlans
-            });
-          }
-        },
-
-        cancel: {
-          label: localize(
-            "DDA.Button.Cancel",
-            "Cancelar"
-          ),
-
-          callback: () => resolve(null)
+                ${localize(
+                  "DDA.TamerAction.Hold.BestLaidPlansHint",
+                  "+1 Sucesso automático quando a resposta for executada."
+                )}
+              </p>
+            `
+            : ""
+        }
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize(
+          "DDA.Button.Confirm",
+          "Confirmar"
+        ),
+        default: true,
+        callback: (_event, button) => {
+          const form = button.form.elements;
+          return {
+            trigger: String(form.trigger?.value ?? "").trim(),
+            responseAction: String(form.responseAction?.value ?? "attack"),
+            responseDetail: String(form.responseDetail?.value ?? "").trim(),
+            intelligence,
+            bestLaidPlans
+          };
         }
       },
-
-      default: "confirm",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize(
+          "DDA.Button.Cancel",
+          "Cancelar"
+        ),
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -2289,6 +2339,12 @@ async function useHold(tamer) {
   );
 
   if (!partner) return null;
+  if (game?.dda?.bossQualities?.isFrenzyTamerInfluenceBlocked?.(partner)) {
+    ui.notifications.warn(String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+      ? `[FRENZY]: ${partner.name} cannot be affected by Tamer Actions or Special Orders.`
+      : `[FRENZY]: ${partner.name} não pode ser afetado por Ações do Tamer ou Ordens Especiais.`);
+    return null;
+  }
 
   const options = await promptHoldOptions(
     tamer,
@@ -2899,19 +2955,19 @@ function getTeamworkOutcomeLabel(
 
 async function promptTeamworkSetup(
   tamer,
-  partner = null
+  partner
 ) {
-  const skillOptions =
-    getTamerSkillOptions(tamer);
+  const skillOptions = getTamerSkillOptions(
+    tamer
+  );
 
-  const jointEffortAvailable =
-    Boolean(
-      partner &&
-      hasUnlockedOfficialTamerTalent(
-        tamer,
-        "jointEffort"
-      )
-    );
+  const jointEffortAvailable = Boolean(
+    partner &&
+    hasUnlockedOfficialTamerTalent(
+      tamer,
+      "jointEffort"
+    )
+  );
 
   const jointEffortBlock =
     jointEffortAvailable
@@ -2947,203 +3003,140 @@ async function promptTeamworkSetup(
       `
       : "";
 
-  return await new Promise((resolve) => {
-    new Dialog({
+  return await foundry.applications.api.DialogV2.wait({
+    window: {
       title: localize(
         "DDA.TamerAction.Teamwork.Title",
         "Trabalho em Equipe"
-      ),
+      )
+    },
+    content: `
+      <div class="dda-roll-dialog dda-teamwork-setup-dialog">
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Teamwork.Task",
+              "Tarefa"
+            )}
+          </label>
 
-      content: `
-        <form class="dda-roll-dialog dda-teamwork-setup-dialog">
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Teamwork.Task",
-                "Tarefa"
-              )}
-            </label>
+          <textarea
+            name="task"
+            rows="3"
+            placeholder="${escapeHtml(
+              localize(
+                "DDA.TamerAction.Teamwork.TaskPlaceholder",
+                "Descreva o que o grupo está tentando realizar."
+              )
+            )}"
+          ></textarea>
+        </div>
 
-            <textarea
-              name="task"
-              rows="3"
-              placeholder="${escapeHtml(
-                localize(
-                  "DDA.TamerAction.Teamwork.TaskPlaceholder",
-                  "Descreva o que o grupo está tentando realizar."
-                )
-              )}"
-            ></textarea>
-          </div>
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Teamwork.MainSkill",
+              "Perícia principal"
+            )}
+          </label>
 
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Teamwork.MainSkill",
-                "Perícia principal"
-              )}
-            </label>
+          <select name="skillKey">
+            ${skillOptions}
+          </select>
+        </div>
 
-            <select name="skillKey">
-              ${skillOptions}
-            </select>
-          </div>
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Teamwork.MainTN",
+              "NA principal"
+            )}
+          </label>
 
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Teamwork.MainTN",
-                "NA principal"
-              )}
-            </label>
+          <input
+            type="number"
+            name="mainTn"
+            value="12"
+            min="1"
+            max="30"
+          />
+        </div>
 
-            <input
-              type="number"
-              name="mainTn"
-              value="12"
-              min="1"
-              max="30"
-            />
-          </div>
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Teamwork.HelperTN",
+              "NA dos ajudantes"
+            )}
+          </label>
 
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Teamwork.HelperTN",
-                "NA dos ajudantes"
-              )}
-            </label>
+          <input
+            type="number"
+            name="helperTn"
+            value="14"
+            min="14"
+            max="20"
+          />
+        </div>
+        ${jointEffortBlock}
+      </div>
+    `,
+    render: (_event, dialog) => {
+      if (!jointEffortAvailable) return;
 
-            <input
-              type="number"
-              name="helperTn"
-              value="14"
-              min="14"
-              max="20"
-            />
-          </div>
-          ${jointEffortBlock}
-        </form>
-      `,
-render: (html) => {
-  if (!jointEffortAvailable) return;
+      const skillSelect = dialog.element.querySelector("[name='skillKey']");
+      const jointEffortInput = dialog.element.querySelector("[name='jointEffort']");
 
-  const root =
-    html instanceof jQuery
-      ? html
-      : $(html);
+      const synchronizeJointEffort = () => {
+        const validSkill = String(skillSelect?.value ?? "") === "featsOfStrength";
+        if (jointEffortInput) {
+          jointEffortInput.disabled = !validSkill;
+          if (!validSkill) jointEffortInput.checked = false;
+        }
+      };
 
-  const skillSelect =
-    root.find(
-      "[name='skillKey']"
-    );
-
-  const jointEffortInput =
-    root.find(
-      "[name='jointEffort']"
-    );
-
-  const synchronizeJointEffort =
-    () => {
-      const validSkill =
-        String(
-          skillSelect.val() ?? ""
-        ) === "featsOfStrength";
-
-      jointEffortInput.prop(
-        "disabled",
-        !validSkill
-      );
-
-      if (!validSkill) {
-        jointEffortInput.prop(
-          "checked",
-          false
-        );
-      }
-    };
-
-  skillSelect.on(
-    "change",
-    synchronizeJointEffort
-  );
-
-  synchronizeJointEffort();
-},
-      buttons: {
-        confirm: {
-          label: localize(
-            "DDA.Button.Confirm",
-            "Confirmar"
-          ),
-
-          callback: (html) => {
-            const root =
-              html instanceof jQuery
-                ? html
-                : $(html);
-
-            resolve({
-              task: String(
-                root.find(
-                  "[name='task']"
-                ).val() ?? ""
-              ).trim(),
-
-              skillKey: String(
-                root.find(
-                  "[name='skillKey']"
-                ).val() ?? ""
-              ),
-
-              mainTn: Math.max(
-                1,
-                number(
-                  root.find(
-                    "[name='mainTn']"
-                  ).val(),
-                  12
-                )
-              ),
-
-helperTn: Math.min(
-  20,
-  Math.max(
-    14,
-    number(
-      root.find(
-        "[name='helperTn']"
-      ).val(),
-      14
-    )
-  )
-),
-
-jointEffort: Boolean(
-  root.find(
-    "[name='jointEffort']"
-  ).prop("checked")
-)
-            });
-          }
-        },
-
-        cancel: {
-          label: localize(
-            "DDA.Button.Cancel",
-            "Cancelar"
-          ),
-
-          callback: () =>
-            resolve(null)
+      if (skillSelect) skillSelect.onchange = synchronizeJointEffort;
+      synchronizeJointEffort();
+    },
+    buttons: [
+      {
+        action: "confirm",
+        label: localize(
+          "DDA.Button.Confirm",
+          "Confirmar"
+        ),
+        default: true,
+        callback: (_event, button) => {
+          const form = button.form.elements;
+          return {
+            task: String(form.task?.value ?? "").trim(),
+            skillKey: String(form.skillKey?.value ?? ""),
+            mainTn: Math.max(
+              1,
+              number(form.mainTn?.value, 12)
+            ),
+            helperTn: Math.min(
+              20,
+              Math.max(
+                14,
+                number(form.helperTn?.value, 14)
+              )
+            ),
+            jointEffort: Boolean(form.jointEffort?.checked)
+          };
         }
       },
-
-      default: "confirm",
-
-      close: () =>
-        resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize(
+          "DDA.Button.Cancel",
+          "Cancelar"
+        ),
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -3192,6 +3185,13 @@ const options =
       )
     );
 
+    return null;
+  }
+
+  if (game?.dda?.bossQualities?.isFrenzyTamerInfluenceBlocked?.(partner)) {
+    ui.notifications.warn(String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+      ? `[FRENZY]: ${partner.name} cannot be affected by Joint Effort.`
+      : `[FRENZY]: ${partner.name} não pode ser afetado por Joint Effort.`);
     return null;
   }
 
@@ -3738,71 +3738,53 @@ async function chooseTeamworkHelperActor(
     })
     .join("");
 
-  return await new Promise((resolve) => {
-    new Dialog({
+  return await foundry.applications.api.DialogV2.wait({
+    window: {
       title: localize(
         "DDA.TamerAction.Teamwork.ChooseHelper",
         "Escolher ajudante"
-      ),
+      )
+    },
+    content: `
+      <div class="dda-roll-dialog">
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Teamwork.Helper",
+              "Ajudante"
+            )}
+          </label>
 
-      content: `
-        <form class="dda-roll-dialog">
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Teamwork.Helper",
-                "Ajudante"
-              )}
-            </label>
-
-            <select name="helperIndex">
-              ${options}
-            </select>
-          </div>
-        </form>
-      `,
-
-      buttons: {
-        confirm: {
-          label: localize(
-            "DDA.Button.Confirm",
-            "Confirmar"
-          ),
-
-          callback: (html) => {
-            const root =
-              html instanceof jQuery
-                ? html
-                : $(html);
-
-            const index = Number(
-              root.find(
-                "[name='helperIndex']"
-              ).val() ?? -1
-            );
-
-            resolve(
-              candidates[index] ?? null
-            );
-          }
-        },
-
-        cancel: {
-          label: localize(
-            "DDA.Button.Cancel",
-            "Cancelar"
-          ),
-
-          callback: () =>
-            resolve(null)
+          <select name="helperIndex">
+            ${options}
+          </select>
+        </div>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize(
+          "DDA.Button.Confirm",
+          "Confirmar"
+        ),
+        default: true,
+        callback: (_event, button) => {
+          const index = Number(button.form.elements.helperIndex?.value ?? -1);
+          return candidates[index] ?? null;
         }
       },
-
-      default: "confirm",
-
-      close: () =>
-        resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize(
+          "DDA.Button.Cancel",
+          "Cancelar"
+        ),
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -3838,89 +3820,72 @@ async function chooseTeamworkHelperSkill(
       "knowledge"
     );
 
-  return await new Promise((resolve) => {
-    new Dialog({
+  return await foundry.applications.api.DialogV2.wait({
+    window: {
       title: localize(
         "DDA.TamerAction.Teamwork.ChooseSkill",
         "Escolher Perícia de ajuda"
-      ),
+      )
+    },
+    content: `
+      <div class="dda-roll-dialog">
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.TamerAction.Teamwork.HelperSkill",
+              "Perícia do ajudante"
+            )}
+          </label>
 
-      content: `
-        <form class="dda-roll-dialog">
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.TamerAction.Teamwork.HelperSkill",
-                "Perícia do ajudante"
+          <select name="skillMode">
+            <option value="required">
+              ${escapeHtml(
+                requiredLabel
               )}
-            </label>
+            </option>
 
-            <select name="skillMode">
-              <option value="required">
-                ${escapeHtml(
-                  requiredLabel
-                )}
-              </option>
+            <option value="knowledge">
+              ${escapeHtml(
+                knowledgeLabel
+              )}
 
-              <option value="knowledge">
-                ${escapeHtml(
-                  knowledgeLabel
-                )}
-
-                — Academic Advice
-              </option>
-            </select>
-          </div>
-        </form>
-      `,
-
-      buttons: {
-        confirm: {
-          label: localize(
-            "DDA.Button.Confirm",
-            "Confirmar"
-          ),
-
-          callback: (html) => {
-            const root =
-              html instanceof jQuery
-                ? html
-                : $(html);
-
-            const mode = String(
-              root.find(
-                "[name='skillMode']"
-              ).val() ?? "required"
-            );
-
-            resolve({
-              skillKey:
-                mode === "knowledge"
-                  ? "knowledge"
-                  : requestedSkillKey,
-
-              academicAdviceUsed:
-                mode === "knowledge"
-            });
-          }
-        },
-
-        cancel: {
-          label: localize(
-            "DDA.Button.Cancel",
-            "Cancelar"
-          ),
-
-          callback: () =>
-            resolve(null)
+              — Academic Advice
+            </option>
+          </select>
+        </div>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize(
+          "DDA.Button.Confirm",
+          "Confirmar"
+        ),
+        default: true,
+        callback: (_event, button) => {
+          const mode = String(button.form.elements.skillMode?.value ?? "required");
+          return {
+            skillKey:
+              mode === "knowledge"
+                ? "knowledge"
+                : requestedSkillKey,
+            academicAdviceUsed:
+              mode === "knowledge"
+          };
         }
       },
-
-      default: "confirm",
-
-      close: () =>
-        resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize(
+          "DDA.Button.Cancel",
+          "Cancelar"
+        ),
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -4842,7 +4807,7 @@ function getTamerAttackImmunity(target) {
   return { immune: false, reason: "" };
 }
 
-async function promptTamerAttackOptions(tamer, target, distance) {
+async function promptTamerAttackOptions(tamer, target, distance, preset = {}) {
   const heavyForce = hasUnlockedOfficialTamerTalent(tamer, "heavyForce");
   const rangedLimit = getTamerRangedAttackLimit(tamer);
   const immunity = getTamerAttackImmunity(target);
@@ -4866,10 +4831,7 @@ async function promptTamerAttackOptions(tamer, target, distance) {
 
           <label class="form-group">
             <span>${localize("DDA.TamerAction.Attack.Method", "Método")}</span>
-            <select name="attackType">
-              <option value="melee">${localize("DDA.TamerAction.Attack.Melee", "Corpo a corpo")}</option>
-              <option value="ranged">${localize("DDA.TamerAction.Attack.Ranged", "À distância")}</option>
-            </select>
+            ${preset.attackType ? `<input type="hidden" name="attackType" value="${escapeHtml(preset.attackType)}"><strong>${preset.attackType === "ranged" ? localize("DDA.TamerAction.Attack.Ranged", "À distância") : localize("DDA.TamerAction.Attack.Melee", "Corpo a corpo")}</strong>` : `<select name="attackType"><option value="melee">${localize("DDA.TamerAction.Attack.Melee", "Corpo a corpo")}</option><option value="ranged">${localize("DDA.TamerAction.Attack.Ranged", "À distância")}</option></select>`}
           </label>
 
           ${heavyForce ? `
@@ -4922,19 +4884,28 @@ async function useTamerMove(tamer, difficult = false) {
   }
 
   const naturalExplorer = hasUnlockedOfficialTamerTalent(tamer, "naturalExplorer");
-  const actionCost = difficult && !naturalExplorer ? 2 : 1;
+  const naturalExplorerFollower = difficult
+    ? getNaturalExplorerFollowerEffect(tamer)
+    : null;
+  const ignoresDifficultTerrain = naturalExplorer || Boolean(naturalExplorerFollower);
+  const actionCost = difficult && !ignoresDifficultTerrain ? 2 : 1;
 
   return movementTracker.beginActionMovement(tamer, {
     actionCost,
-    difficultTerrain: difficult && !naturalExplorer,
+    actionKey: difficult && !ignoresDifficultTerrain ? "difficultMove" : "move",
+    // This marks the session as terrain-authorized. Natural Explorer changes
+    // the Action to Move (1A); it does not re-introduce a per-space penalty.
+    difficultTerrain: difficult,
     label: difficult
       ? localize("DDA.TamerAction.DifficultMove.Title", "Movimento Difícil")
       : localize("DDA.TamerAction.Move.Title", "Mover"),
-    source: difficult ? "tamerDifficultMove" : "tamerMove"
+    source: difficult
+      ? (ignoresDifficultTerrain ? "naturalExplorerMove" : "tamerDifficultMove")
+      : "tamerMove"
   });
 }
 
-async function useTamerAttack(tamer) {
+async function useTamerAttack(tamer, options = {}) {
   if (Boolean(tamer.system?.combat?.hasAttackedThisRound)) {
     ui.notifications.warn(
       localize(
@@ -4950,6 +4921,13 @@ async function useTamerAttack(tamer) {
   const targetData = getSingleTamerAttackTarget(tamer);
   if (!targetData) return null;
 
+  if (game?.dda?.bossQualities?.isFrenzyTamerInfluenceBlocked?.(targetData.target)) {
+    ui.notifications.warn(String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+      ? `[FRENZY]: ${targetData.target.name} cannot be affected by a Tamer Attack.`
+      : `[FRENZY]: ${targetData.target.name} não pode ser afetado por um Ataque de Tamer.`);
+    return null;
+  }
+
   const sourceToken = getTamerCanvasToken(tamer);
   if (!sourceToken) {
     ui.notifications.warn(
@@ -4962,16 +4940,17 @@ async function useTamerAttack(tamer) {
   }
 
   const distance = getTokenGridDistance(sourceToken, targetData.targetToken);
-  const options = await promptTamerAttackOptions(
+  const attackOptions = await promptTamerAttackOptions(
     tamer,
     targetData.target,
-    distance
+    distance,
+    options
   );
-  if (!options) return null;
+  if (!attackOptions) return null;
 
   const rangedLimit = getTamerRangedAttackLimit(tamer);
 
-  if (options.attackType === "melee" && distance > 1) {
+  if (attackOptions.attackType === "melee" && distance > 1) {
     ui.notifications.warn(
       localize(
         "DDA.TamerAction.Attack.MeleeOutOfRange",
@@ -4981,7 +4960,7 @@ async function useTamerAttack(tamer) {
     return null;
   }
 
-  if (options.attackType === "ranged" && distance > rangedLimit) {
+  if (attackOptions.attackType === "ranged" && distance > rangedLimit) {
     ui.notifications.warn(
       formatI18n(
         "DDA.TamerAction.Attack.RangedOutOfRange",
@@ -4995,13 +4974,19 @@ async function useTamerAttack(tamer) {
   const payment = await spendActorActions(tamer, 1);
   if (!payment) return null;
 
+  await revealOverlookedToEnemy(
+    tamer,
+    targetData.target,
+    "Tamer Attack"
+  );
+
   let attackResult = null;
   let defenseResult = null;
   let tn = 0;
   let hit = false;
 
   if (targetData.target.type === "character") {
-    attackResult = await rollTamerCheck(tamer, options.skillKey, {
+    attackResult = await rollTamerCheck(tamer, attackOptions.skillKey, {
       title: localize("DDA.TamerAction.Attack.AttackCheck", "Teste de Ataque do Tamer"),
       skipBusyHands: true
     });
@@ -5020,7 +5005,7 @@ async function useTamerAttack(tamer) {
     );
   } else {
     tn = 12 + (getActorSv(targetData.target) * 2);
-    attackResult = await rollTamerCheck(tamer, options.skillKey, {
+    attackResult = await rollTamerCheck(tamer, attackOptions.skillKey, {
       title: localize("DDA.TamerAction.Attack.AttackCheck", "Teste de Ataque do Tamer"),
       fixedTn: tn,
       skipBusyHands: true
@@ -5046,7 +5031,7 @@ async function useTamerAttack(tamer) {
     : String(attackResult.outcome?.key ?? "") === "criticalSuccess";
   const immunity = getTamerAttackImmunity(targetData.target);
   const damage = hit && !immunity.immune ? (criticalSuccess ? 2 : 1) : 0;
-  const attackLabel = options.description || localize("DDA.TamerAction.Attack.DefaultName", "Ataque improvisado");
+  const attackLabel = attackOptions.description || localize("DDA.TamerAction.Attack.DefaultName", "Ataque improvisado");
 
   await tamer.update({
     "system.combat.hasAttackedThisRound": true,
@@ -5070,7 +5055,7 @@ async function useTamerAttack(tamer) {
         <ul class="dda-effect-list">
           <li>${localize("DDA.Attack.Attacker", "Atacante")}: <strong>${escapeHtml(tamer.name)}</strong>.</li>
           <li>${localize("DDA.Attack.Target", "Alvo")}: <strong>${escapeHtml(targetData.target.name)}</strong>.</li>
-          <li>${localize("DDA.TamerAction.Attack.Method", "Método")}: <strong>${escapeHtml(options.attackType === "ranged" ? localize("DDA.TamerAction.Attack.Ranged", "À distância") : localize("DDA.TamerAction.Attack.Melee", "Corpo a corpo"))}</strong>.</li>
+          <li>${localize("DDA.TamerAction.Attack.Method", "Método")}: <strong>${escapeHtml(attackOptions.attackType === "ranged" ? localize("DDA.TamerAction.Attack.Ranged", "À distância") : localize("DDA.TamerAction.Attack.Melee", "Corpo a corpo"))}</strong>.</li>
           ${tn ? `<li>${localize("DDA.Roll.TN", "TN")}: <strong>${tn}</strong>.</li>` : ""}
           ${defenseResult ? `<li>${localize("DDA.TamerAction.Attack.Contested", "Teste resistido")}: <strong>${attackResult.total} × ${defenseResult.total}</strong>.</li>` : ""}
           <li>${localize("DDA.Roll.Result", "Resultado")}: <strong>${escapeHtml(resultLabel)}</strong>.</li>
@@ -5109,14 +5094,14 @@ async function useTamerAttack(tamer) {
   };
 }
 
-async function useTamerCheckAction(tamer) {
+async function useTamerCheckAction(tamer, requestedSkillKey = "") {
   const skillOptions = getTamerSkillOptions(tamer);
 
   if (!skillOptions.length) return null;
 
-  let skillKey = "";
+  let skillKey = String(requestedSkillKey ?? "").trim();
 
-  try {
+  if (!skillKey) try {
     skillKey = await foundry.applications.api.DialogV2.prompt({
       window: {
         title: localize("DDA.TamerAction.Check.Title", "Teste")
@@ -5186,14 +5171,18 @@ async function useTamerHoldBreath(tamer) {
 }
 
 async function useTamerEvolution(tamer) {
-  if (!checkActorActionSpend(tamer, 1)) return null;
-
+  const partner = await resolvePartnerActor(tamer);
+  if (partner && game?.dda?.bossQualities?.isFrenzyTamerInfluenceBlocked?.(partner)) {
+    ui.notifications.warn(String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+      ? `[FRENZY]: ${partner.name} cannot be affected by Tamer Actions or Special Orders.`
+      : `[FRENZY]: ${partner.name} não pode ser afetado por Ações do Tamer ou Ordens Especiais.`);
+    return null;
+  }
+  // evolvePartner owns the full Evolution payment flow, including the
+  // pre-Initiative 2-Action Interrupt cost. Do not pre-spend or post-spend
+  // here or the action menu charges Evolution twice.
   const { evolvePartner } = await import("./evolution.js");
-  const result = await evolvePartner(tamer);
-  if (!result) return null;
-
-  await spendActorActions(tamer, 1);
-  return result;
+  return evolvePartner(tamer);
 }
 
 const TAMER_COMBAT_SPECIAL_ORDER_IDS = [
@@ -5201,6 +5190,8 @@ const TAMER_COMBAT_SPECIAL_ORDER_IDS = [
   "energyBurst",
   "swagger",
   "purifyPartner",
+  "peakPerformance",
+  "enemyScan",
   "speedSurge",
   "revitalize",
   "signatureVersatility",
@@ -5212,9 +5203,15 @@ const TAMER_COMBAT_SPECIAL_ORDER_IDS = [
   "nextOrder",
   "predictable",
   "hackersMemory",
-  "realization",
-  "takeTheLead",
-  "heroicExemplar"
+  "realization"
+];
+
+const TAMER_NARRATIVE_TALENT_IDS = [
+  "silentMovement",
+  "plantedIdea",
+  "charmingInfluence",
+  "cyberSleuth",
+  "trailblazer"
 ];
 
 function getTalentMenuActionCost(talent = {}) {
@@ -5226,7 +5223,38 @@ function getTalentMenuActionCost(talent = {}) {
   return `${raw}A`;
 }
 
+
+function getTalentImplementationPresentation(talentOrId) {
+  const implementation = getTamerTalentImplementation(talentOrId);
+  const mode = String(implementation.mode ?? "unknown");
+
+  return {
+    ...implementation,
+    label: localize(
+      getTamerTalentImplementationLabelKey(mode),
+      mode === "automated"
+        ? "Automatizado"
+        : mode === "assisted"
+          ? "Assistido"
+          : mode === "narrative"
+            ? "Narrativo"
+            : "Desconhecido"
+    ),
+    cssClass: `is-${mode}`
+  };
+}
+
 async function useOfficialCombatSpecialOrder(tamer, talentId) {
+  if (getVanishTamerActionRestriction(tamer)) {
+    ui.notifications.warn(
+      localize(
+        "DDA.TamerTalent.Vanish.ActionRestriction",
+        "NOW YOU SEE US permite apenas Mover ou Reposicionar neste turno."
+      )
+    );
+    return null;
+  }
+
   const talent = getOfficialTamerTalent(talentId);
   if (!talent || !hasUnlockedOfficialTamerTalent(tamer, talentId)) return null;
 
@@ -5242,24 +5270,35 @@ async function useOfficialCombatSpecialOrder(tamer, talentId) {
     return null;
   }
 
-  const automated = Boolean(talent.automation?.enabled && result.applied);
-  const status = automated
-    ? localize("DDA.Automation.Status.Automated", "Automatizado")
-    : localize("DDA.Automation.Status.Assisted", "Assistido");
+  const implementation = getTalentImplementationPresentation(talent);
+  const resultMode = ["automated", "assisted", "narrative"].includes(
+    String(result.automationStatus ?? "")
+  )
+    ? String(result.automationStatus)
+    : implementation.mode;
+  const status = getTalentImplementationPresentation({ id: talent.id }).label;
+  const displayedStatus = resultMode === implementation.mode
+    ? status
+    : localize(
+        getTamerTalentImplementationLabelKey(resultMode),
+        resultMode
+      );
 
-  await postActionCard(
-    tamer,
-    talent.specialOrder?.name || talent.name,
-    `
-      <p><strong>${escapeHtml(talent.name)}</strong></p>
-      <p>${escapeHtml(talent.effect ?? "")}</p>
-      <ul class="dda-effect-list">
-        <li>${localize("DDA.Automation.Status.Label", "Estado")}: <strong>${escapeHtml(status)}</strong>.</li>
-        ${result.message ? `<li>${escapeHtml(result.message)}</li>` : ""}
-        ${result.details ? `<li>${escapeHtml(result.details)}</li>` : ""}
-      </ul>
-    `
-  );
+  if (!result.suppressDefaultChat) {
+    await postActionCard(
+      tamer,
+      talent.specialOrder?.name || talent.name,
+      `
+        <p><strong>${escapeHtml(talent.name)}</strong></p>
+        <p>${escapeHtml(talent.effect ?? "")}</p>
+        <ul class="dda-effect-list">
+          <li>${localize("DDA.Automation.Status.Label", "Estado")}: <strong>${escapeHtml(displayedStatus)}</strong>.</li>
+          ${result.message ? `<li>${escapeHtml(result.message)}</li>` : ""}
+          ${result.details ? `<li>${escapeHtml(result.details)}</li>` : ""}
+        </ul>
+      `
+    );
+  }
 
   return { talent, ...result };
 }
@@ -5333,61 +5372,144 @@ const TAMER_ACTION_MENU_ENTRIES = [
   }
 ];
 
-export async function openTamerActionMenu(tamer) {
-  if (!tamer || tamer.type !== "character") {
-    ui.notifications.warn(
-      localize(
-        "DDA.TamerAction.Warning.TamerOnly",
-        "Apenas Tamers podem usar este menu."
-      )
-    );
-    return null;
+export async function getTamerActionMenuDefinition(tamer) {
+  if (!tamer || tamer.type !== "character") return null;
+
+  const frenzyGate = await game?.dda?.bossQualities?.getFrenzyTamerGateData?.(tamer);
+  if (frenzyGate?.pending) {
+    const overrideAllowed = Boolean(frenzyGate.overrideAllowed);
+    return {
+      actor: tamer,
+      kind: "tamer",
+      title: localize("DDA.TamerAction.Menu.Title", "Ações do Tamer"),
+      hint: overrideAllowed
+        ? (String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+          ? `[FRENZY]: ${frenzyGate.partner.name} must now make the required Attack. Other Tamer Actions remain locked until that happens.`
+          : `[FRENZY]: ${frenzyGate.partner.name} precisa fazer agora o Ataque obrigatório. As outras Ações do Tamer continuam bloqueadas até isso acontecer.`)
+        : (String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+          ? `[FRENZY] resolves before any other Tamer Action. The only exception is the 1-Action Charisma Check (TN ${frenzyGate.tn}).`
+          : `[FRENZY] é resolvido antes de qualquer outra Ação do Tamer. A única exceção é o Teste de Carisma de 1 Ação (NA ${frenzyGate.tn}).`),
+      entries: [{
+        key: overrideAllowed ? "bossFrenzyWaiting" : "bossFrenzyOverride",
+        title: overrideAllowed
+          ? (String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "[FRENZY] — Awaiting Attack" : "[FRENZY] — Aguardando Ataque")
+          : (String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "[FRENZY] — Direct Attack" : "[FRENZY] — Direcionar Ataque"),
+        summary: overrideAllowed
+          ? (String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "The Digimon may Attack a Target of the Tamer's choice." : "O Digimon pode atacar um alvo à escolha do Tamer.")
+          : (String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? `Charisma Check vs TN ${frenzyGate.tn}.` : `Teste de Carisma contra NA ${frenzyGate.tn}.`),
+        cost: overrideAllowed ? "—" : "1A"
+      }],
+      notes: [],
+      execute: async (actionKey) => {
+        if (actionKey === "bossFrenzyOverride") return game?.dda?.bossQualities?.attemptFrenzyOverride?.(tamer);
+        if (actionKey === "bossFrenzyWaiting") {
+          ui.notifications.info(String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+            ? `${frenzyGate.partner.name} must make the [FRENZY] Attack before the Tamer may act again.`
+            : `${frenzyGate.partner.name} precisa fazer o Ataque de [FRENZY] antes que o Tamer possa agir novamente.`);
+        }
+        return null;
+      }
+    };
   }
 
-  const menuEntries = [...TAMER_ACTION_MENU_ENTRIES];
+  const vanishRestriction = getVanishTamerActionRestriction(tamer);
+  const menuEntries = vanishRestriction
+    ? TAMER_ACTION_MENU_ENTRIES.filter((entry) => ["move", "reposition"].includes(entry.key))
+    : [...TAMER_ACTION_MENU_ENTRIES];
 
-  if (hasUnlockedOfficialTamerTalent(tamer, "peakPerformance")) {
+  const charmContest = !vanishRestriction
+    ? await game?.dda?.bossQualities?.getCharmContestData?.(tamer)
+    : null;
+  if (charmContest) {
     menuEntries.push({
-      key: "peakPerformance",
-      titleKey: "DDA.TamerTalent.PeakPerformance.Title",
-      summaryKey: "DDA.TamerTalent.PeakPerformance.Summary",
+      key: "bossCharmContest",
+      title: localize("DDA.BossEffect.Charm.Contest", "Contestar [CHARM]"),
+      summary: String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+        ? `Spend 2 Actions on a Charisma or Willpower Skill Check (TN ${charmContest.tn}) to end [CHARM].`
+        : `Gaste 2 Ações em um Teste de Carisma ou Força de Vontade (NA ${charmContest.tn}) para encerrar [CHARM].`,
       cost: "2A"
     });
   }
 
-  if (hasUnlockedOfficialTamerTalent(tamer, "enemyScan")) {
+  if (!vanishRestriction && hasUnlockedOfficialTamerTalent(tamer, "busyHands")) {
     menuEntries.push({
-      key: "enemyScan",
-      titleKey: "DDA.TamerTalent.EnemyScan.Title",
-      summaryKey: "DDA.TamerTalent.EnemyScan.Summary",
-      cost: "2A"
+      key: "busyHandsPlant",
+      title: localize("DDA.TamerTalent.BusyHands.PlantTitle", "Busy Hands — Plant Small Item"),
+      summary: localize("DDA.TamerTalent.BusyHands.PlantSummary", "Registre a colocação discreta de um objeto pequeno sem rolagem."),
+      cost: "—",
+      automationStatus: getTalentImplementationPresentation("busyHands").label,
+      automationClass: getTalentImplementationPresentation("busyHands").cssClass
     });
   }
 
-  for (const talentId of TAMER_COMBAT_SPECIAL_ORDER_IDS) {
+  if (!vanishRestriction && hasUnlockedOfficialTamerTalent(tamer, "beTheWinners")) {
+    menuEntries.push({
+      key: "beTheWinners",
+      title: localize("DDA.TamerTalent.BeTheWinners.Title", "Be the Winners"),
+      summary: localize("DDA.TamerTalent.BeTheWinners.Summary", "Divida o bônus de Direcionar entre o Partner e outro Digimon aliado disposto."),
+      cost: "2–3A",
+      automationStatus: getTalentImplementationPresentation("beTheWinners").label,
+      automationClass: getTalentImplementationPresentation("beTheWinners").cssClass
+    });
+  }
+
+  if (!vanishRestriction && hasUnlockedOfficialTamerTalent(tamer, "naturalExplorer")) {
+    menuEntries.push({
+      key: "naturalExplorerLead",
+      title: localize("DDA.TamerTalent.NaturalExplorer.LeadTitle", "Natural Explorer — Lead Allies"),
+      summary: localize("DDA.TamerTalent.NaturalExplorer.LeadSummary", "Designe aliados que seguirão o Tamer por terreno difícil."),
+      cost: "—",
+      automationStatus: getTalentImplementationPresentation("naturalExplorer").label,
+      automationClass: getTalentImplementationPresentation("naturalExplorer").cssClass
+    });
+  }
+
+  if (!vanishRestriction && hasUnlockedOfficialTamerTalent(tamer, "bestLaidPlans")) {
+    menuEntries.push({
+      key: "bestLaidPlansSurprise",
+      title: localize("DDA.TamerTalent.BestLaidPlans.SurpriseTitle", "Best Laid Plans — Surprised"),
+      summary: localize("DDA.TamerTalent.BestLaidPlans.SurpriseSummary", "Marque um inimigo investigado, interrogado ou flagrado mentindo para que perca a primeira Rodada."),
+      cost: "—",
+      automationStatus: getTalentImplementationPresentation("bestLaidPlans").label,
+      automationClass: getTalentImplementationPresentation("bestLaidPlans").cssClass
+    });
+  }
+
+  for (const talentId of vanishRestriction ? [] : TAMER_COMBAT_SPECIAL_ORDER_IDS) {
     if (!hasUnlockedOfficialTamerTalent(tamer, talentId)) continue;
-
     const talent = getOfficialTamerTalent(talentId);
     if (!talent) continue;
-
-    const isAutomated = Boolean(talent.automation?.enabled);
+    const implementation = getTalentImplementationPresentation(talentId);
     menuEntries.push({
       key: `talent:${talentId}`,
       title: talent.specialOrder?.name || talent.name,
       summary: talent.name,
       cost: getTalentMenuActionCost(talent),
-      automationStatus: isAutomated
-        ? localize("DDA.Automation.Status.Automated", "Automatizado")
-        : localize("DDA.Automation.Status.Assisted", "Assistido"),
-      automationClass: isAutomated ? "is-automated" : "is-assisted"
+      automationStatus: implementation.label,
+      automationClass: implementation.cssClass
+    });
+  }
+
+  for (const talentId of vanishRestriction ? [] : TAMER_NARRATIVE_TALENT_IDS) {
+    if (!hasUnlockedOfficialTamerTalent(tamer, talentId)) continue;
+    const talent = getOfficialTamerTalent(talentId);
+    if (!talent) continue;
+    const implementation = getTalentImplementationPresentation(talentId);
+    menuEntries.push({
+      key: `talent:${talentId}`,
+      title: talent.name,
+      summary: talent.effect,
+      cost: getTalentMenuActionCost(talent),
+      automationStatus: implementation.label,
+      automationClass: implementation.cssClass
     });
   }
 
   const handlers = {
     move: () => useTamerMove(tamer),
-    attack: () => useTamerAttack(tamer),
+    attack: (options = {}) => useTamerAttack(tamer, options),
     difficultMove: () => useTamerMove(tamer, true),
-    check: () => useTamerCheckAction(tamer),
+    check: (options = {}) => useTamerCheckAction(tamer, options.skillKey ?? ""),
     direct: () => useDirect(tamer),
     reposition: () => useReposition(tamer),
     reinforce: () => useReinforce(tamer),
@@ -5395,38 +5517,62 @@ export async function openTamerActionMenu(tamer) {
     hold: () => useHold(tamer),
     evolution: () => useTamerEvolution(tamer),
     teamwork: () => useTeamwork(tamer),
-    peakPerformance: () => usePeakPerformance(tamer),
-    enemyScan: () => useEnemyScan(tamer)
+    beTheWinners: () => useBeTheWinners(tamer),
+    busyHandsPlant: () => postBusyHandsPlantCard(tamer),
+    naturalExplorerLead: () => leadNaturalExplorerAllies(tamer),
+    bestLaidPlansSurprise: () => markBestLaidPlansSurprise(tamer),
+    bossCharmContest: () => game?.dda?.bossQualities?.contestCharm?.(tamer),
+    bossFrenzyOverride: () => game?.dda?.bossQualities?.attemptFrenzyOverride?.(tamer)
   };
 
-  return await openCompactActionMenu({
+  const notes = vanishRestriction
+    ? [{
+        title: "NOW YOU SEE US",
+        body: localize("DDA.TamerTalent.Vanish.ActionRestriction", "Somente as Ações Mover e Reposicionar estão disponíveis até o fim deste turno.")
+      }]
+    : [
+        {
+          title: localize("DDA.TamerAction.Bolster", "Fortalecer"),
+          body: localize("DDA.TamerAction.BolsterIntegrated", "é oferecido dentro das Ações compatíveis, pois modifica a própria Ação em vez de ocorrer separadamente.")
+        },
+        {
+          title: localize("DDA.TamerAction.Interrupts.Title", "Interrupções"),
+          body: localize("DDA.TamerAction.Interrupts.Automatic", "Interceder, Proteção do Destino e outras respostas aparecem automaticamente quando o gatilho correto acontece.")
+        }
+      ];
+
+  return {
     actor: tamer,
     kind: "tamer",
     title: localize("DDA.TamerAction.Menu.Title", "Ações do Tamer"),
-    hint: localize(
-      "DDA.TamerAction.Menu.Hint",
-      "Escolha uma Ação do Tamer."
-    ),
+    hint: vanishRestriction
+      ? localize("DDA.TamerTalent.Vanish.MenuHint", "NOW YOU SEE US está ativo: neste turno, o Tamer só pode Mover ou Reposicionar.")
+      : localize("DDA.TamerAction.Menu.Hint", "Escolha uma Ação do Tamer."),
     entries: menuEntries,
-    notes: [
-      {
-        title: localize("DDA.TamerAction.Bolster", "Fortalecer"),
-        body: localize(
-          "DDA.TamerAction.BolsterIntegrated",
-          "é oferecido dentro das Ações compatíveis, pois modifica a própria Ação em vez de ocorrer separadamente."
-        )
-      },
-      {
-        title: localize("DDA.TamerAction.Interrupts.Title", "Interrupções"),
-        body: localize(
-          "DDA.TamerAction.Interrupts.Automatic",
-          "Interceder, Proteção do Destino e outras respostas aparecem automaticamente quando o gatilho correto acontece."
-        )
-      }
-    ],
-    onSelect: async (actionKey) => actionKey.startsWith("talent:")
+    notes,
+    execute: async (actionKey, options = {}) => actionKey.startsWith("talent:")
       ? useOfficialCombatSpecialOrder(tamer, actionKey.slice(7))
-      : handlers[actionKey]?.()
+      : handlers[actionKey]?.(options) ?? null
+  };
+}
+
+export async function openTamerActionMenu(tamer) {
+  if (!tamer || tamer.type !== "character") {
+    ui.notifications.warn(localize("DDA.TamerAction.Warning.TamerOnly", "Apenas Tamers podem usar este menu."));
+    return null;
+  }
+
+  const definition = await getTamerActionMenuDefinition(tamer);
+  if (!definition) return null;
+
+  return openCompactActionMenu({
+    actor: tamer,
+    kind: definition.kind,
+    title: definition.title,
+    hint: definition.hint,
+    entries: definition.entries,
+    notes: definition.notes,
+    onSelect: (key) => definition.execute(key)
   });
 }
 
@@ -5435,6 +5581,10 @@ export function prepareTamerActionPoolOptions(
   statKey,
   options = {}
 ) {
+  if (game?.dda?.bossQualities?.isFrenzyTamerInfluenceBlocked?.(actor)) {
+    return { ...options };
+  }
+
   const effects = foundry.utils.deepClone(
     actor?.system?.effects?.active ?? []
   );
@@ -5563,6 +5713,32 @@ export function prepareTamerActionPoolOptions(
       ...matching
         .map((effect) => effect.id)
         .filter(Boolean)
+    ],
+
+    ddaTamerDirectEffects: [
+      ...(Array.isArray(options.ddaTamerDirectEffects) ? options.ddaTamerDirectEffects : []),
+      ...matching
+        .filter((effect) => String(effect?.tag ?? "") === EFFECT_TAG_DIRECT)
+        .map((effect) => ({
+          id: effect.id,
+          tag: effect.tag,
+          sourceActorUuid: effect.sourceActorUuid,
+          sourceActionCost: number(effect.sourceActionCost, 0),
+          fakeout: Boolean(effect.fakeout),
+          personalCheerleader: Boolean(effect.personalCheerleader),
+          label: effect.label
+        }))
+    ],
+
+    ddaPersonalCheerleaderSources: [
+      ...(Array.isArray(options.ddaPersonalCheerleaderSources) ? options.ddaPersonalCheerleaderSources : []),
+      ...matching
+        .filter((effect) => String(effect?.tag ?? "") === EFFECT_TAG_DIRECT && effect.personalCheerleader)
+        .map((effect) => ({
+          id: effect.id,
+          sourceActorUuid: effect.sourceActorUuid,
+          label: effect.label
+        }))
     ]
   };
 }
@@ -5635,6 +5811,19 @@ async function removeExpiredSourceTurnEffects(actor, sourceTamerUuid, currentSig
     .filter((effect) => String(effect.tag ?? "") === EFFECT_TAG_REINFORCE)
     .reduce((total, effect) => total + Math.max(0, number(effect.grantedTemporaryWounds, 0)), 0);
 
+  const restoredStunActions = expired
+    .filter((effect) => String(effect.tag ?? "").toLowerCase() === "stun")
+    .reduce((total, effect) => {
+      return total + Math.max(
+        0,
+        number(
+          effect.actionRemoved ??
+          (effect.restoreActionOnExpire ? 1 : 0),
+          0
+        )
+      );
+    }, 0);
+
   const update = {
     "system.effects.active": remaining
   };
@@ -5643,6 +5832,26 @@ async function removeExpiredSourceTurnEffects(actor, sourceTamerUuid, currentSig
     update[getTemporaryWoundPath(actor)] = Math.max(
       0,
       getTemporaryWounds(actor) - reinforceAmount
+    );
+  }
+
+  if (restoredStunActions > 0) {
+    const currentActions = Math.max(
+      0,
+      number(actor.system?.combat?.actions?.value, 0)
+    );
+    const maximumActions = Math.max(
+      0,
+      number(actor.system?.combat?.actions?.max, 2)
+    );
+    const hasteActive = remaining.some((effect) => {
+      return String(effect?.tag ?? "").toLowerCase() === "haste" &&
+        number(effect?.actionGranted, 0) > 0;
+    });
+
+    update["system.combat.actions.value"] = Math.min(
+      maximumActions + (hasteActive ? 1 : 0),
+      currentActions + restoredStunActions
     );
   }
 
@@ -5675,6 +5884,22 @@ async function expireSourceTurnEffects(combat) {
       } catch (error) {
         console.warn("DDA | Could not expire a Tamer Action effect.", error, actor);
       }
+    }
+
+    const restrictions = foundry.utils.deepClone(
+      sourceTamer.system?.combat?.tamerTalentRestrictions ?? {}
+    );
+    const vanish = restrictions.vanish ?? null;
+
+    if (
+      vanish?.active &&
+      String(vanish.turnSignature ?? "") !== currentSignature
+    ) {
+      delete restrictions.vanish;
+      await sourceTamer.update({
+        "system.combat.tamerTalentRestrictions": restrictions
+      });
+      sourceTamer.sheet?.render(false);
     }
   }
 }

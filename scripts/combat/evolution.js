@@ -9,7 +9,9 @@ import {
 } from "../helpers/digimon-portrait-resolver.js";
 
 import {
+  getPartnerBonusDpAllocation,
   getPartnerFormBonusDpAvailable,
+  normalizeTamerEvolutionPointPool,
   synchronizePartnerBonusDpAcrossForms
 } from "../rules/tamer-progression.js";
 
@@ -18,13 +20,84 @@ import {
   spendTamerIp
 } from "../rules/tamer-resources.js";
 
+import {
+  getDefaultStageKeyForRange,
+  getOfficialEvolutionPointCostForStage,
+  getOfficialEvolutionStageNumber,
+  isStageWithinDefaultRange,
+  normalizeDefaultRangeValue
+} from "../rules/evolution-progression.js";
+
+import {
+  DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED,
+  isJogressRulesMethod,
+  isLegacyHybridSpecialMethod
+} from "../rules/special-evolution-methods.js";
+import { resetModeChangeForActor } from "../rules/mode-change.js";
+import { rollTamerCheck } from "../rolls/check-roll.js";
+
 export const DDA_SYSTEM_ID = "digimon-digital-adventures";
+export const DDA_IP_PER_EVOLUTION_POINT = 1;
+
+function getPreInitiativeEvolutionCombat(tamerActor) {
+  const combat = game?.combat;
+  if (!combat || combat.started || !tamerActor) return null;
+
+  const actorUuid = String(tamerActor.uuid ?? "");
+  const actorId = String(tamerActor.id ?? "");
+  const participates = Array.from(combat.combatants ?? []).some((combatant) => {
+    const actor = combatant?.actor;
+    return Boolean(
+      actor &&
+      (String(actor.uuid ?? "") === actorUuid || String(actor.id ?? "") === actorId)
+    );
+  });
+
+  return participates ? combat : null;
+}
+
+function applyPreInitiativeEvolutionCost(costData, tamerActor, options = {}) {
+  if (!costData || options.zeroUnit) return costData;
+
+  const combat = getPreInitiativeEvolutionCombat(tamerActor);
+  if (!combat || !costData.allowed || Number(costData.actionCost ?? 0) !== 1) {
+    return costData;
+  }
+
+  costData.actionCost = 2;
+  costData.availableActions = Math.max(
+    0,
+    Number(tamerActor.system?.combat?.actions?.max ?? costData.availableActions ?? 2)
+  );
+  costData.preInitiativeEvolution = true;
+  costData.preInitiativeCombatId = combat.id;
+  return costData;
+}
+
+async function markPreInitiativeEvolutionDebt(tamerActor, combatId, actionDebt = 2) {
+  if (!tamerActor || !combatId) return;
+
+  await tamerActor.update({
+    "system.combat.preInitiativeEvolution.combatId": String(combatId),
+    "system.combat.preInitiativeEvolution.actionDebt": Math.max(0, Number(actionDebt ?? 0)),
+    "system.combat.preInitiativeEvolution.pending": true
+  });
+}
 
 export async function evolvePartner(tamerActor, options = {}) {
   if (!tamerActor || tamerActor.type !== "character") {
     ui.notifications.warn(localize("DDA.Warning.DigivolutionOnlyForTamers"));
     return;
   }
+
+  if (isTamerInActiveJogress(tamerActor)) {
+    ui.notifications.warn(localize("DDA.Warning.JogressBlocksOtherEvolution"));
+    return;
+  }
+
+  // DDA59: repair legacy EP pools before any cost is calculated so an
+  // outdated pre-audit maximum can never be spent on a new Evolution.
+  await normalizeTamerEvolutionPointPool(tamerActor);
 
   const partnerUuid = tamerActor.system.partner?.uuid;
 
@@ -46,6 +119,12 @@ export async function evolvePartner(tamerActor, options = {}) {
   }
 
   await syncPartnerOwnershipFromTamer(tamerActor, partnerActor);
+
+  const activeConflict = getActiveEvolutionConflict(tamerActor, partnerActor);
+  if (activeConflict) {
+    warnEvolutionConflict(activeConflict);
+    return;
+  }
 
   const previousFormUuid =
     tamerActor.system.partner?.currentFormUuid ||
@@ -111,6 +190,8 @@ export async function evolvePartner(tamerActor, options = {}) {
       ? `Zero Unit: ${credit} Evolution Point credit and a free Evolution Action.`
       : `Unidade Zero: crédito de ${credit} Pontos de Evolução e Ação Evoluir gratuita.`;
   }
+
+  applyPreInitiativeEvolutionCost(costData, tamerActor, options);
 
   if (!costData.allowed) {
     ui.notifications.warn(costData.blockedReason || localize("DDA.Warning.EvolutionMethodDisabled"));
@@ -225,9 +306,18 @@ await runDigimonTokenEvolutionTransition(
   }
 );
 
+  const partnerDisplayName = String(
+    getPersistentPartnerNickname(partnerActor) ||
+    partnerActor.system?.species ||
+    partnerActor.name ||
+    formTemplateActor.system?.species ||
+    formTemplateActor.name ||
+    "Digimon"
+  ).trim() || "Digimon";
+
   await tamerActor.update({
-    "system.partner.baseName": tamerActor.system.partner?.baseName || tamerActor.system.partner?.name || previousFormName || partnerActor.name,
-    "system.partner.name": tamerActor.system.partner?.name || tamerActor.system.partner?.baseName || previousFormName || partnerActor.name,
+    "system.partner.baseName": partnerDisplayName,
+    "system.partner.name": partnerDisplayName,
         "system.partner.uuid": partnerActor.uuid,
     "system.partner.currentFormUuid":
       partnerActor.system.evolution?.currentFormUuid ||
@@ -361,7 +451,13 @@ function getIndependentNpcAlignment(
 }
 
 export async function evolveIndependentDigimon(
-  partnerActor
+  partnerActor,
+  {
+    bypassCombatLock = false,
+    skipConfirm = false,
+    forceFullWounds = false,
+    transitionReason = ""
+  } = {}
 ) {
   if (!game.user?.isGM) {
     ui.notifications.warn(
@@ -439,11 +535,14 @@ export async function evolveIndependentDigimon(
     partnerActor;
 
   if (
-    isEvolutionLockedForCombat(
-      partnerActor
-    ) ||
-    isEvolutionLockedForCombat(
-      previousFormActor
+    !bypassCombatLock &&
+    (
+      isEvolutionLockedForCombat(
+        partnerActor
+      ) ||
+      isEvolutionLockedForCombat(
+        previousFormActor
+      )
     )
   ) {
     ui.notifications.warn(
@@ -583,48 +682,54 @@ export async function evolveIndependentDigimon(
     selectedForm.name
   ).trim();
 
-  const confirmed =
-    await Dialog.confirm({
-      title: localize(
-        "DDA.AllyNpc.Evolution.ConfirmTitle"
-      ),
+  if (!skipConfirm) {
+    const confirmed =
+      await foundry.applications.api.DialogV2.confirm({
+        window: {
+          title: localize(
+            "DDA.AllyNpc.Evolution.ConfirmTitle"
+          )
+        },
 
-      content: `
-        <div class="dda-roll-dialog dda-independent-evolution-dialog">
-          <p>
-            ${formatI18n(
-              "DDA.AllyNpc.Evolution.ConfirmText",
-              {
-                actor: `<strong>${escapeHtml(
-                  partnerActor.name
-                )}</strong>`,
+        content: `
+          <div class="dda-roll-dialog dda-independent-evolution-dialog">
+            <p>
+              ${formatI18n(
+                "DDA.AllyNpc.Evolution.ConfirmText",
+                {
+                  actor: `<strong>${escapeHtml(
+                    partnerActor.name
+                  )}</strong>`,
 
-                previous: `<strong>${escapeHtml(
-                  previousFormName
-                )}</strong>`,
+                  previous: `<strong>${escapeHtml(
+                    previousFormName
+                  )}</strong>`,
 
-                next: `<strong>${escapeHtml(
-                  nextFormName
-                )}</strong>`
-              }
-            )}
-          </p>
+                  next: `<strong>${escapeHtml(
+                    nextFormName
+                  )}</strong>`
+                }
+              )}
+            </p>
 
-          <p class="muted">
-            ${localize(
-              "DDA.AllyNpc.Evolution.NoCost"
-            )}
-          </p>
-        </div>
-      `,
+            ${transitionReason ? `<p class="muted">${escapeHtml(transitionReason)}</p>` : ""}
 
-      yes: () => true,
-      no: () => false,
-      defaultYes: true
-    });
+            <p class="muted">
+              ${localize(
+                "DDA.AllyNpc.Evolution.NoCost"
+              )}
+            </p>
+          </div>
+        `,
 
-  if (!confirmed) {
-    return null;
+        yes: { default: true },
+        rejectClose: false,
+        modal: true
+      });
+
+    if (!confirmed) {
+      return null;
+    }
   }
 
   const previousPersistentWounds =
@@ -634,6 +739,7 @@ export async function evolveIndependentDigimon(
     );
 
   const shouldHealAfterEvolution =
+    Boolean(forceFullWounds) ||
     shouldFullyHealOnEvolution({
       previousStageKey,
 
@@ -858,6 +964,56 @@ function getEvolutionTokenLookupData(
   };
 }
 
+function getPersistentPartnerNickname(partnerActor = null) {
+  const explicitNickname = String(
+    partnerActor?.system?.customName ||
+    partnerActor?.system?.nickname ||
+    ""
+  ).trim();
+  const actorName = String(partnerActor?.name ?? "").trim();
+
+  /*
+   * Compatibilidade com Partners antigos: antes de system.nickname existir,
+   * um apelido verdadeiro vivia apenas em Actor#name. O nome de uma espécie
+   * conhecida, porém, não é apelido — especialmente depois da regressão que
+   * preservava Agumon enquanto system.species já era Greymon.
+   */
+  const knownSpeciesNames = [
+    partnerActor?.system?.species,
+    partnerActor?.system?.evolution?.currentFormName,
+    partnerActor?.system?.evolution?.sourceFormName,
+    ...Object.values(
+      partnerActor?.system?.evolution?.formSnapshots ?? {}
+    ).flatMap((snapshot) => [
+      snapshot?.species,
+      snapshot?.sourceFormName
+    ]),
+    ...(
+      Array.isArray(partnerActor?.system?.evolutionGraph?.nodes)
+        ? partnerActor.system.evolutionGraph.nodes
+        : []
+    ).flatMap((node) => [
+      node?.species,
+      node?.displayName
+    ])
+  ]
+    .map((value) => normalizeName(value))
+    .filter(Boolean);
+
+  if (
+    explicitNickname &&
+    !knownSpeciesNames.includes(normalizeName(explicitNickname))
+  ) {
+    return explicitNickname;
+  }
+
+  if (!actorName) return "";
+
+  return knownSpeciesNames.includes(normalizeName(actorName))
+    ? ""
+    : actorName;
+}
+
 function isMissingTokenImage(path = "") {
   const cleanPath = String(path ?? "").trim();
   return !cleanPath || cleanPath === "icons/svg/mystery-man.svg";
@@ -950,6 +1106,13 @@ async function applyEvolutionFormTemplateToPartner({
 }) {
   if (!partnerActor || !formTemplateActor) return null;
 
+  // A Mode Change is a temporary combat state, not a persistent form build.
+  // Normalize it before capturing the outgoing form so swapped stats, size and
+  // Superior Mode item sets can never leak into formSnapshots.
+  if (partnerActor.system?.combat?.qualityModeChange?.active) {
+    await resetModeChangeForActor(partnerActor);
+  }
+
   await saveCurrentPartnerFormSnapshot(partnerActor);
   const snapshot = await getOrCreatePartnerFormSnapshot(partnerActor, formTemplateActor);
 
@@ -962,6 +1125,91 @@ async function applyEvolutionFormTemplateToPartner({
     transitionType,
     continuedHybridState
   });
+
+  return partnerActor;
+}
+
+export async function restorePartnerFormForRevitalize({
+  tamerActor,
+  partnerActor,
+  formReference = ""
+} = {}) {
+  if (!partnerActor) return null;
+
+  const reference = String(formReference ?? "").trim();
+  if (!reference) return null;
+
+  const storedSnapshot = getPartnerFormSnapshot(
+    partnerActor,
+    reference
+  );
+
+  let formTemplateActor = storedSnapshot
+    ? buildPseudoActorFromFormSnapshot(
+        storedSnapshot,
+        partnerActor
+      )
+    : await resolveActor(reference);
+
+  if (!formTemplateActor) return null;
+
+  const previousReference = String(
+    partnerActor.system?.evolution?.currentFormUuid ??
+    partnerActor.system?.evolution?.sourceFormUuid ??
+    partnerActor.uuid ??
+    ""
+  ).trim();
+
+  const previousFormActor =
+    await resolveActor(previousReference) ??
+    partnerActor;
+
+  await runDigimonTokenEvolutionTransition(
+    partnerActor,
+    async () => {
+      await clearClashStateForActor(
+        partnerActor,
+        {
+          reason: "revitalize"
+        }
+      );
+
+      await applyEvolutionFormTemplateToPartner({
+        partnerActor,
+        formTemplateActor,
+        tamerActor,
+        previousFormActor,
+        transitionType: "revitalize",
+        continuedHybridState: null
+      });
+
+      return partnerActor;
+    },
+    {
+      lowAlphaMultiplier: 0.16,
+      midAlphaMultiplier: 0.62,
+      stepDelay: 90
+    }
+  );
+
+  if (tamerActor?.type === "character") {
+    await tamerActor.update({
+      "system.partner.uuid":
+        partnerActor.uuid,
+
+      "system.partner.currentFormUuid":
+        partnerActor.system?.evolution
+          ?.currentFormUuid ??
+        formTemplateActor.uuid ??
+        reference,
+
+      "system.partner.currentFormName":
+        partnerActor.system?.evolution
+          ?.currentFormName ??
+        formTemplateActor.name ??
+        partnerActor.name
+    });
+  }
 
   return partnerActor;
 }
@@ -1077,6 +1325,12 @@ export async function getCurrentPartnerFormWizardContext(
     partnerActor
   } = actors;
 
+  // Mode Change is a temporary combat overlay. Opening the current-form
+  // Wizard must never serialize that overlay into the persistent form build.
+  if (partnerActor.system?.combat?.qualityModeChange?.active) {
+    await resetModeChangeForActor(partnerActor);
+  }
+
   /*
    * O próprio Digimon persistente é a fonte
    * principal da forma atualmente ativa.
@@ -1129,12 +1383,29 @@ export async function getCurrentPartnerFormWizardContext(
 
   formTemplateActor ??= partnerActor;
 
-  const snapshot =
-    storedSnapshot ??
-    await getOrCreatePartnerFormSnapshot(
-      partnerActor,
-      formTemplateActor
-    );
+  // The active persistent Partner is the canonical source for the current
+  // form. Refresh its snapshot before opening the Wizard so direct sheet edits
+  // made since the last form change are never hidden by an older snapshot.
+  const liveSnapshot = buildFormSnapshotFromActor(partnerActor, {
+    sourceFormUuid: currentFormUuid,
+    sourceFormName:
+      partnerActor.system.evolution?.currentFormName ||
+      partnerActor.system.evolution?.sourceFormName ||
+      partnerActor.system?.species ||
+      partnerActor.name
+  });
+
+  liveSnapshot.key = storedSnapshot?.key || liveSnapshot.key;
+  liveSnapshot.createdAt = storedSnapshot?.createdAt || liveSnapshot.createdAt;
+  liveSnapshot.wizard = foundry.utils.mergeObject(
+    foundry.utils.deepClone(storedSnapshot?.wizard ?? {}),
+    foundry.utils.deepClone(liveSnapshot.wizard ?? {}),
+    { inplace: false, recursive: true }
+  );
+
+  await upsertPartnerFormSnapshot(partnerActor, liveSnapshot);
+  const snapshot = getPartnerFormSnapshot(partnerActor, currentFormUuid) ?? liveSnapshot;
+  formTemplateActor = partnerActor;
 
   const totalBonusDp = Math.max(
     0,
@@ -1192,7 +1463,7 @@ export async function getStoredPartnerFormWizardContext(
     return null;
   }
 
-  const snapshot = getPartnerFormSnapshot(partnerActor, wantedReference);
+  let snapshot = getPartnerFormSnapshot(partnerActor, wantedReference);
 
   if (!snapshot) {
     ui.notifications.warn(localize("DDA.Warning.ChosenEvolutionFormNotFound"));
@@ -1224,11 +1495,40 @@ export async function getStoredPartnerFormWizardContext(
   const isCurrentForm = Boolean(
     wantedReference === currentFormUuid ||
     snapshot.sourceFormUuid === currentFormUuid ||
-    snapshot.sourceFormUuid === partnerActor.uuid ||
     (currentSnapshot && currentSnapshot.key === snapshot.key) ||
     (currentSnapshot &&
       currentSnapshot.sourceFormUuid === snapshot.sourceFormUuid)
   );
+
+  // The Planner may open a stored entry that is actually the active form.
+  // Refresh that entry from the persistent Partner for the same reason as the
+  // direct current-form Wizard path: active Actor data outranks its snapshot.
+  if (isCurrentForm) {
+    if (partnerActor.system?.combat?.qualityModeChange?.active) {
+      await resetModeChangeForActor(partnerActor);
+    }
+
+    const liveSnapshot = buildFormSnapshotFromActor(partnerActor, {
+      sourceFormUuid: currentFormUuid,
+      sourceFormName:
+        partnerActor.system.evolution?.currentFormName ||
+        partnerActor.system.evolution?.sourceFormName ||
+        partnerActor.system?.species ||
+        partnerActor.name
+    });
+
+    liveSnapshot.key = snapshot?.key || liveSnapshot.key;
+    liveSnapshot.createdAt = snapshot?.createdAt || liveSnapshot.createdAt;
+    liveSnapshot.wizard = foundry.utils.mergeObject(
+      foundry.utils.deepClone(snapshot?.wizard ?? {}),
+      foundry.utils.deepClone(liveSnapshot.wizard ?? {}),
+      { inplace: false, recursive: true }
+    );
+
+    await upsertPartnerFormSnapshot(partnerActor, liveSnapshot);
+    snapshot = getPartnerFormSnapshot(partnerActor, currentFormUuid) ?? liveSnapshot;
+    formTemplateActor = partnerActor;
+  }
 
   const totalBonusDp = Math.max(
     0,
@@ -1237,11 +1537,18 @@ export async function getStoredPartnerFormWizardContext(
     Number(partnerActor.system?.creation?.bonusDp ?? 0) || 0
   );
 
-  const formBonusDp = getPartnerFormBonusDpAvailable(
-    partnerActor,
-    snapshot.sourceFormUuid || wantedReference,
-    totalBonusDp
-  );
+  const jogressPlan = snapshot?.wizard?.jogressPlan ?? null;
+  const storedJogressProfile = jogressPlan?.bonusDpProfile ?? null;
+  const effectiveBonusTotal = storedJogressProfile
+    ? Math.max(0, Number(storedJogressProfile.total ?? jogressPlan?.combinedBonusDp ?? 0))
+    : totalBonusDp;
+  const formBonusDp = storedJogressProfile
+    ? Math.max(0, Number(storedJogressProfile.qualityAllocated ?? 0))
+    : getPartnerFormBonusDpAvailable(
+        partnerActor,
+        snapshot.sourceFormUuid || wantedReference,
+        totalBonusDp
+      );
 
   return {
     tamerActor,
@@ -1249,7 +1556,8 @@ export async function getStoredPartnerFormWizardContext(
     formTemplateActor,
     snapshot,
     bonusDp: formBonusDp,
-    bonusDpTotal: totalBonusDp,
+    bonusDpTotal: effectiveBonusTotal,
+    bonusDpProfile: storedJogressProfile ? foundry.utils.deepClone(storedJogressProfile) : null,
     isCurrentForm
   };
 }
@@ -1283,7 +1591,8 @@ export async function getFuturePartnerFormWizardContext(
     return null;
   }
 
-  const formTemplateReference = getFormTemplateReference(formTemplateActor);
+  const requestedSnapshotReference = String(options?.snapshotReference ?? "").trim();
+  const formTemplateReference = requestedSnapshotReference || getFormTemplateReference(formTemplateActor);
   const existingSnapshot = getPartnerFormSnapshot(
     partnerActor,
     formTemplateReference
@@ -1318,6 +1627,14 @@ export async function getFuturePartnerFormWizardContext(
     existingSnapshot?.wizard?.plannedFromReference ||
     ""
   ).trim();
+  const templateSpecies = String(
+    templateSystem.species ||
+    formTemplateActor.name ||
+    "Digimon"
+  ).trim() || "Digimon";
+  const persistentNickname = getPersistentPartnerNickname(
+    partnerActor
+  );
 
   const snapshot = {
     ...(existingSnapshot ?? {}),
@@ -1357,8 +1674,8 @@ export async function getFuturePartnerFormWizardContext(
       : [],
     names: foundry.utils.deepClone(templateNames),
 
-    // The nickname belongs to the persistent partner and follows every form.
-    name: existingSnapshot?.name || partnerActor.name,
+    // Only an explicit nickname follows the persistent Partner between forms.
+    name: persistentNickname || templateSpecies,
 
     img: staticImage,
     portraitImg: actorPortrait,
@@ -1366,7 +1683,7 @@ export async function getFuturePartnerFormWizardContext(
     tokenImg: existingSnapshot?.tokenImg ||
       await getEvolutionTokenTextureSource(formTemplateActor, null),
 
-    species: templateSystem.species || formTemplateActor.name,
+    species: templateSpecies,
     stage: templateSystem.stage || "child",
     stageValue: Number(templateSystem.stageValue ?? 2),
     size: templateSystem.size || "medium",
@@ -1375,17 +1692,29 @@ export async function getFuturePartnerFormWizardContext(
     field: templateSystem.field || "none",
     family: templateSystem.family || "none",
     group: templateSystem.group || "",
-    evolutionCategory: templateSystem.evolutionCategory || "normal",
-    specialCategories: foundry.utils.deepClone(
-      templateSystem.specialCategories ?? []
-    ),
-    primarySpecialCategory: String(
-      templateSystem.primarySpecialCategory || ""
-    ),
-    isSpecialForm: Boolean(templateSystem.isSpecialForm),
-    specialForm: foundry.utils.deepClone(
-      templateSystem.specialForm ?? {}
-    ),
+    evolutionCategory: plannedEvolutionMethod === "jogress"
+      ? "jogress"
+      : (templateSystem.evolutionCategory || "normal"),
+    specialCategories: plannedEvolutionMethod === "jogress"
+      ? Array.from(new Set([
+          ...(Array.isArray(templateSystem.specialCategories) ? templateSystem.specialCategories : []),
+          "jogress"
+        ]))
+      : foundry.utils.deepClone(templateSystem.specialCategories ?? []),
+    primarySpecialCategory: plannedEvolutionMethod === "jogress"
+      ? "jogress"
+      : String(templateSystem.primarySpecialCategory || ""),
+    isSpecialForm: plannedEvolutionMethod === "jogress"
+      ? true
+      : Boolean(templateSystem.isSpecialForm),
+    specialForm: plannedEvolutionMethod === "jogress"
+      ? {
+          ...foundry.utils.deepClone(templateSystem.specialForm ?? {}),
+          kind: "jogress",
+          method: "jogress",
+          equivalentStage: templateSystem.stage || ""
+        }
+      : foundry.utils.deepClone(templateSystem.specialForm ?? {}),
 
     profile: foundry.utils.deepClone(
       existingSnapshot?.profile ?? templateSystem.profile ?? {}
@@ -1412,7 +1741,10 @@ export async function getFuturePartnerFormWizardContext(
       darkEvolution: Boolean(
         options?.darkEvolution || plannedEvolutionMethod === "dark"
       ),
-      plannerImageResolved: true
+      plannerImageResolved: true,
+      ...(options?.jogressPlan
+        ? { jogressPlan: foundry.utils.deepClone(options.jogressPlan) }
+        : {})
     },
 
     // Never pull Attacks or Qualities from the currently active form.
@@ -1421,18 +1753,28 @@ export async function getFuturePartnerFormWizardContext(
       : []
   };
 
-  const totalBonusDp = Math.max(
+  const standardBonusDp = Math.max(
     0,
     Number(partnerActor.system?.advancement?.bonusDp?.total ?? 0) || 0,
     Number(partnerActor.system?.creation?.dp?.bonus ?? 0) || 0,
     Number(partnerActor.system?.creation?.bonusDp ?? 0) || 0
   );
+  const requestedBonusProfile = options?.bonusDpProfile && typeof options.bonusDpProfile === "object"
+    ? foundry.utils.deepClone(options.bonusDpProfile)
+    : null;
+  const totalBonusDp = requestedBonusProfile
+    ? Math.max(0, Number(requestedBonusProfile.total ?? options?.bonusDpTotal ?? 0))
+    : (Number.isFinite(Number(options?.bonusDpTotal))
+        ? Math.max(0, Number(options.bonusDpTotal))
+        : standardBonusDp);
 
-  const formBonusDp = getPartnerFormBonusDpAvailable(
-    partnerActor,
-    snapshot.sourceFormUuid || formTemplateReference || "",
-    totalBonusDp
-  );
+  const formBonusDp = requestedBonusProfile
+    ? Math.max(0, Number(requestedBonusProfile.qualityAllocated ?? 0))
+    : getPartnerFormBonusDpAvailable(
+        partnerActor,
+        snapshot.sourceFormUuid || formTemplateReference || "",
+        totalBonusDp
+      );
 
   return {
     tamerActor,
@@ -1441,6 +1783,7 @@ export async function getFuturePartnerFormWizardContext(
     snapshot,
     bonusDp: formBonusDp,
     bonusDpTotal: totalBonusDp,
+    bonusDpProfile: requestedBonusProfile,
     plannerOptions: foundry.utils.deepClone(options ?? {})
   };
 }
@@ -1519,10 +1862,21 @@ async function saveCurrentPartnerFormSnapshot(partnerActor) {
   const currentFormUuid = partnerActor.system.evolution?.currentFormUuid || partnerActor.system.evolution?.sourceFormUuid || partnerActor.uuid;
   if (!currentFormUuid) return null;
 
+  const existingSnapshot = getPartnerFormSnapshot(partnerActor, currentFormUuid);
   const snapshot = buildFormSnapshotFromActor(partnerActor, {
     sourceFormUuid: currentFormUuid,
     sourceFormName: partnerActor.system.evolution?.currentFormName || partnerActor.system.evolution?.sourceFormName || partnerActor.name
   });
+
+  // Planner metadata belongs to the logical form, not to the physical Partner
+  // Actor. Preserve it when the live Actor refreshes an existing snapshot.
+  snapshot.key = existingSnapshot?.key || snapshot.key;
+  snapshot.createdAt = existingSnapshot?.createdAt || snapshot.createdAt;
+  snapshot.wizard = foundry.utils.mergeObject(
+    foundry.utils.deepClone(existingSnapshot?.wizard ?? {}),
+    foundry.utils.deepClone(snapshot.wizard ?? {}),
+    { inplace: false, recursive: true }
+  );
 
   await upsertPartnerFormSnapshot(partnerActor, snapshot);
   return snapshot;
@@ -1559,6 +1913,74 @@ async function getOrCreatePartnerFormSnapshot(partnerActor, formTemplateActor) {
   }
 
   return snapshot;
+}
+
+function normalizeSnapshotRechargeType(value = "") {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+export async function rechargePartnerFormSnapshotQualityUses(
+  partnerActor,
+  rechargeType,
+  { includeCurrent = false } = {}
+) {
+  if (!partnerActor || !["digimon", "npc"].includes(partnerActor.type)) return { changed: false, count: 0 };
+
+  const wantedRecharge = normalizeSnapshotRechargeType(rechargeType);
+  if (!wantedRecharge) return { changed: false, count: 0 };
+
+  const snapshots = foundry.utils.deepClone(partnerActor.system?.evolution?.formSnapshots ?? {});
+  const currentReference = String(
+    partnerActor.system?.evolution?.currentFormUuid ||
+    partnerActor.system?.evolution?.sourceFormUuid ||
+    ""
+  ).trim();
+
+  let changed = false;
+  let count = 0;
+
+  for (const snapshot of Object.values(snapshots)) {
+    if (!snapshot || typeof snapshot !== "object") continue;
+    if (!includeCurrent && currentReference && String(snapshot.sourceFormUuid ?? "") === currentReference) continue;
+    if (!Array.isArray(snapshot.items)) continue;
+
+    let snapshotChanged = false;
+    for (const item of snapshot.items) {
+      if (item?.type !== "quality" || !item.system?.uses?.enabled) continue;
+      if (normalizeSnapshotRechargeType(item.system.uses.recharge) !== wantedRecharge) continue;
+
+      const max = Math.max(0, Number(item.system.uses.max ?? 0));
+      if (max <= 0) continue;
+      const value = Math.max(0, Number(item.system.uses.value ?? 0));
+      const spent = Math.max(0, Number(item.system.uses.spent ?? 0));
+      if (value >= max && spent <= 0) continue;
+
+      item.system.uses.value = max;
+      item.system.uses.spent = 0;
+      if (wantedRecharge === "combat") {
+        item.system.uses.lastUsedCombatId = "";
+        item.system.uses.lastUsedRound = 0;
+        item.system.uses.lastUsedTurn = -1;
+      }
+      snapshotChanged = true;
+      count += 1;
+    }
+
+    if (snapshotChanged) {
+      snapshot.updatedAt = new Date().toISOString();
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await partnerActor.update({ "system.evolution.formSnapshots": snapshots });
+  }
+
+  return { changed, count };
 }
 
 function getFormTemplateReference(actor = null) {
@@ -1717,6 +2139,18 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
     actorPortraitSources[0] ||
     resolvedStaticImg
   );
+  const hasSnapshotIdentity = Boolean(
+    snapshot?.sourceId ||
+    snapshot?.databaseId ||
+    snapshot?.names?.canonical ||
+    snapshot?.species ||
+    snapshot?.sourceFormName
+  );
+  const fallbackAliases = !hasSnapshotIdentity && Array.isArray(
+    fallbackActor?.system?.names?.aliases
+  )
+    ? fallbackActor.system.names.aliases
+    : [];
 
   return {
     key,
@@ -1724,32 +2158,35 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
 
     sourceFormName: String(
       snapshot?.sourceFormName ||
-      fallbackActor?.name ||
+      snapshot?.species ||
       snapshot?.name ||
+      fallbackActor?.name ||
       ""
     ),
 
     sourceId: String(
       snapshot?.sourceId ||
       snapshot?.names?.canonical ||
+      snapshot?.species ||
       fallbackActor?.system?.sourceId ||
       fallbackActor?.system?.names?.canonical ||
-      snapshot?.species ||
       fallbackActor?.system?.species ||
       ""
     ),
 
     databaseId: String(
       snapshot?.databaseId ||
-      fallbackActor?.system?.databaseId ||
+      (!hasSnapshotIdentity
+        ? fallbackActor?.system?.databaseId
+        : "") ||
       ""
     ),
 
     originalName: String(
       snapshot?.originalName ||
       snapshot?.names?.original ||
-      fallbackActor?.system?.names?.original ||
       snapshot?.species ||
+      fallbackActor?.system?.names?.original ||
       fallbackActor?.system?.species ||
       snapshot?.name ||
       ""
@@ -1758,8 +2195,8 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
     dubName: String(
       snapshot?.dubName ||
       snapshot?.names?.dub ||
-      fallbackActor?.system?.names?.dub ||
       snapshot?.species ||
+      fallbackActor?.system?.names?.dub ||
       fallbackActor?.system?.species ||
       snapshot?.name ||
       ""
@@ -1775,11 +2212,7 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
           ? snapshot.names.aliases
           : []),
 
-        ...(Array.isArray(
-          fallbackActor?.system?.names?.aliases
-        )
-          ? fallbackActor.system.names.aliases
-          : [])
+        ...fallbackAliases
       ]
         .map((value) => {
           return String(value ?? "").trim();
@@ -1791,9 +2224,9 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
       canonical: String(
         snapshot?.names?.canonical ||
         snapshot?.sourceId ||
+        snapshot?.species ||
         fallbackActor?.system?.names?.canonical ||
         fallbackActor?.system?.sourceId ||
-        snapshot?.species ||
         fallbackActor?.system?.species ||
         ""
       ),
@@ -1801,8 +2234,8 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
       original: String(
         snapshot?.names?.original ||
         snapshot?.originalName ||
-        fallbackActor?.system?.names?.original ||
         snapshot?.species ||
+        fallbackActor?.system?.names?.original ||
         fallbackActor?.system?.species ||
         ""
       ),
@@ -1810,8 +2243,8 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
       dub: String(
         snapshot?.names?.dub ||
         snapshot?.dubName ||
-        fallbackActor?.system?.names?.dub ||
         snapshot?.species ||
+        fallbackActor?.system?.names?.dub ||
         fallbackActor?.system?.species ||
         ""
       ),
@@ -1826,11 +2259,7 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
             ? snapshot.names.aliases
             : []),
 
-          ...(Array.isArray(
-            fallbackActor?.system?.names?.aliases
-          )
-            ? fallbackActor.system.names.aliases
-            : [])
+          ...fallbackAliases
         ]
           .map((value) => {
             return String(value ?? "").trim();
@@ -1851,10 +2280,10 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
     imageFallbacks: staticPortraitSources.slice(1).join("|"),
     tokenImg: String(
       snapshot?.tokenImg ||
-      fallbackActor?.system?.evolution?.tokenImg ||
-      fallbackActor?.prototypeToken?.texture?.src ||
       resolvedStaticImg ||
       resolvedPortraitImg ||
+      fallbackActor?.system?.evolution?.tokenImg ||
+      fallbackActor?.prototypeToken?.texture?.src ||
       "icons/svg/mystery-man.svg"
     ),
     species: String(snapshot?.species || fallbackActor?.system?.species || fallbackActor?.name || snapshot?.name || "Digimon"),
@@ -2230,16 +2659,25 @@ function buildPseudoActorFromFormSnapshot(snapshot, partnerActor = null) {
 
 function buildFormSnapshotFromActor(actor, options = {}) {
   const system = actor?.system ?? {};
-  const portraitImg = String(
-    system.evolution?.portraitImg ||
+  const storedPortrait = String(
     actor?.flags?.[DDA_SYSTEM_ID]?.digivicePortrait ||
+    ""
+  ).trim();
+  const portraitManuallySelected = Boolean(
+    actor?.flags?.[DDA_SYSTEM_ID]?.digivicePortraitManual
+  );
+  const portraitImg = String(
+    (portraitManuallySelected
+      ? (storedPortrait || actor?.img)
+      : system.evolution?.portraitImg) ||
+    storedPortrait ||
     actor?.img ||
     "icons/svg/mystery-man.svg"
   );
 
   const tokenImg = String(
-    system.evolution?.tokenImg ||
     actor?.prototypeToken?.texture?.src ||
+    system.evolution?.tokenImg ||
     actor?.img ||
     portraitImg ||
     "icons/svg/mystery-man.svg"
@@ -2344,7 +2782,11 @@ function buildFormSnapshotFromActor(actor, options = {}) {
     miscStats: getSnapshotMiscStats(actor),
     creation: foundry.utils.deepClone(system.creation ?? {}),
     qualityLimits: foundry.utils.deepClone(system.qualityLimits ?? {}),
-    wizard: foundry.utils.deepClone(system.wizard ?? {}),
+    wizard: {
+      ...foundry.utils.deepClone(system.wizard ?? {}),
+      portraitManuallySelected,
+      portraitSource: portraitManuallySelected ? "manual" : "automatic"
+    },
     items: buildSnapshotItemsFromActor(actor),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -2478,7 +2920,7 @@ async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateAc
 
   const previousTemplateUuid = previousFormUuid;
   const previousTemplateName = previousFormName;
-  
+
   await removeFormGrantedItems(partnerActor);
 
   const formGrantedItems = buildFormGrantedItemsFromSnapshot(normalized);
@@ -2490,16 +2932,6 @@ async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateAc
   const isIndependentNpc =
     partnerActor.type === "npc";
 
-  /*
-   * Somente parceiros de Tamer preservam
-   * o nome/apelido entre formas.
-   */
-  const shouldPreservePartnerName =
-    !isIndependentNpc &&
-    Boolean(
-      partnerActor.system?.isPersistentPartner
-    );
-
   const nextSpeciesName = String(
     normalized.species ||
     formTemplateActor?.system?.species ||
@@ -2509,6 +2941,12 @@ async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateAc
     partnerActor.name ||
     "Digimon"
   ).trim() || "Digimon";
+
+  const persistentNickname = isIndependentNpc
+    ? ""
+    : getPersistentPartnerNickname(partnerActor);
+
+  const nextActorName = persistentNickname || nextSpeciesName;
 
   const nextSourceId = String(
     normalized.sourceId ||
@@ -2569,6 +3007,10 @@ async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateAc
   const portraitImg = String(normalized.portraitImg || normalized.img || "icons/svg/mystery-man.svg");
   const tokenImg = String(normalized.tokenImg || normalized.img || portraitImg || "icons/svg/mystery-man.svg");
   const actorImg = String(normalized.img || partnerActor.img || "icons/svg/mystery-man.svg");
+  const portraitWasManuallySelected = Boolean(
+    normalized.wizard?.portraitManuallySelected ||
+    normalized.wizard?.portraitSource === "manual"
+  );
 
 const shouldUsePortraitFlag = Boolean(
   portraitImg &&
@@ -2577,11 +3019,9 @@ const shouldUsePortraitFlag = Boolean(
 );
 
   const updates = {
-    ...(shouldPreservePartnerName
-      ? {}
-      : {
-          name: nextSpeciesName
-        }),
+    name: nextActorName,
+    "prototypeToken.name": nextActorName,
+    "system.nickname": persistentNickname,
 
     /*
      * Também corrige Allies antigos que já
@@ -2592,7 +3032,9 @@ const shouldUsePortraitFlag = Boolean(
           "system.customName": "",
           "system.isPersistentPartner": false
         }
-      : {}),
+      : {
+          "system.customName": persistentNickname
+        }),
 
     img: isVideoPath(actorImg)
       ? (
@@ -2603,6 +3045,9 @@ const shouldUsePortraitFlag = Boolean(
     ...(shouldUsePortraitFlag
       ? { [`flags.${DDA_SYSTEM_ID}.digivicePortrait`]: portraitImg }
       : { [`flags.${DDA_SYSTEM_ID}.-=digivicePortrait`]: null }),
+    ...(portraitWasManuallySelected
+      ? { [`flags.${DDA_SYSTEM_ID}.digivicePortraitManual`]: true }
+      : { [`flags.${DDA_SYSTEM_ID}.-=digivicePortraitManual`]: null }),
     "prototypeToken.texture.src": tokenImg,
     "system.evolution.portraitImg": portraitImg,
     "system.evolution.tokenImg": tokenImg,
@@ -2753,8 +3198,8 @@ function freezePersistentEvolutionGraphDisplayData({
     );
 
     const tokenImg = String(
-      actor?.system?.evolution?.tokenImg ||
       actor?.prototypeToken?.texture?.src ||
+      actor?.system?.evolution?.tokenImg ||
       actor?.img ||
       portraitImg ||
       "icons/svg/mystery-man.svg"
@@ -2936,37 +3381,34 @@ export async function executeJogressEvolution(tamerActor) {
     return null;
   }
 
-  const partnerUuid = tamerActor.system.partner?.uuid;
-
-  if (!partnerUuid) {
-    ui.notifications.warn(localize("DDA.Warning.NoPartnerLinked"));
-    return null;
-  }
-
-  const partnerActor = await resolveActor(partnerUuid);
-
-  if (!partnerActor || partnerActor.type !== "digimon") {
-    ui.notifications.warn(localize("DDA.Warning.LinkedPartnerNotDigimonSimple"));
-    return null;
-  }
-
-  await syncPartnerOwnershipFromTamer(tamerActor, partnerActor);
-
   if (isTamerInActiveJogress(tamerActor)) {
     ui.notifications.warn(localize("DDA.Warning.JogressAlreadyActive"));
     return null;
   }
 
-  const currentFormUuid = tamerActor.system.partner?.currentFormUuid || partnerActor.uuid;
-  const currentFormActor = await resolveActor(currentFormUuid) ?? partnerActor;
-  const options = await collectAvailableJogressOptions(tamerActor, currentFormActor);
+  const {
+    partnerActor,
+    currentFormActor,
+    currentForm
+  } = await getPartnerAndCurrentFormForSpecialAction(tamerActor);
+
+  if (!partnerActor || !currentFormActor || !currentForm) return null;
+
+  await syncPartnerOwnershipFromTamer(tamerActor, partnerActor);
+
+  if (hasConflictingJogressSpecialEvolution(tamerActor, partnerActor)) {
+    ui.notifications.warn(localize("DDA.Warning.JogressConflictingSpecialEvolution"));
+    return null;
+  }
+
+  const options = await collectAvailableJogressOptions(tamerActor, currentForm);
 
   if (!options.length) {
     ui.notifications.warn(localize("DDA.Warning.NoJogressRecipesAvailable"));
     return null;
   }
 
-  const selectedOption = await chooseJogressOption(options, tamerActor, currentFormActor);
+  const selectedOption = await chooseJogressOption(options, tamerActor, currentForm);
   if (!selectedOption) return null;
 
   const resultActor = selectedOption.resultActor;
@@ -2976,10 +3418,23 @@ export async function executeJogressEvolution(tamerActor) {
     return null;
   }
 
-  const participants = selectedOption.participants.filter((participant) => participant?.tamer && participant?.digimon);
-  const secondary = participants.find((participant) => participant.tamer?.uuid !== tamerActor.uuid);
+  const participants = selectedOption.participants.filter((participant) => {
+    return Boolean(
+      participant?.tamer &&
+      participant?.partnerActor &&
+      participant?.form?.templateActor
+    );
+  });
 
-  if (participants.length < 2 || !secondary?.tamer || !secondary?.digimon) {
+  const primary = participants.find((participant) => {
+    return participant.tamer?.uuid === tamerActor.uuid;
+  }) ?? participants[0];
+
+  const secondary = participants.find((participant) => {
+    return participant.tamer?.uuid !== primary?.tamer?.uuid;
+  });
+
+  if (!primary?.tamer || !primary?.partnerActor || participants.length !== 2 || !secondary?.tamer || !secondary?.partnerActor) {
     ui.notifications.warn(localize("DDA.Warning.JogressNeedsTwoTamers"));
     return null;
   }
@@ -2989,39 +3444,163 @@ export async function executeJogressEvolution(tamerActor) {
     return null;
   }
 
+  const componentStage = String(participants[0]?.form?.stageKey ?? "").trim();
+  const resultStage = String(resultActor.system?.stage ?? selectedOption.recipe?.result?.stage ?? "").trim();
+  const resultReference = getJogressResultReference(resultActor, selectedOption.recipe);
+
+  if (!isImmediatelyHigherStage(componentStage, resultStage)) {
+    ui.notifications.warn(formatI18n("DDA.Warning.JogressResultMustBeNextStage", {
+      componentStage: escapeHtml(getStageLabel(componentStage)),
+      resultStage: escapeHtml(getStageLabel(resultStage))
+    }));
+    return null;
+  }
+
+  if (!canCurrentUserManageJogressParticipants(participants)) {
+    ui.notifications.warn(localize("DDA.Warning.JogressRequiresGMAuthority"));
+    return null;
+  }
+
+  let resultForm = await resolvePartnerFormDescriptor(
+    partnerActor,
+    resultReference,
+    {
+      form: {
+        uuid: resultReference,
+        actorUuid: resultReference,
+        name: resultActor.name,
+        species: resultActor.system?.species ?? resultActor.name,
+        stage: resultStage,
+        img: resultActor.img
+      },
+      fallbackActor: resultActor
+    }
+  );
+
+  if (!resultForm?.templateActor) {
+    ui.notifications.warn(localize("DDA.Warning.JogressResultNotFound"));
+    return null;
+  }
+
   const historyKey = getJogressHistoryKey(selectedOption.recipe, participants, resultActor);
-  const mastered = participants.every((participant) => hasMasteredJogressRecipe(participant.tamer, historyKey));
+  const bonusProfile = getJogressComponentBonusProfile(participants);
+  const preparedJogressSnapshot = findPreparedJogressSnapshot(
+    participants,
+    selectedOption.recipe,
+    resultActor
+  );
+
+  if (preparedJogressSnapshot) {
+    const refreshedPreparedSnapshot = refreshPreparedJogressSnapshotBonusProfile(
+      preparedJogressSnapshot,
+      bonusProfile
+    );
+    const preparedForm = await resolvePartnerFormDescriptor(
+      partnerActor,
+      refreshedPreparedSnapshot.sourceFormUuid,
+      {
+        form: { persistentSnapshot: refreshedPreparedSnapshot },
+        fallbackActor: resultActor
+      }
+    );
+
+    if (preparedForm?.templateActor) resultForm = preparedForm;
+  }
+  const mastered = participants.every((participant) => {
+    return hasMasteredJogressRecipe(participant.tamer, historyKey);
+  });
+
   const ruleData = buildJogressRuleData({
     recipe: selectedOption.recipe,
     resultActor,
     mastered
   });
 
-  const confirmed = await confirmJogressStart({ option: selectedOption, resultActor, ruleData });
+  const rawReversionPlan = await prepareJogressReversionPlan(participants, {
+    mastered
+  });
+
+  if (!rawReversionPlan) return null;
+
+  const reversionPlan = orderJogressReversionPlan(
+    rawReversionPlan,
+    primary,
+    secondary
+  );
+
+  if (!mastered && reversionPlan.hasMissing) {
+    for (const plan of reversionPlan.plans.filter((entry) => entry?.missing)) {
+      ui.notifications.warn(formatI18n("DDA.Warning.JogressMissingRevertStage", {
+        digimon: escapeHtml(plan?.participant?.form?.name ?? plan?.participant?.partnerActor?.name ?? localize("DDA.Jogress.UnknownDigimon")),
+        stage: escapeHtml(getStageLabel(plan?.revertStage ?? ""))
+      }));
+    }
+    return null;
+  }
+
+  const combatSnapshot = captureJogressCombatSnapshot(participants, game?.combat);
+  if (game?.combat?.started && !combatSnapshot.valid) {
+    ui.notifications.warn(localize("DDA.Warning.JogressCombatantsRequired"));
+    return null;
+  }
+
+  const interruptContext = getJogressInterruptContext(participants, game?.combat);
+  if (!interruptContext.allowed) {
+    ui.notifications.warn(localize("DDA.Warning.JogressOnlyOneInterrupt"));
+    return null;
+  }
+
+  const confirmed = await confirmJogressStart({
+    option: selectedOption,
+    resultActor,
+    ruleData,
+    reversionPlan,
+    interruptContext
+  });
+
   if (!confirmed) return null;
 
   const paymentData = await validateJogressRuleCosts({ participants, ruleData });
   if (!paymentData) return null;
 
-  await payJogressRuleCosts(paymentData);
+  try {
+    await payJogressRuleCosts(paymentData);
+  } catch (error) {
+    console.error("DDA | Jogress cost payment failed and was rolled back.", error);
+    ui.notifications.error(localize("DDA.Warning.JogressActivationFailed"));
+    return null;
+  }
 
   let checkResults = [];
 
   if (!mastered) {
-    checkResults = await rollJogressChecks(participants, {
-      tn: ruleData.checkTn,
-      formula: ruleData.checkFormula
-    });
+    try {
+      checkResults = await rollJogressChecks(participants, {
+        tn: ruleData.checkTn,
+        formula: ruleData.checkFormula
+      });
+    } catch (error) {
+      console.error("DDA | Jogress check could not be completed; costs will be restored.", error);
+      await refundJogressRuleCosts(paymentData);
+      ui.notifications.error(localize("DDA.Warning.JogressActivationFailed"));
+      return null;
+    }
 
     const allPassed = checkResults.every((entry) => entry.success);
 
-    await createJogressCheckChatCard({
-      speakerActor: tamerActor,
-      option: selectedOption,
-      resultActor,
-      checkResults,
-      allPassed
-    });
+    try {
+      await createJogressCheckChatCard({
+        speakerActor: tamerActor,
+        option: selectedOption,
+        resultActor,
+        checkResults,
+        allPassed
+      });
+    } catch (error) {
+      // Chat presentation must never invalidate an otherwise resolved Jogress
+      // check or strand already-paid Actions.
+      console.error("DDA | Could not create the Jogress check chat card.", error);
+    }
 
     if (!allPassed) {
       ui.notifications.warn(localize("DDA.Warning.JogressCheckFailed"));
@@ -3029,102 +3608,149 @@ export async function executeJogressEvolution(tamerActor) {
     }
   }
 
+  const primaryPartner = primary.partnerActor;
+  const secondaryPartner = secondary.partnerActor;
   const startedAt = new Date().toISOString();
-  const sharedInitiative = getLowestJogressInitiative(participants);
-  const primaryDigimonBonusDp = getDigimonBonusDp(currentFormActor);
-  const secondaryDigimonBonusDp = getDigimonBonusDp(secondary.digimon);
-  const componentBonusDp = primaryDigimonBonusDp + secondaryDigimonBonusDp;
+  const tokenHideMarker = `${historyKey}::${startedAt}`;
+  const secondaryTokenStates = captureJogressComponentTokenStates(
+    secondaryPartner,
+    game?.combat
+  );
+  const sharedInitiative = Number(combatSnapshot.sharedInitiative ?? getLowestJogressInitiative(participants));
+  const pendingInitiativeRound = combatSnapshot.combatId
+    ? Math.max(1, Number(combatSnapshot.round ?? 0) + 1)
+    : 0;
 
   const jogressState = {
     active: true,
     recipeId: selectedOption.recipe.id,
     historyKey,
-    resultUuid: resultActor.uuid,
-    resultName: resultActor.name,
-    primaryTamerUuid: tamerActor.uuid,
-    primaryTamerName: tamerActor.name,
-    primaryDigimonUuid: currentFormActor.uuid,
-    primaryDigimonName: currentFormActor.name,
+    resultUuid: resultReference,
+    resultName: resultForm.name || resultActor.name,
+    resultStage,
+    runtimePartnerUuid: primaryPartner.uuid,
+    primaryTamerUuid: primary.tamer.uuid,
+    primaryTamerName: primary.tamer.name,
+    primaryDigimonUuid: primaryPartner.uuid,
+    primaryDigimonName: primary.form.name,
+    primaryFormUuid: primary.form.reference,
+    primaryFormName: primary.form.name,
     secondaryTamerUuid: secondary.tamer.uuid,
     secondaryTamerName: secondary.tamer.name,
-    secondaryDigimonUuid: secondary.digimon.uuid,
-    secondaryDigimonName: secondary.digimon.name,
+    secondaryDigimonUuid: secondaryPartner.uuid,
+    secondaryDigimonName: secondary.form.name,
+    secondaryFormUuid: secondary.form.reference,
+    secondaryFormName: secondary.form.name,
+    primaryRevertUuid: reversionPlan.primary?.form?.reference ?? "",
+    primaryRevertName: reversionPlan.primary?.form?.name ?? "",
+    primaryRevertStage: reversionPlan.primary?.revertStage ?? "",
+    secondaryRevertUuid: reversionPlan.secondary?.form?.reference ?? "",
+    secondaryRevertName: reversionPlan.secondary?.form?.name ?? "",
+    secondaryRevertStage: reversionPlan.secondary?.revertStage ?? "",
+    preparedBuildUsed: Boolean(preparedJogressSnapshot),
+    preparedBuildReference: preparedJogressSnapshot?.sourceFormUuid ?? "",
+    interruptTamerUuid: interruptContext.interruptTamerUuid ?? "",
+    interruptTamerName: interruptContext.interruptTamerName ?? "",
+    actingTamerUuid: interruptContext.actingTamerUuid ?? "",
     masteredBeforeUse: mastered,
     firstSuccessfulUse: !mastered,
     sharedInitiative,
-    componentBonusDp,
-    primaryDigimonBonusDp,
-    secondaryDigimonBonusDp,
+    componentBonusDp: bonusProfile.total,
+    primaryDigimonBonusDp: bonusProfile.components[primary.tamer.uuid]?.total ?? 0,
+    secondaryDigimonBonusDp: bonusProfile.components[secondary.tamer.uuid]?.total ?? 0,
+    combinedSharedStatBonus: bonusProfile.sharedStatBonus,
+    combinedSharedQualityDp: bonusProfile.qualityAllocated,
+    combatId: combatSnapshot.combatId,
+    pendingInitiativeRound,
+    initiativeApplied: false,
+    initiativeUnitId: buildJogressUnitId(historyKey),
+    combatSnapshot,
+    primaryAdvancementState: captureJogressAdvancementState(primaryPartner),
+    primaryOwnership: foundry.utils.deepClone(primaryPartner.ownership ?? {}),
+    secondaryActionsValue: Number(secondaryPartner.system?.combat?.actions?.value ?? 0),
+    secondaryActionsMax: Number(secondaryPartner.system?.combat?.actions?.max ?? 2),
+    secondaryTokenStates,
+    tokenHideMarker,
     startedAt
   };
 
-  await tamerActor.update({
-    "system.partner.currentFormUuid": resultActor.uuid,
-    "system.partner.currentFormName": resultActor.name,
-    "system.specialEvolutions.jogress.state": jogressState
-  });
+  try {
+    await applyPersistentPartnerSpecialForm({
+      tamerActor: primary.tamer,
+      partnerActor: primaryPartner,
+      form: resultForm,
+      previousFormActor: primaryPartner,
+      transitionType: "jogress",
+      healOnEvolution: true
+    });
 
-  await secondary.tamer.update({
-    "system.partner.currentFormUuid": resultActor.uuid,
-    "system.partner.currentFormName": resultActor.name,
-    "system.specialEvolutions.jogress.state": jogressState
-  });
-
-  await markJogressRecipeMastered(participants, historyKey, {
-    recipeId: selectedOption.recipe.id,
-    resultUuid: resultActor.uuid,
-    resultName: resultActor.name
-  });
-
-  await applyJogressResultOwnership(resultActor, participants);
-
-  const jogressTamerNames = participants
-    .map((participant) => participant.tamer?.name)
-    .filter(Boolean)
-    .join(" / ");
-
-  await resultActor.update({
-    "system.tamer.name":
-      jogressTamerNames ||
-      tamerActor.name,
-
-    "system.tamer.uuid":
-      tamerActor.uuid,
-
-    "system.combat.actions.value":
-      2,
-
-    "system.combat.actions.max":
-      2,
-
-    "system.combat.initiative.value":
-      sharedInitiative,
-
-    "system.specialEvolutions.jogress.active":
-      true,
-
-    "system.specialEvolutions.jogress.state":
-      jogressState,
-
-    "system.specialEvolutions.jogress.componentBonusDp":
-      componentBonusDp
-  });
-
-  await fullyRestoreWounds(
-    resultActor,
-    {
-      clearTemp: true
+    if (preparedJogressSnapshot) {
+      await applyJogressPreparedBudgetState(
+        primaryPartner,
+        preparedJogressSnapshot,
+        bonusProfile
+      );
+    } else {
+      await applyJogressRuntimeBonusProfile(primaryPartner, resultActor, bonusProfile);
     }
-  );
 
-  await updateJogressSharedInitiative(
-    participants,
-    resultActor,
-    sharedInitiative
-  );
+    await applyJogressResultOwnership(primaryPartner, participants);
+
+    await primaryPartner.update({
+      "system.tamer.name": `${primary.tamer.name} / ${secondary.tamer.name}`,
+      "system.tamer.uuid": primary.tamer.uuid,
+      "system.combat.actions.value": 2,
+      "system.combat.actions.max": 2,
+      "system.specialForm.kind": "jogress",
+      "system.specialForm.method": "jogress",
+      "system.specialForm.equivalentStage": resultStage,
+      "system.specialEvolutions.jogress.active": true,
+      "system.specialEvolutions.jogress.state": jogressState,
+      "system.specialEvolutions.jogress.componentBonusDp": bonusProfile.total
+    });
+
+    await hideJogressComponentTokens(
+      jogressState.secondaryTokenStates,
+      jogressState.tokenHideMarker
+    );
+
+    await secondaryPartner.update({
+      "system.combat.actions.value": 0,
+      "system.specialEvolutions.jogress.active": true,
+      "system.specialEvolutions.jogress.state": jogressState
+    });
+
+    await primary.tamer.update({
+      "system.partner.currentFormUuid": primaryPartner.uuid,
+      "system.partner.currentFormName": resultForm.name || resultActor.name,
+      "system.specialEvolutions.jogress.state": jogressState
+    });
+
+    await secondary.tamer.update({
+      "system.partner.currentFormUuid": primaryPartner.uuid,
+      "system.partner.currentFormName": resultForm.name || resultActor.name,
+      "system.specialEvolutions.jogress.state": jogressState
+    });
+
+    await markJogressRecipeMastered(participants, historyKey, {
+      recipeId: selectedOption.recipe.id,
+      resultUuid: resultReference,
+      resultName: resultActor.name
+    });
+  } catch (error) {
+    console.error("DDA | Jogress activation failed and will be rolled back.", error);
+    await rollbackJogressActivation({
+      primary,
+      secondary,
+      jogressState,
+      paymentData
+    });
+    ui.notifications.error(localize("DDA.Warning.JogressActivationFailed"));
+    return null;
+  }
 
   const componentList = participants.map((participant) => {
-    return `<li><strong>${escapeHtml(participant.digimon?.name ?? localize("DDA.Jogress.UnknownDigimon"))}</strong> — ${escapeHtml(participant.tamer?.name ?? localize("DDA.Jogress.UnknownTamer"))}</li>`;
+    return `<li><strong>${escapeHtml(participant.form?.name ?? localize("DDA.Jogress.UnknownDigimon"))}</strong> — ${escapeHtml(participant.tamer?.name ?? localize("DDA.Jogress.UnknownTamer"))}</li>`;
   }).join("");
 
   await ChatMessage.create({
@@ -3141,30 +3767,30 @@ export async function executeJogressEvolution(tamerActor) {
           <div class="dda-digivolution-arrow">→</div>
           <div class="dda-digivolution-form next">
             <span class="dda-digivolution-label">${localize("DDA.Evolution.NewForm")}</span>
-            <strong>${escapeHtml(resultActor.name)}</strong>
-            <small>${escapeHtml(getStageLabel(resultActor.system.stage))}</small>
+            <strong>${escapeHtml(resultForm.name || resultActor.name)}</strong>
+            <small>${escapeHtml(getStageLabel(resultStage))}</small>
           </div>
         </div>
         <ul class="dda-effect-list dda-digivolution-list">
           ${componentList}
           <li>${localize("DDA.Jogress.Check")}: <strong>${mastered ? localize("DDA.Jogress.ReliableRepeat") : localize("DDA.Jogress.Passed")}</strong>.</li>
-          <li>${localize("DDA.Jogress.SharedInitiative")}: <strong>${sharedInitiative}</strong>.</li>
+          <li>${localize("DDA.Jogress.SharedInitiative")}: <strong>${sharedInitiative}</strong> ${combatSnapshot.combatId ? `(${localize("DDA.Jogress.NextRound")})` : ""}.</li>
           <li>${localize("DDA.Jogress.ResultActions")}: <strong>2</strong>.</li>
-          <li>${localize("DDA.Jogress.ComponentBonusDp")}: <strong>${componentBonusDp}</strong>.</li>
+          <li>${localize("DDA.Jogress.ComponentBonusDp")}: <strong>${bonusProfile.total}</strong>.</li>
           <li>${localize("DDA.Evolution.TotalCost")}: <strong>${paymentData.totalPeCost}</strong> ${localize("DDA.Resource.EvolutionPoints.Short")}.</li>
         </ul>
       </div>
     `
   });
 
-  resultActor.sheet?.render(true);
-  tamerActor.sheet?.render(false);
+  primaryPartner.sheet?.render(true);
+  primary.tamer.sheet?.render(false);
   secondary.tamer.sheet?.render(false);
 
-  return resultActor;
+  return primaryPartner;
 }
 
-export async function endJogressEvolution(tamerActor) {
+export async function endJogressEvolution(tamerActor, options = {}) {
   if (!tamerActor || tamerActor.type !== "character") {
     ui.notifications.warn(localize("DDA.Warning.JogressOnlyForTamers"));
     return null;
@@ -3179,56 +3805,126 @@ export async function endJogressEvolution(tamerActor) {
 
   const primaryTamer = await resolveActor(state.primaryTamerUuid);
   const secondaryTamer = await resolveActor(state.secondaryTamerUuid);
-  const primaryDigimon = await resolveActor(state.primaryDigimonUuid);
-  const secondaryDigimon = await resolveActor(state.secondaryDigimonUuid);
+  const primaryPartner = await resolveActor(state.primaryDigimonUuid || state.runtimePartnerUuid);
+  const secondaryPartner = await resolveActor(state.secondaryDigimonUuid);
   const resultActor = await resolveActor(state.resultUuid);
 
-  const confirmed = await Dialog.confirm({
-    title: localize("DDA.Jogress.EndTitle"),
-    content: `
-      <div class="dda-roll-dialog dda-jogress-dialog">
-        <p>${formatI18n("DDA.Jogress.EndConfirm", {
-          result: `<strong>${escapeHtml(state.resultName || resultActor?.name || localize("DDA.Jogress.UnknownResult"))}</strong>`
-        })}</p>
-        <ul>
-          <li>${escapeHtml(primaryTamer?.name ?? state.primaryTamerName ?? localize("DDA.Jogress.UnknownTamer"))} → <strong>${escapeHtml(primaryDigimon?.name ?? state.primaryDigimonName ?? localize("DDA.Jogress.UnknownDigimon"))}</strong></li>
-          <li>${escapeHtml(secondaryTamer?.name ?? state.secondaryTamerName ?? localize("DDA.Jogress.UnknownTamer"))} → <strong>${escapeHtml(secondaryDigimon?.name ?? state.secondaryDigimonName ?? localize("DDA.Jogress.UnknownDigimon"))}</strong></li>
-        </ul>
-        ${state.firstSuccessfulUse ? `<p class="warning">${localize("DDA.Jogress.FirstUseRevertHint")}</p>` : ""}
-      </div>
-    `,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
+  if (!primaryTamer || !secondaryTamer || !primaryPartner || !secondaryPartner) {
+    ui.notifications.error(localize("DDA.Warning.JogressStateIncomplete"));
+    return null;
+  }
+
+  if (!game.user?.isGM && !canCurrentUserManageJogressParticipants([
+    { tamer: primaryTamer, partnerActor: primaryPartner },
+    { tamer: secondaryTamer, partnerActor: secondaryPartner }
+  ])) {
+    ui.notifications.warn(localize("DDA.Warning.JogressRequiresGMAuthority"));
+    return null;
+  }
+
+  const primaryReversion = await resolveJogressReversionForm({
+    partnerActor: primaryPartner,
+    preferredReference: state.primaryRevertUuid,
+    desiredStage: state.primaryRevertStage,
+    fallbackReference: state.primaryFormUuid
+  });
+
+  const secondaryReversion = await resolveJogressReversionForm({
+    partnerActor: secondaryPartner,
+    preferredReference: state.secondaryRevertUuid,
+    desiredStage: state.secondaryRevertStage,
+    fallbackReference: state.secondaryFormUuid
+  });
+
+  const primaryRevertForm = primaryReversion.form;
+  const secondaryRevertForm = secondaryReversion.form;
+
+  if (!primaryRevertForm?.templateActor || !secondaryRevertForm?.templateActor) {
+    ui.notifications.error(localize("DDA.Warning.JogressRevertFormMissing"));
+    return null;
+  }
+
+  if (primaryReversion.usedFallback || secondaryReversion.usedFallback) {
+    ui.notifications.warn(localize("DDA.Warning.JogressRevertFallbackUsed"));
+  }
+
+  const skipConfirm = Boolean(options.skipConfirm);
+  const confirmed = skipConfirm || await confirmJogressEnd({
+    state,
+    primaryTamer,
+    secondaryTamer,
+    primaryRevertForm,
+    secondaryRevertForm,
+    resultActor
   });
 
   if (!confirmed) return null;
 
   const clearState = getEmptyJogressState();
 
-  if (primaryTamer) {
-    await primaryTamer.update({
-      "system.partner.currentFormUuid": primaryDigimon?.uuid ?? state.primaryDigimonUuid ?? "",
-      "system.partner.currentFormName": primaryDigimon?.name ?? state.primaryDigimonName ?? "",
+  try {
+    await applyPersistentPartnerSpecialForm({
+      tamerActor: primaryTamer,
+      partnerActor: primaryPartner,
+      form: primaryRevertForm,
+      previousFormActor: primaryPartner,
+      transitionType: "jogressRevert",
+      healOnEvolution: false
+    });
+
+    if (state.firstSuccessfulUse) {
+      await applyPersistentPartnerSpecialForm({
+        tamerActor: secondaryTamer,
+        partnerActor: secondaryPartner,
+        form: secondaryRevertForm,
+        previousFormActor: secondaryPartner,
+        transitionType: "jogressRevert",
+        healOnEvolution: false
+      });
+    }
+
+    await restoreJogressComponentTokens(
+      state.secondaryTokenStates,
+      state.tokenHideMarker
+    );
+
+    await restoreJogressAdvancementState(primaryPartner, state.primaryAdvancementState);
+
+    // Restore the Combat Tracker before discarding the Jogress state. If this
+    // fails, the saved unit snapshot remains available for a safe retry.
+    await restoreJogressCombatSnapshot(state);
+
+    await primaryPartner.update({
+      ownership: foundry.utils.deepClone(state.primaryOwnership ?? primaryPartner.ownership ?? {}),
+      "system.specialForm.kind": "",
+      "system.specialForm.method": "",
+      "system.specialForm.equivalentStage": "",
+      "system.specialEvolutions.jogress.active": false,
+      "system.specialEvolutions.jogress.componentBonusDp": 0,
       "system.specialEvolutions.jogress.state": clearState
     });
-  }
 
-  if (secondaryTamer) {
-    await secondaryTamer.update({
-      "system.partner.currentFormUuid": secondaryDigimon?.uuid ?? state.secondaryDigimonUuid ?? "",
-      "system.partner.currentFormName": secondaryDigimon?.name ?? state.secondaryDigimonName ?? "",
-      "system.specialEvolutions.jogress.state": clearState
-    });
-  }
-
-  if (resultActor) {
-    await resultActor.update({
-      "system.tamer.name": "",
-      "system.tamer.uuid": "",
+    await secondaryPartner.update({
+      "system.combat.actions.value": Math.max(0, Number(state.secondaryActionsValue ?? secondaryPartner.system?.combat?.actions?.value ?? 0)),
+      "system.combat.actions.max": Math.max(0, Number(state.secondaryActionsMax ?? secondaryPartner.system?.combat?.actions?.max ?? 2)),
       "system.specialEvolutions.jogress.active": false,
       "system.specialEvolutions.jogress.state": clearState
     });
+
+    await updateTamerPartnerFormMirror(primaryTamer, primaryPartner);
+    await updateTamerPartnerFormMirror(secondaryTamer, secondaryPartner);
+
+    await primaryTamer.update({
+      "system.specialEvolutions.jogress.state": clearState
+    });
+
+    await secondaryTamer.update({
+      "system.specialEvolutions.jogress.state": clearState
+    });
+  } catch (error) {
+    console.error("DDA | Jogress separation failed.", error);
+    ui.notifications.error(localize("DDA.Warning.JogressSeparationFailed"));
+    return null;
   }
 
   await ChatMessage.create({
@@ -3238,18 +3934,25 @@ export async function endJogressEvolution(tamerActor) {
         <h2>${localize("DDA.Jogress.EndTitle")}</h2>
         <ul class="dda-effect-list dda-digivolution-list">
           <li>${escapeHtml(state.resultName || resultActor?.name || localize("DDA.Jogress.UnknownResult"))} ${localize("DDA.Jogress.HasSeparated")}.</li>
-          <li>${escapeHtml(primaryTamer?.name ?? state.primaryTamerName ?? localize("DDA.Jogress.UnknownTamer"))}: <strong>${escapeHtml(primaryDigimon?.name ?? state.primaryDigimonName ?? localize("DDA.Jogress.UnknownDigimon"))}</strong>.</li>
-          <li>${escapeHtml(secondaryTamer?.name ?? state.secondaryTamerName ?? localize("DDA.Jogress.UnknownTamer"))}: <strong>${escapeHtml(secondaryDigimon?.name ?? state.secondaryDigimonName ?? localize("DDA.Jogress.UnknownDigimon"))}</strong>.</li>
+          <li>${escapeHtml(primaryTamer.name)}: <strong>${escapeHtml(primaryRevertForm.name)}</strong>.</li>
+          <li>${escapeHtml(secondaryTamer.name)}: <strong>${escapeHtml(secondaryRevertForm.name)}</strong>.</li>
         </ul>
       </div>
     `
   });
 
-  primaryTamer?.sheet?.render(false);
-  secondaryTamer?.sheet?.render(false);
-  resultActor?.sheet?.render(false);
+  primaryTamer.sheet?.render(false);
+  secondaryTamer.sheet?.render(false);
+  primaryPartner.sheet?.render(false);
+  secondaryPartner.sheet?.render(false);
 
-  return { primaryTamer, secondaryTamer, resultActor };
+  return {
+    primaryTamer,
+    secondaryTamer,
+    primaryPartner,
+    secondaryPartner,
+    resultActor
+  };
 }
 
 
@@ -3262,8 +3965,18 @@ export async function executeBioMergeEvolution(tamerActor) {
 }
 
 async function executeHybridLikeEvolution(tamerActor, requestedMethod = "hybrid") {
+  if (!DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED) {
+    ui.notifications.warn(localize("DDA.Warning.HybridWorkflowUnsupported"));
+    return null;
+  }
+
   if (!tamerActor || tamerActor.type !== "character") {
     ui.notifications.warn(localize("DDA.Warning.HybridOnlyForTamers"));
+    return null;
+  }
+
+  if (isTamerInActiveJogress(tamerActor)) {
+    ui.notifications.warn(localize("DDA.Warning.JogressBlocksOtherEvolution"));
     return null;
   }
 
@@ -3435,8 +4148,8 @@ export async function endHybridEvolution(tamerActor) {
   const sourceDigimon = await resolveActor(state.sourceDigimonUuid);
   if (sourceDigimon?.type === "digimon") await syncPartnerOwnershipFromTamer(tamerActor, sourceDigimon);
 
-  const confirmed = await Dialog.confirm({
-    title: localize("DDA.Hybrid.EndTitle"),
+  const confirmed = await foundry.applications.api.DialogV2.confirm({
+    window: { title: localize("DDA.Hybrid.EndTitle") },
     content: `
       <div class="dda-roll-dialog dda-hybrid-dialog">
         <p>${formatI18n("DDA.Hybrid.EndConfirm", {
@@ -3449,9 +4162,10 @@ export async function endHybridEvolution(tamerActor) {
         </ul>
       </div>
     `,
-    yes: () => true,
-    no: () => false,
-    defaultYes: false
+    yes: { default: false },
+    no: { default: true },
+    rejectClose: false,
+    modal: true
   });
 
   if (!confirmed) return null;
@@ -3542,6 +4256,268 @@ async function collectEvolutionForms(partnerActor, previousFormActor = null) {
   }
 
   return forms;
+}
+
+
+async function collectDefaultRestFormCandidates(
+  tamerActor,
+  partnerActor,
+  previousFormActor = null,
+  { defaultRangeOverride = null } = {}
+) {
+  const defaultRange = normalizeDefaultRangeValue(
+    defaultRangeOverride ?? tamerActor?.system?.evolution?.defaultRange?.value ?? 2
+  );
+  const defaultStagePolicy = String(
+    tamerActor?.system?.evolution?.defaultRange?.defaultStagePolicy ?? "range"
+  ).trim().toLowerCase();
+  const persistentDefaultRange = defaultStagePolicy === "rookie"
+    ? Math.min(defaultRange, 2)
+    : defaultRange;
+  const unlockedStages = tamerActor?.system?.partner?.unlockedEvolutionStages ?? {};
+  const unlockedForms = Array.isArray(tamerActor?.system?.partner?.unlockedForms)
+    ? tamerActor.system.partner.unlockedForms
+    : [];
+  const unlockedRefs = new Set(
+    unlockedForms
+      .filter((entry) => typeof entry === "string" || entry?.unlocked !== false)
+      .flatMap((entry) => typeof entry === "string"
+        ? [entry]
+        : [entry?.uuid, entry?.actorUuid, entry?.formUuid].filter(Boolean))
+      .map((entry) => String(entry))
+  );
+
+  const candidates = [];
+  const seen = new Set();
+
+  const pushCandidate = ({ name, stageKey, uuid, templateActor, persistentSnapshot = null, current = false }) => {
+    const stageNumber = getOfficialEvolutionStageNumber(stageKey);
+    if (stageNumber === null || !isStageWithinDefaultRange(stageKey, persistentDefaultRange)) return;
+    if (!current && unlockedStages?.[stageKey] === false) return;
+
+    const ref = String(uuid ?? templateActor?.uuid ?? "");
+    if (!current && unlockedRefs.size > 0 && ref && !unlockedRefs.has(ref)) return;
+
+    const cleanName = String(name ?? templateActor?.system?.species ?? templateActor?.name ?? getStageLabel(stageKey));
+    const key = `${stageKey}|${cleanName.toLowerCase()}|${ref}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    candidates.push({
+      name: cleanName,
+      stageKey,
+      stageLabel: getStageLabel(stageKey),
+      uuid: ref,
+      templateActor,
+      persistentSnapshot,
+      current
+    });
+  };
+
+  const currentStage = String(previousFormActor?.system?.stage ?? partnerActor?.system?.stage ?? "child");
+  pushCandidate({
+    name: previousFormActor?.system?.species ?? previousFormActor?.name ?? partnerActor?.name,
+    stageKey: currentStage,
+    uuid: previousFormActor?.uuid ?? partnerActor?.uuid,
+    templateActor: previousFormActor ?? partnerActor,
+    current: true
+  });
+
+  const graph = getNormalizedEvolutionGraph(partnerActor);
+  if (graph.nodes.length > 0) {
+    for (const node of graph.nodes) {
+      if (!node?.actorUuid || node.hidden) continue;
+
+      let actor = null;
+      try { actor = await fromUuid(node.actorUuid); } catch (_error) {}
+
+      const stageKey = String(node.stage ?? actor?.system?.stage ?? "");
+      if (!isStageWithinDefaultRange(stageKey, persistentDefaultRange)) continue;
+
+      const actorUuid = String(node.actorUuid ?? "");
+      const isSnapshotNode = Boolean(
+        node.snapshot || node.persistentSnapshot || actorUuid.startsWith("DDA-SNAPSHOT.")
+      );
+      const usesPersistentSnapshot = Boolean(
+        isSnapshotNode ||
+        (partnerActor?.uuid && actorUuid === partnerActor.uuid && stageKey && stageKey !== partnerActor.system?.stage)
+      );
+      const snapshot = usesPersistentSnapshot
+        ? getGraphNodePersistentSnapshot({ partnerActor, node, isSnapshotNode })
+        : null;
+      const templateActor = snapshot
+        ? buildPseudoActorFromFormSnapshot(snapshot, partnerActor)
+        : actor;
+      if (!templateActor) continue;
+
+      const ref = String(snapshot?.sourceFormUuid ?? node.formUuid ?? node.actorUuid ?? templateActor.uuid ?? "");
+      const currentRef = String(previousFormActor?.uuid ?? partnerActor.uuid ?? "");
+      const isCurrent = Boolean(
+        ref === currentRef ||
+        (stageKey === currentStage && normalizeName(templateActor?.system?.species ?? templateActor?.name) === normalizeName(previousFormActor?.system?.species ?? previousFormActor?.name ?? partnerActor?.name))
+      );
+
+      pushCandidate({
+        name: snapshot?.species ?? snapshot?.sourceFormName ?? node.species ?? node.displayName ?? node.name ?? templateActor.system?.species ?? templateActor.name,
+        stageKey,
+        uuid: ref,
+        templateActor,
+        persistentSnapshot: snapshot,
+        current: isCurrent
+      });
+    }
+  } else {
+    const formsObject = partnerActor.system?.evolutionLine?.forms ?? {};
+    for (const [slotKey, slot] of Object.entries(formsObject)) {
+      for (const form of normalizeEvolutionSlotForms(slot, slotKey)) {
+        if (!form?.uuid) continue;
+        let actor = null;
+        try { actor = await fromUuid(form.uuid); } catch (_error) {}
+        if (!actor) continue;
+        const stageKey = String(actor.system?.stage ?? form.stage ?? slotKey);
+        pushCandidate({
+          name: actor.system?.species ?? actor.name ?? form.name,
+          stageKey,
+          uuid: actor.uuid,
+          templateActor: actor,
+          current: actor.uuid === previousFormActor?.uuid
+        });
+      }
+    }
+  }
+
+  return candidates.sort((a, b) => {
+    const stageDelta = (getOfficialEvolutionStageNumber(a.stageKey) ?? 99) - (getOfficialEvolutionStageNumber(b.stageKey) ?? 99);
+    return stageDelta || a.name.localeCompare(b.name, game.i18n?.lang ?? undefined);
+  });
+}
+
+export async function chooseDefaultPartnerFormDuringRest(
+  tamerActor,
+  { defaultRangeOverride = null } = {}
+) {
+  if (!tamerActor || tamerActor.type !== "character") return null;
+
+  const partnerUuid = tamerActor.system?.partner?.uuid;
+  if (!partnerUuid) return null;
+
+  const partnerActor = await resolveActor(partnerUuid);
+  if (!partnerActor || partnerActor.type !== "digimon") return null;
+
+  const currentReference = String(
+    tamerActor.system?.partner?.currentFormUuid ??
+    partnerActor.system?.evolution?.currentFormUuid ??
+    partnerActor.uuid
+  );
+  const previousFormActor = await resolveActor(currentReference) ?? partnerActor;
+  const candidates = await collectDefaultRestFormCandidates(
+    tamerActor,
+    partnerActor,
+    previousFormActor,
+    { defaultRangeOverride }
+  );
+
+  if (!candidates.length) {
+    ui.notifications.info(localize("DDA.Evolution.DefaultStage.NoEligibleForms"));
+    return null;
+  }
+
+  const defaultRange = normalizeDefaultRangeValue(
+    defaultRangeOverride ?? tamerActor.system?.evolution?.defaultRange?.value ?? 2
+  );
+  const storedDefaultUuid = String(partnerActor.system?.evolution?.defaultFormUuid ?? "");
+  const storedDefaultStage = String(partnerActor.system?.evolution?.defaultStage ?? "");
+  let selectedIndex = candidates.findIndex((candidate) => storedDefaultUuid && candidate.uuid === storedDefaultUuid);
+  if (selectedIndex < 0) selectedIndex = candidates.findIndex((candidate) => candidate.stageKey === storedDefaultStage);
+  if (selectedIndex < 0) selectedIndex = candidates.findIndex((candidate) => candidate.current);
+  if (selectedIndex < 0) selectedIndex = 0;
+
+  const options = candidates.map((candidate, index) => `
+    <option value="${index}" ${index === selectedIndex ? "selected" : ""}>
+      ${escapeHtml(candidate.name)} — ${escapeHtml(candidate.stageLabel)}
+    </option>
+  `).join("");
+
+  const choice = await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-default-stage-rest-dialog"],
+    window: { title: localize("DDA.Evolution.DefaultStage.RestTitle") },
+    content: `
+      <div class="dda-roll-dialog dda-default-stage-rest-dialog-content">
+        <p>${formatI18n("DDA.Evolution.DefaultStage.RestHint", { range: defaultRange })}</p>
+        ${String(tamerActor.system?.evolution?.defaultRange?.defaultStagePolicy ?? "range") === "rookie"
+          ? `<p class="muted">${localize("DDA.Evolution.DefaultStage.RookieOnlyRule")}</p>`
+          : ""}
+        <div class="form-group">
+          <label>${localize("DDA.Evolution.DefaultStage.Label")}</label>
+          <select name="defaultForm">${options}</select>
+        </div>
+        <p class="muted">${localize("DDA.Evolution.DefaultStage.RestRule")}</p>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm"),
+        icon: "fa-solid fa-check",
+        default: true,
+        callback: (_event, button) => Number(button.form?.elements?.defaultForm?.value ?? selectedIndex)
+      },
+      {
+        action: "keep",
+        label: localize("DDA.Evolution.DefaultStage.KeepCurrent"),
+        icon: "fa-solid fa-xmark",
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
+  });
+
+  if (choice === null || choice === false || !Number.isInteger(choice)) return null;
+  const selected = candidates[choice];
+  if (!selected) return null;
+
+  const selectedRef = String(selected.uuid ?? selected.templateActor?.uuid ?? "");
+  const sameCurrent = Boolean(selected.current);
+
+  if (!sameCurrent) {
+    await runDigimonTokenEvolutionTransition(
+      partnerActor,
+      async () => {
+        await clearClashStateForActor(partnerActor, { reason: "restDefaultStage" });
+        await applyEvolutionFormTemplateToPartner({
+          partnerActor,
+          formTemplateActor: selected.templateActor,
+          tamerActor,
+          previousFormActor,
+          transitionType: "restDefaultStage",
+          continuedHybridState: null
+        });
+        await fullyRestoreWounds(partnerActor, { clearTemp: true });
+        return partnerActor;
+      },
+      { lowAlphaMultiplier: 0.16, midAlphaMultiplier: 0.62, stepDelay: 90 }
+    );
+  }
+
+  await partnerActor.update({
+    "system.evolution.defaultStage": selected.stageKey,
+    "system.evolution.defaultFormUuid": selectedRef,
+    "system.evolution.defaultFormName": selected.name
+  });
+
+  await tamerActor.update({
+    "system.partner.uuid": partnerActor.uuid,
+    "system.partner.currentFormUuid": partnerActor.system?.evolution?.currentFormUuid || selectedRef || partnerActor.uuid,
+    "system.partner.currentFormName": partnerActor.system?.evolution?.currentFormName || selected.name
+  });
+
+  ui.notifications.info(formatI18n(
+    "DDA.Evolution.DefaultStage.Updated",
+    { form: selected.name, stage: selected.stageLabel }
+  ));
+
+  return { partnerActor, selected };
 }
 
 
@@ -3800,6 +4776,10 @@ function chooseEvolutionForm(
       freeEvolution
     });
 
+    if (tamerActor && !freeEvolution) {
+      applyPreInitiativeEvolutionCost(costData, tamerActor);
+    }
+
     const gmUnlockData = getEvolutionUnlockDataForTamer(tamerActor, form, previousFormActor);
 
     if (!gmUnlockData.allowed) {
@@ -3818,34 +4798,38 @@ function chooseEvolutionForm(
     ? evaluatedForms
     : evaluatedForms.filter((form) => form.costData.allowed);
 
+  const epLabel = localize("DDA.Resource.EvolutionPoints.Short");
+  const initialForm = visibleForms.find((form) => form.costData.allowed) ?? visibleForms[0] ?? null;
+
   const options = visibleForms
     .map((form) => {
       const slotWarning = form.slotKey !== form.stageKey
         ? ` (${localize("DDA.Evolution.Slot")}: ${form.slotLabel})`
         : "";
 
-      const epLabel =
-        localize(
-          "DDA.Resource.EvolutionPoints.Short"
-        );
-
-      const costLabel = freeEvolution
-        ? ` — ${localize(
-            "DDA.AllyNpc.Evolution.Free"
-          )}`
-        : form.costData.peCost > 0
-          ? ` — ${form.costData.peCost} ${epLabel}`
-          : ` — 0 ${epLabel}`;
-
       const transitionLabel = getEvolutionTransitionLabelFromType(form.costData.transitionType);
+      const costValue = freeEvolution
+        ? localize("DDA.AllyNpc.Evolution.Free")
+        : `${form.costData.peCost} ${epLabel}`;
+      const costLabel = ` — ${costValue}`;
       const blockedLabel = form.costData.allowed
         ? ""
         : ` — ${form.costData.blockedReason}`;
 
       const disabled = form.costData.allowed ? "" : "disabled";
+      const selected = form.uuid === initialForm?.uuid ? "selected" : "";
 
       return `
-        <option value="${escapeHtml(form.uuid)}" ${disabled}>
+        <option
+          value="${escapeHtml(form.uuid)}"
+          data-name="${escapeHtml(form.name)}"
+          data-stage="${escapeHtml(form.stageLabel)}"
+          data-transition="${escapeHtml(transitionLabel)}"
+          data-cost="${escapeHtml(costValue)}"
+          data-allowed="${form.costData.allowed ? "true" : "false"}"
+          ${disabled}
+          ${selected}
+        >
           ${escapeHtml(form.stageLabel)} — ${escapeHtml(form.name)}${escapeHtml(slotWarning)} — ${escapeHtml(transitionLabel)}${escapeHtml(costLabel)}${escapeHtml(blockedLabel)}
         </option>
       `;
@@ -3853,27 +4837,67 @@ function chooseEvolutionForm(
     .join("");
 
   const hasAllowedForm = visibleForms.some((form) => form.costData.allowed);
+  const currentFormName = String(
+    previousFormActor?.system?.species ||
+    previousFormActor?.name ||
+    partnerActor?.system?.species ||
+    partnerActor?.name ||
+    ""
+  ).trim();
+  const currentStageLabel = getStageLabel(
+    previousFormActor?.system?.stage ?? partnerActor?.system?.stage ?? ""
+  );
+  const initialTransitionLabel = initialForm
+    ? getEvolutionTransitionLabelFromType(initialForm.costData.transitionType)
+    : "—";
+  const initialCostValue = initialForm
+    ? (freeEvolution
+        ? localize("DDA.AllyNpc.Evolution.Free")
+        : `${initialForm.costData.peCost} ${epLabel}`)
+    : `0 ${epLabel}`;
 
   const content = `
-    <form class="dda-roll-dialog">
-      <div class="form-group">
-        <label>${localize("DDA.Evolution.BasePartner")}</label>
-        <input type="text" value="${escapeHtml(partnerActor.name)}" readonly />
+    <div class="dda-roll-dialog dda-evolution-form-dialog">
+      <div class="dda-evolution-route">
+        <article class="dda-evolution-route-node is-current">
+          <span class="dda-evolution-route-icon" aria-hidden="true"><i class="fa-solid fa-paw"></i></span>
+          <span class="dda-evolution-route-copy">
+            <small>${localize("DDA.Evolution.PreviousForm")}</small>
+            <strong>${escapeHtml(currentFormName)}</strong>
+            <em>${escapeHtml(currentStageLabel)}</em>
+          </span>
+        </article>
+
+        <div class="dda-evolution-route-axis" aria-hidden="true">
+          <span data-role="target-transition">${escapeHtml(initialTransitionLabel)}</span>
+          <i class="fa-solid fa-angles-right"></i>
+        </div>
+
+        <article class="dda-evolution-route-node is-target">
+          <span class="dda-evolution-route-icon" aria-hidden="true"><i class="fa-solid fa-star"></i></span>
+          <span class="dda-evolution-route-copy">
+            <small>${localize("DDA.Evolution.NewForm")}</small>
+            <strong data-role="target-name">${escapeHtml(initialForm?.name ?? "—")}</strong>
+            <em data-role="target-stage">${escapeHtml(initialForm?.stageLabel ?? "—")}</em>
+          </span>
+          <span class="dda-evolution-route-cost ${initialForm?.costData?.allowed === false ? "is-blocked" : ""}" data-role="target-cost">${escapeHtml(initialCostValue)}</span>
+        </article>
       </div>
 
-      <div class="form-group">
-        <label>${localize("DDA.Evolution.Form")}</label>
-        <select name="formUuid">
+      <div class="dda-evolution-form-selector">
+        <label for="dda-evolution-form-select"><i class="fa-solid fa-shuffle" aria-hidden="true"></i> ${localize("DDA.Evolution.Form")}</label>
+        <select id="dda-evolution-form-select" name="formUuid">
           ${options}
         </select>
       </div>
 
-      <p class="muted">
-        ${localize(
+      <p class="dda-evolution-dialog-hint">
+        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+        <span>${localize(
           freeEvolution
             ? "DDA.AllyNpc.Evolution.NoCost"
             : "DDA.Evolution.CostHint"
-        )}
+        )}</span>
       </p>
 
       ${
@@ -3881,38 +4905,68 @@ function chooseEvolutionForm(
           ? ""
           : `<p class="warning">${localize("DDA.Warning.NoAllowedEvolutionForms")}</p>`
       }
-    </form>
+    </div>
   `;
 
-  return new Promise((resolve) => {
-    new Dialog({
-      title: localize("DDA.Evolution.Dialog.ChooseTitle"),
-      content,
-      buttons: {
-        evolve: {
-          label: localize("DDA.Button.Digivolve"),
-          callback: (html) => {
-            const form = html[0].querySelector("form");
-            const uuid = form.formUuid.value;
-            const selected = visibleForms.find((entry) => entry.uuid === uuid);
+  return foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-evolution-form-choice-dialog"],
+    window: { title: localize("DDA.Evolution.Dialog.ChooseTitle") },
+    position: { width: 620 },
+    content,
+    buttons: [
+      {
+        action: "evolve",
+        icon: "fa-solid fa-burst",
+        label: localize("DDA.Button.Digivolve"),
+        default: hasAllowedForm,
+        callback: (_event, button) => {
+          const uuid = String(button.form?.elements?.formUuid?.value ?? "");
+          const selected = visibleForms.find((entry) => entry.uuid === uuid);
 
-            if (!selected?.costData?.allowed) {
-              ui.notifications.warn(selected?.costData?.blockedReason || localize("DDA.Warning.EvolutionMethodDisabled"));
-              resolve(null);
-              return;
-            }
-
-            resolve(selected ?? null);
+          if (!selected?.costData?.allowed) {
+            ui.notifications.warn(selected?.costData?.blockedReason || localize("DDA.Warning.EvolutionMethodDisabled"));
+            return null;
           }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel"),
-          callback: () => resolve(null)
+
+          return selected ?? null;
         }
       },
-      default: hasAllowedForm ? "evolve" : "cancel",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        icon: "fa-solid fa-xmark",
+        label: localize("DDA.Button.Cancel"),
+        default: !hasAllowedForm,
+        callback: () => null
+      }
+    ],
+    render: (_event, dialog) => {
+      const root = dialog.element;
+      const select = root?.querySelector?.('select[name="formUuid"]');
+      if (!select) return;
+
+      const syncSelectedForm = () => {
+        const selectedOption = select.selectedOptions?.[0];
+        if (!selectedOption) return;
+
+        const name = root.querySelector('[data-role="target-name"]');
+        const stage = root.querySelector('[data-role="target-stage"]');
+        const transition = root.querySelector('[data-role="target-transition"]');
+        const cost = root.querySelector('[data-role="target-cost"]');
+
+        if (name) name.textContent = selectedOption.dataset.name || "—";
+        if (stage) stage.textContent = selectedOption.dataset.stage || "—";
+        if (transition) transition.textContent = selectedOption.dataset.transition || "—";
+        if (cost) {
+          cost.textContent = selectedOption.dataset.cost || "—";
+          cost.classList.toggle("is-blocked", selectedOption.dataset.allowed !== "true");
+        }
+      };
+
+      select.addEventListener("change", syncSelectedForm);
+      syncSelectedForm();
+    },
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -4078,13 +5132,12 @@ function calculateEvolutionCost({
     }
   } else if (previousIndex !== -1 && newIndex !== -1 && newIndex === previousIndex + 1) {
     transitionType = "standard";
-    const defaultRange = Number(
+    const defaultRange = normalizeDefaultRangeValue(
       tamerActor?.system?.evolution
-        ?.defaultRange?.value ?? 0
+        ?.defaultRange?.value ?? 2
     );
-    const newStageValue = Number(CONFIG.DDA?.stages?.[newStage]?.stageValue ?? 0);
 
-    if (newStageValue <= defaultRange) {
+    if (isStageWithinDefaultRange(newStage, defaultRange)) {
       peCost = 0;
       reason = localize("DDA.Evolution.CostReason.WithinDefaultRange");
     } else {
@@ -4189,15 +5242,21 @@ const availableActions = Number(
 
   const peSpent = Math.min(availablePe, peCost);
   const remainingCost = Math.max(0, peCost - peSpent);
-  const ipSpent = Math.min(availableIp, remainingCost);
+  const ipSpent = Math.min(
+    availableIp,
+    remainingCost * DDA_IP_PER_EVOLUTION_POINT
+  );
+  const ipEvolutionPointValue = Math.floor(
+    ipSpent / DDA_IP_PER_EVOLUTION_POINT
+  );
 
   return {
     actionCost,
     peCost,
     peSpent,
     ipSpent,
-    totalPaid: peSpent + ipSpent,
-    remainingCost: Math.max(0, peCost - peSpent - ipSpent),
+    totalPaid: peSpent + ipEvolutionPointValue,
+    remainingCost: Math.max(0, peCost - peSpent - ipEvolutionPointValue),
     availablePe,
     availableIp,
     availableNormalIp: ipPool.normal,
@@ -4221,129 +5280,178 @@ async function validateAndConfirmCost({ tamerActor, partnerActor, previousFormNa
     return null;
   }
 
-  if (costData.availablePe + costData.availableIp < costData.peCost) {
+  const availableEvolutionPointValue =
+    costData.availablePe +
+    Math.floor(costData.availableIp / DDA_IP_PER_EVOLUTION_POINT);
+
+  if (availableEvolutionPointValue < costData.peCost) {
     ui.notifications.warn(localize("DDA.Warning.NotEnoughEPAndIPForDigivolution"));
     return null;
   }
 
   const suggestedPe = Math.min(costData.availablePe, costData.peCost);
-  const suggestedIp = Math.max(0, costData.peCost - suggestedPe);
+  const suggestedIp = Math.max(
+    0,
+    (costData.peCost - suggestedPe) * DDA_IP_PER_EVOLUTION_POINT
+  );
 
   const transitionLabel = getEvolutionTransitionLabelFromType(costData.transitionType);
+  const previousImage = escapeHtml(partnerActor?.img || "icons/svg/mystery-man.svg");
+  const nextImage = escapeHtml(evolvedActor?.img || "icons/svg/mystery-man.svg");
 
   const content = `
-    <form class="dda-roll-dialog">
-      <p>
-        ${formatI18n("DDA.Evolution.ConfirmChange", {
-          previous: `<strong>${escapeHtml(previousFormName)}</strong>`,
-          next: `<strong>${escapeHtml(evolvedActor.name)}</strong>`
-        })}
+    <div class="dda-roll-dialog dda-evolution-confirm-dialog">
+      <section class="dda-evolution-confirm-route" aria-label="${escapeHtml(formatI18n("DDA.Evolution.ConfirmChange", { previous: previousFormName, next: evolvedActor.name }))}">
+        <article class="dda-evolution-confirm-form is-previous">
+          <img src="${previousImage}" alt="${escapeHtml(previousFormName)}" />
+          <span>
+            <small>${localize("DDA.Evolution.PreviousForm")}</small>
+            <strong>${escapeHtml(previousFormName)}</strong>
+          </span>
+        </article>
+
+        <div class="dda-evolution-confirm-arrow" aria-hidden="true">
+          <span>${escapeHtml(transitionLabel)}</span>
+          <i class="fa-solid fa-angles-right"></i>
+        </div>
+
+        <article class="dda-evolution-confirm-form is-next">
+          <img src="${nextImage}" alt="${escapeHtml(evolvedActor.name)}" />
+          <span>
+            <small>${localize("DDA.Evolution.NewForm")}</small>
+            <strong>${escapeHtml(evolvedActor.name)}</strong>
+          </span>
+        </article>
+      </section>
+
+      <section class="dda-evolution-confirm-stats">
+        <article>
+          <i class="fa-solid fa-code-branch" aria-hidden="true"></i>
+          <span>${localize("DDA.Label.Type")}</span>
+          <strong>${escapeHtml(transitionLabel)}</strong>
+        </article>
+        <article>
+          <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+          <span>${localize("DDA.Evolution.ActionCost")}</span>
+          <strong>${costData.actionCost}</strong>
+        </article>
+        <article>
+          <i class="fa-solid fa-gem" aria-hidden="true"></i>
+          <span>${localize("DDA.Evolution.TotalEvolutionCost")}</span>
+          <strong>${costData.peCost}</strong>
+        </article>
+      </section>
+
+      ${costData.preInitiativeEvolution ? `<p class="warning"><i class="fa-solid fa-bolt"></i> ${localize("DDA.Evolution.PreInitiative.Warning")}</p>` : ""}
+
+      <p class="dda-evolution-confirm-reason">
+        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+        <span><strong>${localize("DDA.Label.Reason")}</strong>${escapeHtml(costData.reason)}</span>
       </p>
-
-      <hr>
-
-      <p><strong>${localize("DDA.Label.Type")}:</strong> ${escapeHtml(transitionLabel)}</p>
-      <p><strong>${localize("DDA.Evolution.ActionCost")}:</strong> ${costData.actionCost}</p>
-      <p><strong>${localize("DDA.Evolution.TotalEvolutionCost")}:</strong> ${costData.peCost}</p>
-      <p><strong>${localize("DDA.Label.Reason")}:</strong> ${escapeHtml(costData.reason)}</p>
 
       ${
         costData.transitionType === "dark"
-          ? `<p class="warning"><strong>${localize("DDA.DarkEvolution.WarningTitle")}:</strong> ${localize("DDA.DarkEvolution.WarningText")}</p>`
+          ? `<p class="warning"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <strong>${localize("DDA.DarkEvolution.WarningTitle")}:</strong> ${localize("DDA.DarkEvolution.WarningText")}</p>`
           : ""
       }
 
       ${
         costData.transitionType === "armor"
-          ? `<p class="muted"><strong>${localize("DDA.ArmorEvolution.Item")}:</strong> ${escapeHtml(findUsableDigimentalForEvolution(tamerActor, evolvedActor)?.name ?? localize("DDA.ArmorEvolution.UnknownDigimental"))}</p>`
+          ? `<p class="dda-evolution-confirm-reason"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span><strong>${localize("DDA.ArmorEvolution.Item")}</strong>${escapeHtml(findUsableDigimentalForEvolution(tamerActor, evolvedActor)?.name ?? localize("DDA.ArmorEvolution.UnknownDigimental"))}</span></p>`
           : ""
       }
 
-      <hr>
+      <section class="dda-evolution-payment-panel">
+        <header>
+          <span class="dda-evolution-payment-icon" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span>
+          <span>
+            <small>${localize("DDA.Evolution.TotalEvolutionCost")}</small>
+            <strong>${costData.peCost} ${localize("DDA.Resource.EvolutionPoints.Short")}</strong>
+          </span>
+        </header>
 
-      <p><strong>${localize("DDA.Evolution.EPAvailable")}:</strong> ${costData.availablePe}</p>
-      <p>
-  <strong>
-    ${localize("DDA.Evolution.IPAvailable")}:
-  </strong>
+        <div class="dda-evolution-resource-grid">
+          <article>
+            <span>${localize("DDA.Evolution.EPAvailable")}</span>
+            <strong>${costData.availablePe}</strong>
+          </article>
+          <article>
+            <span>${localize("DDA.Evolution.IPAvailable")}</span>
+            <strong>${costData.availableIp}</strong>
+            <small>${costData.availableNormalIp} ${localize("DDA.Resource.IP.NormalShort")} + ${costData.availableTemporaryIp} ${localize("DDA.Resource.IP.TemporaryShort")}</small>
+          </article>
+        </div>
 
-  ${costData.availableIp}
+        <div class="dda-evolution-spend-grid">
+          <label for="dda-evolution-pe-spent">
+            <span>${localize("DDA.Evolution.EPToSpend")}</span>
+            <input id="dda-evolution-pe-spent" type="number" name="peSpent" value="${suggestedPe}" min="0" max="${costData.availablePe}" step="1" />
+          </label>
 
-  <small>
-    (
-      ${costData.availableNormalIp}
-      ${localize("DDA.Resource.IP.NormalShort")}
-      +
-      ${costData.availableTemporaryIp}
-      ${localize("DDA.Resource.IP.TemporaryShort")}
-    )
-  </small>
-</p>
+          <label for="dda-evolution-ip-spent">
+            <span>${localize("DDA.Evolution.IPToSpend")}</span>
+            <input id="dda-evolution-ip-spent" type="number" name="ipSpent" value="${suggestedIp}" min="0" max="${costData.availableIp}" step="1" />
+          </label>
+        </div>
 
-      <div class="form-group">
-        <label>${localize("DDA.Evolution.EPToSpend")}</label>
-        <input type="number" name="peSpent" value="${suggestedPe}" min="0" max="${costData.availablePe}" />
-      </div>
-
-      <div class="form-group">
-        <label>${localize("DDA.Evolution.IPToSpend")}</label>
-        <input type="number" name="ipSpent" value="${suggestedIp}" min="0" max="${costData.availableIp}" />
-      </div>
-
-      <p class="muted">
-        ${localize("DDA.Evolution.PaymentHint")}
-      </p>
-    </form>
+        <p class="dda-evolution-dialog-hint">
+          <i class="fa-solid fa-scale-balanced" aria-hidden="true"></i>
+          <span>${localize("DDA.Evolution.PaymentHint")}</span>
+        </p>
+      </section>
+    </div>
   `;
 
-  return new Promise((resolve) => {
-    new Dialog({
-      title: localize("DDA.Evolution.Dialog.ConfirmTitle"),
-      content,
-      buttons: {
-        confirm: {
-          label: localize("DDA.Button.Confirm"),
-          callback: (html) => {
-            const form = html[0].querySelector("form");
+  return foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-evolution-cost-dialog"],
+    window: { title: localize("DDA.Evolution.Dialog.ConfirmTitle") },
+    content,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm"),
+        icon: "fa-solid fa-check",
+        default: true,
+        callback: (_event, button) => {
+          const elements = button.form?.elements;
+          const peSpent = Math.max(0, Number(elements?.peSpent?.value ?? 0));
+          const ipSpent = Math.max(0, Number(elements?.ipSpent?.value ?? 0));
 
-            const peSpent = Math.max(0, Number(form.peSpent.value ?? 0));
-            const ipSpent = Math.max(0, Number(form.ipSpent.value ?? 0));
-
-            if (peSpent > costData.availablePe) {
-              ui.notifications.warn(localize("DDA.Warning.NotEnoughEP"));
-              resolve(null);
-              return;
-            }
-
-            if (ipSpent > costData.availableIp) {
-              ui.notifications.warn(localize("DDA.Warning.NotEnoughIP"));
-              resolve(null);
-              return;
-            }
-
-            if (peSpent + ipSpent !== costData.peCost) {
-              ui.notifications.warn(localize("DDA.Warning.EPAndIPMustEqualDigivolutionCost"));
-              resolve(null);
-              return;
-            }
-
-            resolve({
-              ...costData,
-              peSpent,
-              ipSpent,
-              totalPaid: peSpent + ipSpent,
-              remainingCost: 0
-            });
+          if (peSpent > costData.availablePe) {
+            ui.notifications.warn(localize("DDA.Warning.NotEnoughEP"));
+            return false;
           }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel"),
-          callback: () => resolve(null)
+
+          if (ipSpent > costData.availableIp) {
+            ui.notifications.warn(localize("DDA.Warning.NotEnoughIP"));
+            return false;
+          }
+
+          const ipEvolutionPointValue = ipSpent / DDA_IP_PER_EVOLUTION_POINT;
+          if (peSpent + ipEvolutionPointValue !== costData.peCost) {
+            ui.notifications.warn(localize("DDA.Warning.EPAndIPMustEqualDigivolutionCost"));
+            return false;
+          }
+
+          return {
+            ...costData,
+            peSpent,
+            ipSpent,
+            totalPaid: peSpent + ipEvolutionPointValue,
+            remainingCost: 0
+          };
         }
       },
-      default: "confirm",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        icon: "fa-solid fa-xmark",
+        callback: () => false
+      }
+    ],
+    position: { width: 690, height: "auto" },
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -4376,6 +5484,14 @@ async function payEvolutionCost(
           costData.peSpent
       )
   });
+
+  if (costData.preInitiativeEvolution && costData.preInitiativeCombatId) {
+    await markPreInitiativeEvolutionDebt(
+      tamerActor,
+      costData.preInitiativeCombatId,
+      costData.actionCost
+    );
+  }
 
   const ipPayment =
     await spendTamerIp(
@@ -5119,13 +6235,8 @@ function getDarkEvolutionEndReasonLabel(reason) {
   return localize(labels[reason] ?? labels.manual);
 }
 
-function getOfficialPeCostForStage(stageKey) {
-  if (stageKey === "adult") return 1;
-  if (stageKey === "perfect") return 3;
-  if (stageKey === "ultimate") return 5;
-  if (stageKey === "ultimatePlus") return 5;
-
-  return 0;
+export function getOfficialPeCostForStage(stageKey) {
+  return getOfficialEvolutionPointCostForStage(stageKey);
 }
 
 function getWarpPeCostForStage(stageKey) {
@@ -5148,15 +6259,11 @@ function getStageOrder() {
 
 
 function isJogressEvolutionMethod(method = "") {
-  const normalized = normalizeName(method).replace(/[\s_\-:()]+/g, "");
-  return normalized === "jogress" || normalized === "jogressevolution" || normalized === "jointprogress" || normalized === "dnadigivolution" || normalized === "evolucaojogress" || normalized === "evoluçãojogress";
+  return isJogressRulesMethod(method);
 }
 
 function isHybridEvolutionGraphMethod(method = "") {
-  const normalized = normalizeName(method).replace(/[\s_\-:()]+/g, "");
-  return normalized === "hybrid" || normalized === "hybridevolution" || normalized === "spirit" || normalized === "spiritevolution" ||
-    normalized === "biomerge" || normalized === "biomergeevolution" || normalized === "matrixevolution" ||
-    normalized === "mindlink" || normalized === "mindlinkevolution";
+  return DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED && isLegacyHybridSpecialMethod(method);
 }
 
 function isModeChangeEvolutionMethod(method = "") {
@@ -5175,20 +6282,50 @@ function getEmptyJogressState() {
     historyKey: "",
     resultUuid: "",
     resultName: "",
+    resultStage: "",
+    runtimePartnerUuid: "",
     primaryTamerUuid: "",
     primaryTamerName: "",
     primaryDigimonUuid: "",
     primaryDigimonName: "",
+    primaryFormUuid: "",
+    primaryFormName: "",
     secondaryTamerUuid: "",
     secondaryTamerName: "",
     secondaryDigimonUuid: "",
     secondaryDigimonName: "",
+    secondaryFormUuid: "",
+    secondaryFormName: "",
+    primaryRevertUuid: "",
+    primaryRevertName: "",
+    primaryRevertStage: "",
+    secondaryRevertUuid: "",
+    secondaryRevertName: "",
+    secondaryRevertStage: "",
+    preparedBuildUsed: false,
+    preparedBuildReference: "",
+    interruptTamerUuid: "",
+    interruptTamerName: "",
+    actingTamerUuid: "",
     masteredBeforeUse: false,
     firstSuccessfulUse: false,
     sharedInitiative: 0,
     componentBonusDp: 0,
     primaryDigimonBonusDp: 0,
     secondaryDigimonBonusDp: 0,
+    combinedSharedStatBonus: {},
+    combinedSharedQualityDp: 0,
+    combatId: "",
+    pendingInitiativeRound: 0,
+    initiativeApplied: false,
+    initiativeUnitId: "",
+    combatSnapshot: {},
+    primaryAdvancementState: {},
+    primaryOwnership: {},
+    secondaryActionsValue: 0,
+    secondaryActionsMax: 2,
+    secondaryTokenStates: [],
+    tokenHideMarker: "",
     startedAt: ""
   };
 }
@@ -5197,15 +6334,96 @@ function isTamerInActiveJogress(tamerActor) {
   return Boolean(tamerActor?.system?.specialEvolutions?.jogress?.state?.active);
 }
 
+function getActiveEvolutionConflict(tamerActor, partnerActor) {
+  const tamerSpecial = tamerActor?.system?.specialEvolutions ?? {};
+  const partnerSpecial = partnerActor?.system?.specialEvolutions ?? {};
+
+  const active = (branch) => Boolean(branch?.active || branch?.state?.active);
+
+  if (active(tamerSpecial.jogress) || active(partnerSpecial.jogress)) return "jogress";
+  if (active(tamerSpecial.forced) || active(partnerSpecial.forced)) return "forced";
+  if (active(tamerSpecial.blast) || active(partnerSpecial.blast)) return "blast";
+  if (active(tamerSpecial.hybrid) || active(partnerSpecial.hybrid)) return "hybrid";
+  if (Boolean(partnerActor?.system?.evolution?.dark?.active)) return "dark";
+  return "";
+}
+
+function getEvolutionConflictLabel(kind = "") {
+  const key = {
+    jogress: "DDA.Jogress.Title",
+    forced: "DDA.ForcedEvolution.Title",
+    blast: "DDA.BlastEvolution.Title",
+    hybrid: "DDA.Hybrid.Title",
+    dark: "DDA.DarkEvolution.Title"
+  }[String(kind ?? "").trim()];
+  return key ? localize(key) : localize("DDA.Evolution.Title");
+}
+
+function warnEvolutionConflict(kind = "") {
+  ui.notifications.warn(formatI18n("DDA.Warning.SpecialEvolutionConflict", {
+    evolution: getEvolutionConflictLabel(kind)
+  }));
+}
+
+function hasConflictingJogressSpecialEvolution(tamerActor, partnerActor) {
+  const tamerSpecial = tamerActor?.system?.specialEvolutions ?? {};
+  const partnerSpecial = partnerActor?.system?.specialEvolutions ?? {};
+  return Boolean(
+    tamerSpecial?.forced?.active ||
+    tamerSpecial?.blast?.active ||
+    tamerSpecial?.hybrid?.active ||
+    partnerSpecial?.forced?.active ||
+    partnerSpecial?.blast?.active ||
+    partnerSpecial?.hybrid?.active ||
+    partnerActor?.system?.evolution?.dark?.active
+  );
+}
+
 function participantsHaveSameStage(participants = []) {
-  const stages = participants.map((participant) => String(participant?.digimon?.system?.stage ?? "").trim()).filter(Boolean);
-  return stages.length >= 2 && stages.every((stage) => stage === stages[0]);
+  const stages = participants
+    .map((participant) => String(participant?.form?.stageKey ?? participant?.partnerActor?.system?.stage ?? "").trim())
+    .filter(Boolean);
+  return stages.length === 2 && stages.every((stage) => stage === stages[0]);
+}
+
+function isImmediatelyHigherStage(fromStage, toStage) {
+  const fromIndex = getStageIndex(String(fromStage ?? "").trim());
+  const toIndex = getStageIndex(String(toStage ?? "").trim());
+  return fromIndex >= 0 && toIndex === fromIndex + 1;
 }
 
 function getJogressHistoryKey(recipe, participants = [], resultActor = null) {
   const recipeId = String(recipe?.id ?? recipe?.label ?? resultActor?.name ?? "jogress").trim();
-  const componentKeys = participants.map((participant) => normalizeUuid(participant?.digimon?.uuid) || normalizeName(participant?.digimon?.name)).filter(Boolean).sort().join("+");
+  const componentKeys = participants
+    .map((participant) => {
+      return normalizeUuid(participant?.form?.reference) ||
+        normalizeName(participant?.form?.name) ||
+        normalizeUuid(participant?.partnerActor?.uuid);
+    })
+    .filter(Boolean)
+    .sort()
+    .join("+");
   return `${recipeId}::${componentKeys}`;
+}
+
+function canCurrentUserManageJogressParticipants(participants = []) {
+  if (game.user?.isGM) return true;
+  const ownerLevel = CONST?.DOCUMENT_OWNERSHIP_LEVELS?.OWNER ?? 3;
+  return participants.every((participant) => {
+    return Boolean(
+      participant?.tamer?.testUserPermission?.(game.user, ownerLevel) &&
+      participant?.partnerActor?.testUserPermission?.(game.user, ownerLevel)
+    );
+  });
+}
+
+function buildJogressUnitId(historyKey = "") {
+  const safe = String(historyKey || "jogress")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 72);
+  return `jogress:${safe || foundry.utils.randomID(12)}`;
 }
 
 function getMasteredJogressRecipes(tamerActor) {
@@ -5219,14 +6437,31 @@ function hasMasteredJogressRecipe(tamerActor, historyKey) {
 
 async function markJogressRecipeMastered(participants = [], historyKey, data = {}) {
   if (!historyKey) return;
-  for (const participant of participants) {
-    const tamer = participant?.tamer;
-    if (!tamer) continue;
-    const mastered = foundry.utils.deepClone(getMasteredJogressRecipes(tamer));
-    const alreadyMastered = mastered.some((entry) => typeof entry === "string" ? entry === historyKey : entry?.historyKey === historyKey);
-    if (alreadyMastered) continue;
-    mastered.push({ historyKey, recipeId: data.recipeId ?? "", resultUuid: data.resultUuid ?? "", resultName: data.resultName ?? "", masteredAt: new Date().toISOString() });
-    await tamer.update({ "system.specialEvolutions.jogress.masteredRecipes": mastered });
+
+  const applied = [];
+  try {
+    for (const participant of participants) {
+      const tamer = participant?.tamer;
+      if (!tamer) continue;
+      const previous = foundry.utils.deepClone(getMasteredJogressRecipes(tamer));
+      const mastered = foundry.utils.deepClone(previous);
+      const alreadyMastered = mastered.some((entry) => typeof entry === "string" ? entry === historyKey : entry?.historyKey === historyKey);
+      if (alreadyMastered) continue;
+      mastered.push({ historyKey, recipeId: data.recipeId ?? "", resultUuid: data.resultUuid ?? "", resultName: data.resultName ?? "", masteredAt: new Date().toISOString() });
+      await tamer.update({ "system.specialEvolutions.jogress.masteredRecipes": mastered });
+      applied.push({ tamer, previous });
+    }
+  } catch (error) {
+    for (const entry of applied.reverse()) {
+      try {
+        await entry.tamer.update({
+          "system.specialEvolutions.jogress.masteredRecipes": entry.previous
+        });
+      } catch (rollbackError) {
+        console.error("DDA | Could not roll back partial Jogress mastery state.", entry.tamer, rollbackError);
+      }
+    }
+    throw error;
   }
 }
 
@@ -5237,23 +6472,118 @@ function buildJogressRuleData({ recipe, resultActor, mastered }) {
     resultStage,
     resultStageValue,
     mastered,
-    actionCostPerTamer: Math.max(0, Number(recipe?.cost?.actions ?? 2)),
-    peCostPerTamer: mastered ? Math.max(0, Number(recipe?.cost?.pe ?? resultStageValue)) : Math.max(0, Number(recipe?.cost?.firstUsePe ?? 0)),
-    checkTn: Math.max(1, Number(recipe?.check?.tn ?? 15)),
-    checkFormula: recipe?.check?.formula ?? "3d6 + @willpower"
+    // Jogress uses fixed official costs/checks. Recipes describe the
+    // combination itself; they do not override the tabletop procedure.
+    actionCostPerTamer: 2,
+    peCostPerTamer: mastered ? Math.max(0, resultStageValue) : 0,
+    checkTn: 15,
+    checkFormula: "3d6 + @willpower"
   };
 }
 
-async function confirmJogressStart({ option, resultActor, ruleData }) {
-  const participants = option.participants.map((participant) => `<li><strong>${escapeHtml(participant.digimon?.name ?? localize("DDA.Jogress.UnknownDigimon"))}</strong> — ${escapeHtml(participant.tamer?.name ?? localize("DDA.Jogress.UnknownTamer"))}</li>`).join("");
-  const checkLabel = ruleData.mastered ? localize("DDA.Jogress.ReliableRepeat") : `3d6 + ${localize("DDA.TamerAttribute.Willpower")} / ${localize("DDA.Roll.TN")} ${ruleData.checkTn}`;
-  return Dialog.confirm({
-    title: localize("DDA.Jogress.ConfirmTitle"),
-    content: `<div class="dda-roll-dialog dda-jogress-dialog"><p>${formatI18n("DDA.Jogress.ConfirmChange", { previous: `<strong>${escapeHtml(option.recipe.label || option.recipe.id)}</strong>`, next: `<strong>${escapeHtml(resultActor.name)}</strong>` })}</p><ul>${participants}</ul><hr><p><strong>${localize("DDA.Jogress.Check")}:</strong> ${checkLabel}</p><p><strong>${localize("DDA.Evolution.ActionCost")}:</strong> ${ruleData.actionCostPerTamer} ${localize("DDA.Jogress.PerTamer")}.</p><p><strong>${localize("DDA.Resource.EvolutionPoints.Short")}:</strong> ${ruleData.peCostPerTamer} ${localize("DDA.Jogress.PerTamer")}.</p><p class="muted">${localize("DDA.Jogress.OfficialRulesHint")}</p></div>`,
-    yes: () => true,
-    no: () => false,
-    defaultYes: true
+async function confirmJogressStart({ option, resultActor, ruleData, reversionPlan, interruptContext = {} }) {
+  const participants = option.participants.map((participant) => {
+    return `<li><strong>${escapeHtml(participant.form?.name ?? localize("DDA.Jogress.UnknownDigimon"))}</strong> — ${escapeHtml(participant.tamer?.name ?? localize("DDA.Jogress.UnknownTamer"))}</li>`;
+  }).join("");
+
+  const checkLabel = ruleData.mastered
+    ? localize("DDA.Jogress.ReliableRepeat")
+    : `3d6 + ${localize("DDA.TamerAttribute.Willpower")} / ${localize("DDA.Roll.TN")} ${ruleData.checkTn}`;
+
+  const getReversionLabel = (plan) => {
+    if (plan?.form?.name) return escapeHtml(plan.form.name);
+    return `${escapeHtml(getStageLabel(plan?.revertStage ?? ""))} (${localize("DDA.Jogress.NotPrepared")})`;
+  };
+
+  const firstUseWarning = !ruleData.mastered
+    ? `<p class="warning">${formatI18n("DDA.Jogress.FirstUseAutomaticRevert", {
+        primary: getReversionLabel(reversionPlan.primary),
+        secondary: getReversionLabel(reversionPlan.secondary)
+      })}</p>${reversionPlan.hasMissing ? `<p class="muted">${localize("DDA.Jogress.MissingRevertIsWarning")}</p>` : ""}`
+    : "";
+
+  const interruptNotice = interruptContext?.interruptTamerName
+    ? `<p><strong>${localize("DDA.Jogress.InterruptLabel")}:</strong> ${escapeHtml(interruptContext.interruptTamerName)}.</p>`
+    : "";
+
+  const result = await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-jogress-confirm-dialog"],
+    window: { title: localize("DDA.Jogress.ConfirmTitle") },
+    content: `
+      <div class="dda-roll-dialog dda-jogress-dialog">
+        <p>${formatI18n("DDA.Jogress.ConfirmChange", {
+          previous: `<strong>${escapeHtml(option.recipe.label || option.recipe.id)}</strong>`,
+          next: `<strong>${escapeHtml(resultActor.name)}</strong>`
+        })}</p>
+        <ul>${participants}</ul>
+        <hr>
+        <p><strong>${localize("DDA.Jogress.Check")}:</strong> ${checkLabel}</p>
+        <p><strong>${localize("DDA.Evolution.ActionCost")}:</strong> ${ruleData.actionCostPerTamer} ${localize("DDA.Jogress.PerTamer")}.</p>
+        <p><strong>${localize("DDA.Resource.EvolutionPoints.Short")}:</strong> ${ruleData.peCostPerTamer} ${localize("DDA.Jogress.PerTamer")}.</p>
+        ${interruptNotice}
+        ${firstUseWarning}
+        <p class="muted">${localize("DDA.Jogress.OfficialRulesHint")}</p>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm"),
+        icon: "fa-solid fa-link",
+        default: true,
+        callback: () => true
+      },
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        icon: "fa-solid fa-xmark",
+        callback: () => false
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
+
+  return result === true;
+}
+
+async function confirmJogressEnd({ state, primaryTamer, secondaryTamer, primaryRevertForm, secondaryRevertForm, resultActor }) {
+  const result = await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-jogress-end-dialog"],
+    window: { title: localize("DDA.Jogress.EndTitle") },
+    content: `
+      <div class="dda-roll-dialog dda-jogress-dialog">
+        <p>${formatI18n("DDA.Jogress.EndConfirm", {
+          result: `<strong>${escapeHtml(state.resultName || resultActor?.name || localize("DDA.Jogress.UnknownResult"))}</strong>`
+        })}</p>
+        <ul>
+          <li>${escapeHtml(primaryTamer.name)} → <strong>${escapeHtml(primaryRevertForm.name)}</strong></li>
+          <li>${escapeHtml(secondaryTamer.name)} → <strong>${escapeHtml(secondaryRevertForm.name)}</strong></li>
+        </ul>
+        ${state.firstSuccessfulUse ? `<p class="warning">${localize("DDA.Jogress.FirstUseRevertHint")}</p>` : ""}
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm"),
+        icon: "fa-solid fa-link-slash",
+        default: false,
+        callback: () => true
+      },
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        icon: "fa-solid fa-xmark",
+        default: true,
+        callback: () => false
+      }
+    ],
+    rejectClose: false,
+    modal: true
+  });
+
+  return result === true;
 }
 
 async function validateJogressRuleCosts({ participants, ruleData }) {
@@ -5271,16 +6601,52 @@ async function validateJogressRuleCosts({ participants, ruleData }) {
       ui.notifications.warn(formatI18n("DDA.Warning.JogressNotEnoughEP", { tamer: tamer.name }));
       return null;
     }
-    entries.push({ tamer, actionCost: ruleData.actionCostPerTamer, peCost: ruleData.peCostPerTamer });
+    entries.push({
+      tamer,
+      actionCost: ruleData.actionCostPerTamer,
+      peCost: ruleData.peCostPerTamer,
+      previousActions: availableActions,
+      previousPe: availablePe
+    });
   }
-  return { entries, totalPeCost: entries.reduce((total, entry) => total + entry.peCost, 0) };
+  return {
+    entries,
+    totalPeCost: entries.reduce((total, entry) => total + entry.peCost, 0)
+  };
 }
 
 async function payJogressRuleCosts(paymentData) {
-  for (const entry of paymentData.entries) {
+  const paidEntries = [];
+
+  try {
+    for (const entry of paymentData?.entries ?? []) {
+      await entry.tamer.update({
+        "system.combat.actions.value": Math.max(0, entry.previousActions - entry.actionCost),
+        "system.resources.evolutionPoints.value": Math.max(0, entry.previousPe - entry.peCost)
+      });
+      paidEntries.push(entry);
+    }
+  } catch (error) {
+    for (const entry of paidEntries.reverse()) {
+      try {
+        await entry.tamer.update({
+          "system.combat.actions.value": Math.max(0, Number(entry.previousActions ?? 0)),
+          "system.resources.evolutionPoints.value": Math.max(0, Number(entry.previousPe ?? 0))
+        });
+      } catch (rollbackError) {
+        console.error("DDA | Could not roll back a partial Jogress cost payment.", entry?.tamer, rollbackError);
+      }
+    }
+    throw error;
+  }
+}
+
+async function refundJogressRuleCosts(paymentData) {
+  for (const entry of paymentData?.entries ?? []) {
+    if (!entry?.tamer) continue;
     await entry.tamer.update({
-      "system.combat.actions.value": Math.max(0, Number(entry.tamer.system.combat?.actions?.value ?? 0) - entry.actionCost),
-      "system.resources.evolutionPoints.value": Math.max(0, Number(entry.tamer.system.resources?.evolutionPoints?.value ?? 0) - entry.peCost)
+      "system.combat.actions.value": Math.max(0, Number(entry.previousActions ?? 0)),
+      "system.resources.evolutionPoints.value": Math.max(0, Number(entry.previousPe ?? 0))
     });
   }
 }
@@ -5292,7 +6658,14 @@ async function rollJogressChecks(participants = [], { tn = 15, formula = "3d6 + 
     const willpower = Number(tamer.system.attributes?.willpower?.value ?? 0);
     const roll = await new Roll(formula, { willpower }).evaluate({ async: true });
     if (game.dice3d) await game.dice3d.showForRoll(roll, game.user, true);
-    results.push({ tamer, digimon: participant.digimon, roll, total: Number(roll.total ?? 0), tn, success: Number(roll.total ?? 0) >= tn });
+    results.push({
+      tamer,
+      digimon: participant.partnerActor,
+      roll,
+      total: Number(roll.total ?? 0),
+      tn,
+      success: Number(roll.total ?? 0) >= tn
+    });
   }
   return results;
 }
@@ -5307,33 +6680,1012 @@ async function createJogressCheckChatCard({ speakerActor, option, resultActor, c
 }
 
 function getLowestJogressInitiative(participants = []) {
-  const values = participants.map((participant) => Math.min(Number(participant.tamer?.system?.combat?.initiative?.value ?? 0), Number(participant.digimon?.system?.combat?.initiative?.value ?? 0))).filter((value) => Number.isFinite(value));
+  const values = participants
+    .map((participant) => {
+      const tamerValue = Number(participant.tamer?.system?.combat?.initiative?.value ?? Number.NaN);
+      const partnerValue = Number(participant.partnerActor?.system?.combat?.initiative?.value ?? Number.NaN);
+      const finite = [tamerValue, partnerValue].filter(Number.isFinite);
+      return finite.length ? Math.min(...finite) : Number.NaN;
+    })
+    .filter(Number.isFinite);
   return values.length ? Math.min(...values) : 0;
 }
 
-async function updateJogressSharedInitiative(participants = [], resultActor, sharedInitiative = 0) {
+function getJogressComponentBonusProfile(participants = []) {
+  const statKeys = ["accuracy", "damage", "dodge", "armor", "health"];
+  const sharedStatBonus = Object.fromEntries(statKeys.map((key) => [key, 0]));
+  const components = {};
+  let total = 0;
+  let requestedQuality = 0;
+
   for (const participant of participants) {
-    if (participant?.tamer) await participant.tamer.update({ "system.combat.initiative.value": sharedInitiative });
+    const partnerActor = participant?.partnerActor;
+    if (!partnerActor) continue;
+    const allocation = getPartnerBonusDpAllocation(partnerActor);
+    const componentTotal = Math.max(0, Number(allocation.total ?? 0));
+    total += componentTotal;
+    requestedQuality += Math.max(0, Number(allocation.qualityAllocated ?? 0));
+
+    for (const key of statKeys) {
+      sharedStatBonus[key] += Math.max(0, Math.floor(Number(allocation.sharedStatBonus?.[key] ?? 0)));
+    }
+
+    if (participant?.tamer?.uuid) {
+      components[participant.tamer.uuid] = {
+        total: componentTotal,
+        sharedStatBonus: foundry.utils.deepClone(allocation.sharedStatBonus ?? {}),
+        qualityAllocated: Math.max(0, Number(allocation.qualityAllocated ?? 0))
+      };
+    }
   }
-  if (resultActor) await resultActor.update({ "system.combat.initiative.value": sharedInitiative });
+
+  const statAllocated = statKeys.reduce((sum, key) => sum + sharedStatBonus[key], 0);
+  const qualityAllocated = Math.min(
+    Math.max(0, total - statAllocated),
+    requestedQuality
+  );
+
+  return {
+    total,
+    sharedStatBonus,
+    statAllocated,
+    qualityAllocated,
+    unallocated: Math.max(0, total - statAllocated - qualityAllocated),
+    components
+  };
 }
 
-function getDigimonBonusDp(digimonActor) {
-  if (!digimonActor) return 0;
+function refreshPreparedJogressSnapshotBonusProfile(snapshot, profile = {}) {
+  const refreshed = foundry.utils.deepClone(snapshot ?? {});
+  if (!refreshed || typeof refreshed !== "object") return refreshed;
 
-  const creationBonus = Number(
-    digimonActor.system?.creation?.dp?.bonus ?? 0
-  ) || 0;
+  const statKeys = ["accuracy", "damage", "dodge", "armor", "health"];
+  const creation = refreshed.creation ??= {};
+  const dp = creation.dp ??= {};
+  const savedProfile = refreshed.wizard?.jogressPlan?.bonusDpProfile ?? {};
+  const previousApplied = dp.sharedStatBonusApplied ?? savedProfile.sharedStatBonus ?? savedProfile.sharedStats ?? {};
+  const currentSharedStats = profile.sharedStatBonus ?? profile.sharedStats ?? {};
 
-  const advancementBonus = Number(
-    digimonActor.system?.advancement?.bonusDp?.total ?? 0
-  ) || 0;
+  for (const key of statKeys) {
+    const stat = refreshed.mainStats?.[key];
+    if (!stat || typeof stat !== "object") continue;
+    const previousBonus = Math.max(0, Math.floor(Number(previousApplied?.[key] ?? 0)));
+    const currentBonus = Math.max(0, Math.floor(Number(currentSharedStats?.[key] ?? 0)));
+    const currentBase = Number(stat.base ?? stat.value ?? stat.total ?? refreshed.stageValue ?? 1);
+    if (!Number.isFinite(currentBase)) continue;
+    const base = Math.max(1, Math.min(20, currentBase - previousBonus + currentBonus));
+    const ordinaryBonus = Number(stat.bonus ?? 0);
+    const qualityBonus = Number(stat.qualityBonus ?? 0);
+    const total = Math.min(20, base + ordinaryBonus + qualityBonus);
+    stat.base = base;
+    stat.total = total;
+    stat.value = total;
+  }
 
-  return Math.max(
-    0,
-    creationBonus,
-    advancementBonus
+  const currentTotal = Math.max(0, Number(profile.total ?? dp.bonus ?? 0));
+  const currentStatAllocated = Math.max(0, Number(
+    profile.statAllocated ??
+    profile.sharedStatTotal ??
+    statKeys.reduce((sum, key) => sum + Math.max(0, Number(currentSharedStats?.[key] ?? 0)), 0)
+  ));
+  const previousSpentBonusStats = Math.max(0, Number(dp.spentBonusStats ?? dp.sharedStatTotal ?? 0));
+  const previousSpentTotal = Math.max(0, Number(dp.spentTotal ?? creation.spentDp ?? 0));
+  const nextSpentTotal = Math.max(0, previousSpentTotal - previousSpentBonusStats + currentStatAllocated);
+  const previousBonusTotal = Math.max(0, Number(
+    dp.bonus ?? creation.bonusDp ?? savedProfile.total ?? 0
+  ));
+  const previousTotalDp = Math.max(0, Number(dp.total ?? creation.totalDp ?? 0));
+  const localPool = Math.max(0, previousTotalDp - previousBonusTotal);
+  const totalDp = localPool + currentTotal;
+  const currentQualityBudget = Math.max(0, Number(profile.qualityAllocated ?? dp.sharedQualityAllocated ?? 0));
+
+  dp.bonus = currentTotal;
+  dp.spentBonusStats = currentStatAllocated;
+  dp.spentTotal = nextSpentTotal;
+  dp.total = totalDp;
+  dp.remaining = Math.max(0, totalDp - nextSpentTotal);
+  dp.sharedStatBonusApplied = foundry.utils.deepClone(currentSharedStats);
+  dp.sharedStatTotal = currentStatAllocated;
+  dp.sharedQualityAllocated = currentQualityBudget;
+  dp.bonusUnallocated = Math.max(0, currentTotal - currentStatAllocated - currentQualityBudget);
+  creation.bonusDp = currentTotal;
+  creation.totalDp = totalDp;
+  creation.spentDp = nextSpentTotal;
+  creation.remainingDp = dp.remaining;
+
+  refreshed.wizard ??= {};
+  refreshed.wizard.jogressPlan ??= {};
+  refreshed.wizard.jogressPlan.bonusDpProfile = {
+    ...foundry.utils.deepClone(savedProfile),
+    total: currentTotal,
+    sharedStats: foundry.utils.deepClone(currentSharedStats),
+    sharedStatBonus: foundry.utils.deepClone(currentSharedStats),
+    sharedStatTotal: currentStatAllocated,
+    statAllocated: currentStatAllocated,
+    qualityAllocated: currentQualityBudget,
+    unallocated: Math.max(0, currentTotal - currentStatAllocated - currentQualityBudget)
+  };
+
+  return refreshed;
+}
+
+function findPreparedJogressSnapshot(participants = [], recipe = {}, resultActor = null) {
+  const recipeId = String(recipe?.id ?? recipe?.key ?? "").trim();
+  const componentPartnerUuids = participants
+    .map((participant) => String(participant?.partnerActor?.uuid ?? "").trim())
+    .filter(Boolean)
+    .sort();
+
+  if (!recipeId || componentPartnerUuids.length !== 2) return null;
+
+  const matches = [];
+
+  for (const participant of participants) {
+    const snapshots = Object.values(
+      participant?.partnerActor?.system?.evolution?.formSnapshots ?? {}
+    );
+
+    for (const snapshot of snapshots) {
+      const plan = snapshot?.wizard?.jogressPlan ?? {};
+      if (String(plan.recipeId ?? "").trim() !== recipeId) continue;
+
+      const plannedPartners = (Array.isArray(plan.componentPartnerUuids)
+        ? plan.componentPartnerUuids
+        : [plan.sourcePartnerUuid, plan.partnerPartnerUuid]
+      )
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .sort();
+
+      if (plannedPartners.length === 2 && plannedPartners.join("|") !== componentPartnerUuids.join("|")) {
+        continue;
+      }
+
+      matches.push(snapshot);
+    }
+  }
+
+  if (!matches.length) return null;
+  matches.sort((left, right) => {
+    const leftTime = Date.parse(left?.updatedAt ?? left?.wizard?.jogressPlan?.plannedAt ?? "") || 0;
+    const rightTime = Date.parse(right?.updatedAt ?? right?.wizard?.jogressPlan?.plannedAt ?? "") || 0;
+    return rightTime - leftTime;
+  });
+  return foundry.utils.deepClone(matches[0]);
+}
+
+async function applyJogressPreparedBudgetState(partnerActor, snapshot, currentProfile) {
+  if (!partnerActor || !snapshot) return;
+
+  const dp = snapshot.creation?.dp ?? {};
+  const stage = String(snapshot.stage ?? partnerActor.system?.stage ?? "child");
+  const currentBonusTotal = Math.max(0, Number(currentProfile?.total ?? dp.bonus ?? 0));
+  const spentBonusStats = Math.max(0, Number(dp.spentBonusStats ?? dp.sharedStatTotal ?? 0));
+  const spentBonusQualities = Math.max(0, Number(dp.spentBonusQualities ?? 0));
+  const spentBonus = spentBonusStats + spentBonusQualities;
+  const byStage = foundry.utils.deepClone(partnerActor.system?.advancement?.bonusDp?.byStage ?? {});
+
+  byStage[stage] = {
+    ...(byStage[stage] ?? {}),
+    total: currentBonusTotal,
+    spent: spentBonus,
+    remaining: Math.max(0, currentBonusTotal - spentBonus),
+    formCount: Math.max(1, Number(byStage[stage]?.formCount ?? 1))
+  };
+
+  const base = Math.max(0, Number(dp.base ?? 0));
+  const negative = Math.max(0, Number(dp.negative ?? 0));
+  const spentTotal = Math.max(0, Number(dp.spentTotal ?? 0));
+
+  await partnerActor.update({
+    "system.advancement.bonusDp.total": currentBonusTotal,
+    "system.advancement.bonusDp.spentStats": spentBonusStats,
+    "system.advancement.bonusDp.spentQualities": spentBonusQualities,
+    "system.advancement.bonusDp.sharedSpent": spentBonus,
+    "system.advancement.bonusDp.remaining": Math.max(0, currentBonusTotal - spentBonus),
+    "system.advancement.bonusDp.byStage": byStage,
+    "system.advancement.sharedStatBonus": foundry.utils.deepClone(dp.sharedStatBonusApplied ?? {}),
+    "system.advancement.sharedQualityDp.allocated": Math.max(0, Number(dp.sharedQualityAllocated ?? spentBonusQualities)),
+    "system.advancement.sharedQualityDp.spent": spentBonusQualities,
+    "system.creation.dp.bonus": currentBonusTotal,
+    "system.creation.dp.total": base + negative + currentBonusTotal,
+    "system.creation.dp.remaining": Math.max(0, base + negative + currentBonusTotal - spentTotal),
+    "system.creation.bonusDp": currentBonusTotal
+  });
+}
+
+function captureJogressAdvancementState(partnerActor) {
+  return {
+    bonusDp: foundry.utils.deepClone(partnerActor?.system?.advancement?.bonusDp ?? {}),
+    sharedStatBonus: foundry.utils.deepClone(partnerActor?.system?.advancement?.sharedStatBonus ?? {}),
+    sharedQualityDp: foundry.utils.deepClone(partnerActor?.system?.advancement?.sharedQualityDp ?? {})
+  };
+}
+
+async function restoreJogressAdvancementState(partnerActor, state = {}) {
+  if (!partnerActor || !state || typeof state !== "object") return;
+  await partnerActor.update({
+    "system.advancement.bonusDp": foundry.utils.deepClone(state.bonusDp ?? {}),
+    "system.advancement.sharedStatBonus": foundry.utils.deepClone(state.sharedStatBonus ?? {}),
+    "system.advancement.sharedQualityDp": foundry.utils.deepClone(state.sharedQualityDp ?? {})
+  });
+}
+
+async function applyJogressRuntimeBonusProfile(partnerActor, resultActor, profile) {
+  if (!partnerActor || !resultActor || !profile) return;
+
+  const statKeys = ["accuracy", "damage", "dodge", "armor", "health"];
+  const templateApplied = resultActor.system?.creation?.dp?.sharedStatBonusApplied ??
+    resultActor.system?.advancement?.sharedStatBonus ?? {};
+  const updates = {};
+
+  for (const key of statKeys) {
+    const resultBase = Number(resultActor.system?.mainStats?.[key]?.base ?? resultActor.system?.stageValue ?? 1);
+    const oldApplied = Math.max(0, Math.floor(Number(templateApplied?.[key] ?? 0)));
+    const localBase = Math.max(1, resultBase - oldApplied);
+    const combinedBonus = Math.max(0, Math.floor(Number(profile.sharedStatBonus?.[key] ?? 0)));
+    updates[`system.mainStats.${key}.base`] = Math.min(20, localBase + combinedBonus);
+  }
+
+  const resultStage = String(resultActor.system?.stage ?? partnerActor.system?.stage ?? "child");
+  const byStage = foundry.utils.deepClone(partnerActor.system?.advancement?.bonusDp?.byStage ?? {});
+  byStage[resultStage] = {
+    ...(byStage[resultStage] ?? {}),
+    total: Math.max(0, Number(profile.total ?? 0)),
+    spent: Math.max(0, Number(profile.statAllocated ?? 0) + Number(profile.qualityAllocated ?? 0)),
+    remaining: Math.max(0, Number(profile.unallocated ?? 0)),
+    formCount: Math.max(1, Number(byStage[resultStage]?.formCount ?? 1))
+  };
+
+  updates["system.advancement.bonusDp.total"] = Math.max(0, Number(profile.total ?? 0));
+  updates["system.advancement.bonusDp.spentStats"] = Math.max(0, Number(profile.statAllocated ?? 0));
+  updates["system.advancement.bonusDp.spentQualities"] = Math.max(0, Number(profile.qualityAllocated ?? 0));
+  updates["system.advancement.bonusDp.sharedSpent"] = Math.max(0, Number(profile.statAllocated ?? 0) + Number(profile.qualityAllocated ?? 0));
+  updates["system.advancement.bonusDp.remaining"] = Math.max(0, Number(profile.unallocated ?? 0));
+  updates["system.advancement.bonusDp.byStage"] = byStage;
+  updates["system.advancement.sharedStatBonus"] = foundry.utils.deepClone(profile.sharedStatBonus ?? {});
+  updates["system.advancement.sharedQualityDp.allocated"] = Math.max(0, Number(profile.qualityAllocated ?? 0));
+  updates["system.advancement.sharedQualityDp.spent"] = Math.max(0, Number(profile.qualityAllocated ?? 0));
+  updates["system.creation.dp.bonus"] = Math.max(0, Number(profile.total ?? 0));
+  updates["system.creation.dp.sharedStatBonusApplied"] = foundry.utils.deepClone(profile.sharedStatBonus ?? {});
+  updates["system.creation.dp.sharedStatTotal"] = Math.max(0, Number(profile.statAllocated ?? 0));
+  updates["system.creation.dp.sharedQualityAllocated"] = Math.max(0, Number(profile.qualityAllocated ?? 0));
+  updates["system.creation.dp.bonusUnallocated"] = Math.max(0, Number(profile.unallocated ?? 0));
+  updates["system.creation.bonusDp"] = Math.max(0, Number(profile.total ?? 0));
+
+  await partnerActor.update(updates);
+}
+
+async function prepareJogressReversionPlan(participants = [], { mastered = false } = {}) {
+  const plans = [];
+
+  for (const participant of participants) {
+    const tamer = participant?.tamer;
+    const partnerActor = participant?.partnerActor;
+    const currentForm = participant?.form;
+    if (!tamer || !partnerActor || !currentForm) return null;
+
+    if (mastered) {
+      plans.push({
+        participant,
+        form: currentForm,
+        revertStage: currentForm.stageKey,
+        missing: false
+      });
+      continue;
+    }
+
+    const defaultStage = String(
+      partnerActor.system?.evolution?.defaultStage || getDefaultStageFromRange(tamer)
+    ).trim();
+    const revertStage = getStageDirectlyBelow(defaultStage) || defaultStage;
+    const revertActor = await findFormByStage(partnerActor, revertStage, null);
+    let revertForm = null;
+
+    if (revertActor && String(revertActor.system?.stage ?? "") === revertStage) {
+      revertForm = await resolvePartnerFormDescriptor(
+        partnerActor,
+        revertActor.uuid,
+        { fallbackActor: revertActor }
+      );
+    }
+
+    const valid = Boolean(
+      revertForm?.templateActor &&
+      String(revertForm.stageKey ?? "") === revertStage
+    );
+
+    plans.push({
+      participant,
+      form: valid ? revertForm : null,
+      revertStage,
+      missing: !valid
+    });
+  }
+
+  const primary = plans[0] ?? null;
+  const secondary = plans[1] ?? null;
+  return {
+    primary,
+    secondary,
+    plans,
+    hasMissing: plans.some((plan) => plan.missing)
+  };
+}
+
+function orderJogressReversionPlan(reversionPlan = {}, primary = null, secondary = null) {
+  const plans = Array.isArray(reversionPlan?.plans)
+    ? reversionPlan.plans
+    : [];
+
+  const findFor = (participant) => {
+    if (!participant) return null;
+    const tamerUuid = String(participant?.tamer?.uuid ?? "");
+    const partnerUuid = String(participant?.partnerActor?.uuid ?? "");
+
+    return plans.find((plan) => {
+      return Boolean(
+        (tamerUuid && String(plan?.participant?.tamer?.uuid ?? "") === tamerUuid) ||
+        (partnerUuid && String(plan?.participant?.partnerActor?.uuid ?? "") === partnerUuid)
+      );
+    }) ?? null;
+  };
+
+  const orderedPrimary = findFor(primary);
+  const orderedSecondary = findFor(secondary);
+
+  return {
+    ...reversionPlan,
+    primary: orderedPrimary,
+    secondary: orderedSecondary,
+    plans,
+    hasMissing: plans.some((plan) => Boolean(plan?.missing)) || !orderedPrimary || !orderedSecondary
+  };
+}
+
+async function resolveJogressReversionForm({
+  partnerActor,
+  preferredReference = "",
+  desiredStage = "",
+  fallbackReference = ""
+} = {}) {
+  if (!partnerActor) return { form: null, usedFallback: true };
+
+  const wantedStage = String(desiredStage ?? "").trim();
+  const preferred = String(preferredReference ?? "").trim();
+
+  if (preferred) {
+    const form = await resolvePartnerFormDescriptor(partnerActor, preferred);
+    if (form?.templateActor && (!wantedStage || form.stageKey === wantedStage)) {
+      return { form, usedFallback: false };
+    }
+  }
+
+  if (wantedStage) {
+    const stageActor = await findFormByStage(partnerActor, wantedStage, null);
+    if (stageActor && String(stageActor.system?.stage ?? "") === wantedStage) {
+      const form = await resolvePartnerFormDescriptor(
+        partnerActor,
+        stageActor.uuid,
+        { fallbackActor: stageActor }
+      );
+      if (form?.templateActor && form.stageKey === wantedStage) {
+        return { form, usedFallback: false };
+      }
+    }
+  }
+
+  const fallback = await resolvePartnerFormDescriptor(
+    partnerActor,
+    fallbackReference || partnerActor.uuid,
+    { fallbackActor: partnerActor }
   );
+
+  return {
+    form: fallback,
+    usedFallback: true
+  };
+}
+
+function getJogressInitiativeFlag(combatant, key, fallback = null) {
+  return foundry.utils.getProperty(
+    combatant,
+    `flags.${DDA_SYSTEM_ID}.initiative.${key}`
+  ) ?? fallback;
+}
+
+function findJogressCombatant(combat, actor) {
+  if (!combat || !actor) return null;
+  const actorUuid = String(actor.uuid ?? "");
+  const actorId = String(actor.id ?? "");
+  return Array.from(combat.combatants ?? []).find((combatant) => {
+    const candidate = combatant?.actor;
+    return Boolean(
+      candidate &&
+      (String(candidate.uuid ?? "") === actorUuid || String(candidate.id ?? "") === actorId)
+    );
+  }) ?? null;
+}
+
+function getJogressInterruptContext(participants = [], combat = null) {
+  if (!combat?.started) {
+    return { allowed: true, actingTamerUuid: "", interruptTamerUuid: "", interruptTamerName: "" };
+  }
+
+  const activeCombatant = combat.combatant;
+  if (!activeCombatant) return { allowed: false };
+
+  const activeUnitId = String(getJogressInitiativeFlag(activeCombatant, "unitId", ""));
+  const activeParticipant = participants.find((participant) => {
+    const tamerCombatant = findJogressCombatant(combat, participant.tamer);
+    const partnerCombatant = findJogressCombatant(combat, participant.partnerActor);
+    if (!tamerCombatant || !partnerCombatant) return false;
+
+    if (activeUnitId) {
+      return [tamerCombatant, partnerCombatant].some((combatant) => {
+        return String(getJogressInitiativeFlag(combatant, "unitId", "")) === activeUnitId;
+      });
+    }
+
+    return [tamerCombatant.id, partnerCombatant.id].includes(activeCombatant.id);
+  });
+
+  if (!activeParticipant) return { allowed: false };
+
+  const interruptParticipant = participants.find((participant) => {
+    return participant?.tamer?.uuid !== activeParticipant?.tamer?.uuid;
+  });
+
+  if (!interruptParticipant?.tamer) return { allowed: false };
+
+  return {
+    allowed: true,
+    actingTamerUuid: activeParticipant.tamer.uuid,
+    interruptTamerUuid: interruptParticipant.tamer.uuid,
+    interruptTamerName: interruptParticipant.tamer.name
+  };
+}
+
+function captureJogressComponentTokenStates(partnerActor, combat = null) {
+  if (!partnerActor) return [];
+
+  const states = [];
+  const seen = new Set();
+
+  const capture = (tokenDocument) => {
+    if (!tokenDocument?.id) return;
+    const sceneId = String(tokenDocument.parent?.id ?? "");
+    const tokenId = String(tokenDocument.id ?? "");
+    if (!sceneId || !tokenId) return;
+    const key = `${sceneId}.${tokenId}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    states.push({
+      sceneId,
+      tokenId,
+      hidden: Boolean(tokenDocument.hidden)
+    });
+  };
+
+  if (combat?.started) {
+    const combatant = findJogressCombatant(combat, partnerActor);
+    capture(combatant?.token ?? null);
+  }
+
+  const activeScene = canvas?.scene ?? game?.scenes?.active ?? null;
+  if (activeScene) {
+    for (const tokenDocument of activeScene.tokens ?? []) {
+      const tokenActorId = String(tokenDocument.actorId ?? "");
+      const tokenActorUuid = String(tokenDocument.actor?.uuid ?? "");
+      if (
+        tokenActorUuid === String(partnerActor.uuid ?? "") ||
+        (tokenActorId && tokenActorId === String(partnerActor.id ?? ""))
+      ) {
+        capture(tokenDocument);
+      }
+    }
+  }
+
+  return states;
+}
+
+async function hideJogressComponentTokens(tokenStates = [], marker = "") {
+  if (!Array.isArray(tokenStates) || !tokenStates.length) return;
+
+  for (const state of tokenStates) {
+    const scene = game?.scenes?.get?.(state?.sceneId);
+    const tokenDocument = scene?.tokens?.get?.(state?.tokenId);
+    if (!tokenDocument) continue;
+
+    await tokenDocument.update({
+      hidden: true,
+      [`flags.${DDA_SYSTEM_ID}.jogressHiddenMarker`]: String(marker ?? "")
+    });
+  }
+}
+
+async function restoreJogressComponentTokens(tokenStates = [], marker = "") {
+  if (!Array.isArray(tokenStates) || !tokenStates.length) return;
+
+  for (const state of tokenStates) {
+    const scene = game?.scenes?.get?.(state?.sceneId);
+    const tokenDocument = scene?.tokens?.get?.(state?.tokenId);
+    if (!tokenDocument) continue;
+
+    const storedMarker = String(
+      tokenDocument.getFlag?.(DDA_SYSTEM_ID, "jogressHiddenMarker") ??
+      foundry.utils.getProperty(
+        tokenDocument,
+        `flags.${DDA_SYSTEM_ID}.jogressHiddenMarker`
+      ) ??
+      ""
+    );
+
+    // Only undo visibility that this exact Jogress changed. If the GM has
+    // deliberately changed the Token meanwhile, preserve that decision.
+    if (storedMarker && storedMarker === String(marker ?? "")) {
+      try {
+        if (Boolean(tokenDocument.hidden)) {
+          await tokenDocument.update({
+            hidden: Boolean(state?.hidden)
+          });
+        }
+        await tokenDocument.unsetFlag?.(DDA_SYSTEM_ID, "jogressHiddenMarker");
+      } catch (error) {
+        console.error("DDA | Could not restore a secondary Jogress component Token.", tokenDocument, error);
+      }
+    }
+  }
+}
+
+function captureJogressCombatSnapshot(participants = [], combat = null) {
+  if (!combat?.started) {
+    return {
+      combatId: "",
+      round: 0,
+      sharedInitiative: getLowestJogressInitiative(participants),
+      sourceUnitIds: [],
+      targetUnitId: "",
+      order: [],
+      combatants: {},
+      valid: true
+    };
+  }
+
+  const participantCombatants = [];
+  const pairUnits = [];
+
+  for (const participant of participants) {
+    const tamerCombatant = findJogressCombatant(combat, participant.tamer);
+    const partnerCombatant = findJogressCombatant(combat, participant.partnerActor);
+    if (!tamerCombatant || !partnerCombatant) {
+      return {
+        combatId: combat.id,
+        round: Number(combat.round ?? 0),
+        sharedInitiative: getLowestJogressInitiative(participants),
+        sourceUnitIds: [],
+        targetUnitId: "",
+        order: [],
+        combatants: {},
+        valid: false
+      };
+    }
+
+    const unitId = String(
+      getJogressInitiativeFlag(tamerCombatant, "unitId", "") ||
+      getJogressInitiativeFlag(partnerCombatant, "unitId", "")
+    );
+    const raw = Number(
+      getJogressInitiativeFlag(tamerCombatant, "raw", Number.NaN) ??
+      getJogressInitiativeFlag(partnerCombatant, "raw", Number.NaN)
+    );
+
+    pairUnits.push({
+      unitId,
+      raw: Number.isFinite(raw)
+        ? raw
+        : Math.min(
+            Number(participant.tamer.system?.combat?.initiative?.value ?? 0),
+            Number(participant.partnerActor.system?.combat?.initiative?.value ?? 0)
+          )
+    });
+
+    participantCombatants.push(
+      { combatant: tamerCombatant, actor: participant.tamer },
+      { combatant: partnerCombatant, actor: participant.partnerActor }
+    );
+  }
+
+  const uniquePairUnits = pairUnits.filter((entry, index, array) => {
+    return entry.unitId && array.findIndex((candidate) => candidate.unitId === entry.unitId) === index;
+  });
+
+  if (uniquePairUnits.length !== 2) {
+    return {
+      combatId: combat.id,
+      round: Number(combat.round ?? 0),
+      sharedInitiative: getLowestJogressInitiative(participants),
+      sourceUnitIds: uniquePairUnits.map((entry) => entry.unitId),
+      targetUnitId: "",
+      order: [],
+      combatants: {},
+      valid: false
+    };
+  }
+
+  const slowerUnit = [...uniquePairUnits].sort((left, right) => left.raw - right.raw)[0];
+  const order = foundry.utils.deepClone(
+    combat.getFlag?.(DDA_SYSTEM_ID, "initiative.order") ?? []
+  );
+  const combatants = {};
+
+  for (const entry of participantCombatants) {
+    const combatant = entry.combatant;
+    combatants[entry.actor.uuid] = {
+      combatantId: combatant.id,
+      actorUuid: entry.actor.uuid,
+      unitId: String(getJogressInitiativeFlag(combatant, "unitId", "")),
+      role: String(getJogressInitiativeFlag(combatant, "role", "solo")),
+      side: String(getJogressInitiativeFlag(combatant, "side", "")),
+      raw: Number(getJogressInitiativeFlag(combatant, "raw", 0)),
+      orderIndex: Number(getJogressInitiativeFlag(combatant, "orderIndex", 0)),
+      endedRound: Number(getJogressInitiativeFlag(combatant, "endedRound", 0)),
+      actorInitiative: Number(entry.actor.system?.combat?.initiative?.value ?? 0)
+    };
+  }
+
+  return {
+    combatId: combat.id,
+    round: Number(combat.round ?? 0),
+    sharedInitiative: Number(slowerUnit?.raw ?? getLowestJogressInitiative(participants)),
+    sourceUnitIds: uniquePairUnits.map((entry) => entry.unitId),
+    targetUnitId: String(slowerUnit?.unitId ?? ""),
+    order,
+    combatants,
+    valid: true
+  };
+}
+
+async function markJogressStateAcrossDocuments(state, patch = {}) {
+  const nextState = {
+    ...foundry.utils.deepClone(state ?? {}),
+    ...foundry.utils.deepClone(patch ?? {})
+  };
+  const uuids = [
+    nextState.primaryTamerUuid,
+    nextState.secondaryTamerUuid,
+    nextState.primaryDigimonUuid,
+    nextState.secondaryDigimonUuid
+  ].filter(Boolean);
+
+  for (const uuid of new Set(uuids)) {
+    const actor = await resolveActor(uuid);
+    if (!actor) continue;
+    const updates = {
+      "system.specialEvolutions.jogress.state": nextState
+    };
+    if (actor.type === "digimon") {
+      updates["system.specialEvolutions.jogress.active"] = Boolean(nextState.active);
+    }
+    await actor.update(updates);
+  }
+
+  return nextState;
+}
+
+export async function applyPendingJogressInitiativeForCombat(combat) {
+  if (!game.user?.isGM || !combat?.started) return false;
+  const round = Number(combat.round ?? 0);
+  const seen = new Set();
+  let changed = false;
+
+  for (const actor of game.actors ?? []) {
+    if (!actor || actor.type !== "character") continue;
+    let state = actor.system?.specialEvolutions?.jogress?.state ?? {};
+    if (!state.active || state.initiativeApplied) continue;
+
+    // A Jogress may have been formed outside Combat. Once both original pairs
+    // enter a started Combat, bind its saved state to that tracker and merge
+    // the units immediately for the current round.
+    if (!state.combatId) {
+      const primaryTamer = await resolveActor(state.primaryTamerUuid);
+      const secondaryTamer = await resolveActor(state.secondaryTamerUuid);
+      const primaryPartner = await resolveActor(state.primaryDigimonUuid || state.runtimePartnerUuid);
+      const secondaryPartner = await resolveActor(state.secondaryDigimonUuid);
+      if (!primaryTamer || !secondaryTamer || !primaryPartner || !secondaryPartner) continue;
+
+      const snapshot = captureJogressCombatSnapshot([
+        { tamer: primaryTamer, partnerActor: primaryPartner },
+        { tamer: secondaryTamer, partnerActor: secondaryPartner }
+      ], combat);
+      if (!snapshot.valid) continue;
+
+      state = await markJogressStateAcrossDocuments(state, {
+        combatId: combat.id,
+        combatSnapshot: snapshot,
+        sharedInitiative: snapshot.sharedInitiative,
+        pendingInitiativeRound: Math.max(1, round),
+        initiativeUnitId: state.initiativeUnitId || buildJogressUnitId(state.historyKey)
+      });
+    }
+
+    if (String(state.combatId) !== String(combat.id)) continue;
+    if (round < Math.max(1, Number(state.pendingInitiativeRound ?? 0))) continue;
+
+    const key = String(state.historyKey || state.initiativeUnitId || state.primaryTamerUuid);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    const applied = await applyJogressCombatUnitState(combat, state);
+    if (!applied) continue;
+    await markJogressStateAcrossDocuments(state, { initiativeApplied: true });
+    changed = true;
+  }
+
+  return changed;
+}
+
+async function applyJogressCombatUnitState(combat, state) {
+  const primaryTamer = await resolveActor(state.primaryTamerUuid);
+  const secondaryTamer = await resolveActor(state.secondaryTamerUuid);
+  const primaryPartner = await resolveActor(state.primaryDigimonUuid || state.runtimePartnerUuid);
+  const secondaryPartner = await resolveActor(state.secondaryDigimonUuid);
+  if (!primaryTamer || !secondaryTamer || !primaryPartner || !secondaryPartner) return false;
+
+  const primaryTamerCombatant = findJogressCombatant(combat, primaryTamer);
+  const secondaryTamerCombatant = findJogressCombatant(combat, secondaryTamer);
+  const primaryPartnerCombatant = findJogressCombatant(combat, primaryPartner);
+  const secondaryPartnerCombatant = findJogressCombatant(combat, secondaryPartner);
+  if (!primaryTamerCombatant || !secondaryTamerCombatant || !primaryPartnerCombatant || !secondaryPartnerCombatant) return false;
+
+  const sourceUnitIds = new Set((state.combatSnapshot?.sourceUnitIds ?? []).map(String));
+  const targetUnitId = String(state.combatSnapshot?.targetUnitId ?? "");
+  const jogressUnitId = String(state.initiativeUnitId || buildJogressUnitId(state.historyKey));
+  const sharedRaw = Number(state.sharedInitiative ?? 0);
+  const currentOrder = foundry.utils.deepClone(
+    combat.getFlag?.(DDA_SYSTEM_ID, "initiative.order") ?? state.combatSnapshot?.order ?? []
+  );
+  const targetEntry = currentOrder.find((entry) => String(entry?.id ?? "") === targetUnitId) ?? {};
+  const side = String(targetEntry.side ?? getJogressInitiativeFlag(primaryTamerCombatant, "side", "players"));
+  const newOrder = [];
+  let inserted = false;
+
+  for (const entry of currentOrder) {
+    const id = String(entry?.id ?? "");
+    if (sourceUnitIds.has(id)) {
+      if (!inserted && id === targetUnitId) {
+        newOrder.push({
+          id: jogressUnitId,
+          side,
+          raw: sharedRaw,
+          members: [
+            primaryPartnerCombatant.id,
+            primaryTamerCombatant.id,
+            secondaryTamerCombatant.id,
+            secondaryPartnerCombatant.id
+          ]
+        });
+        inserted = true;
+      }
+      continue;
+    }
+    newOrder.push(entry);
+  }
+
+  if (!inserted) {
+    newOrder.push({
+      id: jogressUnitId,
+      side,
+      raw: sharedRaw,
+      members: [
+        primaryPartnerCombatant.id,
+        primaryTamerCombatant.id,
+        secondaryTamerCombatant.id,
+        secondaryPartnerCombatant.id
+      ]
+    });
+  }
+
+  const roleByCombatantId = new Map([
+    [primaryPartnerCombatant.id, "digimon"],
+    [primaryTamerCombatant.id, "tamer"],
+    [secondaryTamerCombatant.id, "tamer"],
+    [secondaryPartnerCombatant.id, "suspended"]
+  ]);
+  const orderIndexByUnitId = new Map(newOrder.map((entry, index) => [String(entry.id), index]));
+  const updates = [];
+
+  for (const combatant of combat.combatants ?? []) {
+    const currentUnitId = String(getJogressInitiativeFlag(combatant, "unitId", ""));
+    const isJogressMember = roleByCombatantId.has(combatant.id);
+    const nextUnitId = isJogressMember ? jogressUnitId : currentUnitId;
+    const nextOrderIndex = orderIndexByUnitId.get(nextUnitId);
+    if (!Number.isFinite(nextOrderIndex)) continue;
+
+    const update = {
+      _id: combatant.id,
+      [`flags.${DDA_SYSTEM_ID}.initiative.orderIndex`]: nextOrderIndex
+    };
+
+    if (isJogressMember) {
+      update[`flags.${DDA_SYSTEM_ID}.initiative.unitId`] = jogressUnitId;
+      update[`flags.${DDA_SYSTEM_ID}.initiative.role`] = roleByCombatantId.get(combatant.id);
+      update[`flags.${DDA_SYSTEM_ID}.initiative.side`] = side;
+      update[`flags.${DDA_SYSTEM_ID}.initiative.raw`] = sharedRaw;
+    }
+
+    updates.push(update);
+  }
+
+  const activeCombatantId = combat.combatant?.id ?? "";
+  if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
+  combat.setupTurns();
+
+  const activeTurn = activeCombatantId
+    ? (combat.turns ?? []).findIndex((combatant) => combatant.id === activeCombatantId)
+    : Number(combat.turn ?? 0);
+
+  await combat.update({
+    ...(activeTurn >= 0 ? { turn: activeTurn } : {}),
+    [`flags.${DDA_SYSTEM_ID}.initiative.order`]: newOrder
+  }, { ddaJogressSync: true });
+
+  for (const actor of [primaryTamer, secondaryTamer, primaryPartner]) {
+    await actor.update({ "system.combat.initiative.value": sharedRaw });
+  }
+
+  // The second physical Partner remains part of the Jogress entity but must
+  // never regain an independent action pool when a new Combat initializes.
+  await secondaryPartner.update({ "system.combat.actions.value": 0 });
+
+  return true;
+}
+
+async function restoreJogressCombatSnapshot(state = {}, combatOverride = null) {
+  if (!state?.initiativeApplied || !state?.combatId) return;
+  const combat = combatOverride ?? game.combats?.get?.(state.combatId) ?? (game.combat?.id === state.combatId ? game.combat : null);
+  if (!combat) return;
+
+  const snapshot = state.combatSnapshot ?? {};
+  const storedCombatants = snapshot.combatants ?? {};
+  const updates = [];
+  const currentRound = Number(combat.round ?? 0);
+
+  for (const stored of Object.values(storedCombatants)) {
+    const combatant = combat.combatants?.get(stored.combatantId);
+    if (!combatant) continue;
+    updates.push({
+      _id: combatant.id,
+      [`flags.${DDA_SYSTEM_ID}.initiative.unitId`]: stored.unitId,
+      [`flags.${DDA_SYSTEM_ID}.initiative.role`]: stored.role,
+      [`flags.${DDA_SYSTEM_ID}.initiative.side`]: stored.side,
+      [`flags.${DDA_SYSTEM_ID}.initiative.raw`]: stored.raw,
+      [`flags.${DDA_SYSTEM_ID}.initiative.orderIndex`]: stored.orderIndex,
+      [`flags.${DDA_SYSTEM_ID}.initiative.endedRound`]: combat.started ? currentRound : stored.endedRound
+    });
+
+    const actor = await resolveActor(stored.actorUuid);
+    if (actor) {
+      await actor.update({
+        "system.combat.initiative.value": Number(stored.actorInitiative ?? 0)
+      });
+    }
+  }
+
+  if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
+  const activeCombatantId = combat.combatant?.id ?? "";
+  combat.setupTurns();
+  const activeTurn = activeCombatantId
+    ? (combat.turns ?? []).findIndex((combatant) => combatant.id === activeCombatantId)
+    : Number(combat.turn ?? 0);
+
+  await combat.update({
+    ...(activeTurn >= 0 ? { turn: activeTurn } : {}),
+    [`flags.${DDA_SYSTEM_ID}.initiative.order`]: foundry.utils.deepClone(snapshot.order ?? [])
+  }, { ddaJogressSync: true });
+}
+
+async function restoreJogressActorInitiatives(state = {}) {
+  const storedCombatants = state?.combatSnapshot?.combatants ?? {};
+  for (const stored of Object.values(storedCombatants)) {
+    const actor = await resolveActor(stored?.actorUuid);
+    if (!actor) continue;
+    await actor.update({
+      "system.combat.initiative.value": Number(stored.actorInitiative ?? 0)
+    });
+  }
+}
+
+async function detachActiveJogressFromCombat(combat, { restoreTracker = true } = {}) {
+  if (!combat || !isPrimaryActiveGmForEvolutionLifecycle()) return;
+
+  const combatId = String(combat.id ?? "");
+  const seen = new Set();
+
+  for (const actor of game?.actors ?? []) {
+    if (actor?.type !== "character") continue;
+    const state = foundry.utils.deepClone(actor.system?.specialEvolutions?.jogress?.state ?? {});
+    if (!state.active || String(state.combatId ?? "") !== combatId) continue;
+
+    const key = String(state.historyKey || state.initiativeUnitId || state.primaryTamerUuid || actor.uuid);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    try {
+      if (state.initiativeApplied && restoreTracker) {
+        await restoreJogressCombatSnapshot(state, combat);
+      } else if (state.initiativeApplied) {
+        await restoreJogressActorInitiatives(state);
+      }
+
+      await markJogressStateAcrossDocuments(state, {
+        combatId: "",
+        pendingInitiativeRound: 0,
+        initiativeApplied: false,
+        combatSnapshot: {}
+      });
+    } catch (error) {
+      console.error("DDA | Could not detach active Jogress from ended Combat.", actor, error);
+    }
+  }
+}
+
+async function rollbackJogressActivation({ primary, secondary, jogressState, paymentData }) {
+  const clearState = getEmptyJogressState();
+  const primaryPartner = primary?.partnerActor;
+  const secondaryPartner = secondary?.partnerActor;
+
+  try {
+    if (primaryPartner) {
+      const originalForm = await resolvePartnerFormDescriptor(
+        primaryPartner,
+        jogressState.primaryFormUuid,
+        { fallbackActor: primaryPartner }
+      );
+      if (originalForm?.templateActor) {
+        await applyPersistentPartnerSpecialForm({
+          tamerActor: primary.tamer,
+          partnerActor: primaryPartner,
+          form: originalForm,
+          previousFormActor: primaryPartner,
+          transitionType: "jogressRollback",
+          healOnEvolution: false
+        });
+      }
+      await restoreJogressAdvancementState(primaryPartner, jogressState.primaryAdvancementState);
+      await primaryPartner.update({
+        ownership: foundry.utils.deepClone(jogressState.primaryOwnership ?? primaryPartner.ownership ?? {}),
+        "system.specialEvolutions.jogress.active": false,
+        "system.specialEvolutions.jogress.componentBonusDp": 0,
+        "system.specialEvolutions.jogress.state": clearState
+      });
+    }
+
+    if (secondaryPartner) {
+      await secondaryPartner.update({
+        "system.combat.actions.value": Math.max(0, Number(jogressState.secondaryActionsValue ?? secondaryPartner.system?.combat?.actions?.value ?? 0)),
+        "system.combat.actions.max": Math.max(0, Number(jogressState.secondaryActionsMax ?? secondaryPartner.system?.combat?.actions?.max ?? 2)),
+        "system.specialEvolutions.jogress.active": false,
+        "system.specialEvolutions.jogress.state": clearState
+      });
+    }
+
+    await restoreJogressComponentTokens(
+      jogressState?.secondaryTokenStates,
+      jogressState?.tokenHideMarker
+    );
+
+    if (primary?.tamer && primaryPartner) {
+      await updateTamerPartnerFormMirror(primary.tamer, primaryPartner);
+      await primary.tamer.update({ "system.specialEvolutions.jogress.state": clearState });
+    }
+    if (secondary?.tamer && secondaryPartner) {
+      await updateTamerPartnerFormMirror(secondary.tamer, secondaryPartner);
+      await secondary.tamer.update({ "system.specialEvolutions.jogress.state": clearState });
+    }
+  } finally {
+    await refundJogressRuleCosts(paymentData);
+  }
 }
 
 async function applyJogressResultOwnership(resultActor, participants = []) {
@@ -5653,7 +8005,7 @@ async function chooseHybridOption(options, tamerActor, currentFormActor = null) 
   `).join("");
 
   const content = `
-    <form class="dda-roll-dialog dda-hybrid-dialog">
+    <div class="dda-roll-dialog dda-hybrid-dialog">
       <p>${formatI18n("DDA.Hybrid.ChooseHint", {
         tamer: `<strong>${escapeHtml(tamerActor.name)}</strong>`,
         partner: `<strong>${escapeHtml(currentFormActor?.name ?? localize("DDA.Hybrid.NoPartnerRequired"))}</strong>`
@@ -5663,30 +8015,34 @@ async function chooseHybridOption(options, tamerActor, currentFormActor = null) 
         <label>${localize("DDA.Hybrid.Form")}</label>
         <select name="optionIndex">${optionRows}</select>
       </div>
-    </form>
+    </div>
   `;
 
-  return new Promise((resolve) => {
-    new Dialog({
-      title: localize("DDA.Hybrid.DialogTitle"),
-      content,
-      buttons: {
-        confirm: {
-          label: localize("DDA.Button.Confirm"),
-          callback: async (html) => {
-            const form = html[0].querySelector("form");
-            resolve(options[Number(form.optionIndex.value ?? 0)] ?? null);
-          }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel"),
-          callback: () => resolve(null)
-        }
+  const choice = await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-hybrid-choice-dialog"],
+    window: { title: localize("DDA.Hybrid.DialogTitle") },
+    content,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm"),
+        icon: "fa-solid fa-check",
+        default: true,
+        callback: (_event, button) => Number(button.form?.elements?.optionIndex?.value ?? 0)
       },
-      default: "confirm",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        icon: "fa-solid fa-xmark",
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
+
+  if (choice === null || choice === false || !Number.isInteger(choice)) return null;
+  return options[choice] ?? null;
 }
 
 async function confirmHybridStart({ option, tamerActor, currentFormActor = null, resultActor }) {
@@ -5713,12 +8069,12 @@ async function confirmHybridStart({ option, tamerActor, currentFormActor = null,
     </div>
   `;
 
-  return Dialog.confirm({
-    title: localize("DDA.Hybrid.ConfirmTitle"),
+  return foundry.applications.api.DialogV2.confirm({
+    window: { title: localize("DDA.Hybrid.ConfirmTitle") },
     content,
-    yes: () => true,
-    no: () => false,
-    defaultYes: true
+    yes: { default: true },
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -5775,41 +8131,60 @@ function renderHybridEndCard({ tamerActor, resultActor, previousFormActor = null
   `;
 }
 
-async function collectAvailableJogressOptions(tamerActor, currentFormActor) {
+async function collectAvailableJogressOptions(tamerActor, currentForm) {
   const recipes = collectJogressRecipes(tamerActor).filter((recipe) => {
-    return recipe.method === "jogress" && !recipe.hidden;
+    return isJogressRulesMethod(recipe.method) && !recipe.hidden;
   });
 
-  if (!recipes.length) return [];
+  if (!recipes.length || !currentForm?.templateActor) return [];
+
+  const primaryPartner = await resolveActor(tamerActor.system?.partner?.uuid ?? "");
+  if (!primaryPartner || primaryPartner.type !== "digimon") return [];
 
   const tamerEntries = await collectTamerPartnerEntries();
   const currentEntry = {
     tamer: tamerActor,
-    digimon: currentFormActor
+    partnerActor: primaryPartner,
+    digimon: primaryPartner,
+    form: currentForm
   };
-
   const options = [];
+  const seen = new Set();
 
   for (const recipe of recipes) {
     const components = Array.isArray(recipe.components) ? recipe.components : [];
-    if (components.length < 2) continue;
+    if (components.length !== 2) continue;
 
     for (let index = 0; index < components.length; index += 1) {
       const currentRequirement = components[index];
-      if (!matchesJogressRequirement(currentFormActor, currentRequirement)) continue;
+      if (!matchesJogressRequirement(currentForm, currentRequirement)) continue;
 
       const remainingRequirements = components.filter((_component, componentIndex) => componentIndex !== index);
       const participantSets = findJogressParticipantSets(remainingRequirements, tamerEntries, [tamerActor.uuid]);
 
       for (const participantSet of participantSets) {
+        const participants = [currentEntry, ...participantSet];
+        if (participants.length !== 2 || !participantsHaveSameStage(participants)) continue;
+
         const resultActor = await resolveJogressResultActor(recipe);
         if (!resultActor) continue;
+
+        const componentStage = String(currentForm.stageKey ?? "").trim();
+        const resultStage = String(resultActor.system?.stage ?? recipe.result?.stage ?? "").trim();
+        if (!isImmediatelyHigherStage(componentStage, resultStage)) continue;
+
+        const optionKey = [
+          recipe.id,
+          ...participants.map((participant) => participant.form?.reference ?? participant.partnerActor?.uuid ?? "").sort()
+        ].join("::");
+        if (seen.has(optionKey)) continue;
+        seen.add(optionKey);
 
         options.push({
           id: `${recipe.id}-${options.length}`,
           recipe,
           resultActor,
-          participants: [currentEntry, ...participantSet]
+          participants
         });
       }
     }
@@ -5824,10 +8199,25 @@ function collectJogressRecipes(tamerActor) {
   const actorRecipes = Array.isArray(tamerActor?.system?.specialEvolutions?.jogress?.recipes)
     ? tamerActor.system.specialEvolutions.jogress.recipes
     : [];
+  const groupRecipes = [];
+
+  for (const group of game.actors ?? []) {
+    if (group?.type !== "group") continue;
+    const members = Array.isArray(group.system?.party?.members)
+      ? group.system.party.members
+      : [];
+    const belongsToGroup = members.some((member) => {
+      return String(member?.uuid ?? "") === String(tamerActor?.uuid ?? "");
+    });
+    if (!belongsToGroup) continue;
+
+    const recipes = group.system?.specialEvolutions?.jogress?.recipes;
+    if (Array.isArray(recipes)) groupRecipes.push(...recipes);
+  }
 
   const recipeMap = new Map();
 
-  for (const recipe of [...configRecipes, ...globalRecipes, ...actorRecipes]) {
+  for (const recipe of [...configRecipes, ...globalRecipes, ...actorRecipes, ...groupRecipes]) {
     const normalized = normalizeJogressRecipe(recipe);
     if (!normalized?.id) continue;
     recipeMap.set(normalized.id, normalized);
@@ -5849,6 +8239,7 @@ function normalizeJogressRecipe(recipe) {
     result: recipe.result ?? {},
     components: Array.isArray(recipe.components) ? recipe.components : [],
     cost: recipe.cost ?? {},
+    check: recipe.check ?? {},
     temporary: recipe.temporary ?? true,
     hidden: Boolean(recipe.hidden)
   };
@@ -5861,15 +8252,26 @@ async function collectTamerPartnerEntries() {
     if (!actor || actor.type !== "character") continue;
     if (isTamerInActiveJogress(actor)) continue;
 
-    const currentFormUuid = actor.system.partner?.currentFormUuid || actor.system.partner?.uuid;
-    if (!currentFormUuid) continue;
+    const partnerUuid = String(actor.system?.partner?.uuid ?? "").trim();
+    if (!partnerUuid) continue;
 
-    const digimon = await resolveActor(currentFormUuid);
-    if (!digimon || digimon.type !== "digimon") continue;
+    const partnerActor = await resolveActor(partnerUuid);
+    if (!partnerActor || partnerActor.type !== "digimon") continue;
+    if (hasConflictingJogressSpecialEvolution(actor, partnerActor)) continue;
+
+    const currentReference = getCurrentPartnerFormReference(actor, partnerActor);
+    const form = await resolvePartnerFormDescriptor(
+      partnerActor,
+      currentReference,
+      { fallbackActor: partnerActor }
+    );
+    if (!form?.templateActor) continue;
 
     entries.push({
       tamer: actor,
-      digimon
+      partnerActor,
+      digimon: partnerActor,
+      form
     });
   }
 
@@ -5881,9 +8283,9 @@ function findJogressParticipantSets(requirements, entries, usedTamerUuids = []) 
 
   const [requirement, ...remainingRequirements] = requirements;
   const matches = entries.filter((entry) => {
-    if (!entry?.tamer || !entry?.digimon) return false;
+    if (!entry?.tamer || !entry?.partnerActor || !entry?.form) return false;
     if (usedTamerUuids.includes(entry.tamer.uuid)) return false;
-    return matchesJogressRequirement(entry.digimon, requirement);
+    return matchesJogressRequirement(entry.form, requirement);
   });
 
   const sets = [];
@@ -5902,20 +8304,29 @@ function findJogressParticipantSets(requirements, entries, usedTamerUuids = []) 
   return sets;
 }
 
-function matchesJogressRequirement(actor, requirement = {}) {
-  if (!actor) return false;
+function matchesJogressRequirement(formOrActor, requirement = {}) {
+  if (!formOrActor) return false;
 
-  const actorUuid = normalizeUuid(actor.uuid ?? "");
-  const actorName = normalizeName(actor.name);
-  const actorSpecies = normalizeName(actor.system?.species ?? "");
-  const actorStage = String(actor.system?.stage ?? "").trim();
+  const templateActor = formOrActor.templateActor ?? formOrActor;
+  const actorUuid = normalizeUuid(
+    formOrActor.reference ?? formOrActor.uuid ?? templateActor?.uuid ?? ""
+  );
+  const actorName = normalizeName(
+    formOrActor.name ?? templateActor?.name ?? ""
+  );
+  const actorSpecies = normalizeName(
+    templateActor?.system?.species ?? formOrActor.name ?? templateActor?.name ?? ""
+  );
+  const actorStage = String(
+    formOrActor.stageKey ?? templateActor?.system?.stage ?? ""
+  ).trim();
 
   const requiredUuid = normalizeUuid(requirement.uuid ?? requirement.actorUuid ?? "");
   const requiredName = normalizeName(requirement.name ?? "");
   const requiredSpecies = normalizeName(requirement.species ?? "");
   const requiredStage = String(requirement.stage ?? "").trim();
 
-  if (requiredUuid && actorUuid !== requiredUuid) return false;
+  if (requiredUuid && actorUuid !== requiredUuid && normalizeUuid(templateActor?.uuid ?? "") !== requiredUuid) return false;
   if (requiredStage && actorStage !== requiredStage) return false;
 
   if (requiredSpecies) {
@@ -5927,6 +8338,23 @@ function matchesJogressRequirement(actor, requirement = {}) {
   }
 
   return Boolean(requiredUuid || requiredStage);
+}
+
+function getJogressResultReference(resultActor = null, recipe = null) {
+  return String(
+    resultActor?.uuid ??
+    resultActor?.databaseId ??
+    resultActor?.system?.databaseId ??
+    resultActor?.system?.sourceId ??
+    recipe?.result?.uuid ??
+    recipe?.result?.actorUuid ??
+    recipe?.result?.databaseId ??
+    recipe?.result?.sourceId ??
+    recipe?.result?.species ??
+    recipe?.result?.name ??
+    resultActor?.name ??
+    ""
+  ).trim();
 }
 
 async function resolveJogressResultActor(recipe) {
@@ -5941,7 +8369,7 @@ async function resolveJogressResultActor(recipe) {
   const resultName = normalizeName(result.name ?? recipe?.label ?? "");
   const resultSpecies = normalizeName(result.species ?? result.name ?? recipe?.label ?? "");
 
-  return Array.from(game.actors ?? []).find((actor) => {
+  const worldActor = Array.from(game.actors ?? []).find((actor) => {
     if (!actor || actor.type !== "digimon") return false;
 
     const actorName = normalizeName(actor.name);
@@ -5950,10 +8378,29 @@ async function resolveJogressResultActor(recipe) {
     return (resultName && (actorName === resultName || actorSpecies === resultName)) ||
       (resultSpecies && (actorName === resultSpecies || actorSpecies === resultSpecies));
   }) ?? null;
+
+  if (worldActor) return worldActor;
+
+  // Planner forms come from the bundled Digimon database and should not
+  // require the GM to import a duplicate world Actor just to execute Jogress.
+  try {
+    const { DDADigimonDatabase } = await import("../data/digimon-database.js");
+    const databaseActors = await DDADigimonDatabase.getAll({ includeVirtualSpecialForms: true });
+    return databaseActors.find((actor) => {
+      if (!actor || actor.type !== "digimon") return false;
+      const actorName = normalizeName(actor.name);
+      const actorSpecies = normalizeName(actor.system?.species ?? "");
+      return (resultName && (actorName === resultName || actorSpecies === resultName)) ||
+        (resultSpecies && (actorName === resultSpecies || actorSpecies === resultSpecies));
+    }) ?? null;
+  } catch (error) {
+    console.warn("DDA | Could not resolve Jogress result from the Digimon database.", error);
+    return null;
+  }
 }
 
 function calculateJogressCost(tamerActor, recipe) {
-  const actionCost = Math.max(0, Number(recipe?.cost?.actions ?? 1));
+  const actionCost = Math.max(0, Number(recipe?.cost?.actions ?? 2));
   const peCost = Math.max(0, Number(recipe?.cost?.pe ?? 0));
   const availablePe = Number(
     tamerActor.system.resources
@@ -5990,7 +8437,7 @@ function calculateJogressCost(tamerActor, recipe) {
   };
 }
 
-async function chooseJogressOption(options, tamerActor, currentFormActor) {
+async function chooseJogressOption(options, tamerActor, currentForm) {
   if (!options.length) return null;
 
   if (options.length === 1) {
@@ -5999,7 +8446,7 @@ async function chooseJogressOption(options, tamerActor, currentFormActor) {
 
   const optionRows = options.map((option, index) => {
     const participants = option.participants.map((participant) => {
-      return `${participant.digimon?.name ?? localize("DDA.Jogress.UnknownDigimon")} (${participant.tamer?.name ?? localize("DDA.Jogress.UnknownTamer")})`;
+      return `${participant.form?.name ?? localize("DDA.Jogress.UnknownDigimon")} (${participant.tamer?.name ?? localize("DDA.Jogress.UnknownTamer")})`;
     }).join(" + ");
 
     return `
@@ -6009,70 +8456,42 @@ async function chooseJogressOption(options, tamerActor, currentFormActor) {
     `;
   }).join("");
 
-  const content = `
-    <form class="dda-roll-dialog dda-jogress-dialog">
-      <p>${formatI18n("DDA.Jogress.ChooseHint", {
-        tamer: `<strong>${escapeHtml(tamerActor.name)}</strong>`,
-        partner: `<strong>${escapeHtml(currentFormActor.name)}</strong>`
-      })}</p>
-
-      <div class="form-group">
-        <label>${localize("DDA.Jogress.Recipe")}</label>
-        <select name="optionIndex">${optionRows}</select>
+  const choice = await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-jogress-choice-dialog"],
+    window: { title: localize("DDA.Jogress.DialogTitle") },
+    content: `
+      <div class="dda-roll-dialog dda-jogress-dialog">
+        <p>${formatI18n("DDA.Jogress.ChooseHint", {
+          tamer: `<strong>${escapeHtml(tamerActor.name)}</strong>`,
+          partner: `<strong>${escapeHtml(currentForm.name)}</strong>`
+        })}</p>
+        <div class="form-group">
+          <label>${localize("DDA.Jogress.Recipe")}</label>
+          <select name="optionIndex">${optionRows}</select>
+        </div>
       </div>
-    </form>
-  `;
-
-  return new Promise((resolve) => {
-    new Dialog({
-      title: localize("DDA.Jogress.DialogTitle"),
-      content,
-      buttons: {
-        confirm: {
-          label: localize("DDA.Button.Confirm"),
-          callback: async (html) => {
-            const form = html[0].querySelector("form");
-            const optionIndex = Number(form.optionIndex.value ?? 0);
-            const option = options[optionIndex] ?? null;
-            resolve(option);
-          }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel"),
-          callback: () => resolve(null)
-        }
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm"),
+        icon: "fa-solid fa-link",
+        default: true,
+        callback: (_event, button) => Number(button.form?.elements?.optionIndex?.value ?? 0)
       },
-      default: "confirm",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        icon: "fa-solid fa-xmark",
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
-}
 
-async function confirmJogressOption(option, tamerActor, currentFormActor) {
-  const participants = option.participants.map((participant) => {
-    return `<li><strong>${escapeHtml(participant.digimon?.name ?? localize("DDA.Jogress.UnknownDigimon"))}</strong> — ${escapeHtml(participant.tamer?.name ?? localize("DDA.Jogress.UnknownTamer"))}</li>`;
-  }).join("");
-
-  const content = `
-    <div class="dda-roll-dialog dda-jogress-dialog">
-      <p>${formatI18n("DDA.Jogress.ConfirmChange", {
-        previous: `<strong>${escapeHtml(currentFormActor.name)}</strong>`,
-        next: `<strong>${escapeHtml(option.resultActor.name)}</strong>`
-      })}</p>
-
-      <ul>${participants}</ul>
-
-      <p class="muted">${localize("DDA.Jogress.SafeModeHint")}</p>
-    </div>
-  `;
-
-  return Dialog.confirm({
-    title: localize("DDA.Jogress.ConfirmTitle"),
-    content,
-    yes: () => true,
-    no: () => false,
-    defaultYes: true
-  });
+  if (choice === null || choice === false || !Number.isInteger(choice)) return null;
+  return options[choice] ?? null;
 }
 
 function getStageIndex(stageKey) {
@@ -6161,7 +8580,7 @@ ensureNode({
   stage: actor.system.stage ?? "child",
   img: actor.img ?? "",
   portraitImg: actor.system?.evolution?.portraitImg || actor.flags?.[DDA_SYSTEM_ID]?.digivicePortrait || actor.img || "",
-  tokenImg: actor.system?.evolution?.tokenImg || actor.prototypeToken?.texture?.src || actor.img || ""
+  tokenImg: actor.prototypeToken?.texture?.src || actor.system?.evolution?.tokenImg || actor.img || ""
 });
   const legacyForms = actor.system.evolutionLine?.forms ?? {};
   const primaryLegacyNodes = [];
@@ -6282,16 +8701,25 @@ export async function executeForcedEvolution(tamerActor) {
     return null;
   }
 
-  const { partnerActor, currentFormActor } = await getPartnerAndCurrentFormForSpecialAction(tamerActor);
-  if (!partnerActor || !currentFormActor) return null;
+  const { partnerActor, currentFormActor, currentForm } = await getPartnerAndCurrentFormForSpecialAction(tamerActor);
+  if (!partnerActor || !currentFormActor || !currentForm) return null;
 
-  if (isEvolutionLockedForCombat(partnerActor) || isEvolutionLockedForCombat(currentFormActor)) {
+  const activeConflict = getActiveEvolutionConflict(tamerActor, partnerActor);
+  if (activeConflict) {
+    warnEvolutionConflict(activeConflict);
+    return null;
+  }
+
+  if (isEvolutionLockedForCombat(partnerActor)) {
     ui.notifications.warn(localize("DDA.Warning.EvolutionLockedUntilCombatEnd"));
     return null;
   }
 
-  const forms = (await collectEvolutionForms(partnerActor, currentFormActor))
-    .filter((form) => isHigherStage(currentFormActor.system?.stage, form.stageKey));
+  const forms = (await collectEvolutionForms(
+    partnerActor,
+    currentForm.templateActor ?? currentFormActor
+  ))
+    .filter((form) => isHigherStage(currentForm.stageKey, form.stageKey));
 
   if (!forms.length) {
     ui.notifications.warn(localize("DDA.Warning.NoEvolutionFormsRegistered"));
@@ -6302,30 +8730,45 @@ export async function executeForcedEvolution(tamerActor) {
     title: localize("DDA.ForcedEvolution.ChooseTitle"),
     buttonLabel: localize("DDA.Button.ForceEvolution")
   });
-
   if (!selectedForm) return null;
 
-  const resultActor = await resolveActor(selectedForm.uuid);
-  if (!resultActor || resultActor.type !== "digimon") {
+  const resultForm = await resolvePartnerFormDescriptor(partnerActor, selectedForm.uuid, { form: selectedForm });
+  if (!resultForm?.templateActor || resultForm.templateActor.type !== "digimon") {
     ui.notifications.warn(localize("DDA.Warning.ChosenEvolutionFormNotDigimon"));
     return null;
   }
 
   const actionCost = 2;
-  const currentActions = Number(tamerActor.system.combat?.actions?.value ?? 0);
+  const preInitiativeCombat = getPreInitiativeEvolutionCombat(tamerActor);
+  const currentActions = Number(
+    preInitiativeCombat
+      ? tamerActor.system.combat?.actions?.max ?? 2
+      : tamerActor.system.combat?.actions?.value ?? 0
+  );
   if (currentActions < actionCost) {
     ui.notifications.warn(localize("DDA.Warning.NotEnoughActionsForForcedEvolution"));
     return null;
   }
 
-  const stageCost = getOfficialPeCostForStage(resultActor.system?.stage);
-  const tn = 18 + stageCost;
+  const normalCost = calculateEvolutionCost({
+    tamerActor,
+    previousActor: currentForm.templateActor ?? currentFormActor,
+    newActor: resultForm.templateActor,
+    edgeMethod: selectedForm.edgeMethod,
+    directLink: selectedForm.directLink
+  });
+  const normallyRequiredEvolutionPoints = Math.max(0, Number(normalCost.peCost ?? 0));
+  const tn = 18 + normallyRequiredEvolutionPoints;
   const check = await rollTamerFixedCheck(tamerActor, "willpower", "", tn, localize("DDA.ForcedEvolution.CheckTitle"));
   if (!check) return null;
 
   await tamerActor.update({
     "system.combat.actions.value": Math.max(0, currentActions - actionCost)
   });
+
+  if (preInitiativeCombat) {
+    await markPreInitiativeEvolutionDebt(tamerActor, preInitiativeCombat.id, actionCost);
+  }
 
   if (!check.success) {
     await ChatMessage.create({
@@ -6337,28 +8780,35 @@ export async function executeForcedEvolution(tamerActor) {
     return null;
   }
 
-  await fullyRestoreWounds(
-    resultActor,
-    {
-      clearTemp: true
-    }
-  );
-
   const defaultStage = partnerActor.system?.evolution?.defaultStage || getDefaultStageFromRange(tamerActor);
   const belowDefaultStage = getStageDirectlyBelow(defaultStage) || defaultStage;
-  const revertActor = check.criticalSuccess
+  const revertFormActor = check.criticalSuccess
     ? await findFormByStage(partnerActor, defaultStage, currentFormActor)
     : await findFormByStage(partnerActor, belowDefaultStage, currentFormActor);
+  const revertForm = await resolvePartnerFormDescriptor(
+    partnerActor,
+    revertFormActor?.uuid || currentForm.reference,
+    { fallbackActor: revertFormActor ?? currentFormActor }
+  );
+
+  const forcedCombat = game?.combat;
+  const forcedStartRound = forcedCombat?.started
+    ? Math.max(1, Number(forcedCombat.round ?? 1))
+    : (preInitiativeCombat ? 1 : 0);
 
   const state = {
     active: true,
     method: "forced",
-    resultUuid: resultActor.uuid,
-    resultName: resultActor.name,
-    previousFormUuid: currentFormActor.uuid,
-    previousFormName: currentFormActor.name,
-    revertUuid: revertActor?.uuid ?? currentFormActor.uuid,
-    revertName: revertActor?.name ?? currentFormActor.name,
+    combatId: forcedCombat?.id ?? preInitiativeCombat?.id ?? "",
+    startedRound: forcedStartRound,
+    expiresAfterRound: forcedStartRound > 0 ? forcedStartRound + 2 : 0,
+    resultUuid: resultForm.reference,
+    resultName: resultForm.name,
+    previousFormUuid: currentForm.reference,
+    previousFormName: currentForm.name,
+    revertUuid: revertForm?.reference ?? currentForm.reference,
+    revertName: revertForm?.name ?? currentForm.name,
+    revertStage: check.criticalSuccess ? defaultStage : belowDefaultStage,
     roundsRemaining: 3,
     checkTotal: check.total,
     checkTn: tn,
@@ -6366,32 +8816,95 @@ export async function executeForcedEvolution(tamerActor) {
     startedAt: new Date().toISOString()
   };
 
-  await tamerActor.update({
-    "system.partner.currentFormUuid": resultActor.uuid,
-    "system.partner.currentFormName": resultActor.name,
-    "system.specialEvolutions.forced.state": state
-  });
+  try {
+    await applyPersistentPartnerSpecialForm({
+      tamerActor,
+      partnerActor,
+      form: resultForm,
+      previousFormActor: currentFormActor,
+      transitionType: "forced",
+      healOnEvolution: true
+    });
 
-  await resultActor.update({
-    "system.tamer.name": tamerActor.name,
-    "system.tamer.uuid": tamerActor.uuid,
-    "system.specialForm.kind": "forced",
-    "system.specialForm.method": "forced",
-    "system.specialEvolutions.forced.active": true,
-    "system.specialEvolutions.forced.state": state
-  });
+    await tamerActor.update({
+      "system.specialEvolutions.forced.active": true,
+      "system.specialEvolutions.forced.state": state
+    });
+
+    await partnerActor.update({
+      "system.specialForm.kind": "forced",
+      "system.specialForm.method": "forced",
+      "system.specialEvolutions.forced.active": true,
+      "system.specialEvolutions.forced.state": state
+    });
+  } catch (error) {
+    console.error("DDA | Forced Evolution activation failed; attempting rollback.", error);
+    let rollbackSucceeded = false;
+    try {
+      const previousForm = await resolvePartnerFormDescriptor(partnerActor, currentForm.reference);
+      if (previousForm?.templateActor) {
+        await applyPersistentPartnerSpecialForm({
+          tamerActor,
+          partnerActor,
+          form: previousForm,
+          previousFormActor: partnerActor,
+          transitionType: "forcedRollback",
+          healOnEvolution: false
+        });
+        rollbackSucceeded = true;
+      }
+    } catch (rollbackError) {
+      console.error("DDA | Forced Evolution activation rollback also failed.", rollbackError);
+    }
+
+    if (rollbackSucceeded) {
+      const rollbackUpdates = {
+        "system.combat.actions.value": currentActions,
+        "system.specialEvolutions.forced.active": false,
+        "system.specialEvolutions.forced.state.active": false
+      };
+      if (preInitiativeCombat) {
+        rollbackUpdates["system.combat.preInitiativeEvolution.combatId"] = "";
+        rollbackUpdates["system.combat.preInitiativeEvolution.actionDebt"] = 0;
+        rollbackUpdates["system.combat.preInitiativeEvolution.pending"] = false;
+      }
+      await tamerActor.update(rollbackUpdates);
+      await partnerActor.update({
+        "system.specialForm.kind": "",
+        "system.specialForm.method": "",
+        "system.specialEvolutions.forced.active": false,
+        "system.specialEvolutions.forced.state.active": false
+      });
+      ui.notifications.error(localize("DDA.Warning.ForcedActivationFailed"));
+    } else {
+      // Preserve a recoverable state rather than discarding the only data that
+      // can safely end a partially-applied Forced Evolution.
+      await tamerActor.update({
+        "system.specialEvolutions.forced.active": true,
+        "system.specialEvolutions.forced.state": state
+      });
+      await partnerActor.update({
+        "system.specialForm.kind": "forced",
+        "system.specialForm.method": "forced",
+        "system.specialEvolutions.forced.active": true,
+        "system.specialEvolutions.forced.state": state
+      });
+      ui.notifications.error(localize("DDA.Warning.SpecialEvolutionRevertMissing"));
+    }
+    return null;
+  }
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: tamerActor }),
     content: renderSimpleDdaCard("dda-forced-evolution-card success", localize("DDA.ForcedEvolution.Title"), [
-      formatI18n("DDA.ForcedEvolution.Success", { previous: escapeHtml(currentFormActor.name), next: escapeHtml(resultActor.name), rounds: 3 }),
+      formatI18n("DDA.ForcedEvolution.Success", { previous: escapeHtml(currentForm.name), next: escapeHtml(resultForm.name), rounds: 3 }),
       formatI18n("DDA.ForcedEvolution.RevertHint", { form: escapeHtml(state.revertName) })
     ])
   });
 
-  resultActor.sheet?.render(true);
+  partnerActor.sheet?.render(true);
   tamerActor.sheet?.render(false);
-  return resultActor;
+  return partnerActor;
 }
 
 export async function endForcedEvolution(tamerActor) {
@@ -6401,34 +8914,561 @@ export async function endForcedEvolution(tamerActor) {
     return null;
   }
 
-  const resultActor = await resolveActor(state.resultUuid);
-  const revertActor = await resolveActor(state.revertUuid) ?? await resolveActor(state.previousFormUuid);
+  const partnerUuid = String(tamerActor.system?.partner?.uuid ?? "");
+  const partnerActor = await resolveActor(partnerUuid);
+  if (!partnerActor) return null;
+
+  const wantedStage = String(state.revertStage ?? "").trim();
+  let revertForm = await resolvePartnerFormDescriptor(
+    partnerActor,
+    state.revertUuid || state.previousFormUuid
+  );
+
+  if (wantedStage && revertForm?.stageKey !== wantedStage) {
+    const stageActor = await findStrictFormByStage(partnerActor, wantedStage);
+    revertForm = stageActor
+      ? await resolvePartnerFormDescriptor(partnerActor, stageActor.uuid, { fallbackActor: stageActor })
+      : null;
+  }
+
+  if (!revertForm?.templateActor) {
+    const safeFallback = await resolvePartnerFormDescriptor(partnerActor, state.previousFormUuid);
+    if (safeFallback?.templateActor) {
+      revertForm = safeFallback;
+      ui.notifications.warn(localize("DDA.Warning.SpecialEvolutionRevertFallback"));
+    }
+  }
+
+  if (!revertForm?.templateActor) {
+    ui.notifications.error(localize("DDA.Warning.SpecialEvolutionRevertMissing"));
+    return null;
+  }
+
+  await applyPersistentPartnerSpecialForm({
+    tamerActor,
+    partnerActor,
+    form: revertForm,
+    previousFormActor: partnerActor,
+    transitionType: "forcedRevert",
+    healOnEvolution: false
+  });
 
   await tamerActor.update({
-    "system.partner.currentFormUuid": revertActor?.uuid ?? state.previousFormUuid ?? "",
-    "system.partner.currentFormName": revertActor?.name ?? state.previousFormName ?? "",
+    "system.specialEvolutions.forced.active": false,
     "system.specialEvolutions.forced.state.active": false
   });
 
-  if (resultActor) {
-    await resultActor.update({
-      "system.specialEvolutions.forced.active": false,
-      "system.specialEvolutions.forced.state.active": false,
-      "system.specialForm.kind": "",
-      "system.specialForm.method": ""
-    });
-  }
+  await partnerActor.update({
+    "system.specialEvolutions.forced.active": false,
+    "system.specialEvolutions.forced.state.active": false,
+    "system.specialForm.kind": "",
+    "system.specialForm.method": ""
+  });
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: tamerActor }),
     content: renderSimpleDdaCard("dda-forced-evolution-card", localize("DDA.ForcedEvolution.EndTitle"), [
-      formatI18n("DDA.ForcedEvolution.Ended", { form: escapeHtml(revertActor?.name ?? state.previousFormName ?? "") })
+      formatI18n("DDA.ForcedEvolution.Ended", { form: escapeHtml(revertForm?.name ?? state.previousFormName ?? "") })
     ])
   });
 
   tamerActor.sheet?.render(false);
-  resultActor?.sheet?.render(false);
-  return revertActor;
+  partnerActor.sheet?.render(false);
+  return partnerActor;
+}
+
+function normalizeBlastAttackTag(value = "") {
+  if (value && typeof value === "object") {
+    value =
+      value.tag ??
+      value.key ??
+      value.value ??
+      value.id ??
+      value.slug ??
+      value.name ??
+      value.label ??
+      "";
+  }
+
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^\[/, "")
+    .replace(/\]$/, "");
+}
+
+function blastAttackHasTag(item, wantedTag) {
+  const wanted = normalizeBlastAttackTag(wantedTag);
+  const tags = [
+    ...(item?.system?.qualityTags ?? []),
+    ...(item?.system?.tags ?? []),
+    ...(item?.system?.baseTags?.tags ?? [])
+  ].map(normalizeBlastAttackTag);
+
+  return tags.includes(wanted);
+}
+
+function getTemplateAttackEntries(templateActor) {
+  const items = Array.isArray(templateActor?.items)
+    ? templateActor.items
+    : Array.from(templateActor?.items ?? []);
+
+  return items
+    .filter((item) => {
+      if (item?.type !== "attack" || Boolean(item.system?.isSignature)) return false;
+      // Blast treats the chosen Attack as a Signature Move. [AMMO] explicitly
+      // cannot apply to Signature Moves, so it is not a legal Blast Attack.
+      if (blastAttackHasTag(item, "ammo")) return false;
+      return true;
+    })
+    .map((item) => {
+      const sourceItemUuid = String(
+        item.flags?.[DDA_SYSTEM_ID]?.sourceItemUuid ||
+        item.flags?.dda?.sourceItemUuid ||
+        item.uuid ||
+        item._id ||
+        ""
+      ).trim();
+      return {
+        name: String(item.name ?? localize("DDA.Item.Attack")),
+        sourceItemUuid,
+        fingerprint: getSnapshotItemFingerprint(
+          typeof item.toObject === "function" ? item.toObject() : item
+        )
+      };
+    });
+}
+
+async function chooseBlastAttack(templateActor) {
+  const attacks = getTemplateAttackEntries(templateActor);
+  if (!attacks.length) {
+    ui.notifications.warn(localize("DDA.Warning.NoBlastEvolutionAttacks"));
+    return null;
+  }
+
+  const optionHtml = attacks.map((attack, index) => (
+    `<option value="${index}">${escapeHtml(attack.name)}</option>`
+  )).join("");
+
+  const choice = await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-blast-evolution-attack-dialog"],
+    window: { title: localize("DDA.BlastEvolution.ChooseTitle") },
+    content: `
+      <div class="dda-roll-dialog">
+        <div class="form-group">
+          <label>${localize("DDA.Item.Attack")}</label>
+          <select name="blastAttack">${optionHtml}</select>
+        </div>
+        <p class="muted">${localize("DDA.BlastEvolution.Mode.attack")}</p>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Confirm"),
+        icon: "fa-solid fa-check",
+        default: true,
+        callback: (_event, button) => Number(button.form?.elements?.blastAttack?.value ?? 0)
+      },
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        icon: "fa-solid fa-xmark",
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
+  });
+
+  if (choice === null || choice === false || !Number.isInteger(choice)) return null;
+  return attacks[choice] ?? null;
+}
+
+function findAppliedBlastAttack(partnerActor, attackChoice) {
+  if (!partnerActor || !attackChoice) return null;
+  return Array.from(partnerActor.items ?? []).find((item) => {
+    if (item.type !== "attack" || item.system?.isSignature) return false;
+    const sourceItemUuid = String(
+      item.flags?.[DDA_SYSTEM_ID]?.sourceItemUuid ||
+      item.flags?.dda?.sourceItemUuid ||
+      ""
+    ).trim();
+    if (attackChoice.sourceItemUuid && sourceItemUuid === attackChoice.sourceItemUuid) return true;
+    return getSnapshotItemFingerprint(item.toObject()) === attackChoice.fingerprint;
+  }) ?? null;
+}
+
+async function collectBlastEvolutionForms(tamerActor, partnerActor, currentFormActor, currentForm) {
+  const requireDirectLink = Boolean(
+    getDDASettingSafe("requireDirectEvolutionLink", true)
+  );
+
+  const forms = (await collectEvolutionForms(
+    partnerActor,
+    currentForm.templateActor ?? currentFormActor
+  ))
+    .filter((form) => isHigherStage(currentForm.stageKey, form.stageKey))
+    // Blast may reach a higher form that is not yet naturally accessible, but
+    // it still has to be a form this Digimon can evolve into. When the world
+    // requires direct evolution links, do not expose unrelated higher branches
+    // merely because showLockedEvolutions makes them visible in the graph.
+    .filter((form) => !requireDirectLink || Boolean(form.directLink));
+
+  return forms.filter((form) => {
+    const unlockData = getEvolutionUnlockDataForTamer(
+      tamerActor,
+      form,
+      currentForm.templateActor ?? currentFormActor
+    );
+    return !unlockData.allowed;
+  });
+}
+
+async function validateBlastEvolutionBase(tamerActor, partnerActor, currentFormActor, currentForm) {
+  const combat = game?.combat;
+  if (!combat?.started) {
+    return {
+      ok: false,
+      warning: localize("DDA.Warning.BlastEvolutionRequiresCombat")
+    };
+  }
+  const activeConflict = getActiveEvolutionConflict(tamerActor, partnerActor);
+  if (activeConflict) {
+    return {
+      ok: false,
+      warning: formatI18n("DDA.Warning.SpecialEvolutionConflict", {
+        evolution: getEvolutionConflictLabel(activeConflict)
+      })
+    };
+  }
+
+  const blastUses = Number(tamerActor.system.blastEvolution?.uses?.value ?? 0);
+  if (blastUses <= 0) {
+    return { ok: false, warning: localize("DDA.Warning.NoBlastEvolutionUses") };
+  }
+
+  if (isEvolutionLockedForCombat(partnerActor)) {
+    return { ok: false, warning: localize("DDA.Warning.EvolutionLockedUntilCombatEnd") };
+  }
+
+  const battery = partnerActor.system?.resources?.battery ?? {};
+  const batteryValue = Number(battery.value ?? 0);
+  const batteryMax = Number(battery.max ?? 0);
+  if (batteryMax <= 0 || batteryValue < batteryMax) {
+    return {
+      ok: false,
+      warning: formatI18n("DDA.Warning.BlastRequiresFullBattery", { current: batteryValue, max: batteryMax })
+    };
+  }
+
+  const forms = await collectBlastEvolutionForms(tamerActor, partnerActor, currentFormActor, currentForm);
+  if (!forms.length) {
+    return { ok: false, warning: localize("DDA.Warning.NoBlastEvolutionForms") };
+  }
+
+  return { ok: true, blastUses, batteryValue, batteryMax, forms };
+}
+
+async function beginBlastEvolution({
+  tamerActor,
+  partnerActor,
+  currentFormActor,
+  currentForm,
+  resultForm,
+  mode,
+  batteryValue,
+  blastUses,
+  tamerActionCost = 1,
+  digimonActionCost = 0,
+  intercedeRequestId = "",
+  beforeTransform = null
+}) {
+  const tamerActions = Number(tamerActor.system.combat?.actions?.value ?? 0);
+  const digimonActions = Number(partnerActor.system.combat?.actions?.value ?? 0);
+  if (tamerActions < tamerActionCost || digimonActions < digimonActionCost) {
+    ui.notifications.warn(localize("DDA.Warning.NotEnoughActionsForBlastEvolution"));
+    return null;
+  }
+
+  const combatId = String(game?.combat?.id ?? "");
+  const previousWounds = partnerActor.system?.miscStats?.wounds ?? {};
+  const state = {
+    active: true,
+    method: "blast",
+    mode,
+    combatId,
+    resultUuid: resultForm.reference,
+    resultName: resultForm.name,
+    resultStage: resultForm.stageKey,
+    previousFormUuid: currentForm.reference,
+    previousFormName: currentForm.name,
+    previousStage: currentForm.stageKey,
+    previousWoundsValue: Number(previousWounds.value ?? previousWounds.max ?? 0),
+    previousTemporaryWounds: Number(previousWounds.temp?.value ?? 0),
+    previousDefeated: Boolean(partnerActor.system?.combat?.defeated),
+    previousBatteryValue: Number(partnerActor.system?.resources?.battery?.value ?? batteryValue),
+    previousTamerActions: tamerActions,
+    previousDigimonActions: digimonActions,
+    tamerActionCost: Math.max(0, Number(tamerActionCost ?? 0)),
+    digimonActionCost: Math.max(0, Number(digimonActionCost ?? 0)),
+    batterySpent: batteryValue,
+    checkTotal: 0,
+    checkTn: 0,
+    outcome: "",
+    revertedToUuid: "",
+    revertedToName: "",
+    intercedeRequestId,
+    startedAt: new Date().toISOString()
+  };
+
+  await tamerActor.update({
+    "system.combat.actions.value": Math.max(0, tamerActions - tamerActionCost),
+    "system.blastEvolution.uses.value": Math.max(0, blastUses - 1),
+    "system.specialEvolutions.blast.active": true,
+    "system.specialEvolutions.blast.state": state
+  });
+
+  if (digimonActionCost > 0) {
+    await partnerActor.update({
+      "system.combat.actions.value": Math.max(0, digimonActions - digimonActionCost)
+    });
+  }
+
+  // Intercede may need to consume a Quality (for example Sprint) that belongs
+  // to the current form. Do it only after all Blast resources have been
+  // validated/paid, but before the form template replaces Embedded Items.
+  if (typeof beforeTransform === "function") {
+    try {
+      await beforeTransform({ tamerActor, partnerActor, state });
+    } catch (error) {
+      console.error("DDA | Blast Evolution pre-transform step failed.", error);
+      await tamerActor.update({
+        "system.combat.actions.value": tamerActions,
+        "system.blastEvolution.uses.value": blastUses,
+        "system.specialEvolutions.blast.active": false,
+        "system.specialEvolutions.blast.state.active": false
+      });
+      if (digimonActionCost > 0) {
+        await partnerActor.update({
+          "system.combat.actions.value": digimonActions,
+          "system.specialEvolutions.blast.active": false,
+          "system.specialEvolutions.blast.state.active": false
+        });
+      }
+      return null;
+    }
+  }
+
+  try {
+    await applyPersistentPartnerSpecialForm({
+      tamerActor,
+      partnerActor,
+      form: resultForm,
+      previousFormActor: currentFormActor,
+      transitionType: "blast",
+      healOnEvolution: mode === "attack"
+    });
+
+    const postEvolutionWounds = partnerActor.system?.miscStats?.wounds ?? {};
+    const postEvolutionMax = Math.max(0, Number(postEvolutionWounds.max ?? postEvolutionWounds.value ?? 0));
+    const woundValue = mode === "intercede"
+      ? Math.min(postEvolutionMax || batteryValue, Math.max(0, batteryValue))
+      : Number(postEvolutionWounds.value ?? postEvolutionMax);
+
+    await partnerActor.update({
+      // Blast Attack is resolved immediately through the normal attack engine.
+      // Keep the captured Battery visible during that atomic resolution so every
+      // Signature-aware Quality reads the same value; markAttackUsed consumes it.
+      "system.resources.battery.value": mode === "attack" ? batteryValue : 0,
+      ...(mode === "intercede" ? {
+        "system.miscStats.wounds.value": woundValue,
+        "system.miscStats.wounds.temp.value": 0,
+        "system.combat.defeated": false
+      } : {}),
+      "system.specialForm.kind": "blast",
+      "system.specialForm.method": "blast",
+      "system.specialEvolutions.blast.active": true,
+      "system.specialEvolutions.blast.state": state
+    });
+  } catch (error) {
+    console.error("DDA | Blast Evolution activation failed; attempting rollback.", error);
+    try {
+      await rollbackBlastEvolution(tamerActor, {
+        batteryValue,
+        refundTamerAction: true,
+        refundDigimonAction: true,
+        refundUse: true
+      });
+      ui.notifications.error(localize("DDA.Warning.BlastActivationFailed"));
+    } catch (rollbackError) {
+      console.error("DDA | Blast Evolution activation rollback also failed.", rollbackError);
+      ui.notifications.error(localize("DDA.Warning.SpecialEvolutionRevertMissing"));
+    }
+    return null;
+  }
+
+  return state;
+}
+
+async function applyBlastCombatPenalty(partnerActor, combatId, { lockEvolution = false } = {}) {
+  if (!partnerActor) return;
+
+  const batteryMax = Math.max(0, Number(partnerActor.system?.resources?.battery?.max ?? 0));
+  const updates = {};
+
+  if (combatId && batteryMax > 0) {
+    const reducedMax = Math.max(0, batteryMax - 1);
+    updates["system.resources.battery.max"] = reducedMax;
+    updates["system.resources.battery.value"] = Math.min(
+      Number(partnerActor.system?.resources?.battery?.value ?? 0),
+      reducedMax
+    );
+    updates["system.status.batteryMaxReducedUntilCombatEnd"] = true;
+    updates["system.status.blastEvolutionCombatPenalty"] = {
+      active: true,
+      combatId,
+      previousBatteryMax: batteryMax,
+      reducedBatteryMax: reducedMax
+    };
+  }
+
+  if (combatId) {
+    updates["system.status.blastEvolutionCombatId"] = combatId;
+  }
+
+  if (combatId && lockEvolution) {
+    updates["system.status.evolutionLockedUntilCombatEnd"] = true;
+  }
+
+  if (Object.keys(updates).length) await partnerActor.update(updates);
+}
+
+async function finishBlastEvolution(tamerActor, { check = null } = {}) {
+  const state = foundry.utils.deepClone(tamerActor?.system?.specialEvolutions?.blast?.state ?? {});
+  if (!state.active) return null;
+
+  const partnerActor = await resolveActor(tamerActor.system?.partner?.uuid);
+  if (!partnerActor) return null;
+
+  const tn = 12 + getStageValue(state.resultStage || partnerActor.system?.stage);
+  const rolledCheck = check ?? await rollTamerCheck(
+    tamerActor,
+    "",
+    {
+      attributeKeyOverride: "willpower",
+      fixedTn: tn,
+      title: localize("DDA.BlastEvolution.AfterCheckTitle")
+    }
+  );
+
+  const resolvedCheck = rolledCheck?.outcome
+    ? {
+        ...rolledCheck,
+        criticalSuccess: rolledCheck.outcome.key === "criticalSuccess",
+        criticalFailure: rolledCheck.outcome.key === "criticalFailure",
+        success: ["success", "criticalSuccess"].includes(rolledCheck.outcome.key),
+        outcome: rolledCheck.outcome.key,
+        label: rolledCheck.outcome.label
+      }
+    : rolledCheck;
+
+  if (!resolvedCheck) return null;
+
+  let revertForm = null;
+  let lockEvolution = false;
+  let digitama = false;
+  let requiredRevertStage = "";
+
+  if (resolvedCheck.criticalFailure) {
+    requiredRevertStage = "baby1";
+    lockEvolution = true;
+    digitama = true;
+  } else if (resolvedCheck.criticalSuccess) {
+    revertForm = await resolvePartnerFormDescriptor(partnerActor, state.previousFormUuid);
+  } else if (resolvedCheck.success) {
+    requiredRevertStage = String(
+      partnerActor.system?.evolution?.defaultStage || getDefaultStageFromRange(tamerActor)
+    ).trim();
+  } else {
+    const defaultStage = partnerActor.system?.evolution?.defaultStage || getDefaultStageFromRange(tamerActor);
+    requiredRevertStage = getStageDirectlyBelow(defaultStage) || defaultStage;
+    lockEvolution = true;
+  }
+
+  if (!revertForm?.templateActor && requiredRevertStage) {
+    const revertActor = await findStrictFormByStage(partnerActor, requiredRevertStage);
+    if (revertActor) {
+      revertForm = await resolvePartnerFormDescriptor(
+        partnerActor,
+        revertActor.uuid,
+        { fallbackActor: revertActor }
+      );
+    }
+  }
+
+  if (!revertForm?.templateActor) {
+    const safeFallback = await resolvePartnerFormDescriptor(partnerActor, state.previousFormUuid);
+    if (safeFallback?.templateActor) {
+      revertForm = safeFallback;
+      ui.notifications.warn(localize("DDA.Warning.SpecialEvolutionRevertFallback"));
+    }
+  }
+
+  if (!revertForm?.templateActor) {
+    ui.notifications.error(localize("DDA.Warning.SpecialEvolutionRevertMissing"));
+    return null;
+  }
+
+  await applyPersistentPartnerSpecialForm({
+    tamerActor,
+    partnerActor,
+    form: revertForm,
+    previousFormActor: partnerActor,
+    transitionType: "blastRevert",
+    healOnEvolution: false
+  });
+
+  await applyBlastCombatPenalty(partnerActor, state.combatId, { lockEvolution });
+
+  const finalState = {
+    ...state,
+    active: false,
+    checkTotal: resolvedCheck.total,
+    checkTn: tn,
+    outcome: resolvedCheck.outcome,
+    revertedToUuid: revertForm?.reference ?? partnerActor.system?.evolution?.currentFormUuid ?? partnerActor.uuid,
+    revertedToName: revertForm?.name ?? partnerActor.system?.species ?? partnerActor.name,
+    endedAt: new Date().toISOString()
+  };
+
+  await tamerActor.update({
+    "system.specialEvolutions.blast.active": false,
+    "system.specialEvolutions.blast.state": finalState
+  });
+
+  await partnerActor.update({
+    "system.specialEvolutions.blast.active": false,
+    "system.specialEvolutions.blast.state": finalState,
+    "system.specialForm.kind": "",
+    "system.specialForm.method": "",
+    ...(digitama ? {
+      "system.combat.digitama": true,
+      "system.combat.defeated": true
+    } : {})
+  });
+
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: tamerActor }),
+    content: renderSimpleDdaCard(`dda-blast-evolution-card ${resolvedCheck.outcome}`, localize("DDA.BlastEvolution.Title"), [
+      formatI18n("DDA.BlastEvolution.CheckResult", { total: resolvedCheck.total, tn, result: resolvedCheck.label }),
+      formatI18n("DDA.BlastEvolution.RevertedTo", { form: escapeHtml(finalState.revertedToName) })
+    ])
+  });
+
+  tamerActor.sheet?.render(false);
+  partnerActor.sheet?.render(false);
+  return { partnerActor, check: resolvedCheck, state: finalState };
 }
 
 export async function executeBlastEvolution(tamerActor) {
@@ -6442,148 +9482,271 @@ export async function executeBlastEvolution(tamerActor) {
     return null;
   }
 
-  const { partnerActor, currentFormActor } = await getPartnerAndCurrentFormForSpecialAction(tamerActor);
-  if (!partnerActor || !currentFormActor) return null;
+  const { partnerActor, currentFormActor, currentForm } = await getPartnerAndCurrentFormForSpecialAction(tamerActor);
+  if (!partnerActor || !currentFormActor || !currentForm) return null;
 
-  const blastUses = Number(tamerActor.system.blastEvolution?.uses?.value ?? 0);
-  if (blastUses <= 0) {
-    ui.notifications.warn(localize("DDA.Warning.NoBlastEvolutionUses"));
+  const validation = await validateBlastEvolutionBase(tamerActor, partnerActor, currentFormActor, currentForm);
+  if (!validation.ok) {
+    ui.notifications.warn(validation.warning);
     return null;
   }
 
-  const battery = currentFormActor.system?.resources?.battery ?? partnerActor.system?.resources?.battery ?? {};
-  const batteryValue = Number(battery.value ?? 0);
-  const batteryMax = Number(battery.max ?? 0);
-
-  if (batteryMax <= 0 || batteryValue < batteryMax) {
-    ui.notifications.warn(formatI18n("DDA.Warning.BlastRequiresFullBattery", { current: batteryValue, max: batteryMax }));
-    return null;
-  }
-
-  const forms = (await collectEvolutionForms(partnerActor, currentFormActor))
-    .filter((form) => isHigherStage(currentFormActor.system?.stage, form.stageKey));
-
-  if (!forms.length) {
-    ui.notifications.warn(localize("DDA.Warning.NoBlastEvolutionForms"));
-    return null;
-  }
-
-  const selectedForm = await chooseForcedOrBlastForm(forms, {
+  const selectedForm = await chooseForcedOrBlastForm(validation.forms, {
     title: localize("DDA.BlastEvolution.ChooseTitle"),
-    buttonLabel: localize("DDA.Button.BlastEvolution"),
-    includeMode: true
+    buttonLabel: localize("DDA.Button.BlastEvolution")
   });
-
   if (!selectedForm) return null;
 
-  const resultActor = await resolveActor(selectedForm.uuid);
-  if (!resultActor || resultActor.type !== "digimon") {
+  const resultForm = await resolvePartnerFormDescriptor(partnerActor, selectedForm.uuid, { form: selectedForm });
+  if (!resultForm?.templateActor || resultForm.templateActor.type !== "digimon") {
     ui.notifications.warn(localize("DDA.Warning.ChosenEvolutionFormNotDigimon"));
     return null;
   }
 
-  const mode = selectedForm.blastMode || "attack";
-  const tamerActionCost = 1;
-  const digimonActionCost = mode === "intercede" ? 1 : 2;
-  const tamerActions = Number(tamerActor.system.combat?.actions?.value ?? 0);
-  const digimonActions = Number(currentFormActor.system.combat?.actions?.value ?? partnerActor.system.combat?.actions?.value ?? 0);
+  const attackChoice = await chooseBlastAttack(resultForm.templateActor);
+  if (!attackChoice) return null;
 
-  if (tamerActions < tamerActionCost || digimonActions < digimonActionCost) {
+  const tamerActions = Number(tamerActor.system.combat?.actions?.value ?? 0);
+  const digimonActions = Number(partnerActor.system.combat?.actions?.value ?? 0);
+  if (tamerActions < 1 || digimonActions < 2) {
     ui.notifications.warn(localize("DDA.Warning.NotEnoughActionsForBlastEvolution"));
     return null;
   }
 
-  const blastStageSv = getStageValue(resultActor.system?.stage);
-  const tn = 12 + blastStageSv;
-  const check = await rollTamerFixedCheck(tamerActor, "willpower", "", tn, localize("DDA.BlastEvolution.AfterCheckTitle"));
-  if (!check) return null;
-
-  await tamerActor.update({
-    "system.combat.actions.value": Math.max(0, tamerActions - tamerActionCost),
-    "system.blastEvolution.uses.value": Math.max(0, blastUses - 1),
-    "system.partner.currentFormUuid": resultActor.uuid,
-    "system.partner.currentFormName": resultActor.name
+  const state = await beginBlastEvolution({
+    tamerActor,
+    partnerActor,
+    currentFormActor,
+    currentForm,
+    resultForm,
+    mode: "attack",
+    batteryValue: validation.batteryValue,
+    blastUses: validation.blastUses,
+    tamerActionCost: 1,
+    digimonActionCost: 0
   });
+  if (!state) return null;
 
-  const resultWounds = resultActor.system.miscStats?.wounds ?? {};
-  const resultWoundMax = Number(resultWounds.max ?? resultWounds.value ?? 0);
-  const resultWoundValue = mode === "intercede" ? Math.min(resultWoundMax, Math.max(1, batteryValue)) : resultWoundMax;
-
-  await currentFormActor.update({
-    "system.resources.battery.value": 0,
-    "system.combat.actions.value": Math.max(0, digimonActions - digimonActionCost)
-  });
-
-  await resultActor.update({
-    "system.tamer.name":
-      tamerActor.name,
-
-    "system.tamer.uuid":
-      tamerActor.uuid,
-
-    "system.resources.battery.value":
-      0,
-
-    "system.miscStats.wounds.value":
-      resultWoundValue,
-
-    "system.miscStats.wounds.temp.value":
-      0,
-
-    "system.combat.defeated":
-      false,
-
-    "system.specialForm.kind":
-      "blast",
-
-    "system.specialForm.method":
-      "blast"
-  });
-
-  const revertData = await resolveBlastReversion({ tamerActor, partnerActor, currentFormActor, resultActor, check });
-  const revertActor = revertData.actor;
-
-  if (revertActor) {
-    const revertBatteryMax = Number(revertActor.system.resources?.battery?.max ?? 0);
-    const nextBatteryMax = Math.max(0, revertBatteryMax - 1);
-    await revertActor.update({
-      "system.resources.battery.max": nextBatteryMax,
-      "system.resources.battery.value": Math.min(Number(revertActor.system.resources?.battery?.value ?? 0), nextBatteryMax),
-      "system.status.batteryMaxReducedUntilCombatEnd": true,
-      ...(revertData.lockEvolution ? { "system.status.evolutionLockedUntilCombatEnd": true } : {})
+  const appliedAttack = findAppliedBlastAttack(partnerActor, attackChoice);
+  if (!appliedAttack) {
+    await rollbackBlastEvolution(tamerActor, {
+      batteryValue: validation.batteryValue,
+      refundTamerAction: true,
+      refundDigimonAction: true,
+      refundUse: true
     });
+    ui.notifications.warn(localize("DDA.Warning.AttackerOrAttackNotFound"));
+    return null;
   }
 
-  await tamerActor.update({
-    "system.partner.currentFormUuid": revertActor?.uuid ?? partnerActor.uuid,
-    "system.partner.currentFormName": revertActor?.name ?? partnerActor.name,
-    "system.specialEvolutions.blast.state": {
-      active: false,
-      lastResultUuid: resultActor.uuid,
-      lastResultName: resultActor.name,
-      mode,
-      checkTotal: check.total,
-      checkTn: tn,
-      outcome: check.outcome,
-      revertedToUuid: revertActor?.uuid ?? partnerActor.uuid,
-      revertedToName: revertActor?.name ?? partnerActor.name,
-      startedAt: new Date().toISOString()
-    }
+  const { rollAttack } = await import("../rolls/attack-roll.js");
+  const attackResult = await rollAttack(partnerActor, appliedAttack, {
+    actionCostOverride: 2,
+    ignoreActionCostModifiers: true,
+    forceSignature: true,
+    signatureBatteryOverride: validation.batteryValue,
+    blastEvolution: true
   });
+
+  if (!attackResult) {
+    await rollbackBlastEvolution(tamerActor, {
+      batteryValue: validation.batteryValue,
+      refundTamerAction: true,
+      refundDigimonAction: true,
+      refundUse: true
+    });
+    return null;
+  }
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: tamerActor }),
-    content: renderSimpleDdaCard(`dda-blast-evolution-card ${check.outcome}`, localize("DDA.BlastEvolution.Title"), [
-      formatI18n("DDA.BlastEvolution.Executed", { previous: escapeHtml(currentFormActor.name), next: escapeHtml(resultActor.name), mode: localize(`DDA.BlastEvolution.Mode.${mode}`) }),
-      formatI18n("DDA.BlastEvolution.CheckResult", { total: check.total, tn, result: check.label }),
-      formatI18n("DDA.BlastEvolution.RevertedTo", { form: escapeHtml(revertActor?.name ?? partnerActor.name) })
+    content: renderSimpleDdaCard("dda-blast-evolution-card", localize("DDA.BlastEvolution.Title"), [
+      formatI18n("DDA.BlastEvolution.Executed", {
+        previous: escapeHtml(currentForm.name),
+        next: escapeHtml(resultForm.name),
+        mode: localize("DDA.BlastEvolution.Mode.attack")
+      })
     ])
   });
 
-  tamerActor.sheet?.render(false);
-  resultActor.sheet?.render(true);
-  revertActor?.sheet?.render(false);
-  return resultActor;
+  await finishBlastEvolution(tamerActor);
+  return attackResult;
+}
+
+async function rollbackBlastEvolution(tamerActor, {
+  batteryValue = 0,
+  refundTamerAction = false,
+  refundDigimonAction = false,
+  refundUse = false
+} = {}) {
+  const state = foundry.utils.deepClone(tamerActor?.system?.specialEvolutions?.blast?.state ?? {});
+  if (!state.active) return;
+
+  const partnerActor = await resolveActor(tamerActor.system?.partner?.uuid);
+  if (!partnerActor) return;
+
+  const previousForm = await resolvePartnerFormDescriptor(partnerActor, state.previousFormUuid, { fallbackActor: partnerActor });
+  if (previousForm?.templateActor) {
+    await applyPersistentPartnerSpecialForm({
+      tamerActor,
+      partnerActor,
+      form: previousForm,
+      previousFormActor: partnerActor,
+      transitionType: "blastRollback",
+      healOnEvolution: false
+    });
+  }
+
+  const updates = {
+    "system.specialEvolutions.blast.active": false,
+    "system.specialEvolutions.blast.state.active": false
+  };
+  if (refundTamerAction) {
+    const max = Number(tamerActor.system.combat?.actions?.max ?? 2);
+    const previous = Number(state.previousTamerActions ?? (Number(tamerActor.system.combat?.actions?.value ?? 0) + Number(state.tamerActionCost ?? 1)));
+    updates["system.combat.actions.value"] = Math.min(max, Math.max(0, previous));
+  }
+  if (refundUse) {
+    const max = Number(tamerActor.system.blastEvolution?.uses?.max ?? 1);
+    updates["system.blastEvolution.uses.value"] = Math.min(max, Number(tamerActor.system.blastEvolution?.uses?.value ?? 0) + 1);
+  }
+  await tamerActor.update(updates);
+  await partnerActor.update({
+    ...(refundDigimonAction ? {
+      "system.combat.actions.value": Math.min(
+        Number(partnerActor.system.combat?.actions?.max ?? 2),
+        Math.max(0, Number(state.previousDigimonActions ?? partnerActor.system.combat?.actions?.value ?? 0))
+      )
+    } : {}),
+    "system.resources.battery.value": Math.min(
+      Number(partnerActor.system.resources?.battery?.max ?? batteryValue),
+      Number(state.previousBatteryValue ?? batteryValue)
+    ),
+    "system.miscStats.wounds.value": Number(state.previousWoundsValue ?? partnerActor.system?.miscStats?.wounds?.value ?? 0),
+    "system.miscStats.wounds.temp.value": Number(state.previousTemporaryWounds ?? 0),
+    "system.combat.defeated": Boolean(state.previousDefeated),
+    "system.specialEvolutions.blast.active": false,
+    "system.specialEvolutions.blast.state.active": false,
+    "system.specialForm.kind": "",
+    "system.specialForm.method": ""
+  });
+}
+
+async function resolveLinkedTamerForBlastPartner(partnerActor) {
+  const directUuid = String(partnerActor?.system?.tamer?.uuid ?? "").trim();
+  if (directUuid) {
+    const direct = await resolveActor(directUuid);
+    if (direct?.type === "character") return direct;
+  }
+
+  return Array.from(game?.actors ?? []).find((actor) => {
+    return actor?.type === "character" && String(actor.system?.partner?.uuid ?? "") === String(partnerActor?.uuid ?? "");
+  }) ?? null;
+}
+
+export async function getBlastIntercedeEligibility(partnerActor, { digimonActionCost = 2 } = {}) {
+  if (!partnerActor || partnerActor.type !== "digimon" || !Boolean(getDDASettingSafe("enableBlastEvolution", true))) {
+    return { eligible: false };
+  }
+
+  const tamerActor = await resolveLinkedTamerForBlastPartner(partnerActor);
+  if (!tamerActor) return { eligible: false };
+
+  const current = await getPartnerAndCurrentFormForSpecialAction(tamerActor);
+  if (!current.partnerActor || current.partnerActor.uuid !== partnerActor.uuid) return { eligible: false };
+
+  const validation = await validateBlastEvolutionBase(
+    tamerActor,
+    current.partnerActor,
+    current.currentFormActor,
+    current.currentForm
+  );
+  if (!validation.ok) return { eligible: false, warning: validation.warning };
+
+  const tamerActions = Number(tamerActor.system.combat?.actions?.value ?? 0);
+  const digimonActions = Number(partnerActor.system.combat?.actions?.value ?? 0);
+  const requiredDigimonActions = Math.max(1, Number(digimonActionCost ?? 2));
+  if (tamerActions < 1 || digimonActions < requiredDigimonActions) return { eligible: false };
+
+  return {
+    eligible: true,
+    tamerUuid: tamerActor.uuid,
+    tamerName: tamerActor.name,
+    formCount: validation.forms.length
+  };
+}
+
+export async function prepareBlastIntercede({
+  partnerActor,
+  request = null,
+  beforeTransform = null,
+  digimonActionCost = 2
+} = {}) {
+  const tamerActor = await resolveLinkedTamerForBlastPartner(partnerActor);
+  if (!tamerActor) return null;
+
+  const { partnerActor: persistentPartner, currentFormActor, currentForm } = await getPartnerAndCurrentFormForSpecialAction(tamerActor);
+  if (!persistentPartner || !currentFormActor || !currentForm) return null;
+
+  const validation = await validateBlastEvolutionBase(tamerActor, persistentPartner, currentFormActor, currentForm);
+  if (!validation.ok) {
+    ui.notifications.warn(validation.warning);
+    return null;
+  }
+
+  const selectedForm = await chooseForcedOrBlastForm(validation.forms, {
+    title: localize("DDA.BlastEvolution.ChooseTitle"),
+    buttonLabel: localize("DDA.BlastEvolution.Mode.intercede")
+  });
+  if (!selectedForm) return null;
+
+  const resultForm = await resolvePartnerFormDescriptor(persistentPartner, selectedForm.uuid, { form: selectedForm });
+  if (!resultForm?.templateActor) return null;
+
+  const state = await beginBlastEvolution({
+    tamerActor,
+    partnerActor: persistentPartner,
+    currentFormActor,
+    currentForm,
+    resultForm,
+    mode: "intercede",
+    batteryValue: validation.batteryValue,
+    blastUses: validation.blastUses,
+    tamerActionCost: 1,
+    digimonActionCost: Math.max(1, Number(digimonActionCost ?? 2)),
+    intercedeRequestId: String(request?.requestId ?? ""),
+    beforeTransform
+  });
+  if (!state) return null;
+
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: tamerActor }),
+    content: renderSimpleDdaCard("dda-blast-evolution-card", localize("DDA.BlastEvolution.Title"), [
+      formatI18n("DDA.BlastEvolution.Executed", {
+        previous: escapeHtml(currentForm.name),
+        next: escapeHtml(resultForm.name),
+        mode: localize("DDA.BlastEvolution.Mode.intercede")
+      })
+    ])
+  });
+
+  return {
+    active: true,
+    tamerUuid: tamerActor.uuid,
+    partnerUuid: persistentPartner.uuid,
+    resultFormUuid: resultForm.reference,
+    batterySpent: validation.batteryValue,
+    requestId: String(request?.requestId ?? "")
+  };
+}
+
+export async function finishBlastIntercedeForPartner(partnerActor) {
+  if (!partnerActor) return null;
+  const tamerActor = await resolveLinkedTamerForBlastPartner(partnerActor);
+  if (!tamerActor) return null;
+  const state = tamerActor.system?.specialEvolutions?.blast?.state ?? {};
+  if (!state.active || state.mode !== "intercede") return null;
+  return finishBlastEvolution(tamerActor);
 }
 
 export async function initiatePartnerClash(tamerActor) {
@@ -6688,7 +9851,194 @@ export async function endPartnerClash(tamerActor) {
   return true;
 }
 
+function getCurrentPartnerFormReference(tamerActor, partnerActor) {
+  return String(
+    partnerActor?.system?.evolution?.currentFormUuid ||
+    partnerActor?.system?.evolution?.sourceFormUuid ||
+    tamerActor?.system?.partner?.currentFormUuid ||
+    partnerActor?.uuid ||
+    ""
+  ).trim();
+}
+
+function findEvolutionGraphNodeByReference(partnerActor, reference = "") {
+  const wanted = String(reference ?? "").trim();
+  if (!wanted) return null;
+  const graph = getNormalizedEvolutionGraph(partnerActor);
+  return graph.nodes.find((node) => {
+    return [
+      node?.actorUuid,
+      node?.uuid,
+      node?.formUuid,
+      node?.sourceFormUuid,
+      node?.currentFormUuid
+    ].some((value) => String(value ?? "").trim() === wanted);
+  }) ?? null;
+}
+
+async function resolvePartnerFormDescriptor(
+  partnerActor,
+  formReference = "",
+  { form = null, fallbackActor = null } = {}
+) {
+  if (!partnerActor) return null;
+
+  const requestedReference = String(
+    form?.persistentSnapshot?.sourceFormUuid ||
+    formReference ||
+    form?.uuid ||
+    form?.actorUuid ||
+    ""
+  ).trim();
+
+  const currentReference = getCurrentPartnerFormReference(null, partnerActor);
+  const currentLogicalReferences = new Set([
+    String(currentReference ?? "").trim(),
+    String(partnerActor.system?.evolution?.currentFormUuid ?? "").trim(),
+    String(partnerActor.system?.evolution?.sourceFormUuid ?? "").trim()
+  ].filter(Boolean));
+
+  // The persistent Partner is always the newest representation of the active
+  // form. A stored snapshot is only authoritative for inactive/prepared forms.
+  if (!form?.persistentSnapshot && currentLogicalReferences.has(requestedReference)) {
+    const liveReference = String(
+      partnerActor.system?.evolution?.currentFormUuid ||
+      partnerActor.system?.evolution?.sourceFormUuid ||
+      requestedReference ||
+      partnerActor.uuid
+    ).trim();
+    return {
+      reference: liveReference,
+      snapshot: getPartnerFormSnapshot(partnerActor, liveReference),
+      templateActor: partnerActor,
+      stageKey: String(partnerActor.system?.stage || "child"),
+      name: String(partnerActor.system?.species || partnerActor.name || "Digimon"),
+      isSnapshot: false
+    };
+  }
+
+  let snapshot = form?.persistentSnapshot
+    ? foundry.utils.deepClone(form.persistentSnapshot)
+    : getPartnerFormSnapshot(partnerActor, requestedReference);
+
+  if (!snapshot && requestedReference) {
+    const node = findEvolutionGraphNodeByReference(partnerActor, requestedReference);
+    if (node) {
+      const nodeUuid = String(node.actorUuid ?? requestedReference);
+      const isSnapshotNode = Boolean(
+        node.snapshot ||
+        node.persistentSnapshot ||
+        nodeUuid.startsWith("DDA-SNAPSHOT.") ||
+        (nodeUuid === partnerActor.uuid && String(node.stage ?? "") !== String(partnerActor.system?.stage ?? ""))
+      );
+      if (isSnapshotNode) {
+        snapshot = getGraphNodePersistentSnapshot({ partnerActor, node, isSnapshotNode });
+      }
+    }
+  }
+
+  let templateActor = snapshot
+    ? buildPseudoActorFromFormSnapshot(snapshot, partnerActor)
+    : await resolveActor(requestedReference);
+
+  if (!templateActor && fallbackActor) templateActor = fallbackActor;
+
+  if (!templateActor && (!requestedReference || requestedReference === currentReference || requestedReference === partnerActor.uuid)) {
+    templateActor = partnerActor;
+  }
+
+  if (!templateActor) return null;
+
+  const reference = String(
+    snapshot?.sourceFormUuid ||
+    requestedReference ||
+    templateActor.system?.evolution?.currentFormUuid ||
+    templateActor.system?.evolution?.sourceFormUuid ||
+    templateActor.uuid ||
+    partnerActor.uuid
+  ).trim();
+
+  return {
+    reference,
+    snapshot,
+    templateActor,
+    stageKey: String(snapshot?.stage || templateActor.system?.stage || partnerActor.system?.stage || "child"),
+    name: String(
+      snapshot?.species ||
+      snapshot?.sourceFormName ||
+      snapshot?.name ||
+      templateActor.system?.species ||
+      templateActor.name ||
+      partnerActor.system?.species ||
+      partnerActor.name
+    ),
+    isSnapshot: Boolean(snapshot)
+  };
+}
+
+async function updateTamerPartnerFormMirror(tamerActor, partnerActor) {
+  if (!tamerActor || !partnerActor) return;
+  await tamerActor.update({
+    "system.partner.uuid": partnerActor.uuid,
+    "system.partner.currentFormUuid": partnerActor.system?.evolution?.currentFormUuid || partnerActor.system?.evolution?.sourceFormUuid || partnerActor.uuid,
+    "system.partner.currentFormName": partnerActor.system?.evolution?.currentFormName || partnerActor.system?.species || partnerActor.name
+  });
+}
+
+async function applyPersistentPartnerSpecialForm({
+  tamerActor,
+  partnerActor,
+  form,
+  previousFormActor = null,
+  transitionType = "special",
+  healOnEvolution = false
+} = {}) {
+  if (!partnerActor || !form?.templateActor) return null;
+
+  const previousStage = String(partnerActor.system?.stage ?? previousFormActor?.system?.stage ?? "");
+  const nextStage = String(form.stageKey || form.templateActor.system?.stage || "");
+
+  await runDigimonTokenEvolutionTransition(
+    partnerActor,
+    async () => {
+      await clearClashStateForActor(partnerActor, { reason: transitionType });
+      await applyEvolutionFormTemplateToPartner({
+        partnerActor,
+        formTemplateActor: form.templateActor,
+        tamerActor,
+        previousFormActor: previousFormActor ?? partnerActor,
+        transitionType,
+        continuedHybridState: null
+      });
+
+      if (
+        healOnEvolution &&
+        shouldFullyHealOnEvolution({
+          previousStageKey: previousStage,
+          nextStageKey: nextStage,
+          transitionType
+        })
+      ) {
+        // Intentional system UX rule: Evolution heals on a Stage increase
+        // even outside Combat. The tabletop restriction adds no useful VTT flow.
+        await fullyRestoreWounds(partnerActor, { clearTemp: true });
+      }
+
+      return partnerActor;
+    },
+    { lowAlphaMultiplier: 0.16, midAlphaMultiplier: 0.62, stepDelay: 90 }
+  );
+
+  await updateTamerPartnerFormMirror(tamerActor, partnerActor);
+  return partnerActor;
+}
+
 async function getPartnerAndCurrentFormForSpecialAction(tamerActor) {
+  if (isTamerInActiveJogress(tamerActor)) {
+    ui.notifications.warn(localize("DDA.Warning.JogressBlocksOtherEvolution"));
+    return {};
+  }
+
   const partnerUuid = tamerActor.system.partner?.uuid;
   if (!partnerUuid) {
     ui.notifications.warn(localize("DDA.Warning.NoPartnerLinked"));
@@ -6701,9 +10051,21 @@ async function getPartnerAndCurrentFormForSpecialAction(tamerActor) {
     return {};
   }
 
-  const currentFormUuid = tamerActor.system.partner?.currentFormUuid || partnerActor.uuid;
-  const currentFormActor = await resolveActor(currentFormUuid) ?? partnerActor;
-  return { partnerActor, currentFormActor };
+  const currentFormReference = getCurrentPartnerFormReference(tamerActor, partnerActor);
+  const currentForm = await resolvePartnerFormDescriptor(
+    partnerActor,
+    currentFormReference,
+    { fallbackActor: partnerActor }
+  );
+
+  // The persistent Partner is always the runtime actor. The descriptor keeps
+  // the logical form identity even when it is a DDA-SNAPSHOT.* reference.
+  return {
+    partnerActor,
+    currentFormActor: partnerActor,
+    currentForm,
+    currentFormReference
+  };
 }
 
 function isHigherStage(fromStage, toStage) {
@@ -6712,55 +10074,48 @@ function isHigherStage(fromStage, toStage) {
   return fromIndex !== -1 && toIndex !== -1 && toIndex > fromIndex;
 }
 
-function chooseForcedOrBlastForm(forms, options = {}) {
-  const includeMode = Boolean(options.includeMode);
-  const optionHtml = forms.map((form) => {
-    return `<option value="${escapeHtml(form.uuid)}">${escapeHtml(form.stageLabel ?? getStageLabel(form.stageKey))} — ${escapeHtml(form.name)}</option>`;
+async function chooseForcedOrBlastForm(forms, options = {}) {
+  if (!Array.isArray(forms) || !forms.length) return null;
+
+  const optionHtml = forms.map((form, index) => {
+    return `<option value="${index}">${escapeHtml(form.stageLabel ?? getStageLabel(form.stageKey))} — ${escapeHtml(form.name)}</option>`;
   }).join("");
 
-  const modeHtml = includeMode ? `
-    <div class="form-group">
-      <label>${localize("DDA.BlastEvolution.ModeLabel")}</label>
-      <select name="blastMode">
-        <option value="attack">${localize("DDA.BlastEvolution.Mode.attack")}</option>
-        <option value="intercede">${localize("DDA.BlastEvolution.Mode.intercede")}</option>
-      </select>
-    </div>
-  ` : "";
-
-  return new Promise((resolve) => {
-    new Dialog({
-      title: options.title ?? localize("DDA.Evolution.Dialog.ChooseTitle"),
-      content: `
-        <form class="dda-roll-dialog">
-          <div class="form-group">
-            <label>${localize("DDA.Evolution.Form")}</label>
-            <select name="formUuid">${optionHtml}</select>
-          </div>
-          ${modeHtml}
-        </form>
-      `,
-      buttons: {
-        confirm: {
-          label: options.buttonLabel ?? localize("DDA.Button.Confirm"),
-          callback: (html) => {
-            const form = html[0].querySelector("form");
-            const selected = forms.find((entry) => entry.uuid === form.formUuid.value);
-            resolve(selected ? { ...selected, blastMode: form.blastMode?.value ?? "attack" } : null);
-          }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel"),
-          callback: () => resolve(null)
-        }
+  const choice = await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-special-evolution-form-dialog"],
+    window: { title: options.title ?? localize("DDA.Evolution.Dialog.ChooseTitle") },
+    content: `
+      <div class="dda-roll-dialog">
+        <div class="form-group">
+          <label>${localize("DDA.Evolution.Form")}</label>
+          <select name="formIndex">${optionHtml}</select>
+        </div>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: options.buttonLabel ?? localize("DDA.Button.Confirm"),
+        icon: "fa-solid fa-check",
+        default: true,
+        callback: (_event, button) => Number(button.form?.elements?.formIndex?.value ?? 0)
       },
-      default: "confirm",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        icon: "fa-solid fa-xmark",
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
+
+  if (choice === null || choice === false || !Number.isInteger(choice)) return null;
+  return forms[choice] ?? null;
 }
 
-async function rollTamerFixedCheck(actor, attributeKey, skillKey, tn, title) {
+async function rollTamerFixedCheck(actor, attributeKey, skillKey, tn, title, options = {}) {
   const attribute = actor.system.attributes?.[attributeKey];
   const skill = actor.system.skills?.[skillKey];
 
@@ -6770,8 +10125,11 @@ async function rollTamerFixedCheck(actor, attributeKey, skillKey, tn, title) {
   }
 
   const attributeValue = Number(attribute.value ?? 0);
+  const hasSkill = Boolean(String(skillKey ?? "").trim());
   const skillValue = Number(skill?.value ?? 0);
-  const skillModifier = skillValue > 0 ? skillValue : -1;
+  const skillModifier = hasSkill
+    ? (skillValue > 0 ? skillValue : -1)
+    : (options.noSkillModifier ? -1 : 0);
   const modifier = attributeValue + skillModifier;
   const roll = await new Roll("3d6 + @modifier", { modifier }).evaluate();
   const total = Number(roll.total ?? 0);
@@ -6800,42 +10158,63 @@ async function rollTamerFixedCheck(actor, attributeKey, skillKey, tn, title) {
 }
 
 function getDefaultStageFromRange(tamerActor) {
-  const range = Number(tamerActor.system.evolution?.defaultRange?.value ?? 1);
-  const stageOrder = getStageOrder();
-  return stageOrder[Math.clamp(range, 0, stageOrder.length - 1)] ?? "child";
+  const range = Number(tamerActor.system.evolution?.defaultRange?.value ?? 2);
+  return getDefaultStageKeyForRange(range);
 }
 
 async function findFormByStage(partnerActor, stageKey, fallbackActor = null) {
-  if (fallbackActor?.system?.stage === stageKey) return fallbackActor;
+  const wantedStage = String(stageKey ?? "").trim();
+  const defaultFormUuid = String(partnerActor?.system?.evolution?.defaultFormUuid ?? "").trim();
+  const defaultStage = String(partnerActor?.system?.evolution?.defaultStage ?? "").trim();
+
+  if (defaultFormUuid && defaultStage === wantedStage) {
+    const preferred = await resolvePartnerFormDescriptor(partnerActor, defaultFormUuid);
+    if (preferred?.templateActor?.system?.stage === wantedStage) return preferred.templateActor;
+  }
+
+  if (fallbackActor?.system?.stage === wantedStage) return fallbackActor;
 
   const graph = getNormalizedEvolutionGraph(partnerActor);
   for (const node of graph.nodes) {
-    if (!node.actorUuid) continue;
-    const actor = await resolveActor(node.actorUuid);
-    if (actor?.system?.stage === stageKey) return actor;
+    const nodeStage = String(node?.stage ?? "").trim();
+    if (!node?.actorUuid || nodeStage !== wantedStage) continue;
+
+    const nodeUuid = String(node.actorUuid ?? "");
+    const isSnapshotNode = Boolean(
+      node.snapshot ||
+      node.persistentSnapshot ||
+      nodeUuid.startsWith("DDA-SNAPSHOT.") ||
+      (nodeUuid === partnerActor.uuid && nodeStage !== String(partnerActor.system?.stage ?? ""))
+    );
+    const snapshot = isSnapshotNode
+      ? getGraphNodePersistentSnapshot({ partnerActor, node, isSnapshotNode })
+      : getPartnerFormSnapshot(partnerActor, nodeUuid);
+
+    if (snapshot?.stage === wantedStage) {
+      return buildPseudoActorFromFormSnapshot(snapshot, partnerActor);
+    }
+
+    const actor = await resolveActor(nodeUuid);
+    if (actor?.system?.stage === wantedStage) return actor;
   }
 
   const forms = await collectEvolutionForms(partnerActor, fallbackActor ?? partnerActor);
-  const found = forms.find((form) => form.stageKey === stageKey);
-  return found ? await resolveActor(found.uuid) : fallbackActor ?? partnerActor;
+  const found = forms.find((form) => String(form.stageKey ?? "") === wantedStage);
+  if (found) {
+    const descriptor = await resolvePartnerFormDescriptor(partnerActor, found.uuid, { form: found });
+    if (descriptor?.templateActor) return descriptor.templateActor;
+  }
+
+  return fallbackActor ?? partnerActor;
 }
 
-async function resolveBlastReversion({ tamerActor, partnerActor, currentFormActor, resultActor, check }) {
-  if (check.criticalFailure) {
-    const baby1 = await findFormByStage(partnerActor, "baby1", partnerActor);
-    return { actor: baby1, lockEvolution: true };
-  }
-
-  if (check.criticalSuccess) return { actor: currentFormActor, lockEvolution: false };
-
-  const defaultStage = partnerActor.system?.evolution?.defaultStage || getDefaultStageFromRange(tamerActor);
-
-  if (check.success) {
-    return { actor: await findFormByStage(partnerActor, defaultStage, currentFormActor), lockEvolution: false };
-  }
-
-  const belowDefaultStage = getStageDirectlyBelow(defaultStage) || defaultStage;
-  return { actor: await findFormByStage(partnerActor, belowDefaultStage, currentFormActor), lockEvolution: true };
+async function findStrictFormByStage(partnerActor, stageKey) {
+  const wantedStage = String(stageKey ?? "").trim();
+  if (!partnerActor || !wantedStage) return null;
+  const candidate = await findFormByStage(partnerActor, wantedStage, null);
+  return String(candidate?.system?.stage ?? "").trim() === wantedStage
+    ? candidate
+    : null;
 }
 
 async function rollDigimonClashCheck(actor, opponent) {
@@ -6923,3 +10302,133 @@ function localize(key) {
 function formatI18n(key, data = {}) {
   return game.i18n.format(key, data);
 }
+
+function isPrimaryActiveGmForEvolutionLifecycle() {
+  const activeGm = game?.users?.activeGM;
+  if (activeGm) return Boolean(game?.user?.isGM && activeGm.id === game.user.id);
+  return Boolean(game?.user?.isGM);
+}
+
+async function expireForcedEvolutionsForCombat(combat, { combatEnded = false } = {}) {
+  if (!combat || !isPrimaryActiveGmForEvolutionLifecycle()) return;
+
+  const combatId = String(combat.id ?? "");
+  const currentRound = Math.max(0, Number(combat.round ?? 0));
+  const tamers = Array.from(game?.actors ?? []).filter((actor) => actor?.type === "character");
+
+  for (const tamer of tamers) {
+    const state = tamer.system?.specialEvolutions?.forced?.state ?? {};
+    if (!state.active) continue;
+    if (String(state.combatId ?? "") !== combatId) continue;
+
+    const expiresAfterRound = Math.max(0, Number(state.expiresAfterRound ?? 0));
+    const expiredByRound = expiresAfterRound > 0 && currentRound > expiresAfterRound;
+    if (!combatEnded && !expiredByRound) continue;
+
+    try {
+      await endForcedEvolution(tamer);
+    } catch (error) {
+      console.error("DDA | Could not end expired Forced Evolution.", tamer, error);
+    }
+  }
+}
+
+async function finishOrphanedBlastEvolutionsForCombat(combat) {
+  if (!combat || !isPrimaryActiveGmForEvolutionLifecycle()) return;
+
+  const combatId = String(combat.id ?? "");
+  const tamers = Array.from(game?.actors ?? []).filter((actor) => actor?.type === "character");
+
+  for (const tamer of tamers) {
+    const state = tamer.system?.specialEvolutions?.blast?.state ?? {};
+    if (!state.active || String(state.combatId ?? "") !== combatId) continue;
+
+    // Blast normally finishes atomically after its Attack/Intercede. Reaching
+    // combatEnd with an active state means resolution was interrupted (reload,
+    // exception, manual combat deletion, etc.). Do not let the Partner remain
+    // permanently stranded in the temporary form. The mandatory Aftermath is
+    // still resolved, but without opening a stale combat-end configuration
+    // dialog on the GM client.
+    const partnerActor = await resolveActor(tamer.system?.partner?.uuid);
+    if (!partnerActor) continue;
+
+    const tn = 12 + getStageValue(state.resultStage || partnerActor.system?.stage);
+    let fallbackCheck = null;
+
+    try {
+      fallbackCheck = await rollTamerFixedCheck(
+        tamer,
+        "willpower",
+        "",
+        tn,
+        localize("DDA.BlastEvolution.AfterCheckTitle"),
+        { noSkillModifier: true }
+      );
+      await finishBlastEvolution(tamer, { check: fallbackCheck });
+    } catch (error) {
+      console.error("DDA | Could not finish orphaned Blast Evolution at combat end.", tamer, error);
+    }
+  }
+}
+
+async function cleanupBlastEvolutionForCombat(combat) {
+  if (!combat || !isPrimaryActiveGmForEvolutionLifecycle()) return;
+
+  const combatId = String(combat.id ?? "");
+  const digimon = Array.from(game?.actors ?? []).filter((actor) => actor?.type === "digimon");
+
+  for (const actor of digimon) {
+    const status = actor.system?.status ?? {};
+    if (String(status.blastEvolutionCombatId ?? "") !== combatId) continue;
+
+    const penalty = status.blastEvolutionCombatPenalty ?? {};
+    const updates = {
+      "system.status.evolutionLockedUntilCombatEnd": false,
+      "system.status.batteryMaxReducedUntilCombatEnd": false,
+      "system.status.blastEvolutionCombatId": "",
+      "system.status.blastEvolutionCombatPenalty": {
+        active: false,
+        combatId: "",
+        previousBatteryMax: 0,
+        reducedBatteryMax: 0
+      }
+    };
+
+    if (penalty.active) {
+      const previousBatteryMax = Math.max(0, Number(penalty.previousBatteryMax ?? 0));
+      if (previousBatteryMax > 0) {
+        updates["system.resources.battery.max"] = previousBatteryMax;
+        updates["system.resources.battery.value"] = Math.min(
+          previousBatteryMax,
+          Number(actor.system?.resources?.battery?.value ?? 0)
+        );
+      }
+    }
+
+    try {
+      await actor.update(updates);
+    } catch (error) {
+      console.error("DDA | Could not clean Blast Evolution combat state.", actor, error);
+    }
+  }
+}
+
+Hooks.on("updateCombat", async (combat, changed) => {
+  if (!("round" in changed)) return;
+  await expireForcedEvolutionsForCombat(combat);
+});
+
+async function finishSpecialEvolutionCombatLifecycle(combat, { combatDeleted = false } = {}) {
+  await expireForcedEvolutionsForCombat(combat, { combatEnded: true });
+  await finishOrphanedBlastEvolutionsForCombat(combat);
+  await cleanupBlastEvolutionForCombat(combat);
+  await detachActiveJogressFromCombat(combat, { restoreTracker: !combatDeleted });
+}
+
+Hooks.on("combatEnd", async (combat) => {
+  await finishSpecialEvolutionCombatLifecycle(combat);
+});
+
+Hooks.on("deleteCombat", async (combat) => {
+  await finishSpecialEvolutionCombatLifecycle(combat, { combatDeleted: true });
+});

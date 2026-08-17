@@ -1,19 +1,33 @@
-<form class="dda-wizard-form dda-digimon-wizard-form">
+<form class="dda-wizard-form dda-digimon-wizard-form" data-step="{{step}}">
 
   <header class="dda-wizard-header">
-    <div>
-      <h1>{{wizardTitle}}</h1>
-      <p>{{progressLabel}} — {{localize "DDA.Wizard.StepLower"}} {{stepIndex}} {{localize "DDA.Wizard.Of"}} {{totalSteps}}</p>
+    <div class="dda-wizard-title-group">
+      <span class="dda-wizard-header-mark" aria-hidden="true"><span></span></span>
+
+      <div class="dda-wizard-header-copy">
+        <h1>{{wizardTitle}}</h1>
+        <p>
+          <strong>{{progressLabel}}</strong>
+          <span>{{localize "DDA.Wizard.StepLower"}} {{stepIndex}} {{localize "DDA.Wizard.Of"}} {{totalSteps}}</span>
+        </p>
+      </div>
     </div>
 
-<div class="dda-wizard-progress">
-  {{#each progressSteps as |stepDot|}}
-    <span class="dda-wizard-dot {{#if stepDot.active}}active{{/if}} {{#if stepDot.done}}done{{/if}}"></span>
-  {{/each}}
-</div>
+    <div
+      class="dda-wizard-progress"
+      role="progressbar"
+      aria-label="{{progressLabel}}"
+      aria-valuemin="1"
+      aria-valuemax="{{totalSteps}}"
+      aria-valuenow="{{stepIndex}}"
+    >
+      {{#each progressSteps as |stepDot|}}
+        <span class="dda-wizard-dot {{#if stepDot.active}}active{{/if}} {{#if stepDot.done}}done{{/if}}" aria-hidden="true"></span>
+      {{/each}}
+    </div>
   </header>
 
-  <main class="dda-wizard-body">
+  <main class="dda-wizard-body" data-dda-scroll-container>
 
     <aside class="dda-wizard-guide">
       <div class="dda-wizard-guide-portrait" aria-label="Wizardmon"><img src="systems/digimon-digital-adventures/assets/ui/wizardmon%20-%20portrait.webp" alt="Wizardmon"></div>
@@ -888,6 +902,11 @@
           <span><strong>{{localize "DDA.Creation.BaseDP"}}:</strong> {{data.dp.base}}</span>
           <span><strong>{{localize "DDA.Creation.SpentDP"}}:</strong> {{data.dp.spent}}</span>
           <span><strong>{{localize "DDA.Creation.RemainingDP"}}:</strong> {{data.dp.remaining}}</span>
+          {{#if formMode}}
+            <span><strong>{{localize "DDA.Progression.BonusDP.SharedStats"}}:</strong> {{data.dp.sharedStatTotal}}</span>
+            <span><strong>{{localize "DDA.Progression.BonusDP.QualityAllocation"}}:</strong> {{data.dp.sharedQualityAllocated}}</span>
+            <span><strong>{{localize "DDA.Progression.BonusDP.Unallocated"}}:</strong> {{data.dp.bonusUnallocated}}</span>
+          {{/if}}
         </div>
 
         <div class="dda-stat-allocation-layout">
@@ -903,20 +922,34 @@
                   <button
                     type="button"
                     data-stat-decrease="{{statKey}}"
-                    {{#unless stat.spent}}disabled{{/unless}}
+                    {{#if ../formMode}}
+                      {{#unless stat.canDecrease}}disabled{{/unless}}
+                    {{else}}
+                      {{#unless stat.spent}}disabled{{/unless}}
+                    {{/if}}
                   >
                     −
                   </button>
 
                   <div class="dda-stat-values">
                     <span class="dda-stat-total">{{stat.total}}</span>
-                    <small>{{localize "DDA.DigimonWizard.Stats.Base"}} {{stat.base}} + {{stat.spent}} {{localize "DDA.Resource.DP.Short"}}</small>
+                    <small>
+                      {{localize "DDA.DigimonWizard.Stats.Base"}} {{stat.base}}
+                      + {{#if ../formMode}}{{stat.localSpent}}{{else}}{{stat.spent}}{{/if}} {{localize "DDA.Resource.DP.Short"}}
+                      {{#if stat.sharedBonus}}
+                        + {{stat.sharedBonus}} {{localize "DDA.Progression.BonusDP.Short"}}
+                      {{/if}}
+                    </small>
                   </div>
 
                   <button
                     type="button"
                     data-stat-increase="{{statKey}}"
-                    {{#unless ../data.dp.remaining}}disabled{{/unless}}
+                    {{#if ../formMode}}
+                      {{#unless ../data.dp.statRemaining}}disabled{{/unless}}
+                    {{else}}
+                      {{#unless ../data.dp.remaining}}disabled{{/unless}}
+                    {{/if}}
                   >
                     +
                   </button>
@@ -1062,6 +1095,11 @@
       <span><strong>{{localize "DDA.Creation.SpentDP"}}:</strong> {{data.dp.spent}}</span>
       <span><strong>{{localize "DDA.Creation.TotalDP"}}:</strong> {{data.dp.totalAvailable}}</span>
       <span><strong>{{localize "DDA.Creation.RemainingDP"}}:</strong> {{data.dp.remaining}}</span>
+      {{#if formMode}}
+        <span><strong>{{localize "DDA.Progression.BonusDP.SharedStats"}}:</strong> {{data.dp.sharedStatTotal}}</span>
+        <span><strong>{{localize "DDA.Progression.BonusDP.QualityAllocation"}}:</strong> {{data.dp.sharedQualitySpent}} / {{data.dp.sharedQualityAllocated}}</span>
+        <span><strong>{{localize "DDA.Progression.BonusDP.Unallocated"}}:</strong> {{data.dp.bonusUnallocated}}</span>
+      {{/if}}
       <span><strong>{{localize "DDA.Creation.NegativeDP"}}:</strong> {{data.dp.negativeUsed}} / {{data.dp.negativeLimit}}</span>
       <span><strong>{{localize "DDA.DigimonWizard.Qualities.Free"}}:</strong> {{data.dp.freeQualityUsed}} / {{data.dp.freeQualityLimit}}</span>
       <span><strong>{{localize "DDA.Creation.CoreDiscount"}}:</strong> {{data.dp.coreDiscountUsed}} / {{data.dp.coreDiscountBase}}</span>
@@ -1847,6 +1885,7 @@
         data-action="back"
         {{#if isFirstStep}}disabled{{/if}}
       >
+        <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
         {{#if reviewAdjustmentView.active}}
           {{#if (eq step "stats")}}
             {{reviewAdjustmentView.returnLabel}}
@@ -1864,6 +1903,7 @@
           class="primary"
           data-action="create"
         >
+          <i class="fa-solid fa-check" aria-hidden="true"></i>
           {{createButtonLabel}}
         </button>
       {{else}}
@@ -1881,6 +1921,7 @@
           {{else}}
             {{localize "DDA.Wizard.Next"}}
           {{/if}}
+          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
         </button>
       {{/if}}
     </div>

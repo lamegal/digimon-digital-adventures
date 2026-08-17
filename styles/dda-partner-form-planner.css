@@ -1176,3 +1176,90 @@
     grid-column: auto;
   }
 }
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress {
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid rgba(123, 199, 255, 0.34);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(14, 48, 73, 0.76), rgba(14, 29, 47, 0.9));
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress > header h3,
+#dda-partner-form-planner .dda-partner-form-planner__jogress > header p {
+  margin: 0;
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress > header p {
+  margin-top: 4px;
+  color: rgba(226, 239, 249, 0.72);
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress-card {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(4, 18, 31, 0.72);
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress-card.is-prepared {
+  border-color: rgba(109, 230, 181, 0.5);
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress-card > img {
+  width: 62px;
+  height: 62px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress-copy > span,
+#dda-partner-form-planner .dda-partner-form-planner__jogress-copy > small {
+  color: rgba(226, 239, 249, 0.72);
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress-budget {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 0.75rem;
+}
+
+#dda-partner-form-planner .dda-partner-form-planner__jogress-budget span,
+#dda-partner-form-planner .dda-partner-form-planner__jogress-budget strong {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(87, 167, 216, 0.14);
+}
+
+@media (max-width: 700px) {
+  #dda-partner-form-planner .dda-partner-form-planner__jogress-card {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  #dda-partner-form-planner .dda-partner-form-planner__jogress-card > img {
+    width: 52px;
+    height: 52px;
+  }
+
+  #dda-partner-form-planner .dda-partner-form-planner__jogress-card > button {
+    grid-column: 1 / -1;
+  }
+}

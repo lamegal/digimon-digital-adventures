@@ -1,0 +1,186 @@
+
+:root.dda-core-ui-theme,
+body.dda-core-ui-theme {
+  --dda-core-ui-bg: rgba(5, 27, 47, 0.94);
+  --dda-core-ui-bg-strong: rgba(4, 22, 40, 0.98);
+  --dda-core-ui-bg-hover: rgba(11, 61, 99, 0.98);
+  --dda-core-ui-bg-active: rgba(12, 93, 145, 0.98);
+  --dda-core-ui-border: rgba(101, 205, 247, 0.42);
+  --dda-core-ui-border-strong: rgba(146, 231, 255, 0.82);
+  --dda-core-ui-text: #effbff;
+  --dda-core-ui-muted: #9bc5d9;
+  --dda-core-ui-glow: rgba(53, 205, 255, 0.62);
+  --dda-core-ui-shadow: rgba(0, 0, 0, 0.42);
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) {
+  --control-size: 38px;
+  --tool-size: 34px;
+  gap: 5px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(.controls, .control-layers, .control-tools, ol, ul, nav) {
+  gap: 5px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button, .ui-control, .control-tool) {
+  box-sizing: border-box !important;
+  display: grid !important;
+  place-items: center !important;
+  width: var(--control-size) !important;
+  height: var(--control-size) !important;
+  min-width: var(--control-size) !important;
+  min-height: var(--control-size) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: relative !important;
+
+  color: var(--dda-core-ui-text) !important;
+  background: linear-gradient(180deg, rgba(10, 48, 78, 0.86), rgba(4, 25, 44, 0.92)) !important;
+  border: 1px solid var(--dda-core-ui-border) !important;
+  border-radius: 9px !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 3px 7px var(--dda-core-ui-shadow) !important;
+  transition: transform 100ms ease, background 100ms ease, border-color 100ms ease, box-shadow 100ms ease, color 100ms ease !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(.control-tools button, [data-application-part="tools"] button, .control-tools .control-tool) {
+  --control-size: var(--tool-size);
+  border-radius: 8px !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button, .ui-control, .control-tool):hover:not(:disabled) {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, rgba(18, 82, 126, 0.95), rgba(7, 40, 70, 0.98)) !important;
+  border-color: rgba(137, 226, 255, 0.72) !important;
+  box-shadow: 0 0 10px rgba(45, 196, 255, 0.28), 0 4px 8px var(--dda-core-ui-shadow) !important;
+  transform: translateY(-1px) !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button.active, button[aria-pressed="true"], .ui-control.active, .control-tool.active) {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, rgba(16, 112, 166, 0.98), rgba(5, 55, 94, 0.99)) !important;
+  border-color: var(--dda-core-ui-border-strong) !important;
+  box-shadow: 0 0 13px var(--dda-core-ui-glow), 0 4px 8px var(--dda-core-ui-shadow) !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button, .ui-control, .control-tool):disabled {
+  opacity: 0.38 !important;
+  filter: grayscale(0.65) !important;
+}
+
+body.dda-core-ui-theme #scene-navigation {
+  gap: 5px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+body.dda-core-ui-theme #scene-navigation :is(.scene, button, [data-scene-id], [data-action="viewScene"]) {
+  color: var(--dda-core-ui-muted) !important;
+  background: linear-gradient(180deg, rgba(7, 39, 67, 0.94), rgba(4, 26, 47, 0.96)) !important;
+  border: 1px solid rgba(90, 187, 226, 0.32) !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 3px 8px rgba(0,0,0,0.30) !important;
+}
+
+body.dda-core-ui-theme #scene-navigation :is(.scene, button, [data-scene-id], [data-action="viewScene"]):hover {
+  color: #fff !important;
+  border-color: rgba(120, 218, 255, 0.58) !important;
+  box-shadow: 0 0 9px rgba(53, 194, 245, 0.24) !important;
+}
+
+body.dda-core-ui-theme #scene-navigation :is(.scene.active, .scene.view, [aria-current="true"], [data-active="true"]) {
+  color: #f4fdff !important;
+  background: linear-gradient(180deg, rgba(13, 83, 124, 0.96), rgba(5, 44, 75, 0.98)) !important;
+  border-color: rgba(133, 226, 255, 0.74) !important;
+  box-shadow: inset 3px 0 0 rgba(88, 219, 255, 0.88), 0 0 10px rgba(52, 196, 247, 0.26) !important;
+}
+
+body.dda-core-ui-theme #sidebar { --dda-sidebar-tab-size: 38px; }
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) {
+  gap: 5px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab], .item, button) {
+  box-sizing: border-box !important;
+  display: grid !important;
+  place-items: center !important;
+  width: var(--dda-sidebar-tab-size) !important;
+  height: var(--dda-sidebar-tab-size) !important;
+  min-width: var(--dda-sidebar-tab-size) !important;
+  min-height: var(--dda-sidebar-tab-size) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: relative !important;
+  color: #dceef7 !important;
+  background: linear-gradient(180deg, rgba(10, 48, 78, 0.88), rgba(5, 28, 49, 0.94)) !important;
+  border: 1px solid rgba(92, 190, 230, 0.30) !important;
+  border-radius: 9px !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 3px 7px rgba(0,0,0,0.32) !important;
+  transition: background 100ms ease, border-color 100ms ease, box-shadow 100ms ease, transform 100ms ease !important;
+}
+
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab], .item, button):hover {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, rgba(20, 88, 132, 0.98), rgba(6, 43, 73, 0.98)) !important;
+  border-color: rgba(133, 222, 255, 0.68) !important;
+  box-shadow: 0 0 10px rgba(53, 202, 255, 0.32), 0 4px 8px rgba(0,0,0,0.35) !important;
+  transform: translateX(-1px) !important;
+}
+
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab].active, .item.active, button.active, [aria-selected="true"]) {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, rgba(16, 112, 166, 0.98), rgba(5, 55, 94, 0.99)) !important;
+  border-color: rgba(164, 237, 255, 0.82) !important;
+  box-shadow: 0 0 14px rgba(50, 201, 255, 0.50), 0 4px 9px rgba(0,0,0,0.38) !important;
+}
+
+body.dda-core-ui-theme .dda-core-ui-hidden-icon {
+  display: none !important;
+}
+
+body.dda-core-ui-theme .has-dda-core-ui-sprite {
+  overflow: hidden;
+}
+
+body.dda-core-ui-theme .dda-core-ui-sprite {
+  display: block;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  pointer-events: none;
+  opacity: 0.96;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.12));
+}
+
+body.dda-core-ui-theme .has-dda-core-ui-sprite:not(.dda-core-ui-sprite-ready) .dda-core-ui-sprite {
+  display: none;
+}
+
+body.dda-core-ui-theme .has-dda-core-ui-sprite.dda-core-ui-sprite-ready :is(i, .fa, .fas, .far, .fal, .fab) {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  body.dda-core-ui-theme :is(#scene-controls, #controls) {
+    --control-size: 34px;
+    --tool-size: 31px;
+  }
+  body.dda-core-ui-theme #sidebar { --dda-sidebar-tab-size: 34px; }
+  body.dda-core-ui-theme .dda-core-ui-sprite {
+    width: 16px;
+    height: 16px;
+  }
+}

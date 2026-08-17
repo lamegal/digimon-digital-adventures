@@ -87,8 +87,7 @@ export const DDA_DIGIMON_BUILD_TEMPLATES = [
     qualities: [
       { qualityId: "otimizacaoDeDados", rank: 1, choice: { key: "rangedStriker" } },
       { qualityId: "passoNatural", rank: 1, requiresTemplateChoice: true, choiceType: "option" },
-      { qualityId: "areaDeAtaque", rank: 2, choices: [{ key: "blast" }, { key: "cone" }], requiresTemplateChoice: true, choiceType: "areaAttack" },
-      { qualityId: "miraSeletiva", rank: 1, optionalIfMissing: true }
+      { qualityId: "areaDeAtaque", rank: 2, choices: [{ key: "blast" }, { key: "cone" }], requiresTemplateChoice: true, choiceType: "areaAttack" }
     ]
   },
 
@@ -170,7 +169,7 @@ export const DDA_DIGIMON_BUILD_TEMPLATES = [
       en: "Takes more risk to gain offensive rewards when damaged."
     },
     stats: {
-      accuracy: 2,
+      accuracy: 1,
       damage: 1,
       dodge: 0,
       armor: 1,

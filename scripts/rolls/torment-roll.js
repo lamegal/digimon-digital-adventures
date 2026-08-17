@@ -232,18 +232,25 @@ export async function rollTormentCheck(
   /* --------------------------------------------------- */
 
   const dialogResult =
-    await Dialog.prompt({
-      title:
-        formatI18n(
-          "DDA.Torment.RollTitleWithName",
-          {
-            torment:
-              tormentItem.name
-          }
-        ),
+    await foundry.applications.api.DialogV2.wait({
+      classes: [
+        "dda",
+        "dda-torment-roll-dialog-app"
+      ],
+
+      window: {
+        title:
+          formatI18n(
+            "DDA.Torment.RollTitleWithName",
+            {
+              torment:
+                tormentItem.name
+            }
+          )
+      },
 
       content: `
-        <form class="dda-roll-dialog dda-torment-roll-dialog">
+        <div class="dda-roll-dialog dda-torment-roll-dialog">
           <div class="form-group">
             <label>
               ${localize(
@@ -284,71 +291,83 @@ export async function rollTormentCheck(
               }
             )}
           </p>
-        </form>
+        </div>
       `,
 
-      label:
-        localize(
-          "DDA.Button.Roll"
-        ),
-
-      callback: (html) => {
-        const root =
-          html instanceof jQuery
-            ? html[0]
-            : html;
-
-        const form =
-          root.querySelector("form");
-
-        return {
-          tn:
-            Number(
-              form.elements
-                .tn?.value ?? tn
+      buttons: [
+        {
+          action: "roll",
+          label:
+            localize(
+              "DDA.Button.Roll"
             ),
+          icon: "fa-solid fa-dice-d20",
+          default: true,
+          callback: (_event, button) => {
+            const form = button.form;
 
-          modifier:
-            Number(
-              form.elements
-                .modifier?.value ?? 0
-            ),
-
-          useWithTheWill:
-            Boolean(
-              form.elements
-                .useWithTheWill
-                ?.checked
-            ),
-
-          withTheWillCanHear:
-            Boolean(
-              form.elements
-                .withTheWillCanHear
-                ?.checked
-            ),
-
-          withTheWillInRange:
-            Boolean(
-              form.elements
-                .withTheWillInRange
-                ?.checked
-            ),
-
-          withTheWillTn:
-            Math.min(
-              20,
-              Math.max(
-                14,
+            return {
+              tn:
                 Number(
-                  form.elements
-                    .withTheWillTn
-                    ?.value ?? 14
+                  form?.elements
+                    ?.tn?.value ?? tn
+                ),
+
+              modifier:
+                Number(
+                  form?.elements
+                    ?.modifier?.value ?? 0
+                ),
+
+              useWithTheWill:
+                Boolean(
+                  form?.elements
+                    ?.useWithTheWill
+                    ?.checked
+                ),
+
+              withTheWillCanHear:
+                Boolean(
+                  form?.elements
+                    ?.withTheWillCanHear
+                    ?.checked
+                ),
+
+              withTheWillInRange:
+                Boolean(
+                  form?.elements
+                    ?.withTheWillInRange
+                    ?.checked
+                ),
+
+              withTheWillTn:
+                Math.min(
+                  20,
+                  Math.max(
+                    14,
+                    Number(
+                      form?.elements
+                        ?.withTheWillTn
+                        ?.value ?? 14
+                    )
+                  )
                 )
-              )
-            )
-        };
-      }
+            };
+          }
+        },
+        {
+          action: "cancel",
+          label:
+            localize(
+              "DDA.Button.Cancel"
+            ),
+          icon: "fa-solid fa-xmark",
+          callback: () => null
+        }
+      ],
+
+      rejectClose: false,
+      modal: true
     });
 
   if (!dialogResult) {
@@ -1283,6 +1302,24 @@ interruptPayment
       }
     );
 
+  const bossTormentResult = {
+    actor,
+    tormentItem,
+    initialRoll,
+    initialDegree,
+    initialTotal,
+    finalRoll,
+    finalDegree,
+    finalTotal,
+    resolution
+  };
+
+  try {
+    await game?.dda?.bossQualities?.handleTormentCheckResult?.(actor, bossTormentResult);
+  } catch (error) {
+    console.warn("DDA | Tormentor follow-up resolution failed.", error);
+  }
+
   return {
     actor,
     tormentItem,
@@ -1312,8 +1349,8 @@ async function resolveTormentPartner(
     tamer?.system?.partner ?? {};
 
   const candidateUuids = [
-    partnerData.currentFormUuid,
-    partnerData.uuid
+    partnerData.uuid,
+    partnerData.currentFormUuid
   ]
     .map((uuid) => {
       return String(
@@ -1645,105 +1682,97 @@ async function promptCalmingInfluenceHelper(
       })
       .join("");
 
-  return await new Promise((resolve) => {
-    new Dialog({
+  return await foundry.applications.api.DialogV2.wait({
+    classes: [
+      "dda",
+      "dda-calming-influence-dialog-app"
+    ],
+
+    window: {
       title:
         localize(
           "DDA.Torment.CalmingInfluence.Title"
-        ),
+        )
+    },
 
-      content: `
-        <form class="dda-roll-dialog dda-calming-influence-dialog">
-          <p>
-            ${formatI18n(
-              "DDA.Torment.CalmingInfluence.Prompt",
-              {
-                actor:
-                  escapeHtml(
-                    targetActor.name
-                  )
-              }
+    content: `
+      <div class="dda-roll-dialog dda-calming-influence-dialog">
+        <p>
+          ${formatI18n(
+            "DDA.Torment.CalmingInfluence.Prompt",
+            {
+              actor:
+                escapeHtml(
+                  targetActor.name
+                )
+            }
+          )}
+        </p>
+
+        <div class="form-group">
+          <label>
+            ${localize(
+              "DDA.Torment.CalmingInfluence.Helper"
             )}
-          </p>
+          </label>
 
-          <div class="form-group">
-            <label>
-              ${localize(
-                "DDA.Torment.CalmingInfluence.Helper"
-              )}
-            </label>
+          <select name="helperIndex">
+            ${options}
+          </select>
+        </div>
 
-            <select name="helperIndex">
-              ${options}
-            </select>
-          </div>
+        ${
+          Number(
+            breakTheChainBonus
+          ) > 0
+            ? `
+              <p class="notes">
+                ${formatI18n(
+                  "DDA.Torment.CalmingInfluence.BreakTheChainComparison",
+                  {
+                    bonus:
+                      breakTheChainBonus
+                  }
+                )}
+              </p>
+            `
+            : ""
+        }
+      </div>
+    `,
 
-          ${
+    buttons: [
+      {
+        action: "use",
+        label:
+          localize(
+            "DDA.Torment.CalmingInfluence.Use"
+          ),
+        icon: "fa-solid fa-hand-holding-heart",
+        default: true,
+        callback: (_event, button) => {
+          const index =
             Number(
-              breakTheChainBonus
-            ) > 0
-              ? `
-                <p class="notes">
-                  ${formatI18n(
-                    "DDA.Torment.CalmingInfluence.BreakTheChainComparison",
-                    {
-                      bonus:
-                        breakTheChainBonus
-                    }
-                  )}
-                </p>
-              `
-              : ""
-          }
-        </form>
-      `,
-
-      buttons: {
-        use: {
-          label:
-            localize(
-              "DDA.Torment.CalmingInfluence.Use"
-            ),
-
-          callback: (html) => {
-            const root =
-              html instanceof jQuery
-                ? html
-                : $(html);
-
-            const index =
-              Number(
-                root.find(
-                  "[name='helperIndex']"
-                ).val() ?? -1
-              );
-
-            resolve(
-              candidates[index] ??
-              null
+              button.form?.elements
+                ?.helperIndex?.value ?? -1
             );
-          }
-        },
 
-        decline: {
-          label:
-            localize(
-              "DDA.Torment.CalmingInfluence.Decline"
-            ),
-
-          callback: () => {
-            resolve(null);
-          }
+          return candidates[index] ?? null;
         }
       },
-
-      default:
-        "use",
-
-      close: () => {
-        resolve(null);
+      {
+        action: "decline",
+        label:
+          localize(
+            "DDA.Torment.CalmingInfluence.Decline"
+          ),
+        icon: "fa-solid fa-xmark",
+        callback: () => null
       }
-    }).render(true);
+    ],
+
+    rejectClose: false,
+    modal: true
   });
 }
 
@@ -2114,50 +2143,62 @@ async function chooseSevereTormentConsequence(actor) {
     return "heavyPenalty";
   }
 
-  return new Promise((resolve) => {
-    new Dialog(
+  const result = await foundry.applications.api.DialogV2.wait({
+    classes: [
+      "dda",
+      "dda-torment-severe-dialog-app"
+    ],
+
+    window: {
+      title: localize("DDA.Torment.SevereDialog.Title")
+    },
+
+    content: `
+      <div class="dda-roll-dialog dda-torment-severe-dialog">
+        <p>
+          ${formatI18n("DDA.Torment.SevereDialog.Intro", { actor: `<strong>${escapeHtml(actor.name)}</strong>` })}
+        </p>
+
+        <p class="notes">
+          ${localize("DDA.Torment.SevereDialog.Hint")}
+        </p>
+
+        <div class="form-group">
+          <label>${localize("DDA.Torment.SevereDialog.Consequence")}</label>
+          <select name="consequence">
+            <option value="heavyPenalty">${localize("DDA.Torment.SevereDialog.HeavyPenalty")}</option>
+            <option value="combatCollapse">${localize("DDA.Torment.SevereDialog.CombatCollapse")}</option>
+          </select>
+        </div>
+      </div>
+    `,
+
+    buttons: [
       {
-        title: localize("DDA.Torment.SevereDialog.Title"),
-        content: `
-          <form class="dda-roll-dialog dda-torment-severe-dialog">
-            <p>
-              ${formatI18n("DDA.Torment.SevereDialog.Intro", { actor: `<strong>${escapeHtml(actor.name)}</strong>` })}
-            </p>
-
-            <p class="notes">
-              ${localize("DDA.Torment.SevereDialog.Hint")}
-            </p>
-
-            <div class="form-group">
-              <label>${localize("DDA.Torment.SevereDialog.Consequence")}</label>
-              <select name="consequence">
-                <option value="heavyPenalty">${localize("DDA.Torment.SevereDialog.HeavyPenalty")}</option>
-                <option value="combatCollapse">${localize("DDA.Torment.SevereDialog.CombatCollapse")}</option>
-              </select>
-            </div>
-          </form>
-        `,
-        buttons: {
-          confirm: {
-            label: localize("DDA.Button.Confirm"),
-            callback: (html) => {
-              const form = html[0].querySelector("form");
-              resolve(form.consequence.value);
-            }
-          },
-          cancel: {
-            label: localize("DDA.Torment.SevereDialog.UseMinusFive"),
-            callback: () => resolve("heavyPenalty")
-          }
-        },
-        default: "confirm",
-        close: () => resolve("heavyPenalty")
+        action: "confirm",
+        label: localize("DDA.Button.Confirm"),
+        icon: "fa-solid fa-check",
+        default: true,
+        callback: (_event, button) =>
+          String(
+            button.form?.elements
+              ?.consequence?.value ??
+            "heavyPenalty"
+          )
       },
       {
-        width: 430
+        action: "heavyPenalty",
+        label: localize("DDA.Torment.SevereDialog.UseMinusFive"),
+        icon: "fa-solid fa-minus",
+        callback: () => "heavyPenalty"
       }
-    ).render(true);
+    ],
+
+    rejectClose: false,
+    modal: true
   });
+
+  return result ?? "heavyPenalty";
 }
 
 function isActorInCurrentCombat(actor) {
