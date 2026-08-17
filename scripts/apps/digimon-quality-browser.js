@@ -92,6 +92,23 @@ function normalizeQualityBrowserIdentity(value = "") {
     .trim();
 }
 
+function normalizeQualityBrowserElementKey(value = "") {
+  const key = normalizeQualityBrowserIdentity(value);
+  const aliases = {
+    fire: "fire", fogo: "fire",
+    water: "water", agua: "water",
+    wind: "wind", vento: "wind",
+    earth: "earth", terra: "earth",
+    ice: "ice", gelo: "ice",
+    wood: "wood", flora: "wood",
+    steel: "steel", aco: "steel",
+    thunder: "thunder", trovao: "thunder", lightning: "thunder",
+    dark: "dark", darkness: "dark", trevas: "dark",
+    light: "light", luz: "light"
+  };
+  return aliases[key] ?? key;
+}
+
 function getOffensiveRankStatRequirement(quality = {}, rank = 1) {
   const key = normalizeQualityBrowserIdentity(
     quality?.id ?? quality?.originalName ?? quality?.name ?? ""
@@ -1795,13 +1812,32 @@ const isAttackChoice =
     );
   }
 
-  const options = rawOptions.map((option) => {
+  let options = rawOptions.map((option) => {
     return typeof option === "string"
-      ? { key: normalizeQualityBrowserIdentity(option), label: option, originalLabel: option }
+      ? {
+          key: choices.type === "twoElementsPerRank"
+            ? normalizeQualityBrowserElementKey(option)
+            : normalizeQualityBrowserIdentity(option),
+          label: choices.type === "derivedStatPerRank" ? option.toUpperCase() : option,
+          originalLabel: option
+        }
       : option;
   }).filter((option) => {
     return isAdvancedMobility || this._actorMeetsChoiceOptionRequirements(option);
   });
+
+  if (choices.type === "derivedStatPerRank" && choices.cannotChooseStatsAffectedBySystemBoost) {
+    const systemBoost = this._getOwnedQualityBySourceId?.("impulsoDeSistema") ??
+      this.actor?.items?.find((item) => qualityBrowserMatches({}, item, ["impulsoDeSistema", "systemBoost"]));
+    const boostedStats = new Set(
+      (systemBoost?.system?.choices?.selectedRanks ?? [])
+        .map((choice) => normalizeQualityBrowserIdentity(choice?.key ?? choice?.label ?? ""))
+        .filter(Boolean)
+    );
+    options = options.filter((option) => !boostedStats.has(
+      normalizeQualityBrowserIdentity(option?.key ?? option?.label ?? "")
+    ));
+  }
 
   if (!options.length) {
     ui.notifications.warn(game.i18n.format(isAttackChoice ? "DDA.Warning.QualityChoiceHasNoAttacks" : "DDA.Warning.QualityChoiceHasNoOptions", {
@@ -2086,14 +2122,14 @@ const availableOptions =
     if (choices.type === "twoElementsPerRank") {
       const naturewalkElements = new Set(
         (this.actor?.system?.qualityFeatures?.naturewalk?.elements ?? [])
-          .map(normalizeQualityBrowserIdentity)
+          .map(normalizeQualityBrowserElementKey)
       );
       const alreadyChosen = new Set(
         existingChoices.flatMap((choice) => choice?.elements ?? [])
-          .map((element) => normalizeQualityBrowserIdentity(element?.key ?? element?.label ?? element))
+          .map((element) => normalizeQualityBrowserElementKey(element?.key ?? element?.label ?? element))
       );
       const eligible = availableOptions.filter((option) => {
-        const key = normalizeQualityBrowserIdentity(option.key);
+        const key = normalizeQualityBrowserElementKey(option.key);
         return key && !naturewalkElements.has(key) && !alreadyChosen.has(key);
       });
 
@@ -2128,8 +2164,9 @@ const availableOptions =
       }
 
       const elements = selectedKeys.map((key) => {
-        const option = eligible.find((entry) => String(entry.key) === String(key));
-        return { key: option.key, label: option.label, originalLabel: option.originalLabel ?? option.label };
+        const canonicalKey = normalizeQualityBrowserElementKey(key);
+        const option = eligible.find((entry) => normalizeQualityBrowserElementKey(entry.key) === canonicalKey);
+        return { key: canonicalKey, label: option.label, originalLabel: option.originalLabel ?? option.label };
       });
 
       return {
@@ -4198,6 +4235,46 @@ _getQualityEffectiveMax(
     return Math.max(0, Number(naturewalk?.system?.rank?.value ?? 0));
   }
 
+  if (qualityBrowserMatches(quality, ownedItem, ["erroDeSistema", "systemError"])) {
+    const systemBoost = this.actor?.items?.find((item) => (
+      item.type === "quality" && qualityBrowserMatches({}, item, ["impulsoDeSistema", "systemBoost"])
+    ));
+    return Math.min(
+      Number(quality?.rank?.max ?? ownedItem?.system?.rank?.max ?? 2),
+      Math.max(0, Number(systemBoost?.system?.rank?.value ?? 0))
+    );
+  }
+
+  const dependentRankCapDefinitions = [
+    { quality: ["perfuracaoDesastrada", "fumbledPiercing"], source: ["golpeCerteiro", "certainStrike"] },
+    { quality: ["golpeEnfraquecido", "weakenedStrike"], source: ["golpeCerteiro", "certainStrike"] },
+    { quality: ["decepcionante", "underwhelming"], source: ["poderBrutal", "hugePower"] },
+    { quality: ["flancoAberto", "broadside"], source: ["esquiva", "avoidance"] },
+    { quality: ["doenca", "illness"], source: ["energiaVital", "vitalEnergy"] }
+  ];
+  const dependentRankCap = dependentRankCapDefinitions.find((entry) => (
+    qualityBrowserMatches(quality, ownedItem, entry.quality)
+  ));
+  if (dependentRankCap) {
+    const sourceItem = this.actor?.items?.find((item) => (
+      item.type === "quality" && qualityBrowserMatches({}, item, dependentRankCap.source)
+    ));
+    return Math.min(
+      Number(quality?.rank?.max ?? ownedItem?.system?.rank?.max ?? 1),
+      Math.max(0, Number(sourceItem?.system?.rank?.value ?? 0))
+    );
+  }
+
+  const fixedCatalogMaximum = Number(quality?.rank?.max ?? Number.NaN);
+  const catalogRankLimit = quality?.rankLimit ?? null;
+  if (
+    Number.isFinite(fixedCatalogMaximum) &&
+    fixedCatalogMaximum > 0 &&
+    !catalogRankLimit
+  ) {
+    return fixedCatalogMaximum;
+  }
+
   const actorComputedEffectiveMax =
     Number(
       ownedItem?.system
@@ -4546,16 +4623,9 @@ _isAccelerateQuality(quality, ownedItem = null) {
   }
 
   _actorCanTakeNegativeQuality(quality) {
-    if (quality.tier !== "negative") return true;
-
-    const limit = this._getActorNegativeDpLimit();
-
-    if (limit <= 0) return true;
-
-    const used = this._getActorNegativeDpUsed();
-    const value = this._getNegativeQualityDpValue(quality);
-
-    return used + value <= limit;
+    // DDA 7.02 limits how much DP can be GAINED, not which Negative
+    // Qualities may be taken. The Actor preparation code caps the awarded DP.
+    return true;
   }
 
 
@@ -4697,27 +4767,20 @@ _isAccelerateQuality(quality, ownedItem = null) {
       });
     }
 
-    if (!this._actorCanTakeNegativeQuality(quality)) {
-      const used = this._getActorNegativeDpUsed();
-      const limit = this._getActorNegativeDpLimit();
-      const value = this._getNegativeQualityDpValue(quality);
-
-      return game.i18n.format("DDA.QualityBrowser.BlockedReason.NegativeDPLimitExceeded", {
-        used: used + value,
-        limit
-      });
-    }
-
     return "";
   }
 
 
   _getCostLabel(quality) {
     const cost = quality.cost ?? {};
-    const dp = Math.max(0, Number(cost.dp ?? 0));
+    const rawDp = Number(cost.dp ?? 0);
+    const dp = Math.max(0, rawDp);
 
     if (quality.tier === "free") return game.i18n.localize("DDA.QualityBrowser.Cost.Free");
-    if (quality.tier === "negative") return `${Math.abs(dp)} PD`;
+    if (quality.tier === "negative") {
+      const suffix = cost.perRank ? ` / ${game.i18n.localize("DDA.QualitySheet.Rank")}` : "";
+      return `+${Math.abs(rawDp)} PD${suffix}`;
+    }
 
     const suffix = cost.perRank ? ` / ${game.i18n.localize("DDA.QualitySheet.Rank")}` : "";
     const preview = getCoreDiscountPreview(this.actor, quality);

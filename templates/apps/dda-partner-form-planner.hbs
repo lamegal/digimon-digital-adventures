@@ -198,6 +198,26 @@
                       <i class="fas fa-chevron-right"></i>
                     </button>
 
+                    {{#if form.canToggleNpcAvailability}}
+                      <button
+                        type="button"
+                        class="dda-form-build-availability-button {{#if form.npcAvailable}}is-available{{else}}is-locked{{/if}}"
+                        data-action="toggleNpcFormAvailability"
+                        data-form-uuid="{{form.sourceFormUuid}}"
+                        data-available="{{#if form.npcAvailable}}true{{else}}false{{/if}}"
+                        title="{{#if form.npcAvailable}}{{localize 'DDA.PartnerFormPlanner.Npc.LockHint'}}{{else}}{{localize 'DDA.PartnerFormPlanner.Npc.UnlockHint'}}{{/if}}"
+                      >
+                        <i class="fas {{#if form.npcAvailable}}fa-lock{{else}}fa-lock-open{{/if}}"></i>
+                        <span>
+                          {{#if form.npcAvailable}}
+                            {{localize "DDA.PartnerFormPlanner.Npc.Lock"}}
+                          {{else}}
+                            {{localize "DDA.PartnerFormPlanner.Npc.Unlock"}}
+                          {{/if}}
+                        </span>
+                      </button>
+                    {{/if}}
+
                     {{#if form.canRemove}}
                       <button
                         type="button"

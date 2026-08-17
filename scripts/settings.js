@@ -175,6 +175,16 @@ export function registerDDASettings() {
     default: false
   });
 
+  game.settings.register(MODULE_ID, "flexibleTormentCreation", {
+    name: "DDA.Settings.FlexibleTormentCreation.Name",
+    hint: "DDA.Settings.FlexibleTormentCreation.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+    onChange: () => onSettingChanged()
+  });
+
   game.settings.register(MODULE_ID, "attributeAdvantage", {
     name: "DDA.Settings.AttributeAdvantage.Name",
     hint: "DDA.Settings.AttributeAdvantage.Hint",

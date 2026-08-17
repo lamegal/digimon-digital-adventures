@@ -995,6 +995,30 @@
   <section class="dda-wizard-step dda-future-form-attacks-step">
     <h2>{{localize "DDA.DigimonWizard.Attacks.Title"}}</h2>
 
+    {{#if data.formAppearance.sizeOptions.length}}
+      <div class="dda-form-appearance-grid">
+        <label class="dda-wizard-field">
+          <span>{{localize "DDA.Resource.Size"}}</span>
+          <select data-path="formAppearance.size">
+            {{#each data.formAppearance.sizeOptions as |option|}}
+              <option value="{{option.key}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+            {{/each}}
+          </select>
+          <small>{{localize "DDA.DigimonWizard.FormAppearance.SizeHint"}}</small>
+        </label>
+
+        <label class="dda-wizard-field">
+          <span>{{localize "DDA.DigimonWizard.FormAppearance.TokenSize"}}</span>
+          <select data-path="formAppearance.tokenSize">
+            {{#each data.formAppearance.tokenSizeOptions as |option|}}
+              <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+            {{/each}}
+          </select>
+          <small>{{localize "DDA.DigimonWizard.FormAppearance.TokenSizeHint"}}</small>
+        </label>
+      </div>
+    {{/if}}
+
     <div class="dda-line-attack-list">
       {{#each data.formAttacks as |attack|}}
         <div class="dda-line-attack-row">

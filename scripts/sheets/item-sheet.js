@@ -2169,6 +2169,15 @@ function registerQualityAttackChoiceCleanupHooks() {
 
   Hooks.on("updateItem", (item, changed, options, userId) => {
     if (
+      item?.type === "torment"
+    ) {
+      const actor = item.actor ?? item.parent;
+      if (actor?.type === "character") {
+        actor.sheet?.render(false);
+      }
+    }
+
+    if (
       userId !== game.user?.id ||
       item?.type !== "quality" ||
       options?.ddaSkipQualityChoiceCleanup

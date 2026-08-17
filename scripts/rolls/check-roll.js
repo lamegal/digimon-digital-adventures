@@ -226,26 +226,13 @@ export async function rollTamerCheck(
     return null;
   }
 
-  const attributeKey =
+  const defaultAttributeKey =
     attributeKeyOverride || skill.attributes?.[0];
 
-  if (!attributeKey) {
+  if (!defaultAttributeKey) {
     ui.notifications.warn(
       i18n.localize(
         "DDA.Warning.SkillHasNoAttribute"
-      )
-    );
-
-    return null;
-  }
-
-  const attribute =
-    system.attributes?.[attributeKey];
-
-  if (!attribute) {
-    ui.notifications.warn(
-      i18n.localize(
-        "DDA.Warning.AttributeNotFound"
       )
     );
 
@@ -275,6 +262,8 @@ export async function rollTamerCheck(
 
         aspectUse: presetAspectUse,
 
+        attributeKey: defaultAttributeKey,
+
         aspectModifier:
           getAspectModifier(
             presetAspectUse
@@ -287,6 +276,24 @@ export async function rollTamerCheck(
       );
 
   if (!dialogData) return null;
+
+  const attributeKey = String(
+    attributeKeyOverride ||
+    dialogData.attributeKey ||
+    defaultAttributeKey
+  ).trim();
+
+  const attribute = system.attributes?.[attributeKey];
+
+  if (!attribute) {
+    ui.notifications.warn(
+      i18n.localize(
+        "DDA.Warning.AttributeNotFound"
+      )
+    );
+
+    return null;
+  }
 
   const livingEncyclopedia = await maybeUseLivingEncyclopedia(
     actor,
@@ -1662,6 +1669,39 @@ function getTamerCheckDialogData(
   const skillLabel =
     localizeLabel(skill.label);
 
+  const attributeKeyOverride = String(
+    options.attributeKeyOverride ?? ""
+  ).trim();
+
+  const defaultAttributeKey = String(
+    attributeKeyOverride ||
+    skill.attributes?.[0] ||
+    ""
+  ).trim();
+
+  const linkedAttributes = new Set(
+    (Array.isArray(skill.attributes) ? skill.attributes : [])
+      .map((key) => String(key ?? "").trim())
+      .filter(Boolean)
+  );
+
+  const attributeOptions = Object.entries(actor.system?.attributes ?? {})
+    .map(([key, attribute]) => {
+      const label = localizeLabel(attribute?.label ?? key);
+      const linked = linkedAttributes.has(key);
+      const selected = key === defaultAttributeKey ? "selected" : "";
+      const linkedSuffix = linked
+        ? ` — ${i18n.localize("DDA.TamerSkillDialog.LinkedAttribute")}`
+        : "";
+
+      return `<option value="${escapeHtml(key)}" ${selected}>${escapeHtml(label)}${escapeHtml(linkedSuffix)}</option>`;
+    })
+    .join("");
+
+  const attributeControl = attributeKeyOverride
+    ? `<input type="text" value="${escapeHtml(localizeLabel(actor.system?.attributes?.[attributeKeyOverride]?.label ?? attributeKeyOverride))}" readonly />`
+    : `<select name="attributeKey">${attributeOptions}</select>`;
+
   const requestedTn = Number(
     options.tn ?? 0
   );
@@ -1758,6 +1798,16 @@ function getTamerCheckDialogData(
           readonly
         />
       </div>
+
+      <div class="form-group dda-tamer-skill-attribute-row">
+        <label>
+          ${i18n.localize("DDA.TamerSkillDialog.Attribute")}
+        </label>
+
+        ${attributeControl}
+      </div>
+
+      ${attributeKeyOverride ? "" : `<p class="hint dda-tamer-skill-attribute-hint">${i18n.localize("DDA.TamerSkillDialog.AttributeHint")}</p>`}
 
       <div class="form-group">
         <label>
@@ -1912,6 +1962,12 @@ function getTamerCheckDialogData(
           );
 
           return {
+            attributeKey: String(
+              form.elements.attributeKey?.value ??
+              attributeKeyOverride ??
+              defaultAttributeKey
+            ),
+
             tn: Number(
               form.elements
                 .tn?.value ?? 0

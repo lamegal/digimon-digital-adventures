@@ -278,14 +278,34 @@
         <h2>{{localize "DDA.TamerWizard.Torments.Title"}}</h2>
 
         <div class="dda-quality-budget">
-          <span><strong>{{localize "DDA.TamerWizard.Torments.MarkedBoxes"}}:</strong> {{data.tormentBudget.usedMarked}} / {{data.tormentBudget.requiredMarked}}</span>
+          <span><strong>{{localize "DDA.TamerWizard.Torments.MarkedBoxes"}}:</strong> {{data.tormentBudget.usedMarked}} / {{data.tormentBudget.requiredMarked}}{{#if data.tormentBudget.flexible}}+{{/if}}</span>
           <span><strong>{{localize "DDA.TamerWizard.Torments.Remaining"}}:</strong> {{data.tormentBudget.remainingMarked}}</span>
+          {{#if data.tormentBudget.extraMarked}}
+            <span><strong>{{localize "DDA.TamerWizard.Torments.Extra"}}:</strong> +{{data.tormentBudget.extraMarked}}</span>
+          {{/if}}
         </div>
+
+        {{#if data.tormentBudget.flexible}}
+          <div class="dda-torment-flexible-controls">
+            <p class="dda-wizard-hint">{{localize "DDA.TamerWizard.Torments.FlexibleHint"}}</p>
+            <button type="button" data-action="add-torment">
+              <i class="fa-solid fa-plus"></i>
+              {{localize "DDA.TamerWizard.Torments.Add"}}
+            </button>
+          </div>
+        {{/if}}
 
         <section class="dda-torment-list">
           {{#each data.torments as |torment index|}}
             <article class="dda-torment-card">
-              <h3>{{localize "DDA.TamerWizard.Torments.TormentNumber" number=(add index 1)}}</h3>
+              <div class="dda-torment-card-heading">
+                <h3>{{localize "DDA.TamerWizard.Torments.TormentNumber" number=(add index 1)}}</h3>
+                {{#if ../data.tormentBudget.flexible}}
+                  <button type="button" class="dda-torment-remove" data-remove-torment="{{index}}" title="{{localize 'DDA.TamerWizard.Torments.Remove'}}">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                {{/if}}
+              </div>
 
               <div class="dda-wizard-field">
                 <label>{{localize "DDA.TamerWizard.Identity.Name"}}</label>

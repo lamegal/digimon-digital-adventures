@@ -9723,3 +9723,64 @@ html body :is(.window-app, .application).dda-digimon-wizard .dda-wizard-build-te
     grid-template-columns: 18px 34px minmax(0, 1fr) !important;
   }
 }
+
+/* v2.0.20 post-release fixes: flexible Torments and future-form appearance. */
+html body :is(.window-app, .application).dda-wizard .dda-torment-flexible-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 14px;
+}
+
+html body :is(.window-app, .application).dda-wizard .dda-torment-flexible-controls .dda-wizard-hint {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+html body :is(.window-app, .application).dda-wizard .dda-torment-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+html body :is(.window-app, .application).dda-wizard .dda-torment-card-heading h3 {
+  margin: 0;
+}
+
+html body :is(.window-app, .application).dda-wizard .dda-torment-remove {
+  flex: 0 0 auto;
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
+html body :is(.window-app, .application).dda-wizard .dda-form-appearance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid rgba(92, 177, 224, 0.35);
+  border-radius: 10px;
+  background: rgba(5, 29, 46, 0.28);
+}
+
+html body :is(.window-app, .application).dda-wizard .dda-form-appearance-grid .dda-wizard-field {
+  margin: 0;
+}
+
+html body :is(.window-app, .application).dda-wizard .dda-form-appearance-grid select {
+  width: 100%;
+  min-height: 34px;
+}
+
+@media (max-width: 680px) {
+  html body :is(.window-app, .application).dda-wizard .dda-torment-flexible-controls,
+  html body :is(.window-app, .application).dda-wizard .dda-form-appearance-grid {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

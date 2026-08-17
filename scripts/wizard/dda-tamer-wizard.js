@@ -307,6 +307,7 @@ export class DDATamerWizard extends DDATamerWizardApplicationBase {
 
     const campaignRules = this._getCampaignRules();
     const initialTorments = this._buildInitialTorments(campaignRules.startingMarkedTormentBoxes);
+    const flexibleTormentCreation = getWorldSetting("flexibleTormentCreation", false);
 
     this.data = {
       identity: {
@@ -368,7 +369,9 @@ export class DDATamerWizard extends DDATamerWizardApplicationBase {
         requiredMarked: campaignRules.startingMarkedTormentBoxes,
         usedMarked: campaignRules.startingMarkedTormentBoxes,
         remainingMarked: 0,
-        maxTorments: 2
+        extraMarked: 0,
+        maxTorments: flexibleTormentCreation ? 0 : 2,
+        flexible: flexibleTormentCreation
       },
 
       derived: {
@@ -502,6 +505,8 @@ return {
 
     html.find("[data-torment-increase]").on("click", this._onIncreaseTorment.bind(this));
     html.find("[data-torment-decrease]").on("click", this._onDecreaseTorment.bind(this));
+    html.find("[data-action='add-torment']").on("click", this._onAddTorment.bind(this));
+    html.find("[data-remove-torment]").on("click", this._onRemoveTorment.bind(this));
 
 html
   .find("[data-lucky-number]")
@@ -550,6 +555,8 @@ html
     this.data.sp.finalCap = getSkillFinalCap();
 
     this.data.tormentBudget.requiredMarked = getStartingMarkedTormentBoxes();
+    this.data.tormentBudget.flexible = getWorldSetting("flexibleTormentCreation", false);
+    this.data.tormentBudget.maxTorments = this.data.tormentBudget.flexible ? 0 : 2;
   }
 
   _buildInitialTorments(requiredMarked = 7) {
@@ -906,6 +913,35 @@ if (shouldOpenDigimonWizard) {
     this._renderPreservingScroll();
   }
 
+  async _onAddTorment(event) {
+    event.preventDefault();
+
+    if (!this.data.tormentBudget.flexible) return;
+    if (this.data.tormentBudget.maxTorments > 0 && this.data.torments.length >= this.data.tormentBudget.maxTorments) return;
+
+    this.data.torments.push({
+      name: "",
+      description: "",
+      marked: 0,
+      max: 10
+    });
+
+    this._renderPreservingScroll();
+  }
+
+  async _onRemoveTorment(event) {
+    event.preventDefault();
+
+    if (!this.data.tormentBudget.flexible) return;
+    if (this.data.torments.length <= 1) return;
+
+    const index = Number(event.currentTarget.dataset.removeTorment);
+    if (!Number.isInteger(index) || index < 0 || index >= this.data.torments.length) return;
+
+    this.data.torments.splice(index, 1);
+    this._renderPreservingScroll();
+  }
+
   async _onSelectLuckyNumber(event) {
     event.preventDefault();
 
@@ -1007,7 +1043,14 @@ if (shouldOpenDigimonWizard) {
     }, 0);
 
     this.data.tormentBudget.usedMarked = usedMarked;
-    this.data.tormentBudget.remainingMarked = this.data.tormentBudget.requiredMarked - usedMarked;
+    this.data.tormentBudget.remainingMarked = Math.max(
+      0,
+      this.data.tormentBudget.requiredMarked - usedMarked
+    );
+    this.data.tormentBudget.extraMarked = Math.max(
+      0,
+      usedMarked - this.data.tormentBudget.requiredMarked
+    );
   }
 
   _recalculateDerived() {
@@ -1096,8 +1139,17 @@ if (
     }
 
     if (this.currentStep === "torments" || this.currentStep === "summary") {
-      if (this.data.tormentBudget.usedMarked !== this.data.tormentBudget.requiredMarked) {
-        errors.push(formatI18n("DDA.TamerWizard.Validation.TormentBoxesExact", { boxes: this.data.tormentBudget.requiredMarked }));
+      const invalidTormentBudget = this.data.tormentBudget.flexible
+        ? this.data.tormentBudget.usedMarked < this.data.tormentBudget.requiredMarked
+        : this.data.tormentBudget.usedMarked !== this.data.tormentBudget.requiredMarked;
+
+      if (invalidTormentBudget) {
+        errors.push(formatI18n(
+          this.data.tormentBudget.flexible
+            ? "DDA.TamerWizard.Validation.TormentBoxesMinimum"
+            : "DDA.TamerWizard.Validation.TormentBoxesExact",
+          { boxes: this.data.tormentBudget.requiredMarked }
+        ));
       }
 
       const namedTorments = this.data.torments.filter((torment) => torment.name?.trim());
