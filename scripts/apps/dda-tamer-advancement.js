@@ -665,7 +665,9 @@ export function openTamerAdvancement(actor) {
     return existing;
   }
 
-  const app = new DDATamerAdvancement(actor);
+  const app = new DDATamerAdvancement(actor, {
+    id: `dda-tamer-advancement-${actor.id}`
+  });
 
   OPEN_ADVANCEMENT_APPS.set(actorUuid, app);
 

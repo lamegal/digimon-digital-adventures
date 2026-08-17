@@ -327,6 +327,7 @@ export const DDA_PORTRAIT_PATH_BY_KEY = Object.freeze({
   "gusokumon": "assets/digimon/portraits/gusokumon.webm",
   "gyukimon": "assets/digimon/portraits/gyukimon.webm",
   "hackmon": "assets/digimon/portraits/hackmon.webm",
+  "habakirimon": "assets/digimon/portraits/Habakirimon-Portrait.webp",
   "hagurumon": "assets/digimon/portraits/hagurumon.webm",
   "hakubamon": "assets/digimon/portraits/hakubamon.webm",
   "hangyomon": "assets/digimon/portraits/hangyomon.webm",
@@ -338,6 +339,7 @@ export const DDA_PORTRAIT_PATH_BY_KEY = Object.freeze({
   "helloogarmon": "assets/digimon/portraits/helloogarmon.webm",
   "herakle_kabuterimon": "assets/digimon/portraits/herakle-kabuterimon.webm",
   "herissmon": "assets/digimon/portraits/herissmon.webm",
+  "heliosboamon": "assets/digimon/portraits/Heliosboamon-Portrait.webp",
   "hexeblaumon": "assets/digimon/portraits/hexeblaumon.webm",
   "hi_andromon": "assets/digimon/portraits/hi-andromon.webm",
   "hi_commandramon": "assets/digimon/portraits/hi-commandramon.webm",
@@ -729,6 +731,7 @@ export const DDA_PORTRAIT_PATH_BY_KEY = Object.freeze({
   "tankdramon": "assets/digimon/portraits/tankdramon.webm",
   "tankmon": "assets/digimon/portraits/tankmon.webp",
   "taomon": "assets/digimon/portraits/taomon.webm",
+  "taowumon": "assets/digimon/portraits/Taowumon-Portrait.webp",
   "tempomon": "assets/digimon/portraits/tempomon.webm",
   "tengumon": "assets/digimon/portraits/tengumon.webm",
   "tenkomon": "assets/digimon/portraits/tenkomon.webm",
@@ -828,6 +831,40 @@ export const DDA_PORTRAIT_PATH_BY_KEY = Object.freeze({
 });
 
 const DDA_MANUAL_LINE = Object.freeze([
+  {
+    fromId: "murasamemon",
+    fromStage: "perfect",
+    toId: "habakirimon",
+    toStage: "ultimate",
+    rank: "primary",
+    relationType: "normal",
+    source: "Manual: Wikimon — Habakirimon evolves from Murasamemon",
+    notes: "Confirmed from user-provided Wikimon data."
+  },
+  {
+    fromId: "skull_mammon",
+    fromStage: "ultimate",
+    toId: "taowumon",
+    toStage: "ultimate",
+    rank: "primary",
+    relationType: "jogress",
+    requirements: ["suijinmon"],
+    requirementMode: "required",
+    source: "Manual: Wikimon — Taowumon",
+    notes: "Skull Mammon route requires Suijinmon."
+  },
+  {
+    fromId: "suijinmon",
+    fromStage: "ultimate",
+    toId: "taowumon",
+    toStage: "ultimate",
+    rank: "primary",
+    relationType: "jogress",
+    requirements: ["skull_mammon"],
+    requirementMode: "required",
+    source: "Manual: Wikimon — Taowumon",
+    notes: "Suijinmon route requires Skull Mammon."
+  },
   {
     fromId: "renamon",
     fromStage: "child",
@@ -998,12 +1035,38 @@ function makeManualActor({
   attribute,
   type,
   family = "",
+  group = "",
+  groups = [],
   aliases = [],
   imageDirectory = stage,
-  imageFile,
-  wikimonUrl
+  imageFile = "",
+  portraitFile = "",
+  tokenFile = "",
+  wikimonUrl,
+  wikimonLevel = "",
+  wikimonEvolvesFrom = [],
+  wikimonEvolvesTo = []
 }) {
-  const image = imagePath(imageDirectory, imageFile);
+  const fallbackImage = imageFile ? imagePath(imageDirectory, imageFile) : "";
+  const portrait = portraitFile
+    ? imagePath("portraits", portraitFile)
+    : fallbackImage;
+  const token = tokenFile
+    ? imagePath("tokens", tokenFile)
+    : (fallbackImage || portrait);
+  const image = portrait || token;
+
+  const normalizedGroups = Array.from(new Set(
+    [group, ...(Array.isArray(groups) ? groups : [])]
+      .map((entry) => String(entry ?? "").trim())
+      .filter(Boolean)
+  ));
+
+  const level = String(wikimonLevel || ({
+    adult: "Adult",
+    perfect: "Perfect",
+    ultimate: "Ultimate"
+  }[stage] ?? "")).trim();
 
   return {
     name,
@@ -1011,7 +1074,7 @@ function makeManualActor({
     img: image,
     prototypeToken: {
       texture: {
-        src: image
+        src: token || image
       }
     },
     system: {
@@ -1024,8 +1087,8 @@ function makeManualActor({
       sourceStageKey: stage,
       attribute,
       type,
-      group: "",
-      groups: [],
+      group: group || normalizedGroups[0] || "",
+      groups: normalizedGroups,
       field: "none",
       fieldId: "",
       family,
@@ -1045,23 +1108,20 @@ function makeManualActor({
       folderPath: stage,
       images: {
         portrait: image,
-        token: image,
-        source: "manual:portrait-line-2026-06",
-        imageFileName: imageFile,
+        token: token || image,
+        source: "manual:user-supplied-2026-08",
+        imageFileName: portraitFile || imageFile,
+        tokenFileName: tokenFile || imageFile,
         localImagePath: image,
         officialImageUrl: "",
-        portraitImagePath: "",
-        tokenImagePath: ""
+        portraitImagePath: portrait || "",
+        tokenImagePath: token || ""
       },
       officialReference: {
         directoryName: "",
         url: wikimonUrl,
         displayName: name,
-        level: {
-          adult: "Adult",
-          perfect: "Perfect",
-          ultimate: "Ultimate"
-        }[stage] ?? "",
+        level,
         type,
         attribute,
         imageUrl: "",
@@ -1071,17 +1131,13 @@ function makeManualActor({
       wikimon: {
         title: name,
         url: wikimonUrl,
-        evolvesFrom: [],
-        evolvesTo: [],
-        level: {
-          adult: "Adult",
-          perfect: "Perfect",
-          ultimate: "Ultimate"
-        }[stage] ?? "",
+        evolvesFrom: Array.isArray(wikimonEvolvesFrom) ? [...wikimonEvolvesFrom] : [],
+        evolvesTo: Array.isArray(wikimonEvolvesTo) ? [...wikimonEvolvesTo] : [],
+        level,
         type,
         attribute,
         field: "",
-        group: []
+        group: normalizedGroups
       },
       evolutionHints: {
         evolvesFrom: [],
@@ -1108,13 +1164,54 @@ function makeManualActor({
         curationStatus: "confirmed",
         confidence: 100,
         relationSource: "Wikimon",
-        notes: "Manual actor added with an extracted static base image and an approved portrait asset."
+        notes: "Manual actor added from user-provided Wikimon metadata with approved portrait and token asset names."
       }
     }
   };
 }
 
 export const DDA_MANUAL_DIGIMON_ACTORS = Object.freeze([
+  makeManualActor({
+    id: "habakirimon",
+    name: "Habakirimon",
+    stage: "ultimate",
+    attribute: "virus",
+    type: "God Man",
+    portraitFile: "Habakirimon-Portrait.webp",
+    tokenFile: "Habakirimon.webp",
+    wikimonUrl: "https://wikimon.net/Habakirimon",
+    wikimonLevel: "Ultimate",
+    wikimonEvolvesFrom: ["Murasamemon"]
+  }),
+  makeManualActor({
+    id: "heliosboamon",
+    name: "Heliosboamon",
+    stage: "perfect",
+    attribute: "data",
+    type: "Reptile",
+    portraitFile: "Heliosboamon-Portrait.webp",
+    tokenFile: "Heliosboamon.webp",
+    wikimonUrl: "https://wikimon.net/Heliosboamon",
+    wikimonLevel: "Perfect",
+    wikimonEvolvesFrom: []
+  }),
+  makeManualActor({
+    id: "taowumon",
+    name: "Taowumon",
+    stage: "ultimate",
+    attribute: "virus",
+    type: "Demon Beast",
+    group: "Shikyoju",
+    groups: ["Shikyoju"],
+    portraitFile: "Taowumon-Portrait.webp",
+    tokenFile: "Taowumon.webp",
+    wikimonUrl: "https://wikimon.net/Taowumon",
+    wikimonLevel: "Ultimate",
+    wikimonEvolvesFrom: [
+      "Skull Mammon (with Suijinmon)",
+      "Suijinmon (with Skull Mammon)"
+    ]
+  }),
   makeManualActor({
     id: "golemon",
     name: "Golemon",
@@ -1208,7 +1305,7 @@ function addUnique(array, value) {
   if (!array.includes(value)) array.push(value);
 }
 
-function makeRelationReference(actor = {}, relationType = "normal", rank = "primary") {
+function makeRelationReference(actor = {}, relationType = "normal", rank = "primary", relation = {}) {
   const system = actor.system ?? {};
 
   return {
@@ -1219,7 +1316,11 @@ function makeRelationReference(actor = {}, relationType = "normal", rank = "prim
     folderPath: system.folderPath || system.stage || "",
     img: actor.img || system.images?.portrait || "icons/svg/mystery-man.svg",
     relationType,
-    rank
+    rank,
+    requirements: Array.isArray(relation.requirements) ? [...relation.requirements] : [],
+    requirementMode: String(relation.requirementMode ?? "").trim(),
+    source: String(relation.source ?? "").trim(),
+    notes: String(relation.notes ?? "").trim()
   };
 }
 
@@ -1229,13 +1330,17 @@ function attachManualRelation(fromActor, toActor, relation) {
 
   const fromId = sourceIdOf(fromActor);
   const toId = sourceIdOf(toActor);
+  const relationType = String(relation?.relationType ?? "normal").trim().toLowerCase() || "normal";
+  const isNormal = relationType === "normal";
+  const outgoingKey = isNormal ? "normalTo" : "specialTo";
+  const incomingKey = isNormal ? "normalFrom" : "specialFrom";
 
-  if (!fromIndex.normalTo.some((entry) => entry?.key === toId)) {
-    fromIndex.normalTo.push(makeRelationReference(toActor, "normal", relation.rank));
+  if (!fromIndex[outgoingKey].some((entry) => entry?.key === toId && entry?.relationType === relationType)) {
+    fromIndex[outgoingKey].push(makeRelationReference(toActor, relationType, relation.rank, relation));
   }
 
-  if (!toIndex.normalFrom.some((entry) => entry?.key === fromId)) {
-    toIndex.normalFrom.push(makeRelationReference(fromActor, "normal", relation.rank));
+  if (!toIndex[incomingKey].some((entry) => entry?.key === fromId && entry?.relationType === relationType)) {
+    toIndex[incomingKey].push(makeRelationReference(fromActor, relationType, relation.rank, relation));
   }
 
   addUnique(fromActor.system.evolutionHints.evolvesTo, toId);

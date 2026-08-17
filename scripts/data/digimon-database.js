@@ -4,6 +4,7 @@ import {
   getDdaPortraitPath
 } from "./dda-portrait-and-manual-digimon-data.js";
 import { DDA } from "../config.js";
+import { DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED } from "../rules/special-evolution-methods.js";
 import {
   resolveDigimonPortrait
 } from "../helpers/digimon-portrait-resolver.js";
@@ -686,6 +687,8 @@ function createVirtualHybridActors(existingActors = []) {
 }
 
 export function isHybridRulesEnabled() {
+  if (!DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED) return false;
+
   try {
     return Boolean(game.settings.get(DDA_SYSTEM_ID, "enableHybridEvolution"));
   } catch (_error) {

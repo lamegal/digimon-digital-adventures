@@ -1,0 +1,221 @@
+:root.dda-core-ui-theme,
+body.dda-core-ui-theme {
+  --dda-core-ui-text: #effbff;
+  --dda-core-ui-muted: #a9c7d6;
+  --dda-core-ui-cyan: #7ee9ff;
+  --dda-core-ui-glow: rgba(53, 205, 255, 0.72);
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) {
+  --control-size: 38px;
+  --tool-size: 34px;
+  gap: 5px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(.controls, .control-layers, .control-tools, ol, ul, nav) {
+  gap: 5px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button, .ui-control, .control-tool) {
+  box-sizing: border-box !important;
+  display: grid !important;
+  place-items: center !important;
+  position: relative !important;
+  width: var(--control-size) !important;
+  height: var(--control-size) !important;
+  min-width: var(--control-size) !important;
+  min-height: var(--control-size) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--dda-core-ui-text) !important;
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  transition: transform 110ms ease, filter 110ms ease, opacity 110ms ease !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(.control-tools button, [data-application-part="tools"] button, .control-tools .control-tool) {
+  --control-size: var(--tool-size);
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button, .ui-control, .control-tool)::before,
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button, .ui-control, .control-tool)::after {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button, .ui-control, .control-tool):hover:not(:disabled) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  transform: scale(1.10) !important;
+  filter: drop-shadow(0 0 5px rgba(70, 210, 255, 0.58)) !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button.active, button[aria-pressed="true"], .ui-control.active, .control-tool.active) {
+  color: #ffffff !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 0 3px rgba(150, 240, 255, 0.95)) drop-shadow(0 0 7px rgba(43, 202, 255, 0.72)) !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button.active, button[aria-pressed="true"], .ui-control.active, .control-tool.active)::after {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 1px !important;
+  width: 14px !important;
+  height: 2px !important;
+  transform: translateX(-50%) !important;
+  border-radius: 999px !important;
+  background: var(--dda-core-ui-cyan) !important;
+  box-shadow: 0 0 6px var(--dda-core-ui-glow) !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button, .ui-control, .control-tool):disabled {
+  opacity: 0.35 !important;
+  filter: grayscale(0.7) !important;
+}
+
+body.dda-core-ui-theme #sidebar { --dda-sidebar-tab-size: 38px; }
+
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) {
+  gap: 5px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab], .item, button) {
+  box-sizing: border-box !important;
+  display: grid !important;
+  place-items: center !important;
+  position: relative !important;
+  width: var(--dda-sidebar-tab-size) !important;
+  height: var(--dda-sidebar-tab-size) !important;
+  min-width: var(--dda-sidebar-tab-size) !important;
+  min-height: var(--dda-sidebar-tab-size) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #dceef7 !important;
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  transition: transform 110ms ease, filter 110ms ease, opacity 110ms ease !important;
+}
+
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab], .item, button)::before,
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab], .item, button)::after {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab], .item, button):hover {
+  color: #ffffff !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  transform: scale(1.10) !important;
+  filter: drop-shadow(0 0 5px rgba(70, 210, 255, 0.58)) !important;
+}
+
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab].active, .item.active, button.active, [aria-selected="true"]) {
+  color: #ffffff !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 0 3px rgba(150, 240, 255, 0.95)) drop-shadow(0 0 7px rgba(43, 202, 255, 0.72)) !important;
+}
+
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab].active, .item.active, button.active, [aria-selected="true"])::after {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  right: 0 !important;
+  top: 50% !important;
+  width: 2px !important;
+  height: 17px !important;
+  transform: translateY(-50%) !important;
+  border-radius: 999px !important;
+  background: var(--dda-core-ui-cyan) !important;
+  box-shadow: 0 0 6px var(--dda-core-ui-glow) !important;
+}
+
+body.dda-core-ui-theme :is(#scene-controls, #controls) :is(button, .ui-control, .control-tool) > i,
+body.dda-core-ui-theme #sidebar :is(#sidebar-tabs, .sidebar-tabs, nav.tabs) :is([data-tab], .item, button) > i {
+  display: inline-block !important;
+  color: currentColor !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body.dda-core-ui-theme #scene-navigation {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 900px) {
+  body.dda-core-ui-theme :is(#scene-controls, #controls) {
+    --control-size: 34px;
+    --tool-size: 31px;
+  }
+  body.dda-core-ui-theme #sidebar { --dda-sidebar-tab-size: 34px; }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sidebar viewport gutter                                                     */
+/* V13 Sidebar is window.positioned=false; its host owns viewport placement.  */
+/* -------------------------------------------------------------------------- */
+
+body.dda-core-ui-theme #ui-right.dda-sidebar-gutter-host {
+  box-sizing: border-box !important;
+  padding-top: 10px !important;
+  padding-right: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+body.dda-core-ui-theme #ui-right.dda-sidebar-gutter-host > #sidebar,
+body.dda-core-ui-theme #sidebar.dda-sidebar-inset {
+  box-sizing: border-box !important;
+  max-height: calc(100vh - 20px) !important;
+}
+
+/* Defensive fallback in case another module reparents the Sidebar. */
+body.dda-core-ui-theme #sidebar.dda-sidebar-gutter-fallback {
+  margin-top: 10px !important;
+  margin-right: 10px !important;
+  margin-bottom: 10px !important;
+  max-height: calc(100vh - 20px) !important;
+}
+

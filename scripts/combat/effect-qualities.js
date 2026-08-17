@@ -441,6 +441,24 @@ export async function useEffectResistanceAction(actor, effectId, {
   const tag = normalizeEffectTag(effect.tag);
   if (!EFFECT_RESIST_TAGS.has(tag)) return { handled: false };
 
+  if (
+    effect.disableEffectResistance ||
+    effect.cannotUseResistanceCheck
+  ) {
+    if (mode === "action") {
+      ui.notifications.warn(text(
+        "Este Efeito não permite um Teste de resistência.",
+        "This Effect does not allow a resistance Check."
+      ));
+    }
+
+    return {
+      handled: true,
+      used: false,
+      blocked: true
+    };
+  }
+
   const use = getEffectResistanceUseState(actor, effectId);
   if (use.used) {
     ui.notifications.warn(text(
@@ -525,6 +543,7 @@ export async function resolveEndTurnEffectResistance(actor) {
   const reports = [];
   for (const effect of snapshot) {
     if (!EFFECT_RESIST_TAGS.has(normalizeEffectTag(effect.tag))) continue;
+    if (effect.disableEffectResistance || effect.cannotUseResistanceCheck) continue;
     const use = getEffectResistanceUseState(actor, effect.id);
     if (use.used) continue;
     const result = await useEffectResistanceAction(actor, effect.id, {

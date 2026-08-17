@@ -16,6 +16,18 @@ import {
   applyLuckyNumberReward
 } from "./lucky-number.js";
 
+import {
+  getNaturalExplorerFollowerEffect
+} from "../rules/tamer-talent-runtime.js";
+import {
+  maybeUseLivingEncyclopedia,
+  prepareMiracleRoll
+} from "../rules/tamer-talent-transversal.js";
+import {
+  applyCheckPlayerInspiration,
+  buildPlayerInspirationNote
+} from "../rules/player-inspiration.js";
+
 const i18n = {
   localize(key) {
     return game.i18n.localize(key);
@@ -185,7 +197,24 @@ export async function rollTamerCheck(
   options = {}
 ) {
   const system = actor.system;
-  const skill = system.skills?.[skillKey];
+  const attributeKeyOverride = String(
+    options.attributeKeyOverride ?? ""
+  ).trim();
+
+  // Some rules explicitly call for an Attribute Skill Check without naming a
+  // Skill (for example Blast Evolution's Willpower Skill Check). DDA core
+  // rules treat that as 3d6 + Attribute - 1. A lightweight virtual Skill lets
+  // those checks use the normal Skill Check pipeline (Aspects, IP, Miracle,
+  // Lucky Number, outcome handling, etc.) without inventing a real Skill.
+  const storedSkill = system.skills?.[skillKey];
+  const skill = storedSkill ?? (attributeKeyOverride
+    ? {
+        label: system.attributes?.[attributeKeyOverride]?.label ?? attributeKeyOverride,
+        value: 0,
+        attributes: [attributeKeyOverride],
+        ddaAttributeOnly: true
+      }
+    : null);
 
   if (!skill) {
     ui.notifications.warn(
@@ -198,7 +227,7 @@ export async function rollTamerCheck(
   }
 
   const attributeKey =
-    skill.attributes?.[0];
+    attributeKeyOverride || skill.attributes?.[0];
 
   if (!attributeKey) {
     ui.notifications.warn(
@@ -259,6 +288,70 @@ export async function rollTamerCheck(
 
   if (!dialogData) return null;
 
+  const livingEncyclopedia = await maybeUseLivingEncyclopedia(
+    actor,
+    {
+      skillKey,
+      tn: Number(dialogData.tn ?? 0)
+    }
+  );
+
+  let heavyForceBonus = 0;
+  let heavyForceUsed = false;
+
+  if (
+    !livingEncyclopedia.used &&
+    !options.skipHeavyForce &&
+    ["body", "agility"].includes(attributeKey) &&
+    hasUnlockedOfficialTamerTalent(actor, "heavyForce")
+  ) {
+    const useState = getOfficialTamerTalentUseState(actor, "heavyForce", 1);
+    const featsOfStrength = Math.max(
+      0,
+      Number(actor.system?.skills?.featsOfStrength?.value ?? 0)
+    );
+
+    if (useState.value > 0 && featsOfStrength > 0) {
+      try {
+        heavyForceUsed = Boolean(await foundry.applications.api.DialogV2.confirm({
+          window: {
+            title: "Heavy Force"
+          },
+          content: `
+            <div class="dda-roll-dialog dda-heavy-force-dialog">
+              <p>
+                <strong>${escapeHtml(actor.name)}</strong>
+                ${game.i18n.lang === "pt-BR"
+                  ? `pode adicionar +${featsOfStrength} a este Teste de ${escapeHtml(localizeLabel(attribute.label))}.`
+                  : `may add +${featsOfStrength} to this ${escapeHtml(localizeLabel(attribute.label))} Check.`}
+              </p>
+              <p>${game.i18n.lang === "pt-BR" ? "Uso: uma vez por Descanso." : "Use: Once per Rest."}</p>
+            </div>
+          `,
+          yes: {
+            label: game.i18n.lang === "pt-BR" ? "Usar Heavy Force" : "Use Heavy Force"
+          },
+          no: {
+            label: game.i18n.lang === "pt-BR" ? "Não usar" : "Do Not Use"
+          },
+          rejectClose: false,
+          modal: true
+        }));
+      } catch (_error) {
+        heavyForceUsed = false;
+      }
+
+      if (heavyForceUsed) {
+        const spent = await spendOfficialTamerTalentUse(actor, "heavyForce", 1);
+        if (!spent) {
+          heavyForceUsed = false;
+        } else {
+          heavyForceBonus = featsOfStrength;
+        }
+      }
+    }
+  }
+
   const busyHandsItem =
     await chooseBusyHandsSkillItem(
       actor,
@@ -267,7 +360,8 @@ export async function rollTamerCheck(
       {
         disabled:
           Boolean(
-            options.skipBusyHands
+            options.skipBusyHands ||
+            livingEncyclopedia.used
           )
       }
     );
@@ -285,9 +379,20 @@ export async function rollTamerCheck(
     attribute.value ?? 0
   );
 
-  const skillValue = Number(
+  let skillValue = Number(
     skill.value ?? 0
   );
+
+  const naturalExplorerFollower = skillKey === "athletics"
+    ? getNaturalExplorerFollowerEffect(actor)
+    : null;
+
+  if (naturalExplorerFollower) {
+    skillValue = Math.max(
+      skillValue,
+      Number(naturalExplorerFollower.athletics ?? 0)
+    );
+  }
 
   const skillModifier =
     skillValue > 0
@@ -300,21 +405,39 @@ export async function rollTamerCheck(
 
   const fixedModifier = Number(
     options.fixedModifier ?? 0
-  );
+  ) + heavyForceBonus;
 
-  const aspectModifier = Number(
-    dialogData.aspectModifier ?? 0
-  );
+  const aspectModifier = livingEncyclopedia.used
+    ? 0
+    : Number(
+        dialogData.aspectModifier ?? 0
+      );
 
-  const extraDice = Math.max(
-    0,
-    Number(
-      dialogData.extraDice ?? 0
-    )
-  );
+  const extraDice = livingEncyclopedia.used
+    ? 0
+    : Math.max(
+        0,
+        Number(
+          dialogData.extraDice ?? 0
+        )
+      );
 
   const tn = Number(
     dialogData.tn ?? 0
+  );
+
+  const miracle = livingEncyclopedia.used
+    ? { used: false, checkBonus: 0, diceValues: [] }
+    : await prepareMiracleRoll(
+        actor,
+        {
+          kind: "check",
+          diceCount: 3 + extraDice
+        }
+      );
+
+  const miracleBonus = Number(
+    miracle.checkBonus ?? 0
   );
 
   const modifier =
@@ -323,11 +446,14 @@ export async function rollTamerCheck(
     manualModifier +
     fixedModifier +
     aspectModifier +
-    busyHandsModifier;
+    busyHandsModifier +
+    miracleBonus;
 
   const rerollOnes = Boolean(
     options.rerollOnes
-  );
+  ) &&
+    !livingEncyclopedia.used &&
+    !miracle.used;
 
   const diceFormula =
     `${3 + extraDice}d6` +
@@ -340,12 +466,27 @@ export async function rollTamerCheck(
   const formula =
     `${diceFormula} + @modifier`;
 
-  const roll = await new Roll(
+  let roll = await new Roll(
     formula,
     {
       modifier
     }
   ).evaluate();
+
+  const forcedDiceValues = livingEncyclopedia.used
+    ? Array.from({ length: 3 + extraDice }, () => 6)
+    : miracle.used
+      ? Array.from(miracle.diceValues ?? [])
+      : [];
+
+  if (forcedDiceValues.length) {
+    const results = roll.dice?.[0]?.results ?? [];
+    for (let index = 0; index < Math.min(results.length, forcedDiceValues.length); index += 1) {
+      results[index].result = forcedDiceValues[index];
+      results[index].active = true;
+    }
+    roll._total = forcedDiceValues.reduce((total, value) => total + Number(value ?? 0), 0) + modifier;
+  }
 
   const busyHandsConsumption =
     busyHandsItem
@@ -358,10 +499,10 @@ export async function rollTamerCheck(
           item: null
         };
 
-  const dieResults =
+  let dieResults =
     roll.dice?.[0]?.results ?? [];
 
-  const diceResults = dieResults
+  let diceResults = dieResults
     .filter((result) => {
       return result.active !== false;
     })
@@ -371,7 +512,7 @@ export async function rollTamerCheck(
       );
     });
 
-  const rerolledOnes = rerollOnes
+  let rerolledOnes = rerollOnes
     ? dieResults.filter((result) => {
         return (
           result.active === false &&
@@ -380,7 +521,7 @@ export async function rollTamerCheck(
       }).length
     : 0;
 
-  const total = Number(
+  let total = Number(
     roll.total ?? 0
   );
 
@@ -412,7 +553,7 @@ export async function rollTamerCheck(
       }
     );
 
-  const outcome =
+  let outcome =
     avoidingConsequences.used
       ? {
           ...originalOutcome,
@@ -502,10 +643,53 @@ export async function rollTamerCheck(
     return noPainNoGain.result;
   }
 
-  await applyAspectUse(
-    actor,
-    dialogData.aspectUse
-  );
+  const totalBeforePlayerInspiration = total;
+
+  const playerInspiration = options.allowPlayerInspiration === false
+    ? { blocked: false, roll, totalAdjustment: 0, rerolled: false, choices: [] }
+    : await applyCheckPlayerInspiration(
+        actor,
+        {
+          roll,
+          // Inspiration rerolls the whole Check and replaces prior Talent/Quality
+          // rerolls, so intentionally omit the r=1 modifier here.
+          formula: `${3 + extraDice}d6 + @modifier`,
+          data: { modifier },
+          currentLabel: tn
+            ? `${total} vs ${tn}`
+            : String(total)
+        }
+      );
+
+  if (playerInspiration.roll) {
+    roll = playerInspiration.roll;
+  }
+
+  if (playerInspiration.rerolled) {
+    rerolledOnes = 0;
+  }
+
+  dieResults = roll?.dice?.[0]?.results ?? [];
+  diceResults = dieResults
+    .filter((result) => result.active !== false)
+    .map((result) => Number(result.result ?? 0));
+
+  total = Number(roll?.total ?? total);
+
+  if (playerInspiration.choices?.length) {
+    outcome = getTamerCheckOutcome(
+      total,
+      tn,
+      diceResults
+    );
+  }
+
+  if (!livingEncyclopedia.used) {
+    await applyAspectUse(
+      actor,
+      dialogData.aspectUse
+    );
+  }
 
   const skillLabel =
     localizeLabel(skill.label);
@@ -523,8 +707,13 @@ export async function rollTamerCheck(
     )
   );
 
+  const naturalOutcomeForNote = playerInspiration.choices?.length
+    ? outcome
+    : originalOutcome;
+
   const naturalCriticalNote =
-    originalOutcome.naturalCritical
+    !livingEncyclopedia.used &&
+    naturalOutcomeForNote.naturalCritical
       ? `
         <p>
           <strong>
@@ -538,7 +727,7 @@ export async function rollTamerCheck(
           )}.
         </p>
       `
-      : originalOutcome.naturalCriticalFailure
+      : naturalOutcomeForNote.naturalCriticalFailure
         ? `
           <p>
             <strong>
@@ -611,6 +800,47 @@ export async function rollTamerCheck(
       `
       : "";
 
+  const heavyForceNote = heavyForceUsed
+    ? `
+      <section class="dda-tamer-talent-result dda-heavy-force-result">
+        <p><strong>Heavy Force:</strong> +${heavyForceBonus}.</p>
+      </section>
+    `
+    : "";
+
+  const naturalExplorerNote = naturalExplorerFollower
+    ? `
+      <section class="dda-tamer-talent-result dda-natural-explorer-result">
+        <p><strong>Natural Explorer:</strong> ${game.i18n.lang === "pt-BR"
+          ? `Athletics de ${escapeHtml(naturalExplorerFollower.sourceActorName ?? "Tamer")} foi usado no lugar do valor menor do aliado.`
+          : `${escapeHtml(naturalExplorerFollower.sourceActorName ?? "Tamer")}'s Athletics replaced the Ally's lower value.`}</p>
+      </section>
+    `
+    : "";
+
+  const livingEncyclopediaNote = livingEncyclopedia.used
+    ? `
+      <section class="dda-tamer-talent-result dda-living-encyclopedia-result">
+        <p><strong>Living Encyclopedia:</strong> ${String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+          ? "Automatic Critical Success for recalling information at TN 15 or lower."
+          : "Sucesso Crítico automático para recordar informação com NA 15 ou menor."}</p>
+      </section>
+    `
+    : "";
+
+  const miracleNote = miracle.used
+    ? `
+      <section class="dda-tamer-talent-result dda-miracle-result">
+        <p><strong>Miracle:</strong> ${miracleBonus >= 0 ? "+" : ""}${miracleBonus}; ${String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "die results chosen by the players" : "resultados dos dados escolhidos pelos jogadores"}.</p>
+      </section>
+    `
+    : "";
+
+  const playerInspirationNote = buildPlayerInspirationNote(
+    playerInspiration,
+    { kind: "check" }
+  );
+
   const rerollNote =
     rerolledOnes > 0
       ? `
@@ -648,7 +878,7 @@ export async function rollTamerCheck(
                 evade:
                   avoidingConsequences.evade,
 
-                total,
+                total: totalBeforePlayerInspiration,
 
                 adjusted:
                   avoidingConsequences
@@ -725,6 +955,11 @@ export async function rollTamerCheck(
 
           ${fixedModifierNote}
           ${busyHandsNote}
+          ${heavyForceNote}
+          ${naturalExplorerNote}
+          ${livingEncyclopediaNote}
+          ${miracleNote}
+          ${playerInspirationNote}
 
           <p>
             <strong>
@@ -785,18 +1020,43 @@ export async function rollTamerCheck(
     });
   }
 
-  const luckyNumberResult =
-    await applyLuckyNumberReward(
-      actor,
-      diceResults,
-      {
-        source:
-          "tamerCheck",
+  const luckyNumberResult = livingEncyclopedia.used
+    ? { matched: false, skipped: true }
+    : await applyLuckyNumberReward(
+        actor,
+        diceResults,
+        {
+          source:
+            "tamerCheck",
 
-        createChat:
-          options.createChat !== false
-      }
+          createChat:
+            options.createChat !== false
+        }
+      );
+
+  let narrativeTalentResult = null;
+
+  if (options.offerNarrativeTalents !== false) {
+    const {
+      maybeOfferNarrativeTalentAfterCheck
+    } = await import(
+      "../rules/tamer-talent-narrative.js"
     );
+
+    narrativeTalentResult =
+      await maybeOfferNarrativeTalentAfterCheck(
+        actor,
+        {
+          skillKey,
+          skillLabel,
+          title,
+          total,
+          tn,
+          outcome: outcome.key,
+          outcomeLabel: outcome.label
+        }
+      );
+  }
 
   return {
     actor,
@@ -835,7 +1095,11 @@ export async function rollTamerCheck(
     originalOutcome,
     avoidingConsequences,
 
-    luckyNumberResult
+    luckyNumberResult,
+    livingEncyclopedia,
+    miracle,
+    playerInspiration,
+    narrativeTalentResult
   };
 }
 
@@ -921,11 +1185,13 @@ async function maybeApplyNoPainNoGain(
   }
 
   const confirmed =
-    await Dialog.confirm({
-      title:
-        i18n.localize(
-          "DDA.TamerTalent.NoPainNoGain.Title"
-        ),
+    await foundry.applications.api.DialogV2.confirm({
+      window: {
+        title:
+          i18n.localize(
+            "DDA.TamerTalent.NoPainNoGain.Title"
+          )
+      },
 
       content: `
         <div class="dda-confirm-dialog dda-no-pain-no-gain-dialog">
@@ -970,9 +1236,11 @@ async function maybeApplyNoPainNoGain(
         </div>
       `,
 
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
+      no: {
+        default: true
+      },
+
+      rejectClose: false
     });
 
   if (!confirmed) {
@@ -1476,7 +1744,7 @@ function getTamerCheckDialogData(
   ).trim();
 
   const content = `
-    <form class="dda-roll-dialog">
+    <div class="dda-roll-dialog">
       <div class="form-group">
         <label>
           ${i18n.localize(
@@ -1608,11 +1876,11 @@ function getTamerCheckDialogData(
           </option>
         </select>
       </div>
-    </form>
+    </div>
   `;
 
-  return new Promise((resolve) => {
-    new Dialog({
+  return foundry.applications.api.DialogV2.wait({
+    window: {
       title: String(
         options.title ??
         i18n.format(
@@ -1621,74 +1889,66 @@ function getTamerCheckDialogData(
             skill: skillLabel
           }
         )
-      ),
+      )
+    },
 
-      content,
+    content,
 
-      buttons: {
-        roll: {
-          label: i18n.localize(
-            "DDA.Button.Roll"
-          ),
+    buttons: [
+      {
+        action: "roll",
+        label: i18n.localize(
+          "DDA.Button.Roll"
+        ),
+        default: true,
 
-          callback: (html) => {
-            const root =
-              html instanceof jQuery
-                ? html[0]
-                : html;
+        callback: (_event, button) => {
+          const form = button.form;
 
-            const form =
-              root.querySelector("form");
+          const aspectUse = String(
+            form.elements
+              .aspectUse?.value ??
+            ""
+          );
 
-            const aspectUse = String(
+          return {
+            tn: Number(
               form.elements
-                .aspectUse?.value ??
-              ""
-            );
+                .tn?.value ?? 0
+            ),
 
-            resolve({
-              tn: Number(
-                form.elements
-                  .tn?.value ?? 0
-              ),
+            manualModifier: Number(
+              form.elements
+                .manualModifier
+                ?.value ?? 0
+            ),
 
-              manualModifier: Number(
-                form.elements
-                  .manualModifier
-                  ?.value ?? 0
-              ),
+            extraDice: Number(
+              form.elements
+                .extraDice
+                ?.value ?? 0
+            ),
 
-              extraDice: Number(
-                form.elements
-                  .extraDice
-                  ?.value ?? 0
-              ),
+            aspectUse,
 
-              aspectUse,
-
-              aspectModifier:
-                getAspectModifier(
-                  aspectUse
-                )
-            });
-          }
-        },
-
-        cancel: {
-          label: i18n.localize(
-            "DDA.Button.Cancel"
-          ),
-
-          callback: () =>
-            resolve(null)
+            aspectModifier:
+              getAspectModifier(
+                aspectUse
+              )
+          };
         }
       },
 
-      default: "roll",
+      {
+        action: "cancel",
+        label: i18n.localize(
+          "DDA.Button.Cancel"
+        ),
+        callback: () => null
+      }
+    ],
 
-      close: () =>
-        resolve(null)
-    }).render(true);
+    rejectClose: false
   });
 }
 

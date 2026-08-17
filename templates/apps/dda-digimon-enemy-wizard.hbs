@@ -343,6 +343,13 @@
               </span>
 
               <span>
+                <small>{{labels.coreDiscount}}</small>
+                <strong data-enemy-core-discount>
+                  {{enemyBuild.coreDiscountUsed}}/{{enemyBuild.coreDiscountBase}}
+                </strong>
+              </span>
+
+              <span>
                 <small>{{labels.negativeDp}}</small>
                 <strong data-enemy-negative-quality-dp>{{enemyBuild.negativeQualityDp}}</strong>
               </span>
@@ -539,6 +546,142 @@
             <textarea data-enemy-build-text="notes">{{enemyBuild.notes}}</textarea>
           </label>
         </section>
+
+{{#if isBossBuild}}
+<section class="dda-enemy-build-section dda-enemy-boss-builder">
+  <div class="dda-enemy-build-heading dda-boss-builder-heading">
+    <div>
+      <span class="dda-boss-builder-kicker">BOSS // 3.03</span>
+      <h3>{{labels.bossBuilder}}</h3>
+      <p>{{labels.bossBuilderHint}}</p>
+    </div>
+
+    <div class="dda-boss-quality-advice {{#if enemyBuild.boss.bossQualityOverAdvice}}is-warning{{/if}}">
+      <strong>{{enemyBuild.boss.bossQualityCount}}</strong>
+      <span>{{labels.bossQualityCount}}</span>
+      <small>{{labels.bossQualityAdvice}}</small>
+    </div>
+  </div>
+
+  <div class="dda-boss-party-grid">
+    <label>
+      <span>{{labels.bossPartySize}}</span>
+      <input type="number" min="1" max="12" step="1" value="{{enemyBuild.boss.partySize}}" data-boss-number="partySize" />
+    </label>
+
+    <label>
+      <span>{{labels.bossPartyMilestones}}</span>
+      <input type="number" min="0" max="99" step="1" value="{{enemyBuild.boss.partyMilestones}}" data-boss-number="partyMilestones" />
+    </label>
+
+    <label>
+      <span>{{labels.bossAveragePartyDp}}</span>
+      <input type="number" min="0" max="999" step="1" value="{{enemyBuild.boss.averagePartyDp}}" data-boss-number="averagePartyDp" />
+    </label>
+
+    <div class="dda-boss-recommended-dp">
+      <span>{{labels.bossRecommendedDp}}</span>
+      <strong>{{enemyBuild.boss.recommendedBaseDp}} PD</strong>
+      <small>+{{enemyBuild.boss.recommendedIncreasePercent}}%</small>
+      <button type="button" data-action="applyBossRecommendedDp">
+        <i class="fa-solid fa-bolt"></i>
+        {{labels.bossApplyDp}}
+      </button>
+    </div>
+  </div>
+
+  <div class="dda-boss-option-grid">
+    <article class="dda-boss-option-card {{#if enemyBuild.boss.options.bigScary.enabled}}is-active{{/if}}">
+      <label class="dda-boss-option-toggle">
+        <input type="checkbox" data-boss-option="bigScary" {{#if enemyBuild.boss.options.bigScary.checked}}checked{{/if}} />
+        <span>01</span>
+        <strong>{{labels.bossOptionBigScary}}</strong>
+      </label>
+      <p>{{labels.bossOptionBigScaryHint}}</p>
+      {{#if enemyBuild.boss.options.bigScary.enabled}}
+      <label class="dda-boss-inline-field">
+        <span>{{labels.bossDpIncrease}}</span>
+        <input type="number" min="10" max="100" step="5" value="{{enemyBuild.boss.options.bigScary.dpIncreasePercent}}" data-boss-number="bigScaryPercent" />
+        <b>%</b>
+      </label>
+      {{/if}}
+    </article>
+
+    <article class="dda-boss-option-card {{#if enemyBuild.boss.options.bossTemplate.enabled}}is-active{{/if}}">
+      <label class="dda-boss-option-toggle">
+        <input type="checkbox" data-boss-option="bossTemplate" {{#if enemyBuild.boss.options.bossTemplate.checked}}checked{{/if}} />
+        <span>02</span>
+        <strong>{{labels.bossOptionTemplate}}</strong>
+      </label>
+      <p>{{labels.bossOptionTemplateHint}}</p>
+      {{#if enemyBuild.boss.options.bossTemplate.enabled}}
+      <div class="dda-boss-metric-row">
+        <span><small>{{labels.bossPoolCount}}</small><b>{{enemyBuild.boss.poolCount}}</b></span>
+        <span><small>{{labels.bossWoundsPerPool}}</small><b>{{enemyBuild.boss.woundsPerPool}}</b></span>
+      </div>
+      {{/if}}
+    </article>
+
+    <article class="dda-boss-option-card {{#if enemyBuild.boss.options.tagTeam.enabled}}is-active{{/if}}">
+      <label class="dda-boss-option-toggle">
+        <input type="checkbox" data-boss-option="tagTeam" {{#if enemyBuild.boss.options.tagTeam.checked}}checked{{/if}} />
+        <span>03</span>
+        <strong>{{labels.bossOptionTagTeam}}</strong>
+      </label>
+      <p>{{labels.bossOptionTagTeamHint}}</p>
+      {{#if enemyBuild.boss.options.tagTeam.enabled}}
+      <div class="dda-boss-single-metric">
+        <small>{{labels.bossEnemyCount}}</small>
+        <strong>{{enemyBuild.boss.tagTeamEnemyCount}}</strong>
+      </div>
+      {{/if}}
+    </article>
+
+    <article class="dda-boss-option-card {{#if enemyBuild.boss.options.raidBoss.enabled}}is-active{{/if}}">
+      <label class="dda-boss-option-toggle">
+        <input type="checkbox" data-boss-option="raidBoss" {{#if enemyBuild.boss.options.raidBoss.checked}}checked{{/if}} />
+        <span>04</span>
+        <strong>{{labels.bossOptionRaid}}</strong>
+      </label>
+      <p>{{labels.bossOptionRaidHint}}</p>
+      {{#if enemyBuild.boss.options.raidBoss.enabled}}
+      <div class="dda-boss-raid-config">
+        <div class="dda-boss-single-metric">
+          <small>{{labels.bossRaidTn}}</small>
+          <strong>{{enemyBuild.boss.raidTn}}</strong>
+        </div>
+        <label>
+          <span>{{labels.bossRaidNotes}}</span>
+          <textarea data-boss-text="raidNotes">{{enemyBuild.boss.raidNotes}}</textarea>
+        </label>
+      </div>
+      {{/if}}
+    </article>
+
+    <article class="dda-boss-option-card dda-boss-option-card-wide {{#if enemyBuild.boss.options.multiStage.enabled}}is-active{{/if}}">
+      <label class="dda-boss-option-toggle">
+        <input type="checkbox" data-boss-option="multiStage" {{#if enemyBuild.boss.options.multiStage.checked}}checked{{/if}} />
+        <span>05</span>
+        <strong>{{labels.bossOptionMultiStage}}</strong>
+      </label>
+      <p>{{labels.bossOptionMultiStageHint}}</p>
+      {{#if enemyBuild.boss.options.multiStage.enabled}}
+      <div class="dda-boss-multistage-config">
+        <label class="dda-boss-inline-field">
+          <span>{{labels.bossStageCount}}</span>
+          <input type="number" min="2" max="99" step="1" value="{{enemyBuild.boss.options.multiStage.stageCount}}" data-boss-number="multiStageCount" />
+        </label>
+        <label>
+          <span>{{labels.bossMultiStageNotes}}</span>
+          <textarea data-boss-text="multiStageNotes">{{enemyBuild.boss.multiStageNotes}}</textarea>
+        </label>
+      </div>
+      {{/if}}
+    </article>
+  </div>
+</section>
+{{/if}}
+
 <section class="dda-enemy-build-section dda-enemy-attacks-section">
   <div class="dda-enemy-build-heading">
     <h3>{{labels.attacks}}</h3>
@@ -673,6 +816,10 @@
 
           {{#if qualityDp}}
           <span>{{qualityDp}} PD</span>
+          {{/if}}
+
+          {{#if coreDiscountUsed}}
+          <span>{{../../labels.coreDiscount}} -{{coreDiscountUsed}}</span>
           {{/if}}
 
           {{#if negativeDp}}

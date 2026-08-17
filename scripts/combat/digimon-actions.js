@@ -1,11 +1,13 @@
 import {
   areActorsAllies,
+  areActorsAlliesForQualities,
   findQuality,
   getActorSv,
   rollDerivedCheck
 } from "../rules/quality-automation.js";
 import {
   getActiveDDAUnitContext,
+  getCombatantForActor,
   getCombatantUnitId
 } from "./initiative.js";
 import {
@@ -13,6 +15,19 @@ import {
   spendActorActions
 } from "./action-economy.js";
 import { openCompactActionMenu } from "./compact-action-menu.js";
+import {
+  doesBossTrueSightRevealHide,
+  isActorUsingHideInPlainSight,
+  isTokenVisibleToBossObserver
+} from "./boss-qualities.js";
+import {
+  getBullrushDifficultMoveActionCost,
+  getNaturalExplorerFollowerEffect,
+  isCalculatedAvailable,
+  markCalculatedUsed,
+  promptCalculatedReplacement,
+  resolveTamerForPartner
+} from "../rules/tamer-talent-runtime.js";
 
 const ACTION_USE_PATH = "system.combat.digimonActionUses";
 const POOL_EFFECT_TAGS = new Set(["digimonBolster", "digimonAid", "digimonGuard"]);
@@ -38,7 +53,7 @@ function isDigimon(actor) {
 function turnSignature(actor) {
   const combat = game?.combat;
   if (!combat?.started) return `no-combat:${game?.time?.worldTime ?? Date.now()}`;
-  const combatant = combat.combatants?.find((entry) => entry.actor?.uuid === actor?.uuid);
+  const combatant = getCombatantForActor(combat, actor);
   return [combat.id, number(combat.round), getCombatantUnitId(combatant)].join(":");
 }
 
@@ -138,23 +153,36 @@ async function addPoolEffect(actor, effect) {
 
 async function choose(title, label, entries) {
   if (!entries.length) return null;
-  return new Promise((resolve) => {
-    const options = entries.map((entry) =>
-      `<option value="${foundry.utils.escapeHTML(String(entry.value))}">${foundry.utils.escapeHTML(String(entry.label))}</option>`
-    ).join("");
-    new Dialog({
-      title,
-      content: `<form class="dda-digimon-action-choice"><div class="form-group"><label>${label}</label><select name="choice">${options}</select></div></form>`,
-      buttons: {
-        confirm: {
-          label: text("Confirmar", "Confirm"),
-          callback: (html) => resolve(String(html.find('[name="choice"]').val() ?? ""))
-        },
-        cancel: { label: text("Cancelar", "Cancel"), callback: () => resolve(null) }
+
+  const options = entries.map((entry) =>
+    `<option value="${foundry.utils.escapeHTML(String(entry.value))}">${foundry.utils.escapeHTML(String(entry.label))}</option>`
+  ).join("");
+
+  return await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-digimon-action-dialog"],
+    window: { title },
+    content: `
+      <div class="dda-digimon-action-choice">
+        <div class="form-group">
+          <label>${label}</label>
+          <select name="choice">${options}</select>
+        </div>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: text("Confirmar", "Confirm"),
+        default: true,
+        callback: (event, button) => String(button.form?.elements?.choice?.value ?? "")
       },
-      default: "confirm",
-      close: () => resolve(null)
-    }, { classes: ["dda", "dda-digimon-action-dialog"] }).render(true);
+      {
+        action: "cancel",
+        label: text("Cancelar", "Cancel"),
+        callback: () => null
+      }
+    ],
+    rejectClose: false
   });
 }
 
@@ -175,15 +203,38 @@ async function useMove(actor, difficult = false) {
     ui.notifications.error(text("O rastreador de Movimento não está disponível.", "The Movement tracker is unavailable."));
     return null;
   }
+
+  const naturalExplorerFollower = difficult
+    ? getNaturalExplorerFollowerEffect(actor)
+    : null;
+
+  const baseActionCost =
+    difficult && !naturalExplorerFollower
+      ? 2
+      : 1;
+
+  const actionCost = difficult
+    ? getBullrushDifficultMoveActionCost(actor, baseActionCost)
+    : baseActionCost;
+
   return tracker.beginActionMovement(actor, {
-    actionCost: difficult ? 2 : 1,
+    actionCost,
+    actionKey: difficult && !naturalExplorerFollower ? "difficultMove" : "move",
+    // A Difficult Move session always authorizes Difficult Terrain. If Natural
+    // Explorer applies, the rules let this be paid as Move instead (1A).
     difficultTerrain: difficult,
-    label: difficult ? text("Movimento Difícil", "Difficult Move") : text("Mover", "Move")
+    label: difficult ? text("Movimento Difícil", "Difficult Move") : text("Mover", "Move"),
+    source: naturalExplorerFollower
+      ? "naturalExplorerFollowerMove"
+      : difficult
+        ? "digimonDifficultMove"
+        : "digimonMove"
   });
 }
 
 async function useAttack(actor, holdBack = false, options = {}) {
-  const attack = await chooseAttack(actor, holdBack ? text("Segurar o Golpe", "Hold Back") : text("Atacar", "Attack"));
+  const directAttack = options?.attack ?? null;
+  const attack = directAttack ?? await chooseAttack(actor, holdBack ? text("Segurar o Golpe", "Hold Back") : text("Atacar", "Attack"));
   if (!attack) return null;
 
   if (holdBack) {
@@ -202,17 +253,17 @@ async function useAttack(actor, holdBack = false, options = {}) {
   return rollAttack(actor, attack, { ...options, holdBack });
 }
 
-async function useCheck(actor) {
+async function useCheck(actor, requestedStatKey = "") {
   const stats = Object.entries(actor.system?.mainStats ?? {})
     .filter(([, value]) => value && typeof value === "object")
     .map(([key, value]) => ({ value: key, label: value.label ? game.i18n.localize(value.label) : key }));
-  const statKey = await choose(text("Teste do Digimon", "Digimon Check"), text("Atributo", "Stat"), stats);
+  const statKey = requestedStatKey || await choose(text("Teste do Digimon", "Digimon Check"), text("Atributo", "Stat"), stats);
   if (!statKey || !(await spendActions(actor, 2))) return null;
   const { rollPool } = await import("../rolls/pool-roll.js");
   return rollPool(actor, statKey, { externalLabel: text("Teste — 2 Ações", "Check — 2 Actions") });
 }
 
-function availableStances(actor) {
+export function getDigimonAvailableStances(actor) {
   const labels = CONFIG.DDA?.stances ?? {};
   const base = ["neutral", "offensive", "defensive"];
   const advanced = ["brave", "fierce", "sentry", "martial", "anticipate"];
@@ -240,14 +291,18 @@ export async function changeDigimonStance(actor, {
   forceFree = false,
   ignoreTurnLimit = false,
   useKey = "stanceChange",
-  sourceLabel = ""
+  sourceLabel = "",
+  stance: requestedStance = ""
 } = {}) {
+  const charmController = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmController === "function" && !charmController(actor, { user: game?.user, notify: true })) return null;
+
   if (!ignoreTurnLimit && wasUsedThisTurn(actor, useKey)) {
     ui.notifications.warn(text("A Postura já foi alterada nesta ativação.", "Stance was already changed during this activation."));
     return null;
   }
 
-  const stance = await choose(text("Mudar Postura", "Change Stance"), text("Nova Postura", "New Stance"), availableStances(actor));
+  const stance = String(requestedStance ?? "").trim() || await choose(text("Mudar Postura", "Change Stance"), text("Nova Postura", "New Stance"), getDigimonAvailableStances(actor));
   if (!stance || stance === actor.system?.combat?.currentStance) return null;
 
   const tacticalFreeOnTurn = hasTacticalAdaptation(actor) && getActiveDDAUnitContext(actor).allowed;
@@ -330,11 +385,14 @@ async function chooseTacticalAdaptationMethod(actor, modeChangeQuality) {
   });
 }
 
-export async function useTacticalAdaptationChange(actor, { initiative = false } = {}) {
+export async function useTacticalAdaptationChange(actor, { initiative = false, stance: requestedStance = "" } = {}) {
+  const charmController = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmController === "function" && !charmController(actor, { user: game?.user, notify: true })) return null;
+
   if (!hasTacticalAdaptation(actor)) return changeDigimonStance(actor);
 
   const modeChangeQuality = findQuality(actor, "modeChange");
-  const method = await chooseTacticalAdaptationMethod(actor, modeChangeQuality);
+  const method = requestedStance ? "stance" : await chooseTacticalAdaptationMethod(actor, modeChangeQuality);
   if (!method) return null;
 
   const sourceLabel = initiative
@@ -374,7 +432,8 @@ export async function useTacticalAdaptationChange(actor, { initiative = false } 
     forceFree: true,
     ignoreTurnLimit: initiative,
     useKey,
-    sourceLabel
+    sourceLabel,
+    stance: requestedStance
   });
 }
 
@@ -419,16 +478,40 @@ async function useResist(actor) {
 }
 
 async function useBolster(actor) {
+  const tamer = await resolveTamerForPartner(actor);
+  const calculated = Boolean(
+    tamer &&
+    isCalculatedAvailable(tamer) &&
+    await promptCalculatedReplacement(
+      tamer,
+      text(`${actor.name} — Fortalecer`, `${actor.name} — Bolster`)
+    )
+  );
+
   if (!(await spendActions(actor, 1, { lightDigizoidAction: "bolster" }))) return null;
-  const value = Math.max(0, number(getActorSv(actor)));
+
+  const value = calculated
+    ? 0
+    : Math.max(0, number(getActorSv(actor)));
+
   await addPoolEffect(actor, {
     tag: "digimonBolster",
-    label: text("Fortalecer", "Bolster"),
+    label: calculated
+      ? `${text("Fortalecer", "Bolster")} — Calculated`
+      : text("Fortalecer", "Bolster"),
     value,
+    automaticSuccesses: calculated ? 1 : 0,
     poolStats: ["*"],
-    sourceActorUuid: actor.uuid
+    sourceActorUuid: actor.uuid,
+    sourceTamerUuid: tamer?.uuid ?? "",
+    calculated
   });
-  return value;
+
+  if (calculated) {
+    await markCalculatedUsed(tamer, "digimonBolster");
+  }
+
+  return calculated ? 1 : value;
 }
 
 async function useAid(actor) {
@@ -536,7 +619,7 @@ async function useCoordinatedAssault(actor) {
   if (!quality) return null;
   const targetToken = selectedTarget();
   const target = targetToken?.actor;
-  if (!target || targetToken.document?.hidden || areActorsAllies(actor, target)) {
+  if (!target || targetToken.document?.hidden || areActorsAlliesForQualities(actor, target)) {
     ui.notifications.warn(text("Selecione exatamente um inimigo visível.", "Select exactly one visible enemy."));
     return null;
   }
@@ -577,7 +660,7 @@ export function getCoordinatedAssaultBonus(attacker, target) {
   for (const source of actors) {
     const state = source.system?.combat?.coordinatedAssault;
     if (!state || !coordinatedAssaultQuality(source)) continue;
-    if (!areActorsAllies(attacker, source) || !coordinatedAssaultTargetMatches(state, target)) continue;
+    if (!areActorsAlliesForQualities(attacker, source) || !coordinatedAssaultTargetMatches(state, target)) continue;
     const value = Math.max(0, number(state.bonus));
     if (value > 0) sources.push({ actor: source, value });
   }
@@ -603,10 +686,13 @@ export async function incrementCoordinatedAssaultMarks(target) {
 
 function responsibleAutomationUser(actor) {
   const users = (game?.users?.contents ?? []).filter((user) => user.active);
-  const owners = users
-    .filter((user) => !user.isGM)
-    .filter((user) => actor.testUserPermission(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER))
-    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const charmIds = game?.dda?.bossQualities?.getCharmAuthorizedUserIds?.(actor, { includeGMs: false });
+  const owners = Array.isArray(charmIds)
+    ? users.filter((user) => !user.isGM && charmIds.includes(String(user.id)))
+    : users
+      .filter((user) => !user.isGM)
+      .filter((user) => actor.testUserPermission(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER));
+  owners.sort((a, b) => String(a.id).localeCompare(String(b.id)));
   return owners[0] ?? users.filter((user) => user.isGM).sort((a, b) => String(a.id).localeCompare(String(b.id)))[0] ?? null;
 }
 
@@ -638,11 +724,14 @@ async function maintainCoordinatedAssaultForActiveUnit(combat) {
       actor.system?.combat?.defeated ||
       Number(actor.system?.miscStats?.wounds?.value ?? 1) <= 0
     );
+    const hiddenByHideInPlainSight = Boolean(
+      isActorUsingHideInPlainSight(target) &&
+      !doesBossTrueSightRevealHide(actor, target)
+    );
     const targetOutOfSight = Boolean(
       !targetToken ||
-      targetToken.document?.hidden ||
-      targetToken.isVisible === false ||
-      targetToken.visible === false
+      hiddenByHideInPlainSight ||
+      !isTokenVisibleToBossObserver(actor, targetToken)
     );
 
     if (
@@ -780,6 +869,7 @@ export function prepareDigimonActionPoolOptions(actor, statKey, options = {}) {
   return {
     ...options,
     diceModifier: number(options.diceModifier) + matching.reduce((total, effect) => total + Math.max(0, number(effect.value ?? effect.potency)), 0),
+    automaticSuccesses: number(options.automaticSuccesses) + matching.reduce((total, effect) => total + Math.max(0, number(effect.automaticSuccesses)), 0),
     externalLabel: [options.externalLabel, ...matching.map((effect) => effect.label)].filter(Boolean).join(" + "),
     modifierBreakdown: [
       ...(Array.isArray(options.modifierBreakdown) ? options.modifierBreakdown : []),
@@ -886,20 +976,44 @@ const DIGIMON_ACTION_MENU_ENTRIES = [
   }
 ];
 
-export async function openDigimonActionMenu(actor) {
-  if (!isDigimon(actor)) {
-    ui.notifications.warn(
-      localize(
-        "DDA.DigimonAction.Warning.DigimonOnly",
-        "Apenas Digimon podem usar este menu."
-      )
-    );
-    return null;
-  }
+export async function getDigimonActionMenuDefinition(actor) {
+  if (!isDigimon(actor)) return null;
+  const charmGate = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmGate === "function" && !charmGate(actor, { user: game?.user, notify: false })) return null;
 
   if (actor.system?.clash?.state?.active) {
-    const { openDigimonClashActionMenu } = await import("./clash.js");
-    return openDigimonClashActionMenu(actor);
+    const clashAutomation = await import("./clash.js");
+    const entries = [{
+      key: "clashActions",
+      title: localize("DDA.Clash.ActionMenu.Title", "Ações de Clash"),
+      summary: localize("DDA.Clash.ActionMenu.Hint", "Abra as ações disponíveis para o Clash atual."),
+      cost: "—"
+    }];
+
+    if (clashAutomation.canInitiateAdditionalClash?.(actor)) {
+      entries.push({
+        key: "additionalClash",
+        title: text("Iniciar outro Clash", "Initiate Another Clash"),
+        summary: text(
+          "Multigrappler: inicie um novo Clash sem encerrar os atuais, até o limite do Estágio.",
+          "Multigrappler: initiate a new Clash without ending the current ones, up to the Stage limit."
+        ),
+        cost: "1A"
+      });
+    }
+
+    return {
+      actor,
+      kind: "digimon",
+      title: localize("DDA.DigimonAction.Menu.Title", "Ações do Digimon"),
+      hint: localize("DDA.DigimonAction.Menu.Hint", "Cada ação consome somente os recursos deste Digimon."),
+      entries,
+      execute: async (key) => {
+        if (key === "clashActions") return clashAutomation.openDigimonClashActionMenu(actor);
+        if (key === "additionalClash") return clashAutomation.initiateDigimonClash(actor);
+        return null;
+      }
+    };
   }
 
   const evokerAutomation = await import("./evoker-qualities.js");
@@ -959,15 +1073,19 @@ export async function openDigimonActionMenu(actor) {
     });
   }
 
+  const tamerTalentOrders = await import("../rules/tamer-talent-special-orders.js");
+  const realizationDefense = tamerTalentOrders.getRealizationDefenseMenuEntry(actor);
+  if (realizationDefense) menuEntries.push(realizationDefense);
+
   const handlers = {
     move: () => useMove(actor),
-    attack: () => useAttack(actor),
+    attack: (options = {}) => useAttack(actor, false, options),
     difficultMove: () => useMove(actor, true),
-    holdBack: () => useAttack(actor, true),
-    check: () => useCheck(actor),
-    stance: () => hasTacticalAdaptation(actor)
-      ? useTacticalAdaptationChange(actor)
-      : changeDigimonStance(actor),
+    holdBack: (options = {}) => useAttack(actor, true, options),
+    check: (options = {}) => useCheck(actor, options.statKey ?? ""),
+    stance: (options = {}) => hasTacticalAdaptation(actor)
+      ? useTacticalAdaptationChange(actor, { stance: options.stance ?? "" })
+      : changeDigimonStance(actor, { stance: options.stance ?? "" }),
     clash: async () => {
       const { initiateDigimonClash } = await import("./clash.js");
       return initiateDigimonClash(actor);
@@ -985,36 +1103,61 @@ export async function openDigimonActionMenu(actor) {
     endGiantHijacker: async () => (await import("./clash-qualities.js")).executeClashQualityMenuAction(actor, "endGiantHijacker"),
     shakeOffGiantHijacker: async () => (await import("./clash-qualities.js")).executeClashQualityMenuAction(actor, "shakeOffGiantHijacker"),
     distantForce: async () => (await import("./clash-qualities.js")).executeClashQualityMenuAction(actor, "distantForce"),
-    breakClash: async () => (await import("./clash.js")).breakClashFromOutside(actor)
+    breakClash: async () => (await import("./clash.js")).breakClashFromOutside(actor),
+    defendRealization: () => tamerTalentOrders.defendRealizationWeakness(actor)
   };
 
   for (const key of ["conjure", "summon", "commandMinion", "omnievoker"]) {
     handlers[key] = () => evokerAutomation.executeEvokerActionMenuAction(actor, key);
   }
-
   for (const key of ["gainForceOverwrite", "gainForceHold", "gainForceTemporalAdjust", "gainForceSpendIp"]) {
     handlers[key] = async () => (await import("./digizoid-gain-force.js")).executeDigizoidGainForceAction(actor, key);
   }
 
   if (evokerMinion) {
     handlers.move = () => evokerAutomation.executeEvokerMinionAction(actor, "move", () => useMove(actor));
-    handlers.attack = () => evokerAutomation.executeEvokerMinionAction(actor, "attack", async () => {
-      const options = await evokerAutomation.getEvokerMinionAttackOptions(actor);
-      return useAttack(actor, false, options);
+    handlers.attack = (options = {}) => evokerAutomation.executeEvokerMinionAction(actor, "attack", async () => {
+      const attackOptions = await evokerAutomation.getEvokerMinionAttackOptions(actor);
+      return useAttack(actor, false, { ...attackOptions, ...options });
     });
     handlers.aid = () => evokerAutomation.executeEvokerMinionAction(actor, "aid", () => evokerAutomation.useEvokerMinionAid(actor));
   }
 
-  return openCompactActionMenu({
+  return {
     actor,
     kind: "digimon",
     title: localize("DDA.DigimonAction.Menu.Title", "Ações do Digimon"),
-    hint: localize(
-      "DDA.DigimonAction.Menu.Hint",
-      "Cada ação consome somente os recursos deste Digimon."
-    ),
+    hint: localize("DDA.DigimonAction.Menu.Hint", "Cada ação consome somente os recursos deste Digimon."),
     entries: menuEntries,
-    onSelect: (key) => handlers[key]?.()
+    notes: [],
+    execute: (key, options = {}) => handlers[key]?.(options) ?? null
+  };
+}
+
+export async function openDigimonActionMenu(actor) {
+  if (!isDigimon(actor)) {
+    ui.notifications.warn(localize("DDA.DigimonAction.Warning.DigimonOnly", "Apenas Digimon podem usar este menu."));
+    return null;
+  }
+
+  const charmGate = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmGate === "function" && !charmGate(actor, { user: game?.user, notify: true })) return null;
+
+  const definition = await getDigimonActionMenuDefinition(actor);
+  if (!definition) return null;
+
+  if (actor.system?.clash?.state?.active && definition.entries?.length === 1) {
+    return definition.execute("clashActions");
+  }
+
+  return openCompactActionMenu({
+    actor,
+    kind: definition.kind,
+    title: definition.title,
+    hint: definition.hint,
+    entries: definition.entries,
+    notes: definition.notes,
+    onSelect: (key) => definition.execute(key)
   });
 }
 

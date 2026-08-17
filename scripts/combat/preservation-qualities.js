@@ -128,10 +128,10 @@ async function useSecondWind(actor, item) {
 
 export async function requestFocusedResistance({ defender, attacker = null, attackItem = null, effectTags = [] } = {}) {
   if (!defender || !effectTags.length || !hasQuality(defender, "focusedResistance")) {
-    return { used: false, multiplier: 1, canNegate: hasQuality(defender, "immunity") };
+    return { used: false, multiplier: 1, canNegate: Boolean(defender.system?.qualityFeatures?.preservation?.immunity) };
   }
   const actions = Math.max(0, number(defender.system?.combat?.actions?.value));
-  if (actions < 1) return { used: false, multiplier: 1, canNegate: hasQuality(defender, "immunity") };
+  if (actions < 1) return { used: false, multiplier: 1, canNegate: Boolean(defender.system?.qualityFeatures?.preservation?.immunity) };
   const confirmed = await foundry.applications.api.DialogV2.confirm({
     classes: ["dda", "dda-preservation-quality-window"],
     window: { title: text("Resistência Focada", "Focused Resistance") },
@@ -144,19 +144,19 @@ export async function requestFocusedResistance({ defender, attacker = null, atta
     rejectClose: false,
     modal: true
   });
-  if (!confirmed) return { used: false, multiplier: 1, canNegate: hasQuality(defender, "immunity") };
+  if (!confirmed) return { used: false, multiplier: 1, canNegate: Boolean(defender.system?.qualityFeatures?.preservation?.immunity) };
   const paid = await spendActorActions(defender, 1, { requireActiveUnit: false });
-  if (!paid) return { used: false, multiplier: 1, canNegate: hasQuality(defender, "immunity") };
+  if (!paid) return { used: false, multiplier: 1, canNegate: Boolean(defender.system?.qualityFeatures?.preservation?.immunity) };
   return {
     used: true,
     multiplier: 2,
-    canNegate: hasQuality(defender, "immunity"),
+    canNegate: Boolean(defender.system?.qualityFeatures?.preservation?.immunity),
     quality: findQuality(defender, "focusedResistance")
   };
 }
 
 export function getImmunityResistBonus(actor) {
-  return hasQuality(actor, "immunity") ? 1 : 0;
+  return Boolean(actor.system?.qualityFeatures?.preservation?.immunity) ? 1 : 0;
 }
 
 export function shouldNegateFallCrashDamage(actor, options = {}) {

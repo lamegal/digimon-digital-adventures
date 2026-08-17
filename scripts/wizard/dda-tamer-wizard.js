@@ -20,6 +20,14 @@ import {
 } from "../utils/ownership.js";
 
 
+const {
+  ApplicationV2,
+  HandlebarsApplicationMixin
+} = foundry.applications.api;
+
+const DDATamerWizardApplicationBase =
+  HandlebarsApplicationMixin(ApplicationV2);
+
 function isEnglishLanguage() {
   const language = String(game?.i18n?.lang ?? game?.i18n?.language ?? "");
   return language.toLowerCase().startsWith("en");
@@ -177,23 +185,23 @@ const DDA_TAMER_SKILL_DESCRIPTIONS = {
 const DDA_TAMER_ATTRIBUTES = {
   agility: {
     label: "DDA.TamerAttribute.Agility",
-    description: "DDA.TamerAttribute.Agility.Description"
+    description: "DDA.TamerAttributeAgilityDescription"
   },
   body: {
     label: "DDA.TamerAttribute.Body",
-    description: "DDA.TamerAttribute.Body.Description"
+    description: "DDA.TamerAttributeBodyDescription"
   },
   charisma: {
     label: "DDA.TamerAttribute.Charisma",
-    description: "DDA.TamerAttribute.Charisma.Description"
+    description: "DDA.TamerAttributeCharismaDescription"
   },
   intelligence: {
     label: "DDA.TamerAttribute.Intelligence",
-    description: "DDA.TamerAttribute.Intelligence.Description"
+    description: "DDA.TamerAttributeIntelligenceDescription"
   },
   willpower: {
     label: "DDA.TamerAttribute.Willpower",
-    description: "DDA.TamerAttribute.Willpower.Description"
+    description: "DDA.TamerAttributeWillpowerDescription"
   }
 };
 
@@ -201,87 +209,90 @@ const DDA_TAMER_SKILLS = {
   evade: {
     label: "DDA.TamerSkill.Evade",
     attributes: ["agility", "willpower"],
-    description: "DDA.TamerSkill.Evade.Description"
+    description: "DDA.TamerSkillEvadeDescription"
   },
   precision: {
     label: "DDA.TamerSkill.Precision",
     attributes: ["agility", "intelligence"],
-    description: "DDA.TamerSkill.Precision.Description"
+    description: "DDA.TamerSkillPrecisionDescription"
   },
   stealth: {
     label: "DDA.TamerSkill.Stealth",
     attributes: ["agility", "body"],
-    description: "DDA.TamerSkill.Stealth.Description"
+    description: "DDA.TamerSkillStealthDescription"
   },
   athletics: {
     label: "DDA.TamerSkill.Athletics",
     attributes: ["body", "agility"],
-    description: "DDA.TamerSkill.Athletics.Description"
+    description: "DDA.TamerSkillAthleticsDescription"
   },
   endurance: {
     label: "DDA.TamerSkill.Endurance",
     attributes: ["body", "willpower"],
-    description: "DDA.TamerSkill.Endurance.Description"
+    description: "DDA.TamerSkillEnduranceDescription"
   },
   featsOfStrength: {
     label: "DDA.TamerSkill.FeatsOfStrength",
     attributes: ["body", "charisma"],
-    description: "DDA.TamerSkill.FeatsOfStrength.Description"
+    description: "DDA.TamerSkillFeatsOfStrengthDescription"
   },
   manipulate: {
     label: "DDA.TamerSkill.Manipulate",
     attributes: ["charisma", "body"],
-    description: "DDA.TamerSkill.Manipulate.Description"
+    description: "DDA.TamerSkillManipulateDescription"
   },
   performance: {
     label: "DDA.TamerSkill.Performance",
     attributes: ["charisma", "agility"],
-    description: "DDA.TamerSkill.Performance.Description"
+    description: "DDA.TamerSkillPerformanceDescription"
   },
   persuasion: {
     label: "DDA.TamerSkill.Persuasion",
     attributes: ["charisma", "intelligence"],
-    description: "DDA.TamerSkill.Persuasion.Description"
+    description: "DDA.TamerSkillPersuasionDescription"
   },
   decipherIntent: {
     label: "DDA.TamerSkill.DecipherIntent",
     attributes: ["intelligence", "charisma"],
-    description: "DDA.TamerSkill.DecipherIntent.Description"
+    description: "DDA.TamerSkillDecipherIntentDescription"
   },
   survival: {
     label: "DDA.TamerSkill.Survival",
     attributes: ["intelligence", "willpower"],
-    description: "DDA.TamerSkill.Survival.Description"
+    description: "DDA.TamerSkillSurvivalDescription"
   },
   knowledge: {
     label: "DDA.TamerSkill.Knowledge",
     attributes: ["intelligence"],
-    description: "DDA.TamerSkill.Knowledge.Description"
+    description: "DDA.TamerSkillKnowledgeDescription"
   },
   awareness: {
     label: "DDA.TamerSkill.Awareness",
     attributes: ["willpower", "agility"],
-    description: "DDA.TamerSkill.Awareness.Description"
+    description: "DDA.TamerSkillAwarenessDescription"
   },
   bravery: {
     label: "DDA.TamerSkill.Bravery",
     attributes: ["willpower", "body"],
-    description: "DDA.TamerSkill.Bravery.Description"
+    description: "DDA.TamerSkillBraveryDescription"
   },
   fortitude: {
     label: "DDA.TamerSkill.Fortitude",
     attributes: ["willpower", "intelligence"],
-    description: "DDA.TamerSkill.Fortitude.Description"
+    description: "DDA.TamerSkillFortitudeDescription"
   }
 };
 
-export class DDATamerWizard extends Application {
+export class DDATamerWizard extends DDATamerWizardApplicationBase {
   constructor(options = {}) {
     super(options);
 
     this.linkContext = options.linkContext ?? null;
     this.stepIndex = 0;
     this._pendingScrollTop = null;
+    this._pendingScrollStepIndex = null;
+    this._pendingScrollRestoreId = null;
+    this._scrollRestoreId = 0;
 
     this.steps = [
       "welcome",
@@ -383,16 +394,41 @@ export class DDATamerWizard extends Application {
     };
   }
 
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: "dda-tamer-wizard",
-      title: localize("DDA.TamerWizard.Title"),
-      template: "systems/digimon-digital-adventures/templates/wizard/tamer-wizard.hbs",
+  static DEFAULT_OPTIONS = {
+    id: "dda-tamer-wizard",
+    classes: ["dda", "dda-wizard", "dda-tamer-wizard"],
+    position: {
       width: 900,
-      height: 760,
-      resizable: true,
-      classes: ["dda", "dda-wizard", "dda-tamer-wizard"]
-    });
+      height: 760
+    },
+    window: {
+      resizable: true
+    }
+  };
+
+  static PARTS = {
+    form: {
+      template: "systems/digimon-digital-adventures/templates/wizard/tamer-wizard.hbs",
+      scrollable: [".dda-wizard-body"]
+    }
+  };
+
+  get title() {
+    return localize("DDA.TamerWizard.Title");
+  }
+
+  async _prepareContext(options = {}) {
+    const context = await super._prepareContext(options);
+    return Object.assign(context, this.getData());
+  }
+
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+
+    const root = this._getRootElement(this.element);
+    if (!root) return;
+
+    this.activateListeners($(root));
   }
 
   get currentStep() {
@@ -453,7 +489,6 @@ return {
   }
 
   activateListeners(html) {
-    super.activateListeners(html);
 
     html.find("[data-action='next']").on("click", this._onNext.bind(this));
     html.find("[data-action='back']").on("click", this._onBack.bind(this));
@@ -685,13 +720,13 @@ async _onNext(event) {
 
   if (!this._canAdvance()) {
     ui.notifications.warn(this.data.validation.errors[0] ?? localize("DDA.TamerWizard.Validation.ReviewStep"));
-    this.render(false);
+    this._renderAtStepTop();
     return;
   }
 
   if (!this.isLastStep) {
     this.stepIndex += 1;
-    this.render(false);
+    this._renderAtStepTop();
   }
 }
 
@@ -700,7 +735,7 @@ async _onBack(event) {
 
   if (!this.isFirstStep) {
     this.stepIndex -= 1;
-    this.render(false);
+    this._renderAtStepTop();
   }
 }
 
@@ -714,7 +749,7 @@ async _onCreate(event) {
 
   if (this.data.validation.errors.length > 0) {
     ui.notifications.warn(this.data.validation.errors[0]);
-    this.render(false);
+    this._renderAtStepTop();
     return;
   }
 
@@ -1011,9 +1046,9 @@ if (
     this.data.identity.img
   )
 ) {
-  errors.push(
+  warnings.push(
     localize(
-      "DDA.TamerWizard.Validation.ImageRequired"
+      "DDA.TamerWizard.Validation.ImageFallback"
     )
   );
 }
@@ -1087,6 +1122,9 @@ if (
 
   _buildActorData() {
     const name = this.data.identity.name?.trim() || localize("DDA.TamerWizard.DefaultName");
+    const actorImage = String(
+      this.data.identity.img || DDA_TAMER_DEFAULT_IMAGE
+    ).trim() || DDA_TAMER_DEFAULT_IMAGE;
     const luckyNumber = Number(this.data.inspiration.luckyNumber || 1);
     const ipValue = Number(this.data.inspiration.value ?? 1);
     const ipTemp = Number(this.data.inspiration.temporary ?? 0);
@@ -1097,9 +1135,14 @@ if (
     return {
       name,
       type: "character",
-img: String(
-  this.data.identity.img ?? ""
-).trim(),
+      img: actorImage,
+      prototypeToken: {
+        name,
+        texture: {
+          src: actorImage
+        },
+        actorLink: true
+      },
 
       system: {
         luckyNumber,
@@ -1223,8 +1266,10 @@ img: String(
 
         evolution: {
           defaultRange: {
-            value: 1,
-            template: "limited"
+            value: 2,
+            template: "limited",
+            manualValue: 2,
+            defaultStagePolicy: "range"
           },
           completedMilestones: 0
         },
@@ -1337,15 +1382,36 @@ _getScrollElement(html = this.element) {
 
   if (!root) return null;
 
-  return root.querySelector(".dda-wizard-body")
-    ?? root.querySelector(".window-content")
-    ?? root;
+  if (root.matches?.("[data-dda-scroll-container], .dda-wizard-body")) {
+    return root;
+  }
+
+  const scrollElement = root.querySelector(
+    "[data-dda-scroll-container], .dda-wizard-body"
+  );
+
+  if (scrollElement) return scrollElement;
+
+  const appRoot = root.closest?.(".window-app.dda-wizard")
+    ?? this._getRootElement(this.element);
+
+  const appScrollElement = appRoot?.querySelector?.(
+    "[data-dda-scroll-container], .dda-wizard-body"
+  );
+
+  if (appScrollElement) return appScrollElement;
+
+  if (root.matches?.(".window-content")) return root;
+
+  return root.querySelector(".window-content") ?? root;
 }
 
 _renderPreservingScroll() {
   const scrollElement = this._getScrollElement(this.element);
 
   this._pendingScrollTop = scrollElement?.scrollTop ?? 0;
+  this._pendingScrollStepIndex = this.stepIndex;
+  this._pendingScrollRestoreId = ++this._scrollRestoreId;
 
   return this.render(false);
 }
@@ -1354,15 +1420,48 @@ _restoreScrollPosition(html = this.element) {
   if (this._pendingScrollTop === null || this._pendingScrollTop === undefined) return;
 
   const scrollTop = this._pendingScrollTop;
-  this._pendingScrollTop = null;
+  const stepIndex = this._pendingScrollStepIndex;
+  const restoreId = this._pendingScrollRestoreId;
 
-  window.requestAnimationFrame(() => {
-    const scrollElement = this._getScrollElement(html);
+  this._pendingScrollTop = null;
+  this._pendingScrollStepIndex = null;
+  this._pendingScrollRestoreId = null;
+
+  const restore = () => {
+    if (restoreId !== this._scrollRestoreId) return;
+    if (stepIndex !== this.stepIndex) return;
+
+    const scrollElement = this._getScrollElement(this.element)
+      ?? this._getScrollElement(html);
 
     if (scrollElement) {
       scrollElement.scrollTop = scrollTop;
     }
+  };
+
+  /*
+   * O ciclo de renderização troca o conteúdo em mais de uma fase. Restaurar somente
+   * no primeiro frame deixa o foco/layout dos botões de Perícias, Inspiração e
+   * Tormentos sobrescrever a posição logo depois. Mantemos a posição durante
+   * os dois frames de layout e uma última vez após o ciclo de foco do Foundry.
+   */
+  restore();
+
+  window.requestAnimationFrame(() => {
+    restore();
+    window.requestAnimationFrame(restore);
   });
+
+  window.setTimeout(restore, 50);
+}
+
+_renderAtStepTop() {
+  this._scrollRestoreId += 1;
+  this._pendingScrollTop = null;
+  this._pendingScrollStepIndex = null;
+  this._pendingScrollRestoreId = null;
+
+  return this.render(false);
 }
 
 _syncInputsFromHtml(html = this.element) {

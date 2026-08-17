@@ -1,5 +1,13 @@
 import { getDomainMovementContext } from "../combat/utility-qualities.js";
 import {
+  affectedSpacesForPath,
+  attachDDAMovementTrace,
+  getDDAMovementContext,
+  getDDAMovementTrace,
+  getMovementPathPoints,
+  pathDistanceSpaces
+} from "./movement-context.js";
+import {
   getActiveDDAUnitContext,
   getCombatantUnitId
 } from "../combat/initiative.js";
@@ -8,6 +16,13 @@ import {
   reduceEnemyUnalterableDamageWithShiningArmor,
   refundLightDigizoidActionReserve
 } from "../combat/digizoid-gain-force.js";
+import {
+  getNaturalExplorerFollowerEffect,
+  refundBullrushActionReserve,
+  refundStrikeFastActionReserve
+} from "../rules/tamer-talent-runtime.js";
+import { hasUnlockedOfficialTamerTalent } from "../rules/tamer-resources.js";
+import { applyDamage } from "../rolls/damage-application.js";
 
 const DDA_MOVEMENT_FLAG = "movementTracker";
 const MOBILE_ARTILLERY_TERRAIN_FLAG = "mobileArtilleryTerrain";
@@ -212,77 +227,55 @@ function applyCurrentTurnMovementMultiplier(actor, value) {
   );
 }
 
-function landMovementData(actor) {
-  const land =
-    actor?.system?.movementTypes?.land;
+function movementLayerForType(type = "land") {
+  return ["fly", "jump", "swim"].includes(String(type ?? "").toLowerCase())
+    ? "aerial"
+    : "surface";
+}
 
+function activeMovementData(actor) {
   /*
-   * Tamers store Movement under
-   * system.derived.movement.
+   * Digimon/NPC sheets already expose system.currentMovementType.  The tracker
+   * historically ignored that selector and always used Land, which made it
+   * impossible to distinguish Surface from Aerial Difficult Terrain.
    *
-   * Digimon and NPC Digimon store it under
-   * system.miscStats.movement or movementTypes.
+   * Teleport remains its own Action/automation and must never be converted into
+   * a draggable Move session merely because it is selected on the sheet.
    */
-  const fallbackTotal =
-    actor?.type === "character"
-      ? (
-          actor?.system?.derived
-            ?.movement?.total ??
-          actor?.system?.derived
-            ?.movement?.value
-        )
-      : (
-          actor?.system?.miscStats
-            ?.movement?.total ??
-          actor?.system?.miscStats
-            ?.movement?.value
-        );
+  const requestedType = actor?.type === "character"
+    ? "land"
+    : String(actor?.system?.currentMovementType ?? "land").toLowerCase();
+  const movementType = requestedType === "teleport" ? "land" : requestedType;
+  const movement = actor?.system?.movementTypes?.[movementType];
+  const land = actor?.system?.movementTypes?.land;
 
-  if (!land) {
+  const fallbackTotal = actor?.type === "character"
+    ? (actor?.system?.derived?.movement?.total ?? actor?.system?.derived?.movement?.value)
+    : (actor?.system?.miscStats?.movement?.total ?? actor?.system?.miscStats?.movement?.value);
+
+  const selected = movement ?? land;
+  const key = selected === movement && movement ? movementType : "land";
+  const fallbackLabel = key === "land" ? i18n("Terrestre", "Land") : key;
+
+  if (!selected) {
     return {
       key: "land",
-
-      label: i18n(
-        "Terrestre",
-        "Land"
-      ),
-
+      label: i18n("Terrestre", "Land"),
       enabled: true,
-
-      total: applyCurrentTurnMovementMultiplier(
-        actor,
-        Math.max(0, num(fallbackTotal))
-      )
+      total: applyCurrentTurnMovementMultiplier(actor, Math.max(0, num(fallbackTotal))),
+      layer: "surface"
     };
   }
 
   return {
-    key: "land",
-
-    label: String(
-      land.displayLabel ??
-      land.label ??
-      i18n(
-        "Terrestre",
-        "Land"
-      )
-    ),
-
-    /*
-     * Older Actors may not explicitly contain
-     * the enabled property.
-     */
-    enabled:
-      land.enabled !== false,
-
+    key,
+    label: String(selected.displayLabel ?? selected.label ?? fallbackLabel),
+    enabled: selected.enabled !== false,
     total: applyCurrentTurnMovementMultiplier(
       actor,
-      Math.max(
-        0,
-        num(land.total ?? land.value),
-        num(fallbackTotal)
-      )
-    )
+      Math.max(0, num(selected.total ?? selected.value), key === "land" ? num(fallbackTotal) : 0)
+    ),
+    layer: movementLayerForType(key)
   };
 }
 
@@ -348,31 +341,55 @@ function drawTracker(token, session) {
 
   const box = new PIXI.Container();
   box.name = "dda-movement-tracker";
-  box.zIndex = 9999;
+  // Keep the movement readout above Health Pips and the Action Tracker.
+  // The old colored token-sized frame was intentionally removed: the badge
+  // alone communicates movement without fighting the custom radial rings.
+  box.zIndex = 10020;
 
-  const border = new PIXI.Graphics();
-  border.lineStyle(4, color, 0.95);
-  border.drawRoundedRect(
-    2,
-    2,
-    Math.max(1, width - 4),
-    Math.max(1, height - 4),
-    8
+  // Anchor the movement badge to the Action Tracker rather than to the
+  // token bounds. The Action Tracker uses the same diameter rule, so the
+  // readout stays at roughly the 2 o'clock position for tokens of every size.
+  const tokenSide = Math.max(width, height);
+  const actionTrackerDiameter = Math.round(
+    Math.max(tokenSide * 1.46, tokenSide + 90)
   );
-  border.endFill();
+  const actionTrackerRadius = actionTrackerDiameter / 2;
 
-  const badgeWidth = 62;
-  const badgeX = width - badgeWidth + 4;
+  const badgeWidth = 56;
+  const badgeHeight = 24;
+  const badgeRadius = badgeHeight / 2;
+  const badgeAngle = -30 * (Math.PI / 180); // 2 o'clock
+
+  // Keep the pill fully outside the Action Tracker ring instead of placing
+  // its center only a few pixels beyond the ring. Because the pill is
+  // horizontal, calculate how much of it projects inward along the radial
+  // direction and then add a small visible gap.
+  const badgeGap = 7;
+  const badgeRadialHalfExtent =
+    (Math.abs(Math.cos(badgeAngle)) * (badgeWidth / 2)) +
+    (Math.abs(Math.sin(badgeAngle)) * (badgeHeight / 2));
+  const badgeDistance =
+    actionTrackerRadius + badgeRadialHalfExtent + badgeGap;
+
+  const tokenCenterX = width / 2;
+  const tokenCenterY = height / 2;
+  const badgeCenterX =
+    tokenCenterX + (Math.cos(badgeAngle) * badgeDistance);
+  const badgeCenterY =
+    tokenCenterY + (Math.sin(badgeAngle) * badgeDistance);
+
+  const badgeX = badgeCenterX - (badgeWidth / 2);
+  const badgeY = badgeCenterY - (badgeHeight / 2);
 
   const badge = new PIXI.Graphics();
-  badge.lineStyle(2, color, 0.95);
-  badge.beginFill(0x050b12, 0.88);
+  badge.lineStyle(2, color, 0.98);
+  badge.beginFill(0x050b12, 0.92);
   badge.drawRoundedRect(
     badgeX,
-    -10,
+    badgeY,
     badgeWidth,
-    24,
-    7
+    badgeHeight,
+    badgeRadius
   );
   badge.endFill();
 
@@ -403,13 +420,14 @@ function drawTracker(token, session) {
   );
 
   label.anchor.set(0.5, 0.5);
-  label.x = badgeX + (badgeWidth / 2);
-  label.y = 2;
+  label.x = badgeCenterX;
+  label.y = badgeCenterY;
 
-  box.addChild(border, badge, label);
+  box.addChild(badge, label);
 
   token.sortableChildren = true;
   token.addChild(box);
+  token.sortChildren?.();
 
   token._ddaMovementTracker = box;
 }
@@ -631,10 +649,12 @@ function createAutomaticSession(
     max: data.total,
     spent: 0,
 
-    startType: "land",
+    startType: data.key ?? "land",
     startTypeLabel: data.label,
-    lastType: "land",
+    lastType: data.key ?? "land",
     lastTypeLabel: data.label,
+    movementLayer: data.layer ?? movementLayerForType(data.key),
+    difficultTerrain: false,
 
     segments: []
   };
@@ -751,15 +771,52 @@ function actorNaturewalkElements(actor) {
   );
 }
 
-function activeSurfaceMobileArtilleryTemplates(actor) {
+function actorMovementType(actor, session = null) {
+  const fromSession = String(session?.lastType ?? session?.startType ?? "").toLowerCase();
+  if (fromSession && fromSession !== "teleport") return fromSession;
+  return activeMovementData(actor).key;
+}
+
+function actorIgnoresAllDifficultTerrain(actor, movementType = "land") {
+  if (!actor) return false;
+
+  const evokerProtector = Boolean(
+    actor?.flags?.["digimon-digital-adventures"]?.evokerCreation?.kind === "minion" &&
+    actor?.flags?.["digimon-digital-adventures"]?.evokerCreation?.subtype === "protector"
+  );
+  if (evokerProtector) return true;
+
+  if (actor.type === "character" && hasUnlockedOfficialTamerTalent(actor, "naturalExplorer")) {
+    return true;
+  }
+
+  if (getNaturalExplorerFollowerEffect(actor)) return true;
+
+  if (String(movementType) === "jump") {
+    const jump = actor?.system?.qualityFeatures?.advancedMobility?.jump ?? {};
+    if (jump.difficultTerrainJumpEntryExit) {
+      const wounds = actor?.system?.miscStats?.wounds ?? {};
+      const current = Math.max(0, num(wounds.value));
+      const maximum = Math.max(0, num(wounds.max));
+      if (maximum > 0 && current > maximum / 2) return true;
+    }
+  }
+
+  return false;
+}
+
+function activeMobileArtilleryTemplates(actor, layer = "surface") {
   const ignoredElements = actorNaturewalkElements(actor);
+  const wantedLayer = String(layer ?? "surface") === "aerial" ? "aerial" : "surface";
 
   return (canvas?.templates?.placeables ?? []).filter((template) => {
     const document = template?.document;
     const flag = document?.getFlag?.(scope(), MOBILE_ARTILLERY_TERRAIN_FLAG)
       ?? document?.flags?.[scope()]?.[MOBILE_ARTILLERY_TERRAIN_FLAG]
       ?? null;
-    if (!flag?.active || flag.layer !== "surface") return false;
+    if (!flag?.active) return false;
+    const terrainLayer = String(flag.layer ?? "surface") === "aerial" ? "aerial" : "surface";
+    if (terrainLayer !== wantedLayer) return false;
     return !ignoredElements.has(normalizeTerrainElement(flag.element));
   });
 }
@@ -779,159 +836,323 @@ function templateContainsWorldPoint(template, worldPoint) {
   }
 }
 
-function movementPathPoints(document, movement) {
+function tokenContainsWorldPoint(token, worldPoint) {
+  const document = token?.document ?? token;
+  if (!document) return false;
   const grid = Math.max(1, num(canvas?.grid?.size, 100));
-  const centerOffset = {
-    x: Math.max(0.5, num(document?.width, 1)) * grid / 2,
-    y: Math.max(0.5, num(document?.height, 1)) * grid / 2
-  };
-  const center = (source = {}) => ({
-    x: num(source.x) + centerOffset.x,
-    y: num(source.y) + centerOffset.y
-  });
-
-  return [
-    center(movement?.origin ?? document),
-    ...(movement?.passed?.waypoints ?? []).map(center),
-    center(movement?.destination ?? document)
-  ];
+  const left = num(document.x);
+  const top = num(document.y);
+  const right = left + Math.max(0.5, num(document.width, 1)) * grid;
+  const bottom = top + Math.max(0.5, num(document.height, 1)) * grid;
+  const x = num(worldPoint?.x);
+  const y = num(worldPoint?.y);
+  return x >= left && x <= right && y >= top && y <= bottom;
 }
 
-/**
- * Estimate how many grid spaces of a Token's path are inside one or more
- * active Surface Mobile Artillery templates. Difficult Terrain adds one
- * additional Movement cost per affected Space; matching Naturewalk ignores it.
- */
-function mobileArtilleryTerrainPenalty(document, movement, spaces) {
-  const templates = activeSurfaceMobileArtilleryTemplates(document?.actor);
+function evokerTerrainEntries(actor, layer = "surface", { includeNaturewalk = false } = {}) {
+  const ignoredElements = actorNaturewalkElements(actor);
+  const wantedLayer = String(layer ?? "surface") === "aerial" ? "aerial" : "surface";
+  const entries = [];
+
+  for (const token of canvas?.tokens?.placeables ?? []) {
+    const flag = token?.actor?.flags?.["digimon-digital-adventures"]?.evokerCreation;
+    if (!flag || flag.kind !== "structure") continue;
+
+    let terrain = "";
+    let element = "";
+    let terrainLayer = "surface";
+
+    if (flag.subtype === "terrain") {
+      terrain = String(flag.terrain ?? "").toLowerCase();
+      element = normalizeTerrainElement(flag.element);
+      terrainLayer = String(flag.terrainLayer ?? "surface") === "aerial" ? "aerial" : "surface";
+    } else if (flag.subtype === "platform" && String(flag.platformTerrain ?? "").toLowerCase() === "difficult") {
+      terrain = "difficult";
+      element = normalizeTerrainElement(flag.element);
+      terrainLayer = "surface";
+    }
+
+    if (!["difficult", "dangerous"].includes(terrain)) continue;
+    if (terrainLayer !== wantedLayer) continue;
+    if (!includeNaturewalk && element && ignoredElements.has(element)) continue;
+
+    entries.push({
+      token,
+      id: String(token.id ?? token.document?.id ?? ""),
+      terrain,
+      element,
+      layer: terrainLayer,
+      sourceActorUuid: String(flag.sourceActorUuid ?? ""),
+      sourceActorName: String(flag.sourceActorName ?? "")
+    });
+  }
+
+  return entries;
+}
+
+function mobileArtilleryDifficultSpaces(document, movement, spaces, context = null, layer = "surface") {
+  const templates = activeMobileArtilleryTemplates(document?.actor, layer);
   if (!templates.length || spaces <= 0) return 0;
 
-  const points = movementPathPoints(document, movement);
-  const grid = Math.max(1, num(canvas?.grid?.size, 100));
-  let totalLength = 0;
-  let difficultLength = 0;
-
-  for (let index = 1; index < points.length; index += 1) {
-    const from = points[index - 1];
-    const to = points[index];
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.hypot(dx, dy);
-    if (length <= 0) continue;
-
-    const samples = Math.max(1, Math.ceil((length / grid) * 6));
-    const sampleLength = length / samples;
-    totalLength += length;
-
-    for (let sample = 0; sample < samples; sample += 1) {
-      const ratio = (sample + 0.5) / samples;
-      const current = {
-        x: from.x + (dx * ratio),
-        y: from.y + (dy * ratio)
-      };
-      if (templates.some((template) => templateContainsWorldPoint(template, current))) {
-        difficultLength += sampleLength;
-      }
-    }
-  }
-
-  if (totalLength <= 0 || difficultLength <= 0) return 0;
-  const affectedSpaces = Number(spaces) * Math.min(1, difficultLength / totalLength);
-  return Math.max(0, Math.min(Number(spaces), Math.ceil(affectedSpaces - 0.001)));
-}
-
-function utilityDomainTerrainPenalty(document, movement, spaces) {
-  if (!document?.actor || spaces <= 0) return 0;
-  const points = movementPathPoints(document, movement);
-  const grid = Math.max(1, num(canvas?.grid?.size, 100));
-  let totalLength = 0;
-  let difficultLength = 0;
-
-  for (let index = 1; index < points.length; index += 1) {
-    const from = points[index - 1];
-    const to = points[index];
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.hypot(dx, dy);
-    if (length <= 0) continue;
-    const samples = Math.max(1, Math.ceil((length / grid) * 6));
-    const sampleLength = length / samples;
-    totalLength += length;
-    for (let sample = 0; sample < samples; sample += 1) {
-      const ratio = (sample + 0.5) / samples;
-      const current = { x: from.x + dx * ratio, y: from.y + dy * ratio };
-      if (getDomainMovementContext(document.actor, current)?.difficult) difficultLength += sampleLength;
-    }
-  }
-
-  if (totalLength <= 0 || difficultLength <= 0) return 0;
-  const affectedSpaces = Number(spaces) * Math.min(1, difficultLength / totalLength);
-  return Math.max(0, Math.min(Number(spaces), Math.ceil(affectedSpaces - 0.001)));
-}
-
-function buildSegment(document, movement, spaces) {
-  const inSentryStance = String(document?.actor?.system?.combat?.currentStance ?? "").toLowerCase() === "sentry";
-  const evokerProtectorIgnoresDifficultTerrain = Boolean(
-    document?.actor?.flags?.["digimon-digital-adventures"]?.evokerCreation?.kind === "minion" &&
-    document?.actor?.flags?.["digimon-digital-adventures"]?.evokerCreation?.subtype === "protector"
+  const points = getMovementPathPoints(document, movement, context);
+  return affectedSpacesForPath(
+    points,
+    spaces,
+    (current) => templates.some((template) => templateContainsWorldPoint(template, current))
   );
-  const difficultMultiplier =
-    !evokerProtectorIgnoresDifficultTerrain && (
-      actorHasEffect(document?.actor, "paralyze") || inSentryStance
-    )
-      ? 2
-      : 1;
+}
 
-  const directionalPenalty =
-    directionalEffectPenalty(
-      document?.actor,
-      movement
-    );
+function utilityDomainDifficultSpaces(document, movement, spaces, context = null) {
+  if (!document?.actor || spaces <= 0) return 0;
+  const points = getMovementPathPoints(document, movement, context);
+  return affectedSpacesForPath(
+    points,
+    spaces,
+    (current) => Boolean(getDomainMovementContext(document.actor, current)?.difficult)
+  );
+}
 
-  const mobileArtilleryPenalty = evokerProtectorIgnoresDifficultTerrain
-    ? 0
-    : mobileArtilleryTerrainPenalty(document, movement, spaces);
-  const domainTerrainPenalty = difficultMultiplier > 1
-    || evokerProtectorIgnoresDifficultTerrain
-    ? 0
-    : utilityDomainTerrainPenalty(document, movement, spaces);
-  const terrainPenalty = mobileArtilleryPenalty + domainTerrainPenalty;
+function evokerDifficultSpaces(document, movement, spaces, context = null, layer = "surface") {
+  const entries = evokerTerrainEntries(document?.actor, layer);
+  if (!entries.length || spaces <= 0) return 0;
+  const points = getMovementPathPoints(document, movement, context);
+  return affectedSpacesForPath(
+    points,
+    spaces,
+    (current) => entries.some((entry) => tokenContainsWorldPoint(entry.token, current))
+  );
+}
+
+function terrainMovementAssessment(document, movement, spaces, context = null, session = null) {
+  const actor = document?.actor;
+  const semantic = context ?? getDDAMovementContext({}, { session });
+  const movementType = actorMovementType(actor, session);
+  const layer = String(session?.movementLayer ?? movementLayerForType(movementType));
+  const ignoresAll = actorIgnoresAllDifficultTerrain(actor, movementType);
+  const virtualDifficult = Boolean(
+    actorHasEffect(actor, "paralyze") ||
+    String(actor?.system?.combat?.currentStance ?? "").toLowerCase() === "sentry"
+  );
+
+  if (semantic.movementBudget !== "movement") {
+    return {
+      movementType,
+      layer,
+      requiresDifficultAction: false,
+      virtualDifficult,
+      mobileArtillerySpaces: 0,
+      domainSpaces: 0,
+      evokerSpaces: 0,
+      difficultSpaces: 0
+    };
+  }
+
+  const mobileArtillerySpaces = ignoresAll ? 0 : mobileArtilleryDifficultSpaces(document, movement, spaces, semantic, layer);
+  const domainSpaces = ignoresAll ? 0 : utilityDomainDifficultSpaces(document, movement, spaces, semantic);
+  const evokerSpaces = ignoresAll ? 0 : evokerDifficultSpaces(document, movement, spaces, semantic, layer);
+  const difficultSpaces = Math.max(mobileArtillerySpaces, domainSpaces, evokerSpaces);
 
   return {
-    from: point(
-      movement?.origin ??
-      document
-    ),
+    movementType,
+    layer,
+    requiresDifficultAction: !ignoresAll && (virtualDifficult || difficultSpaces > 0),
+    virtualDifficult,
+    mobileArtillerySpaces,
+    domainSpaces,
+    evokerSpaces,
+    difficultSpaces
+  };
+}
 
-    to: point(
-      movement?.destination ??
-      document
-    ),
+function sessionAllowsDifficultTerrain(session) {
+  return Boolean(session?.difficultTerrain || session?.unrestricted);
+}
 
-    waypoints:
-      (movement?.passed?.waypoints ?? [])
-        .map((waypoint) => point(waypoint)),
+function dangerousTerrainDescriptorsForPath(document, movement, context = null, session = null) {
+  const actor = document?.actor;
+  if (!actor) return [];
+  const semantic = context ?? getDDAMovementContext({}, { session, movement });
+  const movementType = actorMovementType(actor, session);
+  const layer = String(session?.movementLayer ?? movementLayerForType(movementType));
+  const entries = evokerTerrainEntries(actor, layer, { includeNaturewalk: true })
+    .filter((entry) => entry.terrain === "dangerous");
+  if (!entries.length) return [];
 
+  const points = getMovementPathPoints(document, movement, semantic);
+  if (points.length < 2) return [];
+  const traversal = semantic.traversal !== false;
+  const destination = points.at(-1);
+  const pathSpaces = Math.max(1, pathDistanceSpaces(points));
+
+  return entries
+    .filter((entry) => traversal
+      ? affectedSpacesForPath(points, pathSpaces, (current) => tokenContainsWorldPoint(entry.token, current)) > 0
+      : tokenContainsWorldPoint(entry.token, destination))
+    .map((entry) => ({
+      id: entry.id,
+      element: entry.element,
+      sourceActorUuid: entry.sourceActorUuid,
+      sourceActorName: entry.sourceActorName,
+      layer: entry.layer
+    }));
+}
+
+function dangerousTerrainDescriptorsForTrace(document, trace, context = null) {
+  const actor = document?.actor;
+  const points = Array.isArray(trace?.points) ? trace.points : [];
+  if (!actor || points.length < 2) return [];
+  const semantic = context ?? trace?.context ?? getDDAMovementContext({});
+  const movementData = activeMovementData(actor);
+  const entries = evokerTerrainEntries(actor, movementData.layer, { includeNaturewalk: true })
+    .filter((entry) => entry.terrain === "dangerous");
+  if (!entries.length) return [];
+  const traversal = semantic.traversal !== false;
+  const destination = points.at(-1);
+  const pathSpaces = Math.max(1, Number(trace?.spaces) || pathDistanceSpaces(points));
+  return entries
+    .filter((entry) => traversal
+      ? affectedSpacesForPath(points, pathSpaces, (current) => tokenContainsWorldPoint(entry.token, current)) > 0
+      : tokenContainsWorldPoint(entry.token, destination))
+    .map((entry) => ({
+      id: entry.id,
+      element: entry.element,
+      sourceActorUuid: entry.sourceActorUuid,
+      sourceActorName: entry.sourceActorName,
+      layer: entry.layer
+    }));
+}
+
+function filterNewDangerousTerrain(segment, session) {
+  const visited = new Set((session?.dangerousTerrainVisited ?? []).map(String));
+  const entries = (segment?.dangerousTerrain ?? []).filter((entry) => entry?.id && !visited.has(String(entry.id)));
+  segment.dangerousTerrain = entries;
+  return [...visited, ...entries.map((entry) => String(entry.id))];
+}
+
+function dangerousTerrainDamagePerSpace(actor, element = "") {
+  const normalizedElement = normalizeTerrainElement(element);
+  const master = actor?.system?.qualityFeatures?.elementMaster ?? {};
+  const masterElements = new Set((master.elements ?? []).map(normalizeTerrainElement).filter(Boolean));
+  return master.active && normalizedElement && masterElements.has(normalizedElement) ? 1 : 2;
+}
+
+async function applyDangerousTerrainDamage(actor, entries = [], { reason = "movement" } = {}) {
+  if (!actor || !Array.isArray(entries) || !entries.length) return 0;
+
+  let total = 0;
+  const sourceNames = new Set();
+
+  // 9.09g applies Dangerous Terrain damage per traversed Space. Each Conjure
+  // terrain segment is one space, so resolve each entry as its own Unalterable
+  // damage instance through the canonical damage pipeline. This preserves Temp
+  // Wounds, defeat/survival hooks and other damage lifecycle rules while still
+  // preventing Armor/DR from reducing the terrain damage.
+  for (const entry of entries) {
+    const amount = dangerousTerrainDamagePerSpace(actor, entry?.element);
+    if (amount <= 0) continue;
+
+    // Keep the terrain card keyed to the rules amount (2, or 1 with matching
+    // Element Master). The canonical damage pipeline may independently trigger
+    // survival/recovery mechanics, but that does not turn the terrain space into
+    // a second trigger if the same movement/update is observed again.
+    total += amount;
+    await applyDamage(actor, amount, {
+      unalterable: true,
+      damageLabel: i18n("Terreno Perigoso", "Dangerous Terrain"),
+      damageSourceKind: "terrain",
+      createChat: false
+    });
+
+    const sourceName = String(entry?.sourceActorName ?? "").trim();
+    if (sourceName) sourceNames.add(sourceName);
+  }
+
+  if (total <= 0) return 0;
+
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: `<div class="dda-chat-card dda-effect-card effect-negative"><h2>${i18n("Terreno Perigoso", "Dangerous Terrain")}</h2><p><strong>${foundry.utils.escapeHTML(actor.name)}</strong> ${i18n("sofreu", "took")} <strong>${total}</strong> ${i18n("Dano Inalterável", "Unalterable Damage")}${sourceNames.size ? ` (${foundry.utils.escapeHTML([...sourceNames].join(", "))})` : ""}.</p><p>${reason === "startTurn" ? i18n("Início do turno dentro de Terreno Perigoso.", "Started the turn inside Dangerous Terrain.") : i18n("Movimento através de Terreno Perigoso.", "Moved through Dangerous Terrain.")}</p></div>`
+  });
+  return total;
+}
+
+export async function applyDangerousTerrainStartOfTurn(actor) {
+  if (!actor) return 0;
+
+  // updateCombat/start-of-turn hooks run on every connected client. Keep the
+  // environmental damage authoritative so overlapping clients cannot apply it
+  // more than once before the persisted turn tick reaches everyone.
+  const activeUsers = Array.from(game?.users ?? []).filter((user) => user?.active);
+  const responsibleUser = activeUsers
+    .filter((user) => user?.isGM)
+    .sort((left, right) => String(left.id).localeCompare(String(right.id)))[0]
+    ?? activeUsers
+      .filter((user) => actor.testUserPermission?.(user, "OWNER"))
+      .sort((left, right) => String(left.id).localeCompare(String(right.id)))[0]
+    ?? null;
+  if (!responsibleUser || String(responsibleUser.id) !== String(game.user?.id ?? "")) return 0;
+
+  const tick = `${game.combat?.id ?? "no-combat"}:${num(game.combat?.round)}:${num(game.combat?.turn, -1)}:${actor.uuid ?? actor.id ?? ""}`;
+  if (String(actor.system?.combat?.dangerousTerrainStartTurnTick ?? "") === tick) return 0;
+  const token = findTokenDocumentForActor(actor);
+  if (!token) return 0;
+  const movementData = activeMovementData(actor);
+  const entries = evokerTerrainEntries(actor, movementData.layer, { includeNaturewalk: true })
+    .filter((entry) => entry.terrain === "dangerous")
+    .filter((entry) => tokenContainsWorldPoint(entry.token, {
+      x: num(token.x) + Math.max(0.5, num(token.width, 1)) * Math.max(1, num(canvas?.grid?.size, 100)) / 2,
+      y: num(token.y) + Math.max(0.5, num(token.height, 1)) * Math.max(1, num(canvas?.grid?.size, 100)) / 2
+    }))
+    .slice(0, 1)
+    .map((entry) => ({
+      id: entry.id,
+      element: entry.element,
+      sourceActorUuid: entry.sourceActorUuid,
+      sourceActorName: entry.sourceActorName,
+      layer: entry.layer
+    }));
+  if (!entries.length) return 0;
+  const damage = await applyDangerousTerrainDamage(actor, entries, { reason: "startTurn" });
+  if (damage > 0) {
+    await actor.update({ "system.combat.dangerousTerrainStartTurnTick": tick });
+  }
+  return damage;
+}
+
+function buildSegment(document, movement, spaces, context = null, session = null) {
+  const semantic = context ?? getDDAMovementContext({}, { session });
+  const usesMovementCosts = semantic.movementBudget === "movement";
+  const assessment = terrainMovementAssessment(document, movement, spaces, semantic, session);
+  const directionalPenalty = usesMovementCosts
+    ? directionalEffectPenalty(document?.actor, movement)
+    : 0;
+
+  return {
+    from: point(movement?.origin ?? document),
+    to: point(movement?.destination ?? document),
+    waypoints: (movement?.passed?.waypoints ?? []).map((waypoint) => point(waypoint)),
     spaces,
-
-    cost:
-      spaces * difficultMultiplier +
-      directionalPenalty +
-      terrainPenalty,
-
+    cost: usesMovementCosts ? spaces + directionalPenalty : spaces,
     directionalPenalty,
-    terrainPenalty,
-    mobileArtilleryPenalty,
-    domainTerrainPenalty,
-    sentryDifficultTerrain: inSentryStance,
 
-    type: "land",
-
-    typeLabel:
-      i18n(
-        "Terrestre",
-        "Land"
-      )
+    // Kept as explicit diagnostics instead of increasing Movement cost. Under
+    // 9.09g, Difficult Terrain changes the required Action, not spaces moved.
+    terrainPenalty: 0,
+    mobileArtilleryPenalty: 0,
+    domainTerrainPenalty: 0,
+    difficultTerrainSpaces: assessment.difficultSpaces,
+    mobileArtilleryDifficultSpaces: assessment.mobileArtillerySpaces,
+    domainDifficultSpaces: assessment.domainSpaces,
+    evokerDifficultSpaces: assessment.evokerSpaces,
+    requiresDifficultAction: assessment.requiresDifficultAction,
+    virtualDifficultTerrain: assessment.virtualDifficult,
+    movementLayer: assessment.layer,
+    movementType: assessment.movementType,
+    sentryDifficultTerrain: String(document?.actor?.system?.combat?.currentStance ?? "").toLowerCase() === "sentry",
+    dangerousTerrain: dangerousTerrainDescriptorsForPath(document, movement, semantic, session),
+    movementContext: semantic,
+    type: assessment.movementType,
+    typeLabel: activeMovementData(document?.actor).label
   };
 }
 
@@ -944,12 +1165,12 @@ function queueAutomaticMove(document, movement) {
     return false;
   }
 
-  const data = landMovementData(actor);
+  const data = activeMovementData(actor);
 
   if (!data.enabled || data.total <= 0) {
     warn(i18n(
-      "Esse participante não possui Movimento terrestre disponível.",
-      "This participant does not have Land Movement available."
+      `Esse participante não possui ${data.label} disponível.`,
+      `This participant does not have ${data.label} available.`
     ));
 
     return false;
@@ -1000,11 +1221,22 @@ function queueAutomaticMove(document, movement) {
     session = clone(session);
   }
 
-  const segment = buildSegment(document, movement, spaces);
+  const movementContext = getDDAMovementContext({}, { session });
+  const segment = buildSegment(document, movement, spaces, movementContext, session);
   if (session.directionalPenaltyApplied && segment.directionalPenalty) {
     segment.cost -= segment.directionalPenalty;
     segment.directionalPenalty = 0;
   }
+
+  if (segment.requiresDifficultAction && !sessionAllowsDifficultTerrain(session)) {
+    if (startsNew) releaseActionReservation(session.actionReservationKey);
+    warn(i18n(
+      "Este trajeto atravessa Terreno Difícil. Use Movimento Difícil, Reposicionar ou uma habilidade que permita ignorar esse custo de Ação.",
+      "This path crosses Difficult Terrain. Use Difficult Move, Reposition, or an ability that lets you ignore that Action cost."
+    ));
+    return false;
+  }
+
   const remaining = Math.max(
     0,
     num(session.max) - num(session.spent)
@@ -1026,6 +1258,7 @@ function queueAutomaticMove(document, movement) {
   }
 
   const next = clone(session);
+  next.dangerousTerrainVisited = filterNewDangerousTerrain(segment, session);
 
   next.segments = [
     ...(next.segments ?? []),
@@ -1036,13 +1269,16 @@ function queueAutomaticMove(document, movement) {
   next.directionalPenaltyApplied = Boolean(
     session.directionalPenaltyApplied || segment.directionalPenalty
   );
-  next.lastType = "land";
+  next.lastType = segment.movementType ?? data.key ?? "land";
   next.lastTypeLabel = data.label;
+  next.movementLayer = segment.movementLayer ?? data.layer ?? "surface";
+  next.lastMovementContext = movementContext;
 
   runtimeSessions.set(document.id, next);
 
   pendingMoves.set(document.id, {
     session: next,
+    context: movementContext,
     startsNew,
     reservationKey: startsNew
       ? next.actionReservationKey
@@ -1067,7 +1303,16 @@ function findTokenDocumentForActor(actor) {
 
 function isGrantedMovementSession(session, combat) {
   if (!session || session.state !== "active") return false;
-  if (!["granted", "charge-approach", "paid-action", "gm-unrestricted"].includes(session.kind)) return false;
+
+  /*
+   * grantMovement() creates version 5 sessions with their Action/resource cost
+   * already paid by the calling mechanic.  Do not gate these sessions by an
+   * ever-growing list of kind names: Fastball, Clash Throw, Area Intercede
+   * Throw and future granted moves must all remain inside their granted budget.
+   * Automatic drag-to-move sessions are version 4 and stay on the normal path.
+   */
+  const granted = Number(session.version ?? 0) >= 5 && session.actionSpent === true;
+  if (!granted) return false;
 
   if (!combat?.started) return true;
 
@@ -1083,11 +1328,21 @@ function queueGrantedMove(document, movement, session) {
 
   if (spaces <= 0) return true;
 
-  const segment = buildSegment(document, movement, spaces);
+  const movementContext = getDDAMovementContext({}, { session });
+  const segment = buildSegment(document, movement, spaces, movementContext, session);
   if (session.directionalPenaltyApplied && segment.directionalPenalty) {
     segment.cost -= segment.directionalPenalty;
     segment.directionalPenalty = 0;
   }
+
+  if (segment.requiresDifficultAction && !sessionAllowsDifficultTerrain(session)) {
+    warn(i18n(
+      "Este deslocamento não permite atravessar Terreno Difícil com a ação atual.",
+      "This movement cannot cross Difficult Terrain with the current action."
+    ));
+    return false;
+  }
+
   const remaining = Math.max(
     0,
     num(session.max) - num(session.spent)
@@ -1103,6 +1358,7 @@ function queueGrantedMove(document, movement, session) {
   }
 
   const next = clone(session);
+  next.dangerousTerrainVisited = filterNewDangerousTerrain(segment, session);
 
   next.segments = [
     ...(next.segments ?? []),
@@ -1178,16 +1434,18 @@ function queueGrantedMove(document, movement, session) {
       "complete";
   }
 
-  next.lastType =
-    "land";
+  next.lastType = segment.movementType ?? next.lastType ?? next.startType ?? "land";
+  next.movementLayer = segment.movementLayer ?? next.movementLayer ?? movementLayerForType(next.lastType);
 
   next.lastTypeLabel =
     dataLabel(next);
+  next.lastMovementContext = movementContext;
 
   runtimeSessions.set(document.id, next);
 
   pendingMoves.set(document.id, {
     session: next,
+    context: movementContext,
     startsNew: false,
     reservationKey: ""
   });
@@ -1222,6 +1480,7 @@ async function grantMovement(actor, spaces, options = {}) {
     options.label ??
     i18n("Reposicionar", "Reposition")
   );
+  const movementData = activeMovementData(actor);
 
   const session = {
     version: 5,
@@ -1241,10 +1500,11 @@ async function grantMovement(actor, spaces, options = {}) {
     max: maximum,
     spent: 0,
 
-    startType: "land",
-    startTypeLabel: label,
-    lastType: "land",
-    lastTypeLabel: label,
+    startType: movementData.key ?? "land",
+    startTypeLabel: movementData.label ?? label,
+    lastType: movementData.key ?? "land",
+    lastTypeLabel: movementData.label ?? label,
+    movementLayer: movementData.layer ?? movementLayerForType(movementData.key),
 
     source: String(options.source ?? "grantedMovement"),
     sourceActorUuid: String(options.sourceActorUuid ?? ""),
@@ -1302,7 +1562,7 @@ async function clearMovementForActor(actor) {
 }
 
 function getChargeMovementCapacity(actor, bonusSpaces = 0, multiplier = 1) {
-  const movement = landMovementData(actor);
+  const movement = activeMovementData(actor);
 
   if (!movement.enabled) return 0;
 
@@ -1419,12 +1679,13 @@ async function beginActionMovement(actor, options = {}) {
   const document = findTokenDocumentForActor(actor);
   const combat = game.combat;
   const actionCost = Math.max(1, Math.floor(num(options.actionCost, 1)));
-  const maximum = Math.max(0, num(options.maximum, landMovementData(actor).total));
+  const maximum = Math.max(0, num(options.maximum, activeMovementData(actor).total));
 
   if (!document || maximum <= 0) {
+    const movementData = activeMovementData(actor);
     warn(i18n(
-      "Este token não possui Movimento terrestre disponível.",
-      "This token has no Land Movement available."
+      `Este token não possui ${movementData.label} disponível.`,
+      `This token has no ${movementData.label} available.`
     ));
     return false;
   }
@@ -1456,9 +1717,15 @@ async function beginActionMovement(actor, options = {}) {
     num(actor.system?.combat?.movementActionsThisTurn)
   );
 
+  const actionKey = String(
+    options.actionKey ??
+    (options.difficultTerrain || actionCost > 1 ? "difficultMove" : "move")
+  );
+
   const payment = await spendActorActions(actor, actionCost, {
     requireActiveUnit: !evokerCommandedMinion,
-    lightDigizoidAction: actionCost > 1 ? "difficultMove" : "move",
+    lightDigizoidAction: actionKey,
+    actionKey,
     additionalUpdates: {
       "system.combat.movementActionsThisTurn": previousMovementActions + 1
     }
@@ -1480,6 +1747,12 @@ async function beginActionMovement(actor, options = {}) {
       "system.combat.actions.value": actions,
       "system.combat.movementActionsThisTurn": previousMovementActions
     }, { ddaMovementAutoStart: true });
+    if (payment.bullrushReserveSpent > 0) {
+      await refundBullrushActionReserve(actor, payment.bullrushReserveSpent);
+    }
+    if (payment.strikeFastReserveSpent > 0) {
+      await refundStrikeFastActionReserve(actor, payment.strikeFastReserveSpent);
+    }
     if (payment.lightReserveSpent > 0) {
       await refundLightDigizoidActionReserve(actor, payment.lightReserveSpent);
     }
@@ -1580,12 +1853,42 @@ async function completeChargeMovementBeforeAttack(actor) {
   return true;
 }
 
+async function completeChargeForToken(tokenDocument) {
+  const document = tokenDocument?.document ?? tokenDocument;
+  if (!document?.actor) return false;
+
+  const currentSession = getSession(document);
+  if (currentSession?.state !== "active" || currentSession?.kind !== "charge-approach") {
+    return false;
+  }
+
+  const targetToken = canvas.tokens?.get(currentSession?.targetTokenId);
+  const attackItem = currentSession?.attackItemUuid
+    ? await fromUuid(currentSession.attackItemUuid)
+    : null;
+
+  if (!targetToken || !attackItem) {
+    warn(i18n(
+      "Não foi possível recuperar o alvo ou o ataque deste [CHARGE]. Cancele o Movimento e tente novamente.",
+      "The target or attack for this [CHARGE] could not be recovered. Cancel the Movement and try again."
+    ));
+    return false;
+  }
+
+  const { rollAttack } = await import("../rolls/attack-roll.js");
+  await rollAttack(document.actor, attackItem, {
+    targetToken,
+    chargeApproachCommit: true
+  });
+  return true;
+}
+
 async function grantChargeMovement(
   actor,
   bonusSpaces = 0
 ) {
   const movement =
-    landMovementData(actor);
+    activeMovementData(actor);
 
   const maximum = Math.max(
     0,
@@ -1617,20 +1920,40 @@ async function grantChargeMovement(
 }
 
 function onPreMove(document, movement, operation = {}) {
-  if (operation.ddaMovementUndo) return;
   if (!supported(document?.actor)) return;
 
   /*
-   * Se uma chamada anterior de preMove não produziu
-   * updateToken, ela deixou uma tentativa incompleta.
-   *
-   * A reserva e o trajeto fantasma são removidos
-   * antes de processar a nova tentativa.
+   * The v13 preMoveToken hook only fires on the initiating client. Attach the
+   * canonical semantic context and final path to the database operation so
+   * later updateToken observers (including the primary GM) can make the same
+   * decision about reactions and voluntary/forced movement.
+   */
+  const session = getSession(document);
+  const nativeUndo = String(movement?.method ?? "") === "undo";
+  if (nativeUndo && session) {
+    warn(i18n(
+      "O Undo nativo do Foundry não pode ser usado enquanto este token possui uma sessão de Movimento DDA. Use Redefinir/Cancelar Movimento para restaurar também Ações e distância rastreada.",
+      "Foundry's native movement Undo cannot be used while this token has a DDA Movement session. Use Reset/Cancel Movement so Actions and tracked distance are restored too."
+    ));
+    return false;
+  }
+
+  const movementContext = getDDAMovementContext(operation, { session, movement });
+  try {
+    attachDDAMovementTrace(document, movement, operation, { session });
+  } catch (error) {
+    console.warn("DDA | Could not attach movement trace to Token update.", error);
+  }
+
+  /*
+   * If a previous preMove did not produce updateToken, it left an incomplete
+   * reservation/path attempt. Clear it before processing the new request.
    */
   discardPendingMove(document);
 
-  const grantedSession =
-    getSession(document);
+  if (movementContext.movementBudget === "none") return;
+
+  const grantedSession = getSession(document);
 
   if (isGrantedMovementSession(grantedSession, game.combat)) {
     return queueGrantedMove(document, movement, grantedSession)
@@ -1642,7 +1965,7 @@ function onPreMove(document, movement, operation = {}) {
 
   const combatant = getCombatant(game.combat, document);
 
-  // Tokens fora do Combate permanecem livres.
+  // Tokens outside Combat remain unrestricted.
   if (!combatant) return;
 
   const activeUnitContext = getActiveDDAUnitContext(
@@ -1715,7 +2038,7 @@ async function spendReservedMovementAction(
   }
 }
 
-async function onUpdateToken(document, changed) {
+async function onUpdateToken(document, changed, operation = {}, userId = "") {
   const moved =
     "x" in changed ||
     "y" in changed ||
@@ -1726,7 +2049,7 @@ async function onUpdateToken(document, changed) {
   if (pending && moved) {
     pendingMoves.delete(document.id);
 
-    const { session, startsNew, reservationKey } = pending;
+    const { session, startsNew, reservationKey, context = null } = pending;
 
     if (startsNew) {
       const spent = await spendReservedMovementAction(
@@ -1745,10 +2068,44 @@ async function onUpdateToken(document, changed) {
 
     const lastSegment = session.segments?.at?.(-1);
     if (lastSegment?.spaces > 0) {
-      await applyBurnMovementDamage(document.actor, lastSegment.spaces);
+      const movementContext = context ?? lastSegment?.movementContext ?? getDDAMovementContext(operation, { session });
+      if (!movementContext.suppressMovementEffects && !movementContext.suppressBurn) {
+        await applyBurnMovementDamage(document.actor, lastSegment.spaces, {
+          unwilling: Boolean(movementContext.unwilling || movementContext.voluntary === false)
+        });
+      }
+      if (Array.isArray(lastSegment.dangerousTerrain) && lastSegment.dangerousTerrain.length) {
+        await applyDangerousTerrainDamage(document.actor, lastSegment.dangerousTerrain, { reason: "movement" });
+      }
     }
 
     return;
+  }
+
+  if (moved) {
+    const trace = getDDAMovementTrace(operation);
+    const movementContext = getDDAMovementContext(operation, { session: getSession(document) });
+    if (
+      trace &&
+      String(userId ?? "") === String(game.user?.id ?? "") &&
+      movementContext.movementBudget === "none" &&
+      !movementContext.suppressMovementEffects
+    ) {
+      const spaces = Number(trace.spaces) > 0
+        ? Number(trace.spaces)
+        : pathDistanceSpaces(trace.points ?? []);
+      if (spaces > 0 && !movementContext.suppressBurn) {
+        await applyBurnMovementDamage(document.actor, spaces, {
+          unwilling: Boolean(movementContext.unwilling || movementContext.voluntary === false)
+        });
+      }
+      if (movementContext.mode !== "undo") {
+        const dangerousTerrain = dangerousTerrainDescriptorsForTrace(document, trace, movementContext);
+        if (dangerousTerrain.length) {
+          await applyDangerousTerrainDamage(document.actor, dangerousTerrain, { reason: "movement" });
+        }
+      }
+    }
   }
 
   if (moved || getSession(document)) {
@@ -2064,26 +2421,7 @@ function renderMovementHud(hud, html) {
       ),
       className: "dda-complete-charge",
       onClick: async () => {
-        const currentSession = getSession(tokenDocument);
-        const targetToken = canvas.tokens?.get(currentSession?.targetTokenId);
-        const attackItem = currentSession?.attackItemUuid
-          ? await fromUuid(currentSession.attackItemUuid)
-          : null;
-
-        if (!targetToken || !attackItem) {
-          warn(i18n(
-            "Não foi possível recuperar o alvo ou o ataque deste [CHARGE]. Cancele o Movimento e tente novamente.",
-            "The target or attack for this [CHARGE] could not be recovered. Cancel the Movement and try again."
-          ));
-          return;
-        }
-
-        const { rollAttack } = await import("../rolls/attack-roll.js");
-
-        await rollAttack(tokenDocument.actor, attackItem, {
-          targetToken,
-          chargeApproachCommit: true
-        });
+        await completeChargeForToken(tokenDocument);
       }
     });
 
@@ -2212,6 +2550,7 @@ export function registerMovementTracker() {
     isChargeApproachReady,
     canCombineChargeWithCurrentMove,
     completeChargeMovementBeforeAttack,
+    completeChargeForToken,
 
     clearSelected: async () => {
       const token = selectedToken();
@@ -2236,7 +2575,8 @@ export function registerMovementTracker() {
       return true;
     },
 
-    finishForToken: finishMove
+    finishForToken: finishMove,
+    resetForToken: resetMovementSession
   };
 
   console.log(

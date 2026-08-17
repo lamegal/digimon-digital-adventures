@@ -16,9 +16,14 @@ import {
   DDA_STAGE_ORDER,
   getDigimonStageLabel
 } from "../helpers/digimon-stage-labels.js";
+import {
+  getPartnerBonusDpAllocation
+} from "../rules/tamer-progression.js";
+import { isJogressRulesMethod } from "../rules/special-evolution-methods.js";
 
 const {
   ApplicationV2,
+  DialogV2,
   HandlebarsApplicationMixin
 } = foundry.applications.api;
 
@@ -398,6 +403,126 @@ function evolutionMethodLabel(method = "normal") {
   return localize(keys[method] ?? keys.normal, fallbacks[method] ?? method);
 }
 
+function normalizeJogressIdentity(value = "") {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function getJogressIdentityKeys(source = {}) {
+  const names = source?.names ?? source?.system?.names ?? {};
+  const values = [
+    source?.sourceFormUuid,
+    source?.sourceId,
+    source?.databaseId,
+    source?.species,
+    source?.sourceFormName,
+    source?.name,
+    source?.uuid,
+    source?.actorUuid,
+    source?.system?.sourceId,
+    source?.system?.databaseId,
+    source?.system?.species,
+    names?.canonical,
+    names?.original,
+    names?.dub,
+    ...(Array.isArray(names?.aliases) ? names.aliases : []),
+    ...(Array.isArray(source?.aliases) ? source.aliases : [])
+  ];
+
+  return new Set(values.map(normalizeJogressIdentity).filter(Boolean));
+}
+
+function jogressComponentMatches(source = {}, requirement = {}) {
+  const sourceKeys = getJogressIdentityKeys(source);
+  const requirementKeys = getJogressIdentityKeys(requirement);
+  const requiredStage = String(requirement?.stage ?? "").trim();
+  const sourceStage = String(source?.stage ?? source?.system?.stage ?? "").trim();
+
+  if (requiredStage && sourceStage !== requiredStage) return false;
+  if (!requirementKeys.size) return false;
+  return Array.from(requirementKeys).some((key) => sourceKeys.has(key));
+}
+
+function getPlannerPartnerForms(partnerActor, currentSnapshot = null) {
+  const forms = Object.values(partnerActor?.system?.evolution?.formSnapshots ?? {})
+    .filter((snapshot) => snapshot && typeof snapshot === "object")
+    .map((snapshot) => foundry.utils.deepClone(snapshot));
+
+  if (currentSnapshot && !forms.some((snapshot) => snapshot.sourceFormUuid === currentSnapshot.sourceFormUuid)) {
+    forms.push(foundry.utils.deepClone(currentSnapshot));
+  }
+
+  if (partnerActor) {
+    forms.push({
+      sourceFormUuid: partnerActor.system?.evolution?.currentFormUuid || partnerActor.uuid,
+      sourceFormName: partnerActor.system?.species || partnerActor.name,
+      species: partnerActor.system?.species || partnerActor.name,
+      name: partnerActor.name,
+      stage: partnerActor.system?.stage ?? "",
+      sourceId: partnerActor.system?.sourceId ?? "",
+      databaseId: partnerActor.system?.databaseId ?? "",
+      names: foundry.utils.deepClone(partnerActor.system?.names ?? {})
+    });
+  }
+
+  const byReference = new Map();
+  for (const form of forms) {
+    const reference = String(form?.sourceFormUuid ?? form?.databaseId ?? form?.sourceId ?? form?.species ?? "").trim();
+    if (!reference) continue;
+    byReference.set(reference, form);
+  }
+  return Array.from(byReference.values());
+}
+
+function getCombinedJogressBonusProfile(primaryPartner, secondaryPartner) {
+  const statKeys = ["accuracy", "damage", "dodge", "armor", "health"];
+  const allocations = [primaryPartner, secondaryPartner]
+    .filter(Boolean)
+    .map((partner) => getPartnerBonusDpAllocation(partner));
+  const total = allocations.reduce((sum, allocation) => sum + Math.max(0, number(allocation?.total, 0)), 0);
+  const sharedStats = Object.fromEntries(statKeys.map((key) => [
+    key,
+    allocations.reduce((sum, allocation) => sum + Math.max(0, Math.floor(number(allocation?.sharedStatBonus?.[key], 0))), 0)
+  ]));
+  const sharedStatTotal = Object.values(sharedStats).reduce((sum, value) => sum + number(value, 0), 0);
+  const requestedQuality = allocations.reduce((sum, allocation) => sum + Math.max(0, number(allocation?.qualityAllocated, 0)), 0);
+  const qualityAllocated = Math.min(Math.max(0, total - sharedStatTotal), requestedQuality);
+
+  return {
+    total,
+    sharedStats,
+    sharedStatTotal,
+    qualityAllocated,
+    unallocated: Math.max(0, total - sharedStatTotal - qualityAllocated)
+  };
+}
+
+function getJogressStageBaseDp(stageKey = "") {
+  const stage = CONFIG.DDA?.stages?.[stageKey] ?? {};
+  return Math.max(0, number(stage.startingDp ?? stage.baseDp, 0));
+}
+
+function isNextJogressStage(componentStage = "", resultStage = "") {
+  const from = DDA_STAGE_ORDER.indexOf(componentStage);
+  const to = DDA_STAGE_ORDER.indexOf(resultStage);
+  return from >= 0 && to === from + 1;
+}
+
+function buildJogressSnapshotReference(recipeId = "", componentPartnerUuids = []) {
+  const recipe = String(recipeId || "jogress").replace(/[^a-zA-Z0-9_-]+/g, "_");
+  const pair = (Array.isArray(componentPartnerUuids) ? componentPartnerUuids : [componentPartnerUuids])
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .sort()
+    .map((value) => value.replace(/[^a-zA-Z0-9_-]+/g, "_"))
+    .join("__") || "partners";
+  return `DDA-JOGRESS.${recipe}.${pair}`;
+}
+
 export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
   static DEFAULT_OPTIONS = {
     id: "dda-partner-form-planner",
@@ -415,7 +540,8 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       releaseUnlockedForms: DDAPartnerFormPlanner._onActionReleaseUnlockedForms,
       adjustForm: DDAPartnerFormPlanner._onActionAdjustForm,
       removeForm: DDAPartnerFormPlanner._onActionRemoveForm,
-      addForm: DDAPartnerFormPlanner._onActionAddForm
+      addForm: DDAPartnerFormPlanner._onActionAddForm,
+      planJogress: DDAPartnerFormPlanner._onActionPlanJogress
     }
   };
 
@@ -574,12 +700,16 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
         formCount: forms.filter((form) => form.stageKey === stageKey).length
       }));
 
+    const jogressPlans = !this.darkEvolutionMode && canEdit
+      ? await this._getJogressPlanViewData({ tamerActor, partnerActor, currentSnapshot })
+      : [];
+
     /*
      * O mesmo botão também repara formas já liberadas. Isso permite corrigir
      * retratos, metadados e vínculos sem apagar o planejamento existente.
      */
     const releaseableCount = forms.filter((form) => {
-      return game.user?.isGM && form.prepared && form.unlocked;
+      return game.user?.isGM && form.prepared && form.unlocked && form.plannedEvolutionMethod !== "jogress";
     }).length;
     const releasedCount = forms.filter((form) => form.released).length;
 
@@ -611,11 +741,146 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       forms,
       stages,
       hasForms: forms.length > 0,
+      jogressPlans,
+      hasJogressPlans: jogressPlans.length > 0,
       isGM: Boolean(game.user?.isGM),
       releaseableCount,
       releasedCount,
       hasReleaseableForms: releaseableCount > 0
     };
+  }
+
+  async _getJogressPlanViewData({ tamerActor, partnerActor, currentSnapshot } = {}) {
+    this.jogressPlanOptions = new Map();
+    if (!tamerActor || !partnerActor) return [];
+
+    const recipeMap = new Map();
+    const recipeSources = [
+      ...(Array.isArray(CONFIG.DDA?.jogressRecipes) ? CONFIG.DDA.jogressRecipes : []),
+      ...(Array.isArray(game.dda?.jogressRecipes) ? game.dda.jogressRecipes : []),
+      ...(Array.isArray(tamerActor.system?.specialEvolutions?.jogress?.recipes) ? tamerActor.system.specialEvolutions.jogress.recipes : [])
+    ];
+
+    for (const group of game.actors ?? []) {
+      if (group?.type !== "group") continue;
+      const members = Array.isArray(group.system?.party?.members) ? group.system.party.members : [];
+      if (!members.some((member) => String(member?.uuid ?? "") === String(tamerActor.uuid))) continue;
+      if (Array.isArray(group.system?.specialEvolutions?.jogress?.recipes)) {
+        recipeSources.push(...group.system.specialEvolutions.jogress.recipes);
+      }
+    }
+
+    for (const raw of recipeSources) {
+      if (!raw || raw.hidden || !isJogressRulesMethod(raw.method ?? "jogress")) continue;
+      const id = String(raw.id ?? raw.key ?? raw.label ?? raw.result?.name ?? "").trim();
+      if (!id) continue;
+      recipeMap.set(id, {
+        id,
+        label: String(raw.label ?? raw.name ?? raw.result?.name ?? id),
+        method: String(raw.method ?? "jogress").trim(),
+        result: raw.result ?? {},
+        components: Array.isArray(raw.components) ? raw.components : []
+      });
+    }
+
+    const databaseActors = (await DDADigimonDatabase.getAll({ includeVirtualSpecialForms: true }))
+      .filter((actor) => actor?.type === "digimon");
+    const sourceForms = getPlannerPartnerForms(partnerActor, currentSnapshot);
+    const otherTamers = Array.from(game.actors ?? []).filter((actor) => {
+      return actor?.type === "character" && actor.uuid !== tamerActor.uuid && actor.system?.partner?.uuid;
+    });
+    const views = [];
+    const seen = new Set();
+
+    for (const recipe of recipeMap.values()) {
+      if (recipe.components.length !== 2) continue;
+
+      const resultKeys = getJogressIdentityKeys(recipe.result);
+      const resultActor = databaseActors.find((actor) => {
+        const keys = getJogressIdentityKeys(actor);
+        return Array.from(resultKeys).some((key) => keys.has(key));
+      }) ?? null;
+      if (!resultActor) continue;
+
+      for (let sourceIndex = 0; sourceIndex < 2; sourceIndex += 1) {
+        const sourceRequirement = recipe.components[sourceIndex];
+        const otherRequirement = recipe.components[sourceIndex === 0 ? 1 : 0];
+        const sourceMatch = sourceForms.find((form) => jogressComponentMatches(form, sourceRequirement));
+        if (!sourceMatch) continue;
+
+        for (const otherTamer of otherTamers) {
+          let otherPartner = null;
+          try { otherPartner = await fromUuid(otherTamer.system.partner.uuid); } catch (_error) { otherPartner = null; }
+          if (!otherPartner || otherPartner.type !== "digimon") continue;
+          const otherForms = getPlannerPartnerForms(otherPartner);
+          const otherMatch = otherForms.find((form) => jogressComponentMatches(form, otherRequirement));
+          if (!otherMatch) continue;
+
+          const sourceStage = String(sourceMatch.stage ?? "");
+          const otherStage = String(otherMatch.stage ?? "");
+          const resultStage = String(resultActor.system?.stage ?? recipe.result?.stage ?? "");
+          if (!sourceStage || sourceStage !== otherStage || !isNextJogressStage(sourceStage, resultStage)) continue;
+
+          const planKey = `${recipe.id}::${otherTamer.uuid}`;
+          if (seen.has(planKey)) continue;
+          seen.add(planKey);
+
+          const bonusProfile = getCombinedJogressBonusProfile(partnerActor, otherPartner);
+          const componentPartnerUuids = [partnerActor.uuid, otherPartner.uuid].sort();
+          const preparedSnapshots = [partnerActor, otherPartner]
+            .flatMap((candidatePartner) => Object.values(candidatePartner.system?.evolution?.formSnapshots ?? {}))
+            .filter((snapshot) => {
+              const plan = snapshot?.wizard?.jogressPlan ?? {};
+              const planned = (Array.isArray(plan.componentPartnerUuids) ? plan.componentPartnerUuids : [])
+                .map(String)
+                .sort();
+              return String(plan.recipeId ?? "") === recipe.id && planned.join("|") === componentPartnerUuids.join("|");
+            })
+            .sort((left, right) => {
+              const leftTime = Date.parse(left?.updatedAt ?? left?.wizard?.jogressPlan?.plannedAt ?? "") || 0;
+              const rightTime = Date.parse(right?.updatedAt ?? right?.wizard?.jogressPlan?.plannedAt ?? "") || 0;
+              return rightTime - leftTime;
+            });
+          const preparedSnapshot = preparedSnapshots[0] ?? null;
+          const baseDp = getJogressStageBaseDp(resultStage);
+          const snapshotReference = preparedSnapshot?.sourceFormUuid || buildJogressSnapshotReference(recipe.id, componentPartnerUuids);
+          const option = {
+            key: planKey,
+            recipe,
+            resultActor,
+            resultStage,
+            sourceForm: sourceMatch,
+            otherForm: otherMatch,
+            otherTamer,
+            otherPartner,
+            bonusProfile,
+            snapshotReference,
+            componentPartnerUuids
+          };
+          this.jogressPlanOptions.set(planKey, option);
+
+          views.push({
+            key: planKey,
+            recipeLabel: recipe.label,
+            resultName: resultActor.system?.species || resultActor.name || recipe.label,
+            resultImg: getActorPortraitSources(resultActor)[0],
+            resultStageLabel: getDigimonStageLabel(resultStage),
+            sourceFormName: sourceMatch.species || sourceMatch.sourceFormName || sourceMatch.name,
+            partnerTamerName: otherTamer.name,
+            partnerFormName: otherMatch.species || otherMatch.sourceFormName || otherMatch.name,
+            baseDp,
+            primaryBonusDp: Math.max(0, number(getPartnerBonusDpAllocation(partnerActor)?.total, 0)),
+            secondaryBonusDp: Math.max(0, number(getPartnerBonusDpAllocation(otherPartner)?.total, 0)),
+            totalDp: baseDp + bonusProfile.total,
+            combinedBonusDp: bonusProfile.total,
+            prepared: Boolean(preparedSnapshot),
+            preparedBudget: number(preparedSnapshot?.creation?.dp?.total, 0)
+          });
+        }
+      }
+    }
+
+    return views.sort((left, right) => left.resultName.localeCompare(right.resultName, game.i18n?.lang));
   }
 
   _onRender(context, options) {
@@ -692,7 +957,8 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
         game.user?.isGM &&
         prepared &&
         unlocked &&
-        !released
+        !released &&
+        String(snapshot.wizard?.plannedEvolutionMethod || "normal") !== "jogress"
       ),
       categories: getEvolutionCategoryViewData(snapshot),
       plannedEvolutionMethod: String(
@@ -749,7 +1015,7 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
     await this.render();
   }
 
-  static async _onActionReleaseUnlockedForms(event) {
+  static async _onActionReleaseUnlockedForms(event, target) {
     event.preventDefault();
 
     if (!game.user?.isGM) {
@@ -774,18 +1040,19 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       return;
     }
 
-    const confirmed = await Dialog.confirm({
-      title: localize(
-        "DDA.PartnerFormPlanner.Release.ConfirmTitle",
-        "Release Planned Forms"
-      ),
+    const confirmed = await DialogV2.confirm({
+      window: {
+        title: localize(
+          "DDA.PartnerFormPlanner.Release.ConfirmTitle",
+          "Release Planned Forms"
+        )
+      },
       content: `<p>${game.i18n.format(
         "DDA.PartnerFormPlanner.Release.ConfirmText",
         { count }
       )}</p>`,
-      yes: () => true,
-      no: () => false,
-      defaultYes: true
+      yes: { default: true },
+      rejectClose: false
     });
 
     if (!confirmed) {
@@ -904,18 +1171,19 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       "Digimon"
     ).trim();
 
-    const confirmed = await Dialog.confirm({
-      title: localize(
-        "DDA.PartnerFormPlanner.Remove.ConfirmTitle",
-        "Remove Planned Form"
-      ),
+    const confirmed = await DialogV2.confirm({
+      window: {
+        title: localize(
+          "DDA.PartnerFormPlanner.Remove.ConfirmTitle",
+          "Remove Planned Form"
+        )
+      },
       content: `<p>${game.i18n.format(
         "DDA.PartnerFormPlanner.Remove.ConfirmText",
         { form: foundry.utils.escapeHTML(formName) }
       )}</p>`,
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
+      no: { default: true },
+      rejectClose: false
     });
 
     if (!confirmed) {
@@ -979,6 +1247,45 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
       sourceFormUuid,
       { returnApplication: this }
     );
+  }
+
+  static async _onActionPlanJogress(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const planKey = String(target?.dataset?.jogressPlanKey ?? "").trim();
+    const plan = this.jogressPlanOptions?.get?.(planKey);
+    if (!plan || !this.formContext) {
+      ui.notifications.warn(localize("DDA.PartnerFormPlanner.Jogress.Unavailable", "This Jogress plan is no longer available."));
+      return;
+    }
+
+    const sourcePartner = this.formContext.partnerActor;
+    const metadata = {
+      recipeId: plan.recipe.id,
+      recipeLabel: plan.recipe.label,
+      sourceTamerUuid: this.formContext.tamerActor.uuid,
+      sourcePartnerUuid: sourcePartner.uuid,
+      partnerTamerUuid: plan.otherTamer.uuid,
+      partnerPartnerUuid: plan.otherPartner.uuid,
+      componentPartnerUuids: foundry.utils.deepClone(plan.componentPartnerUuids),
+      sourceFormReference: String(plan.sourceForm?.sourceFormUuid ?? ""),
+      partnerFormReference: String(plan.otherForm?.sourceFormUuid ?? ""),
+      resultReference: getTemplateReference(plan.resultActor),
+      resultActorUuid: String(plan.resultActor?.uuid ?? ""),
+      resultStage: plan.resultStage,
+      combinedBonusDp: plan.bonusProfile.total,
+      bonusDpProfile: foundry.utils.deepClone(plan.bonusProfile),
+      plannedAt: new Date().toISOString()
+    };
+
+    await this._openFutureFormWizard(plan.resultActor, {
+      plannedEvolutionMethod: "jogress",
+      snapshotReference: plan.snapshotReference,
+      bonusDpTotal: plan.bonusProfile.total,
+      bonusDpProfile: plan.bonusProfile,
+      jogressPlan: metadata
+    });
   }
 
   static async _onActionAddForm(event, target) {
@@ -1058,7 +1365,11 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
     {
       portraitImg = "",
       plannedEvolutionMethod = "normal",
-      plannedFromReference = ""
+      plannedFromReference = "",
+      snapshotReference = "",
+      bonusDpTotal = null,
+      bonusDpProfile = null,
+      jogressPlan = null
     } = {}
   ) {
     if (!formTemplateActor || !this.formContext) return null;
@@ -1076,7 +1387,11 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
         plannedEvolutionMethod: String(plannedEvolutionMethod || "normal"),
         plannedFromReference: String(plannedFromReference || ""),
         plannedByGM: Boolean(game.user?.isGM),
-        darkEvolution: plannedEvolutionMethod === "dark"
+        darkEvolution: plannedEvolutionMethod === "dark",
+        snapshotReference: String(snapshotReference || ""),
+        bonusDpTotal,
+        bonusDpProfile: bonusDpProfile ? foundry.utils.deepClone(bonusDpProfile) : null,
+        jogressPlan: jogressPlan ? foundry.utils.deepClone(jogressPlan) : null
       }
     );
   }

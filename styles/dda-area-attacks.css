@@ -607,3 +607,25 @@
   border-color: rgba(22, 112, 183, 0.72);
   background: rgba(218, 239, 255, 0.94);
 }
+
+/* DDA41 — Explicit Area Dodge resolution mode before the first request. */
+.dda-area-dodge-mode-actions {
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.dda-area-dodge-mode-actions .dda-area-dodge-mode-hint {
+  flex: 1 0 100%;
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(83, 171, 216, 0.28);
+  border-radius: 5px;
+  background: rgba(51, 149, 199, 0.08);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.dda-area-dodge-mode-actions button {
+  flex: 1 1 12rem;
+  width: auto;
+}

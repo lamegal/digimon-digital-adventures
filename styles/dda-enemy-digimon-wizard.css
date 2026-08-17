@@ -1958,3 +1958,411 @@ span {
       #1d829e
     );
 }
+/* ========================================================================== */
+/* Boss Builder — 3.03                                                        */
+/* ========================================================================== */
+
+.dda-enemy-boss-builder {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 186, 79, 0.32) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 74, 102, 0.10), transparent 34%),
+    linear-gradient(145deg, rgba(39, 19, 28, 0.92), rgba(18, 18, 33, 0.96)) !important;
+  box-shadow:
+    inset 3px 0 0 rgba(255, 179, 64, 0.85),
+    0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.dda-boss-builder-heading {
+  align-items: flex-start !important;
+  gap: 16px;
+}
+
+.dda-boss-builder-heading > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dda-boss-builder-heading h3 {
+  margin: 3px 0 4px !important;
+  color: #fff5de;
+}
+
+.dda-boss-builder-heading p {
+  max-width: 720px;
+  margin: 0;
+  color: rgba(235, 223, 222, 0.74);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.dda-boss-builder-kicker {
+  color: #ffca70;
+  font: 800 0.64rem/1 "PixelOperatorBold", sans-serif;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.dda-boss-quality-advice {
+  flex: 0 0 185px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 193, 88, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 184, 65, 0.07);
+}
+
+.dda-boss-quality-advice > strong {
+  grid-row: 1 / 3;
+  color: #ffd37f;
+  font: 800 1.45rem/1 "Chronotype", sans-serif;
+}
+
+.dda-boss-quality-advice > span {
+  color: #fff0d0;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.dda-boss-quality-advice > small {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  color: rgba(234, 221, 211, 0.66);
+  font-size: 0.64rem;
+  line-height: 1.25;
+}
+
+.dda-boss-quality-advice.is-warning {
+  border-color: rgba(255, 96, 108, 0.62);
+  background: rgba(166, 36, 59, 0.16);
+}
+
+.dda-boss-quality-advice.is-warning > strong {
+  color: #ff8291;
+}
+
+.dda-boss-party-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(130px, 1fr)) minmax(180px, 1.3fr);
+  gap: 9px;
+  margin: 11px 0;
+}
+
+.dda-boss-party-grid > label,
+.dda-boss-raid-config > label,
+.dda-boss-multistage-config > label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dda-boss-party-grid label > span,
+.dda-boss-raid-config label > span,
+.dda-boss-multistage-config label > span,
+.dda-boss-inline-field > span {
+  color: #f2d6c0;
+  font: 700 0.67rem/1 "PixelOperatorBold", sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dda-boss-party-grid input,
+.dda-boss-inline-field input,
+.dda-boss-raid-config textarea,
+.dda-boss-multistage-config textarea {
+  width: 100%;
+  color: #fff7ed;
+  border: 1px solid rgba(255, 184, 87, 0.24);
+  border-radius: 7px;
+  background: rgba(7, 10, 18, 0.66);
+}
+
+.dda-boss-party-grid input,
+.dda-boss-inline-field input {
+  height: 32px;
+  padding: 0 8px;
+}
+
+.dda-boss-raid-config textarea,
+.dda-boss-multistage-config textarea {
+  min-height: 62px;
+  padding: 7px 8px;
+  resize: vertical;
+}
+
+.dda-boss-recommended-dp {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 188, 71, 0.34);
+  border-radius: 9px;
+  background: linear-gradient(135deg, rgba(107, 54, 22, 0.32), rgba(41, 24, 34, 0.36));
+}
+
+.dda-boss-recommended-dp > span {
+  color: rgba(250, 230, 205, 0.72);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dda-boss-recommended-dp > strong {
+  color: #ffd170;
+  font: 800 1.1rem/1 "Chronotype", sans-serif;
+}
+
+.dda-boss-recommended-dp > small {
+  color: #ff9c77;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.dda-boss-recommended-dp > button {
+  grid-column: 1 / -1;
+  min-height: 27px;
+  margin-top: 4px;
+  color: #fff2d6;
+  border: 1px solid rgba(255, 194, 83, 0.44);
+  border-radius: 6px;
+  background: rgba(151, 84, 26, 0.22);
+}
+
+.dda-boss-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.dda-boss-option-card {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(211, 155, 104, 0.16);
+  border-radius: 10px;
+  background: rgba(6, 10, 19, 0.46);
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.dda-boss-option-card.is-active {
+  border-color: rgba(255, 185, 76, 0.52);
+  background: rgba(84, 42, 25, 0.24);
+  box-shadow: inset 0 0 16px rgba(255, 166, 67, 0.045);
+}
+
+.dda-boss-option-card-wide {
+  grid-column: 1 / -1;
+}
+
+.dda-boss-option-toggle {
+  display: grid;
+  grid-template-columns: auto 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.dda-boss-option-toggle > input {
+  width: 16px;
+  height: 16px;
+  accent-color: #f4a941;
+}
+
+.dda-boss-option-toggle > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  color: #ffcb77;
+  border: 1px solid rgba(255, 190, 91, 0.24);
+  border-radius: 6px;
+  background: rgba(255, 181, 67, 0.07);
+  font: 800 0.66rem/1 "PixelOperatorBold", sans-serif;
+}
+
+.dda-boss-option-toggle > strong {
+  color: #fff4e6;
+  font-size: 0.8rem;
+}
+
+.dda-boss-option-card > p {
+  margin: 7px 0 0 52px;
+  color: rgba(218, 211, 218, 0.68);
+  font-size: 0.69rem;
+  line-height: 1.3;
+}
+
+.dda-boss-inline-field,
+.dda-boss-metric-row,
+.dda-boss-single-metric,
+.dda-boss-raid-config,
+.dda-boss-multistage-config {
+  margin-top: 9px;
+}
+
+.dda-boss-inline-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.dda-boss-inline-field > b {
+  color: #ffcc78;
+}
+
+.dda-boss-metric-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.dda-boss-metric-row > span,
+.dda-boss-single-metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.dda-boss-metric-row small,
+.dda-boss-single-metric small {
+  color: rgba(230, 218, 211, 0.68);
+  font-size: 0.65rem;
+}
+
+.dda-boss-metric-row b,
+.dda-boss-single-metric strong {
+  color: #ffd17a;
+  font-size: 0.84rem;
+}
+
+.dda-boss-raid-config {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.dda-boss-multistage-config {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+@media (max-width: 1050px) {
+  .dda-boss-party-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dda-boss-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-boss-option-card-wide {
+    grid-column: auto;
+  }
+}
+
+/* ========================================================================== */
+/* Boss Builder — inner gutter hotfix                                         */
+/* Keeps option cards away from the wizard edge/scrollbar so card borders,    */
+/* active glow, and rounded corners are never visually clipped.                */
+/* ========================================================================== */
+
+.dda-enemy-boss-builder {
+  box-sizing: border-box;
+  padding: 14px 12px 12px !important;
+}
+
+.dda-enemy-boss-builder > * {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.dda-boss-option-grid {
+  box-sizing: border-box;
+  width: 100%;
+  padding-inline: 2px;
+}
+
+.dda-boss-option-card {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Reserve a little more breathing room on the scrollbar side. */
+.dda-enemy-boss-builder .dda-boss-option-grid,
+.dda-enemy-boss-builder .dda-boss-party-grid {
+  padding-right: 4px;
+}
+
+.dda-enemy-boss-builder { container-type: inline-size; }
+
+
+/* ========================================================================== */
+/* Boss Builder — party metrics grid width fix                                */
+/* ========================================================================== */
+/*
+ * The previous grid used fixed minimums:
+ *   repeat(3, minmax(130px, 1fr)) minmax(180px, 1.3fr)
+ * which could be wider than the Enemy Wizard itself. The @media rule was
+ * based on viewport width, not the Application width, so it did not help when
+ * a narrow wizard was open on a wide desktop.
+ *
+ * Keep the three input metrics in one compact row and place the computed DP
+ * card on its own full-width row underneath.
+ */
+.dda-enemy-boss-builder .dda-boss-party-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  gap: 8px;
+  padding-inline: 2px 6px;
+}
+
+.dda-enemy-boss-builder .dda-boss-party-grid > label {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dda-enemy-boss-builder .dda-boss-party-grid > label > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.05;
+}
+
+.dda-enemy-boss-builder .dda-boss-party-grid input {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.dda-enemy-boss-builder .dda-boss-recommended-dp {
+  grid-column: 1 / -1;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* On genuinely tiny windows, avoid crushing the fields. */
+@container (max-width: 390px) {
+  .dda-enemy-boss-builder .dda-boss-party-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .dda-enemy-boss-builder .dda-boss-party-grid > label:nth-child(3),
+  .dda-enemy-boss-builder .dda-boss-recommended-dp {
+    grid-column: 1 / -1;
+  }
+}

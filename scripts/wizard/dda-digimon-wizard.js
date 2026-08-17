@@ -23,9 +23,23 @@ import {
 } from "../helpers/digimon-stage-labels.js";
 import { DDADigimonDatabase } from "../data/digimon-database.js";
 import {
-  getDdaPortraitPath,
   getDdaTokenPath
 } from "../data/dda-portrait-and-manual-digimon-data.js";
+import {
+  resolveDigimonPortraitSources
+} from "../helpers/digimon-portrait-resolver.js";
+import {
+  applyIntrinsicQualityDiscount,
+  getIntrinsicFirstPurchaseDiscount
+} from "../rules/core-qualities.js";
+
+const {
+  ApplicationV2,
+  HandlebarsApplicationMixin
+} = foundry.applications.api;
+
+const DDADigimonWizardApplicationBase =
+  HandlebarsApplicationMixin(ApplicationV2);
 
 function isEnglishLanguage() {
   const language = String(game?.i18n?.lang ?? game?.i18n?.language ?? "");
@@ -242,61 +256,17 @@ function digitamaPath(fileName = "") {
   return `systems/digimon-digital-adventures/assets/digitamas/Digitama_${safe}.webp`;
 }
 
-function digimonBabyPath(fileName = "") {
-  const safe = String(fileName ?? "").replace(/ /g, "%20");
-  return `systems/digimon-digital-adventures/assets/digimon/baby1/${safe}.webp`;
-}
-
 const DDA_DIGIMON_IMAGE_BASE_PATH = "systems/digimon-digital-adventures/assets/digimon";
 
-const DDA_INITIAL_IMAGE_STAGE_FOLDERS = {
-  baby1: "baby1",
-  baby2: "baby2",
-  child: "child",
-  adult: "adult",
-  perfect: "perfect",
-  ultimate: "ultimate"
-};
+function isObsoleteDdaDigimonImagePath(value = "") {
+  const path = String(value ?? "").trim().split(/[?#]/, 1)[0];
 
-// Pequenos ajustes para casos em que a database usa um nome,
-// mas o arquivo está salvo com outra grafia comum.
-const DDA_INITIAL_IMAGE_FILENAME_ALIASES = {
-  baby1: {
-    choromon: ["Choromon"],
-    pipimon: ["Pipimon"]
-  },
-
-  baby2: {
-    flufflymon: ["Fluffymon"],
-    hyarimon: ["Hiyarimon"]
-  },
-
-  child: {
-    bakumon: ["Bakomon"],
-    blucomon: ["Bulucomon"],
-    dracumon: ["Dracmon"],
-    goburimon: ["Goblimon"],
-    hackmon: ["Huckmon"],
-    shakomon: ["Syakomon"],
-    snow_goburimon: ["SnowGoblimon"],
-    sunarizarmon: ["Sunarizamon"],
-    takimon: ["Takinmon"],
-    tukaimon: ["Tsukaimon"]
+  if (!path.toLowerCase().startsWith(`${DDA_DIGIMON_IMAGE_BASE_PATH}/`.toLowerCase())) {
+    return false;
   }
-};
 
-const DDA_INITIAL_STATIC_PORTRAIT_FILE_OVERRIDES = {
-  algomon_baby1: "Argomon_Baby1.webp",
-  algomon_baby2: "Argomon_Baby2.webp",
-  algomon_child: "Argomon_Child.webp",
-  algomon_adult: "Argomon_Adult.webp",
-  algomon_perfect: "Argomon_perfect.webp",
-  algomon_ultimate: "Argomon-mega.webp",
-
-  burgamon_child: "Burgamon_child.webp",
-  burgamon_adult: "Burgamon_adult.webp"
-
-};
+  return !/\/assets\/digimon\/(?:portraits|tokens)\//i.test(path);
+}
 
 const DDA_GENERAL_DATABASE_STATIC_PORTRAIT_FILE_OVERRIDES = {
   "adult:algomon_adult": "Argomon_Adult.webp",
@@ -304,78 +274,112 @@ const DDA_GENERAL_DATABASE_STATIC_PORTRAIT_FILE_OVERRIDES = {
   "ultimate:algomon_ultimate": "Argomon-mega.webp",
 
   "baby2:arkadimon_baby": "arkadimon-baby-ii.webp",
-  "child:arkadimon_child": "Arkadimon-Child.webp",
-  "adult:arkadimon_adult": "Arkadimon_Adult.jpg",
-  "perfect:arkadimon_perfect": "Arkadimon_Perfect.jpg",
-  "ultimate:arkadimon_ultimate": "Arkadimon_Ultimate.jpg",
+  "adult:arkadimon_adult": "ArkadimonAdult.webp",
+  "perfect:arkadimon_perfect": "ArkadimonPerfect.webp",
+  "ultimate:arkadimon_ultimate": "ArkadimonUltimate.webp",
 
   "child:burgamon_child": "Burgamon_child.webp",
   "adult:burgamon_adult": "Burgamon_adult.webp",
 
-  "adult:eosmon_adult": "Eosmon.webp",
+  "adult:eosmon_adult": "Eosmon_adult.webp",
   "perfect:eosmon_perfect": "Eosmon_perfect.webp",
   "ultimate:eosmon_ultimate": "Eosmon-ultimate.webp",
 
   "adult:red_v_dramon": "Red_V_Dramon.webp",
-  "adult:sorcerimon": "Sorcermon.webp",
+  "adult:sorcerimon": "Sorcerimon.webp",
 
   // Você acabou de colocar este portrait na pasta.
   "adult:yo_yo_mon": "YoYomon.webp"
 };
 
-function getInitialEvolutionImageStageFolder(stageKey = "") {
-  const cleanStage = String(stageKey ?? "").trim();
-  return DDA_INITIAL_IMAGE_STAGE_FOLDERS[cleanStage] || cleanStage || "child";
-}
+function resolveWizardStaticDigimonImages({
+  sourceId = "",
+  databaseId = "",
+  stage = "",
+  species = "",
+  name = "",
+  originalName = "",
+  dubName = "",
+  aliases = [],
+  img = "",
+  tokenImg = "",
+  images = {}
+} = {}, {
+  fallback = "icons/svg/mystery-man.svg",
+  manualPortrait = "",
+  manualPortraitSelected = false
+} = {}) {
+  const displayName = String(
+    name || dubName || species || originalName || sourceId || ""
+  ).trim();
 
-function buildInitialEvolutionImagePath(stageKey = "", fileName = "") {
-  const folder = getInitialEvolutionImageStageFolder(stageKey);
-  const cleanFileName = slugifyDigitamaName(
-    String(fileName ?? "")
-      .replace(/\.(webp|png|jpg|jpeg|gif)$/i, "")
-  );
+  const cleanAliases = Array.from(new Set([
+    ...(Array.isArray(aliases) ? aliases : []),
+    originalName,
+    dubName,
+    species,
+    displayName
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)));
 
-  if (!folder || !cleanFileName) return "";
+  const cleanImages = images && typeof images === "object"
+    ? { ...images }
+    : {};
 
-  return `${DDA_DIGIMON_IMAGE_BASE_PATH}/${folder}/${cleanFileName}.webp`;
-}
+  const record = {
+    name: displayName,
+    img: String(img ?? "").trim(),
+    tokenImg: String(tokenImg ?? "").trim(),
+    aliases: cleanAliases,
+    prototypeToken: {
+      texture: {
+        src: String(
+          tokenImg || cleanImages.tokenImagePath || cleanImages.token || ""
+        ).trim()
+      }
+    },
+    system: {
+      sourceId: String(sourceId ?? "").trim(),
+      databaseId: String(databaseId ?? "").trim(),
+      species: String(species || originalName || displayName).trim(),
+      stage: String(stage ?? "").trim(),
+      names: {
+        canonical: String(sourceId ?? "").trim(),
+        original: String(originalName || species || displayName).trim(),
+        dub: String(dubName || displayName).trim(),
+        aliases: cleanAliases
+      },
+      images: cleanImages
+    }
+  };
 
-function getInitialEvolutionStaticPortraitPath(entry = null) {
-  if (!entry) return "";
-
-  const overrideFileName =
-    DDA_INITIAL_STATIC_PORTRAIT_FILE_OVERRIDES?.[entry.id];
-
-  if (overrideFileName) {
-    return `${DDA_DIGIMON_IMAGE_BASE_PATH}/portraits/${overrideFileName}`;
-  }
-
-  // A database guarda o nome correto do arquivo em resolvedPath,
-  // mas com a antiga pasta de estágio. Aqui reaproveitamos somente
-  // o nome do arquivo e apontamos para a pasta real de portraits.
-  const resolvedPath = String(entry.images?.resolvedPath ?? "").trim();
-  const fileName = resolvedPath.split("/").pop();
-
-  if (!fileName || fileName === "mystery-man.svg") return "";
-
-  return `${DDA_DIGIMON_IMAGE_BASE_PATH}/portraits/${fileName}`;
-}
-
-function getInitialEvolutionImageNameCandidates(entry = null) {
-  if (!entry) return [];
-
-  const stageKey = String(entry.stageKey ?? "").trim();
-  const aliases = DDA_INITIAL_IMAGE_FILENAME_ALIASES?.[stageKey]?.[entry.id] ?? [];
+  const sources = resolveDigimonPortraitSources(record, {
+    manualPortrait,
+    manualPortraitSelected,
+    allowVideo: false
+  });
 
   return Array.from(new Set([
-    ...(Array.isArray(aliases) ? aliases : []),
-    entry.images?.imageFileName,
-    entry.displayName,
-    entry.dub,
-    entry.original,
-    ...(Array.isArray(entry.aliases) ? entry.aliases : []),
-    entry.id
-  ].filter(Boolean)));
+    ...sources,
+    fallback || "icons/svg/mystery-man.svg"
+  ]
+    .map((path) => String(path ?? "").trim())
+    .filter((path) => path && !/\.webm(?:$|[?#])/i.test(path))));
+}
+
+function getBaby1StaticPortrait(fileName = "") {
+  const species = String(fileName ?? "").trim();
+
+  return resolveWizardStaticDigimonImages({
+    sourceId: species,
+    databaseId: species ? `baby1:${species}` : "",
+    stage: "baby1",
+    species,
+    name: species,
+    originalName: species,
+    dubName: species
+  })[0] || "icons/svg/mystery-man.svg";
 }
 
 function getInitialEvolutionEntryImageFallbacks(
@@ -388,39 +392,23 @@ function getInitialEvolutionEntryImageFallbacks(
     entry.displayName || entry.dub || entry.original || entry.id || ""
   ).trim();
 
-  const indexedPortraitPath = getDdaPortraitPath({
-    key: entry.id,
+  return resolveWizardStaticDigimonImages({
+    sourceId: entry.id,
+    databaseId: entry.stageKey && entry.id
+      ? `${entry.stageKey}:${entry.id}`
+      : entry.id,
+    stage: entry.stageKey,
+    species: entry.original || displayName,
     name: displayName,
-    species: displayName,
-    aliases: [
-      entry.original,
-      entry.dub,
-      ...(Array.isArray(entry.aliases) ? entry.aliases : [])
-    ].filter(Boolean)
+    originalName: entry.original || displayName,
+    dubName: entry.dub || displayName,
+    aliases: Array.isArray(entry.aliases) ? entry.aliases : [],
+    img: entry.img || entry.image || "",
+    tokenImg: entry.images?.tokenImagePath || "",
+    images: entry.images ?? {}
+  }, {
+    fallback
   });
-
-  // O wizard aceita só imagens estáticas. WebM fica reservado para a ficha.
-  const staticPaths = [
-    getInitialEvolutionStaticPortraitPath(entry),
-
-    /\.webp(?:$|[?#])/i.test(indexedPortraitPath)
-      ? indexedPortraitPath
-      : "",
-
-    entry.images?.portraitImagePath,
-    entry.images?.tokenImagePath,
-    entry.images?.localImagePath,
-    entry.images?.officialImageUrl,
-    entry.image,
-    entry.img
-  ]
-    .map((path) => String(path ?? "").trim())
-    .filter((path) => path && !/\.webm(?:$|[?#])/i.test(path));
-
-  return Array.from(new Set([
-    ...staticPaths,
-    fallback || "icons/svg/mystery-man.svg"
-  ]));
 }
 
 function getInitialEvolutionEntryImageFallbackString(entry = null, fallback = "icons/svg/mystery-man.svg") {
@@ -441,14 +429,28 @@ function resolveWizardActorPortrait({
   fallback = "icons/svg/mystery-man.svg"
 } = {}) {
   const explicitPortrait = String(portraitOverride ?? "").trim();
-  if (explicitPortrait) return explicitPortrait;
 
-  return getDdaPortraitPath({
-    key: String(key ?? "").trim(),
-    name: String(name ?? "").trim(),
-    species: String(species ?? "").trim(),
-    aliases: Array.isArray(aliases) ? aliases.filter(Boolean) : []
-  }) || fallback;
+  const record = {
+    name: String(name || species || key || "").trim(),
+    img: explicitPortrait,
+    aliases: Array.isArray(aliases) ? aliases.filter(Boolean) : [],
+    system: {
+      sourceId: String(key ?? "").trim(),
+      species: String(species || name || "").trim(),
+      names: {
+        canonical: String(key ?? "").trim(),
+        original: String(species || name || "").trim(),
+        dub: String(name || species || "").trim(),
+        aliases: Array.isArray(aliases) ? aliases.filter(Boolean) : []
+      }
+    }
+  };
+
+  return resolveDigimonPortraitSources(record, {
+    manualPortrait: explicitPortrait,
+    manualPortraitSelected: Boolean(explicitPortrait),
+    allowVideo: true
+  })[0] || fallback;
 }
 
 function resolveLineFormActorPortrait(form = null, fallback = "icons/svg/mystery-man.svg") {
@@ -650,7 +652,8 @@ function extractSpeciesDataFromActor(actor) {
     name: actor.name ?? species,
     species,
     stage: system.stage ?? "baby1",
-    img: actor.img || system.image || digimonBabyPath(species),
+    img: resolveDigimonPortraitSources(actor, { allowVideo: false })[0]
+      || "icons/svg/mystery-man.svg",
     attribute: system.attribute || "none",
     type: typeKey || "slime",
     typeLabel: typeLabel || getLocalizedValue(DIGIMON_PROFILE_OPTIONS.types?.[typeKey] ?? typeKey),
@@ -679,7 +682,23 @@ function extractSpeciesDataFromDatabaseEntry(entry) {
     name: entry.name ?? species,
     species,
     stage: entry.stage ?? "baby1",
-    img: entry.image || digimonBabyPath(entry.fileName ?? species),
+    img: resolveWizardStaticDigimonImages({
+      sourceId: entry.sourceId || entry.id || entry.fileName || species,
+      databaseId: entry.databaseId || (
+        entry.stage && (entry.sourceId || entry.id)
+          ? `${entry.stage}:${entry.sourceId || entry.id}`
+          : ""
+      ),
+      stage: entry.stage || "baby1",
+      species,
+      name: entry.name || species,
+      originalName: entry.originalName || entry.original || species,
+      dubName: entry.dubName || entry.dub || entry.name || species,
+      aliases: Array.isArray(entry.aliases) ? entry.aliases : [],
+      img: entry.image || entry.img || "",
+      tokenImg: entry.tokenImg || entry.images?.tokenImagePath || "",
+      images: entry.images ?? {}
+    })[0] || "icons/svg/mystery-man.svg",
     attribute: entry.attribute || "none",
     type: typeKey || "slime",
     typeLabel: typeLabel || getLocalizedValue(DIGIMON_PROFILE_OPTIONS.types?.[typeKey] ?? typeKey),
@@ -1322,7 +1341,7 @@ const DIGIMON_PROFILE_OPTIONS = {
     other: "DDA.DigimonProfile.Family.Other"
   }
 };
-export class DDADigimonWizard extends Application {
+export class DDADigimonWizard extends DDADigimonWizardApplicationBase {
   constructor(options = {}) {
     super(options);
 
@@ -1331,6 +1350,9 @@ export class DDADigimonWizard extends Application {
     this.stepIndex = 0;
     this._inputRenderTimeout = null;
     this._pendingScrollTop = null;
+    this._pendingScrollStepIndex = null;
+    this._pendingScrollRestoreId = null;
+    this._scrollRestoreId = 0;
     this.mode = options.mode ?? "create";
 this.formContext = options.formContext ?? null;
 
@@ -1757,28 +1779,9 @@ _getStaticPortraitPathFromDatabaseActor(
 
   if (indexedPortrait) return indexedPortrait;
 
-  const images = system.images ?? {};
-
-  const candidates = [
-    images.portraitImagePath,
-    images.portrait,
-    images.localImagePath,
-    images.tokenImagePath,
-    actor.img
-  ];
-
-  for (const candidate of candidates) {
-    const rawPath = String(candidate ?? "").trim();
-
-    if (!rawPath || /\.webm(?:$|[?#])/i.test(rawPath)) continue;
-
-    if (!/\.(webp|png|jpe?g)(?:$|[?#])/i.test(rawPath)) continue;
-
-    // Mantém o caminho real. Pode ser portraits/, adult/, perfect/ etc.
-    return rawPath;
-  }
-
-  return "icons/svg/mystery-man.svg";
+  return resolveDigimonPortraitSources(actor, {
+    allowVideo: false
+  })[0] || "icons/svg/mystery-man.svg";
 }
 
 _buildWizardDatabaseEntry(
@@ -2045,16 +2048,43 @@ async _preloadWizardDatabase() {
       && Boolean(this.formContext?.isFutureForm);
   }
 
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: "dda-digimon-wizard",
-      title: text("Criar Digimon Parceiro", "Create Partner Digimon"),
+  static DEFAULT_OPTIONS = {
+    id: "dda-digimon-wizard",
+    classes: ["dda", "dda-wizard", "dda-digimon-wizard"],
+    position: {
+      width: 980,
+      height: 860
+    },
+    window: {
+      resizable: true
+    }
+  };
+
+  static PARTS = {
+    form: {
       template: "systems/digimon-digital-adventures/templates/wizard/digimon-wizard.hbs",
-      width: 900,
-      height: 820,
-      resizable: true,
-      classes: ["dda", "dda-wizard"]
-    });
+      scrollable: [".dda-wizard-body"]
+    }
+  };
+
+  get title() {
+    return this.mode === "formSnapshot"
+      ? game.i18n.localize("DDA.DigimonWizard.FormTitle")
+      : game.i18n.localize("DDA.DigimonWizard.Title");
+  }
+
+  async _prepareContext(options = {}) {
+    const context = await super._prepareContext(options);
+    return Object.assign(context, this.getData());
+  }
+
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+
+    const root = this._getRootElement(this.element);
+    if (!root) return;
+
+    this.activateListeners($(root));
   }
 
   get currentStep() {
@@ -2143,7 +2173,6 @@ getData() {
         }
 
   activateListeners(html) {
-    super.activateListeners(html);
 
     html.find("[data-action='next']").on("click", this._onNext.bind(this));
     html.find("[data-action='back']").on("click", this._onBack.bind(this));
@@ -3150,7 +3179,7 @@ async _onUpdateBuildTemplateChoice(event) {
   this._setBuildTemplateResolvedChoice(choiceKey, value);
   this._applyResolvedBuildTemplateChoicesToChildBuild();
 
-  this.render(false);
+  this._renderPreservingScroll();
 }
 
 _getBuildTemplateOptions() {
@@ -3279,7 +3308,7 @@ async _onToggleBuildTemplate(event) {
   }
 
   this._rebuildSteps();
-  this.render(false);
+  this._renderPreservingScroll();
 }
 
 async _onSelectBuildTemplate(event) {
@@ -3311,14 +3340,14 @@ async _onSelectBuildTemplate(event) {
   this.data.buildTemplate.pendingChoices = {};
   this.data.buildTemplate.resolvedChoices = {};
 
-  this.render(false);
+  this._renderPreservingScroll();
 }
 
 async _onToggleTutorial(event) {
   event.preventDefault();
 
   this.data.tutorialMode = !this.data.tutorialMode;
-  this.render(false);
+  this._renderPreservingScroll();
 }
 
 async _onSelectCreationMode(event) {
@@ -3333,7 +3362,7 @@ async _onSelectCreationMode(event) {
     this.data.identity.source = null;
   }
 
-  this.render(false);
+  this._renderPreservingScroll();
 }
 
 async _onSelectMainForm(event) {
@@ -3628,7 +3657,7 @@ async _onAdjustFormBuild(event) {
   }
 
   this.stepIndex = statsStepIndex;
-  this.render(false);
+  this._renderAtStepTop();
 }
 
 _returnFromReviewAdjustment() {
@@ -3650,7 +3679,7 @@ _returnFromReviewAdjustment() {
 
   this._rebuildSteps();
   this.stepIndex = Math.max(0, this.steps.indexOf("summary"));
-  this.render(false);
+  this._renderAtStepTop();
 }
 
 async _onSelectStage(event) {
@@ -3689,7 +3718,7 @@ const form = this.data.lineForms?.[originLineStage];
   }
 
   this._recalculateStageData();
-  this.render(false);
+  this._renderPreservingScroll();
 }
 
   async _onSelectInitialBaby1(event) {
@@ -3818,11 +3847,11 @@ async _onIncreaseStat(event) {
     return;
   }
 
-  if (
-    Number(
-      this.data.dp?.remaining ?? 0
-    ) <= 0
-  ) {
+  const statBudgetRemaining = this.mode === "formSnapshot"
+    ? Number(this.data.dp?.statRemaining ?? 0)
+    : Number(this.data.dp?.remaining ?? 0);
+
+  if (statBudgetRemaining <= 0) {
     ui.notifications.warn(
       text(
         "Você não possui PD restante para aumentar este atributo.",
@@ -3887,8 +3916,11 @@ async _onDecreaseStat(event) {
   if (!stat) return;
 
   const currentSpent = Number(stat.spent ?? 0);
+  const sharedMinimum = this.mode === "formSnapshot"
+    ? this._getSharedStatBonusForKey(statKey)
+    : 0;
 
-  if (currentSpent <= 0) return;
+  if (currentSpent <= sharedMinimum) return;
 
   stat.spent = currentSpent - 1;
   stat.total = Number(stat.base ?? 0) + Number(stat.spent ?? 0);
@@ -3922,7 +3954,7 @@ async _onNext(event) {
       }
 
       ui.notifications.warn(this.data.validation.errors[0] ?? "Revise esta etapa antes de continuar.");
-      this.render(false);
+      this._renderAtStepTop();
       return;
     }
 
@@ -3944,7 +3976,7 @@ async _onNext(event) {
             "Could not apply the ready-made build. Choose another template or disable the option."
           ));
 
-          this.render(false);
+          this._renderAtStepTop();
           return;
         }
 
@@ -3970,7 +4002,7 @@ async _onNext(event) {
             `${templateName} exceeds the limit by ${Math.abs(remainingDp)} DP. Choose another build or ask the system maintainer to review this template.`
           ));
 
-          this.render(false);
+          this._renderAtStepTop();
           return;
         }
       }
@@ -3981,7 +4013,7 @@ async _onNext(event) {
       "Resolva todas as escolhas da build antes de continuar.",
       "Resolve all build choices before continuing."
     ));
-    this.render(false);
+    this._renderAtStepTop();
     return;
   }
 
@@ -4006,7 +4038,7 @@ async _onNext(event) {
         this._syncActiveFormBuildToGlobalState();
       }
 
-      this.render(false);
+      this._renderAtStepTop();
     }
   }
 
@@ -4032,7 +4064,7 @@ async _onBack(event) {
 
   if (!this.isFirstStep) {
     this.stepIndex -= 1;
-    this.render(false);
+    this._renderAtStepTop();
   }
 }
 
@@ -4059,7 +4091,7 @@ async _onCreate(event) {
 
   if (this.data.validation.errors.length > 0) {
     ui.notifications.warn(this.data.validation.errors[0]);
-    this.render(false);
+    this._renderAtStepTop();
     return;
   }
 
@@ -4347,6 +4379,8 @@ _initializeFormSnapshotData() {
   const stageKey = snapshot.stage || templateActor?.system?.stage || partnerActor?.system?.stage || "child";
   const defaultBase = Math.max(1, this._getStageValue(stageKey));
   const mainStats = snapshot.mainStats ?? partnerActor?.system?.mainStats ?? {};
+  const bonusAllocation = this._getFormBonusDpAllocation();
+  const appliedShared = snapshot.creation?.dp?.sharedStatBonusApplied ?? {};
 
   this.data.identity.name = snapshot.name || partnerActor?.name || templateActor?.name || "Digimon";
   this.data.identity.species = snapshot.species || partnerActor?.system?.species || templateActor?.system?.species || templateActor?.name || "Digimon";
@@ -4367,12 +4401,37 @@ _initializeFormSnapshotData() {
   this.data.identity.source = templateActor?.uuid ?? snapshot.sourceFormUuid ?? "";
   this.data.stage = stageKey;
 
+  /*
+   * A forma futura pode ser preparada antes de o Estágio ser liberado e sem
+   * gastar EP. Nesse fluxo o catálogo completo precisa continuar visível:
+   * Qualidades ainda indisponíveis ficam desabilitadas e explicam o motivo,
+   * em vez de o filtro "somente disponíveis" produzir uma lista vazia.
+   */
+  if (this._isFutureFormWizard()) {
+    this.data.qualityBrowser.onlyAvailable = false;
+  }
+
   for (const key of ["accuracy", "damage", "dodge", "armor", "health"]) {
     const stat = this.data.statAllocation[key];
     if (!stat) continue;
-    const base = Number(mainStats[key]?.base ?? defaultBase);
+
+    const targetShared = stageKey === "baby1"
+      ? 0
+      : Math.max(0, Number(bonusAllocation.sharedStats?.[key] ?? 0));
+    const alreadyApplied = stageKey === "baby1"
+      ? 0
+      : Math.max(0, Number(appliedShared?.[key] ?? 0));
+    const storedBase = Number(mainStats[key]?.base ?? defaultBase);
+    const effectiveBase = Math.min(
+      DDA_DIGIMON_MAIN_STAT_MAX,
+      Math.max(defaultBase, storedBase + targetShared - alreadyApplied)
+    );
+
     stat.base = defaultBase;
-    stat.spent = Math.max(0, base - defaultBase);
+    stat.spent = Math.max(targetShared, effectiveBase - defaultBase);
+    stat.sharedBonus = targetShared;
+    stat.localSpent = Math.max(0, stat.spent - targetShared);
+    stat.canDecrease = stat.spent > targetShared;
     stat.total = defaultBase + stat.spent;
   }
 
@@ -4441,7 +4500,7 @@ async _onSaveFormSnapshot(event) {
 
   if (this.data.validation.errors.length > 0) {
     ui.notifications.warn(this.data.validation.errors[0]);
-    this.render(false);
+    this._renderAtStepTop();
     return;
   }
 
@@ -4524,18 +4583,37 @@ tokenImg:
     },
     creation: {
       ...(existingSnapshot.creation ?? partnerActor.system?.creation ?? {}),
-      dp: {
-        base: Number(this.data.dp.base ?? 0),
-        bonus: Number(this.data.dp.bonus ?? 0),
-        negative: Number(this.data.dp.negativeUsed ?? 0),
-        total: Number(this.data.dp.totalAvailable ?? 0),
-        spentBaseStats: this._getSpentStatDp(),
-        spentBaseQualities: selectedQualities.reduce((total, quality) => total + Number(quality.cost ?? 0), 0),
-        spentBonusStats: 0,
-        spentBonusQualities: 0,
-        spentTotal: Number(this.data.dp.spent ?? 0),
-        remaining: Number(this.data.dp.remaining ?? 0)
-      },
+      dp: (() => {
+        const totalQualitySpend = selectedQualities
+          .filter((quality) => !quality.isNegative && quality.tier !== "negative")
+          .reduce((total, quality) => total + Number(quality.cost ?? 0), 0);
+        const sharedStatTotal = Number(this.data.dp.sharedStatTotal ?? 0);
+        const sharedQualityAllocated = Number(this.data.dp.sharedQualityAllocated ?? 0);
+        const spentBonusQualities = Math.min(sharedQualityAllocated, totalQualitySpend);
+        const spentBaseQualities = Math.max(0, totalQualitySpend - spentBonusQualities);
+        const localSpentStats = Math.max(0, this._getSpentStatDp() - sharedStatTotal);
+        const bonusTotal = Number(this.data.dp.bonusTotal ?? this.data.dp.bonus ?? 0);
+        const totalNegative = Number(this.data.dp.negativeUsed ?? 0);
+        const totalDp = Number(this.data.dp.base ?? 0) + totalNegative + bonusTotal;
+        const spentTotal = localSpentStats + sharedStatTotal + spentBaseQualities + spentBonusQualities;
+
+        return {
+          base: Number(this.data.dp.base ?? 0),
+          bonus: bonusTotal,
+          negative: totalNegative,
+          total: totalDp,
+          spentBaseStats: localSpentStats,
+          spentBaseQualities,
+          spentBonusStats: sharedStatTotal,
+          spentBonusQualities,
+          sharedStatBonusApplied: foundry.utils.deepClone(this.data.dp.sharedStatBonus ?? {}),
+          sharedStatTotal,
+          sharedQualityAllocated,
+          bonusUnallocated: Number(this.data.dp.bonusUnallocated ?? 0),
+          spentTotal,
+          remaining: Math.max(0, totalDp - spentTotal)
+        };
+      })(),
 coreDiscount: {
   base: Number(this.data.dp.coreDiscountBase ?? 0),
   used: Number(this.data.dp.coreDiscountUsed ?? 0),
@@ -5549,7 +5627,7 @@ this._rebuildSteps();
 
   const nextStep = wantsQuestionnaire ? "compatibility" : "stage";
   this.stepIndex = Math.max(0, this.steps.indexOf(nextStep));
-  this.render(false);
+  this._renderAtStepTop();
 }
 
 async _onCompatibilityAnswer(event) {
@@ -5604,7 +5682,8 @@ if (baby1Entry) {
   this.data.initialLine.baby1Id = "";
   this.data.lineForms.baby1.species = selected.name;
   this.data.lineForms.baby1.originalName = selected.name;
-  this.data.lineForms.baby1.img = selected.digimonImg ?? digimonBabyPath(selected.fileName ?? selected.name);
+  this.data.lineForms.baby1.img = selected.digimonImg
+    ?? getBaby1StaticPortrait(selected.fileName ?? selected.name);
   this.data.lineForms.baby1.tokenImg = this.data.lineForms.baby1.img;
   this.data.lineForms.baby1.custom = true;
 }
@@ -5657,7 +5736,9 @@ _applySpeciesDataToIdentity(speciesData, { forceName = false } = {}) {
     this.data.identity.name = species;
   }
 
-  this.data.identity.img = speciesData.img || this.data.identity.img || digimonBabyPath(species);
+  this.data.identity.img = speciesData.img
+    || this.data.identity.img
+    || getBaby1StaticPortrait(species);
   this.data.identity.attribute = speciesData.attribute || this.data.identity.attribute || "none";
   this.data.identity.type = speciesData.type || this.data.identity.type || "slime";
   this.data.identity.field = speciesData.field || this.data.identity.field || "unknown";
@@ -5810,8 +5891,30 @@ _ensureIdentityFallbacks({ resolveSource = true } = {}) {
   identity.field = identity.field?.trim() || identity.source?.field || "unknown";
   identity.group = identity.group?.trim() || identity.source?.group || identity.source?.typeLabel || "";
 
-if (!identity.img || identity.img === "systems/digimon-digital-adventures/assets/ui/Digimon-Logo-2.webp") {
-  identity.img = identity.source?.img || (identity.species ? digimonBabyPath(identity.species) : identity.img);
+if (
+  !identity.img ||
+  identity.img === "systems/digimon-digital-adventures/assets/ui/Digimon-Logo-2.webp" ||
+  isObsoleteDdaDigimonImagePath(identity.img)
+) {
+  const source = identity.source ?? {};
+
+  identity.img = resolveWizardStaticDigimonImages({
+    sourceId: source.sourceId || source.id || source.fileName || identity.species,
+    databaseId: source.databaseId || "",
+    stage: source.stage || this.data.stage || "baby1",
+    species: source.species || identity.species || identity.name,
+    name: source.name || identity.name || identity.species,
+    originalName: source.originalName || source.original || identity.species,
+    dubName: source.dubName || source.dub || source.name || identity.name,
+    aliases: Array.isArray(source.aliases) ? source.aliases : [],
+    img: source.img || source.image || "",
+    tokenImg: source.tokenImg || source.images?.tokenImagePath || "",
+    images: source.images ?? {}
+  })[0] || "icons/svg/mystery-man.svg";
+}
+
+if (isObsoleteDdaDigimonImagePath(identity.tokenImg)) {
+  identity.tokenImg = "";
 }
 
 identity.tokenImg = identity.tokenImg?.trim() || identity.img || "icons/svg/mystery-man.svg";
@@ -6033,7 +6136,7 @@ _getDigitamaRecommendations(context = {}) {
         fallbackImg3: visual.fallbackImg3,
         visualClass: visual.className,
         visualStyle: visual.style,
-        digimonImg: digimonBabyPath(entry.fileName ?? entry.name),
+        digimonImg: getBaby1StaticPortrait(entry.fileName ?? entry.name),
         traits: entry.traits,
         score,
         used,
@@ -6146,15 +6249,40 @@ _getRootElement(html = this.element) {
 
 _getScrollElement(html = this.element) {
   const root = this._getRootElement(html);
+
   if (!root) return null;
-  return root.querySelector(".dda-wizard-body")
-    ?? root.querySelector(".window-content")
-    ?? root;
+
+  if (root.matches?.("[data-dda-scroll-container], .dda-wizard-body")) {
+    return root;
+  }
+
+  const scrollElement = root.querySelector(
+    "[data-dda-scroll-container], .dda-wizard-body"
+  );
+
+  if (scrollElement) return scrollElement;
+
+  const appRoot = root.closest?.(".window-app.dda-wizard")
+    ?? this._getRootElement(this.element);
+
+  const appScrollElement = appRoot?.querySelector?.(
+    "[data-dda-scroll-container], .dda-wizard-body"
+  );
+
+  if (appScrollElement) return appScrollElement;
+
+  if (root.matches?.(".window-content")) return root;
+
+  return root.querySelector(".window-content") ?? root;
 }
 
 _renderPreservingScroll() {
   const scrollElement = this._getScrollElement(this.element);
+
   this._pendingScrollTop = scrollElement?.scrollTop ?? 0;
+  this._pendingScrollStepIndex = this.stepIndex;
+  this._pendingScrollRestoreId = ++this._scrollRestoreId;
+
   return this.render(false);
 }
 
@@ -6162,12 +6290,42 @@ _restoreScrollPosition(html = this.element) {
   if (this._pendingScrollTop === null || this._pendingScrollTop === undefined) return;
 
   const scrollTop = this._pendingScrollTop;
+  const stepIndex = this._pendingScrollStepIndex;
+  const restoreId = this._pendingScrollRestoreId;
+
   this._pendingScrollTop = null;
+  this._pendingScrollStepIndex = null;
+  this._pendingScrollRestoreId = null;
+
+  const restore = () => {
+    if (restoreId !== this._scrollRestoreId) return;
+    if (stepIndex !== this.stepIndex) return;
+
+    const scrollElement = this._getScrollElement(this.element)
+      ?? this._getScrollElement(html);
+
+    if (scrollElement) {
+      scrollElement.scrollTop = scrollTop;
+    }
+  };
+
+  restore();
 
   window.requestAnimationFrame(() => {
-    const scrollElement = this._getScrollElement(html);
-    if (scrollElement) scrollElement.scrollTop = scrollTop;
+    restore();
+    window.requestAnimationFrame(restore);
   });
+
+  window.setTimeout(restore, 50);
+}
+
+_renderAtStepTop() {
+  this._scrollRestoreId += 1;
+  this._pendingScrollTop = null;
+  this._pendingScrollStepIndex = null;
+  this._pendingScrollRestoreId = null;
+
+  return this.render(false);
 }
 
 _getFirstUnansweredCompatibilityQuestionId() {
@@ -6316,6 +6474,11 @@ _syncLineFormsFromWizardData() {
     form.img = String(form.img ?? "").trim();
     form.portraitImg = String(form.portraitImg ?? "").trim();
     form.tokenImg = String(form.tokenImg ?? "").trim();
+
+    if (isObsoleteDdaDigimonImagePath(form.img)) form.img = "";
+    if (isObsoleteDdaDigimonImagePath(form.portraitImg)) form.portraitImg = "";
+    if (isObsoleteDdaDigimonImagePath(form.tokenImg)) form.tokenImg = "";
+
     form.attacks = this._getLineFormAttackSlots(stageKey);
 
     if (!form.species) continue;
@@ -6814,32 +6977,50 @@ _getLineFormViewData(stageKey = "child") {
   const cleanStage = this._getInitialLineStageKey(stageKey);
   const form = this._getLineForm(cleanStage);
 
-  const fallbackImg = form.img
-    || (form.species ? digimonBabyPath(form.species) : "")
-    || "icons/svg/mystery-man.svg";
+  const entry = form.id
+    ? getInitialDigimonById(form.id)
+    : findInitialEvolutionEntry(form.species, cleanStage);
 
-const entry = form.id
-  ? getInitialDigimonById(form.id)
-  : findInitialEvolutionEntry(form.species, cleanStage);
+  const imageSources = resolveWizardStaticDigimonImages({
+    sourceId: form.id || entry?.id || "",
+    databaseId: cleanStage && (form.id || entry?.id)
+      ? `${cleanStage}:${form.id || entry?.id}`
+      : "",
+    stage: cleanStage,
+    species: entry?.original || form.originalName || form.species || "",
+    name: form.species || getInitialEvolutionDisplayName(entry) || "",
+    originalName: entry?.original || form.originalName || form.species || "",
+    dubName: entry?.dub || form.species || "",
+    aliases: Array.isArray(entry?.aliases) ? entry.aliases : [],
+    img: form.img || entry?.img || entry?.image || "",
+    tokenImg: form.tokenImg || entry?.images?.tokenImagePath || "",
+    images: entry?.images ?? {}
+  }, {
+    manualPortrait: form.portraitImg || "",
+    manualPortraitSelected: Boolean(form.portraitImg),
+    fallback: "icons/svg/mystery-man.svg"
+  });
 
-return {
-  ...form,
-  stageKey: cleanStage,
-  stageLabel: getInitialEvolutionStageLabel(cleanStage),
-  species: form.species || "",
-  originalName: form.originalName || "",
-  attribute: form.attribute || "",
-  type: form.type || "",
-  group: form.group || "",
-  field: form.field || "",
-  img: fallbackImg,
-  imageFallbacks: entry
-    ? getInitialEvolutionEntryImageFallbackString(entry, "icons/svg/mystery-man.svg")
-    : "",
-  tokenImg: form.tokenImg || fallbackImg,
-  custom: Boolean(form.custom),
-  attackSlots: this._getLineFormAttackSlots(cleanStage)
-};
+  const fallbackImg = imageSources[0] || "icons/svg/mystery-man.svg";
+
+  return {
+    ...form,
+    stageKey: cleanStage,
+    stageLabel: getInitialEvolutionStageLabel(cleanStage),
+    species: form.species || "",
+    originalName: form.originalName || "",
+    attribute: form.attribute || "",
+    type: form.type || "",
+    group: form.group || "",
+    field: form.field || "",
+    img: fallbackImg,
+    imageFallbacks: imageSources.slice(1).join("|"),
+    tokenImg: isObsoleteDdaDigimonImagePath(form.tokenImg)
+      ? fallbackImg
+      : form.tokenImg || fallbackImg,
+    custom: Boolean(form.custom),
+    attackSlots: this._getLineFormAttackSlots(cleanStage)
+  };
 }
 
 _getLineFormSourceId(stageKey = "child", form = null) {
@@ -6970,7 +7151,11 @@ async _resolveAutomaticTokenForLineForm(stageKey = "child") {
   const currentToken = String(form.tokenImg ?? "").trim();
 
   // Um token diferente da imagem-base foi escolhido manualmente.
-  if (currentToken && currentToken !== baseImg) {
+  if (
+    currentToken &&
+    currentToken !== baseImg &&
+    !isObsoleteDdaDigimonImagePath(currentToken)
+  ) {
     return currentToken;
   }
 
@@ -7842,6 +8027,11 @@ _getInitialLineFormSnapshotFromForm(stageKey = "child", form = null, fallback = 
   const nickname = this._getLineNicknameForSnapshots();
   const sourceId = this._getLineFormSourceId(cleanStage, cleanForm);
   const sourceFormUuid = this._getLineFormSnapshotUuid(cleanStage, cleanForm);
+  const originalName = String(cleanForm.originalName || species).trim();
+  const aliases = Array.from(new Set([
+    species,
+    originalName
+  ].filter(Boolean)));
   const img = cleanForm.img || fallback.img || "icons/svg/mystery-man.svg";
 
   // Só aqui o sistema consulta o mapa: WebM se existir; WebP de portrait se não.
@@ -7900,6 +8090,16 @@ _getInitialLineFormSnapshotFromForm(stageKey = "child", form = null, fallback = 
     key: normalizeInitialEvolutionId(sourceFormUuid),
     sourceFormUuid,
     sourceFormName: species,
+    sourceId,
+    originalName,
+    dubName: species,
+    aliases,
+    names: {
+      canonical: sourceId,
+      original: originalName,
+      dub: species,
+      aliases
+    },
     name: nickname || species,
     img,
     portraitImg,
@@ -8784,6 +8984,8 @@ coreDiscount: {
 
         evolution: {
         defaultStage: stageKey,
+        defaultFormUuid: initialEvolutionLine.currentFormUuid || "",
+        defaultFormName: initialEvolutionLine.currentFormName || name,
         currentStage: stageKey,
         currentFormUuid: initialEvolutionLine.currentFormUuid || "",
         currentFormName: initialEvolutionLine.currentFormName || name,
@@ -9285,6 +9487,19 @@ if (!isFormSnapshotMode && (this.currentStep === "evolutionLine" || this.current
           errors.push(text("Você gastou mais PD do que possui. Remova Qualidades ou escolha Qualidades Negativas.", "You spent more DP than you have. Remove Qualities or choose Negative Qualities."));
         }
 
+
+        if (isFormSnapshotMode && this.currentStep === "summary") {
+          const requiredQualityBonus = Number(this.data.dp?.sharedQualityAllocated ?? 0);
+          const spentQualityBonus = Number(this.data.dp?.sharedQualitySpent ?? 0);
+
+          if (spentQualityBonus < requiredQualityBonus) {
+            errors.push(text(
+              `Esta forma precisa gastar ${requiredQualityBonus} Bonus DP em Qualidades. Atualmente foram comprometidos ${spentQualityBonus}.`,
+              `This form must spend ${requiredQualityBonus} Bonus DP on Qualities. It currently commits ${spentQualityBonus}.`
+            ));
+          }
+        }
+
         if (this.data.dp.negativeUsed > this.data.dp.negativeLimit) {
           errors.push(text("Você excedeu o limite de PD Negativo para este estágio.", "You exceeded the Negative DP limit for this stage."));
         }
@@ -9380,12 +9595,16 @@ if (this.currentStep === "partnerQuestions") {
 
 _recalculateStageData() {
   const stage = this._getStageOptions().find(stage => stage.key === this.data.stage);
-
   if (!stage) return;
 
   this._recalculateStatAllocation(stage);
 
   const spentStats = this._getSpentStatDp();
+  const bonusAllocation = this._getFormBonusDpAllocation();
+  const sharedStatTotal = this.mode === "formSnapshot" && stage.key !== "baby1"
+    ? bonusAllocation.sharedStatTotal
+    : 0;
+  const localSpentStats = Math.max(0, spentStats - sharedStatTotal);
 
   const coreDiscountBase = this._getCoreDiscountBase(this.data.stage);
   const coreDiscount = this._recalculateQualityCosts(coreDiscountBase);
@@ -9400,16 +9619,32 @@ _recalculateStageData() {
 
   const freeQualityUsed = this._getFreeQualityUsed?.() ?? 0;
 
-  const formBonusDp = stage.key === "baby1" ? 0 : this._getFormBonusDp();
-  const totalAvailable = stage.startingDp + formBonusDp + bonusFromNegativeQualities;
-  const spentPositive = spentStats + spentQualities;
-  const remaining = totalAvailable - spentPositive;
+  const qualityBonusDp = stage.key === "baby1"
+    ? 0
+    : this._getFormBonusDp();
+  const localPool = stage.startingDp + bonusFromNegativeQualities;
+  const bonusQualitySpent = Math.min(qualityBonusDp, spentQualities);
+  const baseQualitySpent = Math.max(0, spentQualities - bonusQualitySpent);
+  const localSpent = localSpentStats + baseQualitySpent;
+  const localRemaining = localPool - localSpent;
+  const qualityRemaining = Math.max(0, qualityBonusDp - bonusQualitySpent);
+  const remaining = localRemaining + qualityRemaining;
+  const totalAvailable = localPool + sharedStatTotal + qualityBonusDp;
+  const spentPositive = localSpentStats + sharedStatTotal + spentQualities;
 
   this.data.dp.base = stage.startingDp;
-  this.data.dp.bonus = formBonusDp;
+  this.data.dp.bonus = sharedStatTotal + qualityBonusDp;
+  this.data.dp.bonusTotal = bonusAllocation.total;
+  this.data.dp.sharedStatTotal = sharedStatTotal;
+  this.data.dp.sharedStatBonus = foundry.utils.deepClone(bonusAllocation.sharedStats);
+  this.data.dp.sharedQualityAllocated = qualityBonusDp;
+  this.data.dp.sharedQualitySpent = bonusQualitySpent;
+  this.data.dp.sharedQualityRemaining = qualityRemaining;
+  this.data.dp.bonusUnallocated = bonusAllocation.unallocated;
   this.data.dp.totalAvailable = totalAvailable;
   this.data.dp.spent = spentPositive;
   this.data.dp.remaining = remaining;
+  this.data.dp.statRemaining = Math.max(0, localRemaining);
 
   this.data.dp.negativeUsed = bonusFromNegativeQualities;
   this.data.dp.negativeLimit = stage.negativeLimit ?? 0;
@@ -9476,20 +9711,86 @@ _getSpentStatDp() {
   }, 0);
 }
 
+_getFormBonusDpAllocation() {
+  if (this.mode !== "formSnapshot") {
+    return {
+      total: 0,
+      sharedStats: {
+        accuracy: 0,
+        damage: 0,
+        dodge: 0,
+        armor: 0,
+        health: 0
+      },
+      sharedStatTotal: 0,
+      qualityAllocated: 0,
+      unallocated: 0
+    };
+  }
+
+  const partner = this.formContext?.partnerActor;
+  const overrideProfile = this.formContext?.bonusDpProfile && typeof this.formContext.bonusDpProfile === "object"
+    ? this.formContext.bonusDpProfile
+    : null;
+  const total = Math.max(
+    0,
+    Number(
+      overrideProfile?.total ??
+      this.formContext?.bonusDpTotal ??
+      partner?.system?.advancement?.bonusDp?.total ??
+      0
+    ) || 0
+  );
+
+  const sourceStats = overrideProfile?.sharedStats ?? partner?.system?.advancement?.sharedStatBonus ?? {};
+  const sharedStats = Object.fromEntries(
+    ["accuracy", "damage", "dodge", "armor", "health"].map((key) => [
+      key,
+      Math.max(0, Math.floor(Number(sourceStats?.[key] ?? 0)))
+    ])
+  );
+  const sharedStatTotal = Object.values(sharedStats)
+    .reduce((sum, value) => sum + Number(value || 0), 0);
+  const qualityAllocated = Math.min(
+    Math.max(0, total - sharedStatTotal),
+    Math.max(
+      0,
+      Math.floor(Number(
+        overrideProfile?.qualityAllocated ??
+        partner?.system?.advancement?.sharedQualityDp?.allocated ??
+        this.formContext?.bonusDp ??
+        0
+      ))
+    )
+  );
+
+  return {
+    total,
+    sharedStats,
+    sharedStatTotal,
+    qualityAllocated,
+    unallocated: Math.max(0, total - sharedStatTotal - qualityAllocated)
+  };
+}
+
 _getFormBonusDp() {
-  if (this.mode !== "formSnapshot") return 0;
+  return this._getFormBonusDpAllocation().qualityAllocated;
+}
 
-  /*
-   * evolution.js já calcula o orçamento utilizável desta forma:
-   * o Bonus DP integral reservado ao Estágio desta forma.
-   *
-   * Zero é um valor válido e não pode cair em fallback global.
-   */
-  const value = Number(this.formContext?.bonusDp);
+_getSharedStatBonusForKey(statKey) {
+  if (this.mode !== "formSnapshot" || this.data.stage === "baby1") return 0;
+  return Math.max(
+    0,
+    Number(this._getFormBonusDpAllocation().sharedStats?.[statKey] ?? 0)
+  );
+}
 
-  return Number.isFinite(value)
-    ? Math.max(0, value)
-    : 0;
+_getFormBonusQualitySpent() {
+  if (this.mode !== "formSnapshot" || this.data.stage === "baby1") return 0;
+  const allocated = this._getFormBonusDpAllocation().qualityAllocated;
+  const qualitySpent = [...this.data.qualities.positive]
+    .reduce((total, quality) => total + Number(quality.cost ?? 0), 0);
+  return Math.min(allocated, Math.max(0, qualitySpent));
 }
 
 _recalculateStatAllocation(stage = null) {
@@ -9497,41 +9798,27 @@ _recalculateStatAllocation(stage = null) {
   const stageKey = selectedStage?.key ?? this.data.stage ?? "child";
   const baseValue = Math.max(1, this._getStageValue(stageKey));
 
-  for (
-    const stat of
-    Object.values(
-      this.data.statAllocation ?? {}
-    )
-  ) {
-    stat.base =
-      Math.min(
-        DDA_DIGIMON_MAIN_STAT_MAX,
-        baseValue
-      );
+  for (const [statKey, stat] of Object.entries(this.data.statAllocation ?? {})) {
+    const sharedMinimum = stageKey === "baby1"
+      ? 0
+      : this._getSharedStatBonusForKey(statKey);
 
-    const maximumSpent =
-      Math.max(
-        0,
+    stat.base = Math.min(DDA_DIGIMON_MAIN_STAT_MAX, baseValue);
 
-        DDA_DIGIMON_MAIN_STAT_MAX -
-        stat.base
-      );
+    const maximumSpent = Math.max(
+      0,
+      DDA_DIGIMON_MAIN_STAT_MAX - stat.base
+    );
 
-    stat.spent =
-      Math.min(
-        maximumSpent,
+    stat.spent = Math.min(
+      maximumSpent,
+      Math.max(sharedMinimum, Number(stat.spent ?? 0))
+    );
 
-        Math.max(
-          0,
-          Number(
-            stat.spent ?? 0
-          )
-        )
-      );
-
-    stat.total =
-      stat.base +
-      stat.spent;
+    stat.sharedBonus = sharedMinimum;
+    stat.localSpent = Math.max(0, stat.spent - sharedMinimum);
+    stat.canDecrease = stat.spent > sharedMinimum;
+    stat.total = stat.base + stat.spent;
   }
 }
 
@@ -9882,7 +10169,7 @@ async _onAddQuality(event) {
       this._syncActiveFormBuildToGlobalState();
     }
 
-    this.render(false);
+    this._renderPreservingScroll();
     return;
   }
 
@@ -9972,7 +10259,7 @@ async _onAddQuality(event) {
   this._syncActiveFormBuildToGlobalState();
 }
 
-this.render(false);
+this._renderPreservingScroll();
 }
 
 async _onConfigureNaturewalk(
@@ -10111,7 +10398,7 @@ async _onConfigureNaturewalk(
     this._syncActiveFormBuildToGlobalState();
   }
 
-  this.render(false);
+  this._renderPreservingScroll();
 }
 
 _getFreeQualityUsed() {
@@ -10360,544 +10647,493 @@ async _promptEffectTagChoice(
     })
     .join("");
 
-  const selectedKey =
-    await new Promise(
-      (resolve) => {
-        let settled = false;
+  const selectedKey = await new Promise((resolve) => {
+    let settled = false;
 
-        let selectedTag =
-          effectGroups[0].tag;
+    let selectedTag = effectGroups[0].tag;
+    let activeFilter = "all";
 
-        let activeFilter =
-          "all";
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
 
-        const finish = (
-          value
-        ) => {
-          if (settled) return;
-
-          settled = true;
-          resolve(value);
-        };
-
-        new Dialog(
-          {
-            title:
-              text(
-                `${quality.name} — Escolha do Rank ${rankNumber}`,
-                `${quality.name} — Rank ${rankNumber} Choice`
-              ),
-
-            content: `
-              <form class="dda-effect-picker">
-                <header class="dda-effect-picker__header">
-                  <span class="dda-effect-picker__eyebrow">
+    const dialog = new foundry.applications.api.DialogV2({
+      classes: ["dda", "dda-effect-choice-dialog"],
+      position: { width: 780, height: "auto" },
+      window: {
+        title: text(
+          `${quality.name} — Escolha do Rank ${rankNumber}`,
+          `${quality.name} — Rank ${rankNumber} Choice`
+        )
+      },
+      modal: true,
+      content: `
+          <div class="dda-effect-picker">
+            <header class="dda-effect-picker__header">
+              <span class="dda-effect-picker__eyebrow">
+                ${text(
+                  `Configuração do Rank ${rankNumber}`,
+                  `Rank ${rankNumber} configuration`
+                )}
+              </span>
+        
+              <h2>
+                ${text(
+                  "Escolha um Efeito",
+                  "Choose an Effect"
+                )}
+              </h2>
+        
+              <p>
+                ${text(
+                  "Selecione um Efeito, confira suas regras e escolha um Ataque compatível.",
+                  "Select an Effect, review its rules, then choose a compatible Attack."
+                )}
+              </p>
+            </header>
+        
+            <div class="dda-effect-picker__toolbar">
+              <label class="dda-effect-picker__search-wrapper">
+                <i class="fas fa-search"></i>
+        
+                <input
+                  type="search"
+                  class="dda-effect-picker__search"
+                  autocomplete="off"
+                  placeholder="${text(
+                    "Buscar efeito...",
+                    "Search effect..."
+                  )}"
+                >
+              </label>
+        
+              <div class="dda-effect-picker__filters">
+                ${filterHtml}
+              </div>
+            </div>
+        
+            <div class="dda-effect-picker__layout">
+              <section class="dda-effect-picker__catalog">
+                <div class="dda-effect-picker__cards">
+                  ${cardsHtml}
+                </div>
+        
+                <div class="dda-effect-picker__empty">
+                  <i class="fas fa-filter-circle-xmark"></i>
+        
+                  <span>
                     ${text(
-                      `Configuração do Rank ${rankNumber}`,
-                      `Rank ${rankNumber} configuration`
+                      "Nenhum Efeito corresponde a essa busca.",
+                      "No Effect matches this search."
                     )}
                   </span>
-
-                  <h2>
+                </div>
+              </section>
+        
+              <section class="dda-effect-picker__detail">
+                <div class="dda-effect-picker__detail-heading">
+                  <span class="dda-effect-picker__selected-label">
                     ${text(
-                      "Escolha um Efeito",
-                      "Choose an Effect"
+                      "Efeito selecionado",
+                      "Selected effect"
                     )}
-                  </h2>
-
-                  <p>
-                    ${text(
-                      "Selecione um Efeito, confira suas regras e escolha um Ataque compatível.",
-                      "Select an Effect, review its rules, then choose a compatible Attack."
-                    )}
-                  </p>
-                </header>
-
-                <div class="dda-effect-picker__toolbar">
-                  <label class="dda-effect-picker__search-wrapper">
-                    <i class="fas fa-search"></i>
-
-                    <input
-                      type="search"
-                      class="dda-effect-picker__search"
-                      autocomplete="off"
-                      placeholder="${text(
-                        "Buscar efeito...",
-                        "Search effect..."
-                      )}"
-                    >
-                  </label>
-
-                  <div class="dda-effect-picker__filters">
-                    ${filterHtml}
+                  </span>
+        
+                  <h3 data-effect-title></h3>
+                </div>
+        
+                <div class="dda-effect-picker__facts">
+                  <div class="dda-effect-picker__fact">
+                    <strong>
+                      ${text(
+                        "Tipo",
+                        "Type"
+                      )}
+                    </strong>
+        
+                    <span data-effect-kind></span>
+                  </div>
+        
+                  <div class="dda-effect-picker__fact">
+                    <strong>
+                      ${text(
+                        "Potência",
+                        "Potency"
+                      )}
+                    </strong>
+        
+                    <span data-effect-potency></span>
+                  </div>
+        
+                  <div class="dda-effect-picker__fact">
+                    <strong>
+                      ${text(
+                        "Duração",
+                        "Duration"
+                      )}
+                    </strong>
+        
+                    <span data-effect-duration></span>
+                  </div>
+        
+                  <div class="dda-effect-picker__fact">
+                    <strong>
+                      ${text(
+                        "Ataques",
+                        "Attacks"
+                      )}
+                    </strong>
+        
+                    <span data-effect-count></span>
                   </div>
                 </div>
-
-                <div class="dda-effect-picker__layout">
-                  <section class="dda-effect-picker__catalog">
-                    <div class="dda-effect-picker__cards">
-                      ${cardsHtml}
-                    </div>
-
-                    <div class="dda-effect-picker__empty">
-                      <i class="fas fa-filter-circle-xmark"></i>
-
-                      <span>
-                        ${text(
-                          "Nenhum Efeito corresponde a essa busca.",
-                          "No Effect matches this search."
-                        )}
-                      </span>
-                    </div>
-                  </section>
-
-                  <section class="dda-effect-picker__detail">
-                    <div class="dda-effect-picker__detail-heading">
-                      <span class="dda-effect-picker__selected-label">
-                        ${text(
-                          "Efeito selecionado",
-                          "Selected effect"
-                        )}
-                      </span>
-
-                      <h3 data-effect-title></h3>
-                    </div>
-
-                    <div class="dda-effect-picker__facts">
-                      <div class="dda-effect-picker__fact">
-                        <strong>
-                          ${text(
-                            "Tipo",
-                            "Type"
-                          )}
-                        </strong>
-
-                        <span data-effect-kind></span>
-                      </div>
-
-                      <div class="dda-effect-picker__fact">
-                        <strong>
-                          ${text(
-                            "Potência",
-                            "Potency"
-                          )}
-                        </strong>
-
-                        <span data-effect-potency></span>
-                      </div>
-
-                      <div class="dda-effect-picker__fact">
-                        <strong>
-                          ${text(
-                            "Duração",
-                            "Duration"
-                          )}
-                        </strong>
-
-                        <span data-effect-duration></span>
-                      </div>
-
-                      <div class="dda-effect-picker__fact">
-                        <strong>
-                          ${text(
-                            "Ataques",
-                            "Attacks"
-                          )}
-                        </strong>
-
-                        <span data-effect-count></span>
-                      </div>
-                    </div>
-
-                    <div class="dda-effect-picker__rules">
-                      <strong>
-                        ${text(
-                          "Regras do Efeito",
-                          "Effect rules"
-                        )}
-                      </strong>
-
-                      <p data-effect-description></p>
-                    </div>
-
-                    <label class="dda-effect-picker__attack">
-                      <span>
-                        ${text(
-                          "Aplicar este Efeito em",
-                          "Apply this Effect to"
-                        )}
-                      </span>
-
-                      <select name="choiceKey"></select>
-                    </label>
-
-                    <p class="dda-effect-picker__rank-note">
-                      ${text(
-                        `Esta escolha será registrada no Rank ${rankNumber}.`,
-                        `This choice will be recorded at Rank ${rankNumber}.`
-                      )}
-                    </p>
-                  </section>
+        
+                <div class="dda-effect-picker__rules">
+                  <strong>
+                    ${text(
+                      "Regras do Efeito",
+                      "Effect rules"
+                    )}
+                  </strong>
+        
+                  <p data-effect-description></p>
                 </div>
-              </form>
-            `,
-
-            buttons: {
-              confirm: {
-                icon:
-                  '<i class="fas fa-check"></i>',
-
-                label:
-                  text(
-                    "Confirmar",
-                    "Confirm"
-                  ),
-
-                callback: (
-                  html
-                ) => {
-                  finish(
-                    String(
-                      html
-                        .find(
-                          "[name='choiceKey']"
-                        )
-                        .val() ??
-                      ""
-                    )
-                  );
-                }
-              },
-
-              cancel: {
-                icon:
-                  '<i class="fas fa-times"></i>',
-
-                label:
-                  text(
-                    "Cancelar",
-                    "Cancel"
-                  ),
-
-                callback: () => {
-                  finish(null);
-                }
-              }
-            },
-
-            default:
-              "confirm",
-
-            render: (
-              html
-            ) => {
-              const search =
-                html.find(
-                  ".dda-effect-picker__search"
-                );
-
-              const cards =
-                html.find(
-                  "[data-effect-card]"
-                );
-
-              const attackSelect =
-                html.find(
-                  "[name='choiceKey']"
-                );
-
-              const selectGroup = (
-                tag
-              ) => {
-                const group =
-                  groupsByTag.get(tag);
-
-                if (!group) return;
-
-                selectedTag =
-                  tag;
-
-                cards.removeClass(
-                  "is-selected"
-                );
-
-                cards
-                  .filter(
-                    `[data-effect-card="${tag}"]`
-                  )
-                  .addClass(
-                    "is-selected"
-                  );
-
-                html
-                  .find(
-                    "[data-effect-title]"
-                  )
-                  .text(
-                    `[${tag.toUpperCase()}]`
-                  );
-
-                html
-                  .find(
-                    "[data-effect-kind]"
-                  )
-                  .text(
-                    typeLabels[
-                      group.type
-                    ] ??
-                    typeLabels.unique
-                  );
-
-                html
-                  .find(
-                    "[data-effect-potency]"
-                  )
-                  .text(
-                    group.potencyStat
-                      ? group.potencyStat
-                          .toUpperCase()
-                      : "—"
-                  );
-
-                html
-                  .find(
-                    "[data-effect-duration]"
-                  )
-                  .text(
-                    getDurationLabel(
-                      group.duration
-                    )
-                  );
-
-                html
-                  .find(
-                    "[data-effect-count]"
-                  )
-                  .text(
-                    group.options.length
-                  );
-
-                html
-                  .find(
-                    "[data-effect-description]"
-                  )
-                  .text(
-                    group.effect ||
-                    text(
-                      "Nenhuma descrição disponível.",
-                      "No description available."
-                    )
-                  );
-
-                attackSelect.empty();
-
-                for (
-                  const option of
-                  group.options
-                ) {
-                  const element =
-                    document.createElement(
-                      "option"
-                    );
-
-                  element.value =
-                    option.key;
-
-                  element.textContent =
-                    option.attackName ??
-                    option.label ??
-                    option.key;
-
-                  attackSelect.append(
-                    element
-                  );
-                }
-              };
-
-              const applyFilters =
-                () => {
-                  const query =
-                    normalizeWizardQualityIdentity(
-                      search.val()
-                    );
-
-                  let firstVisibleTag =
-                    "";
-
-                  let selectedIsVisible =
-                    false;
-
-                  cards.each(
-                    (
-                      _index,
-                      element
-                    ) => {
-                      const card =
-                        $(element);
-
-                      const tag =
-                        String(
-                          card.data(
-                            "effectCard"
-                          ) ??
-                          ""
-                        );
-
-                      const group =
-                        groupsByTag.get(
-                          tag
-                        );
-
-                      const matchesType =
-                        activeFilter ===
-                          "all" ||
-                        group?.type ===
-                          activeFilter;
-
-                      const haystack =
-                        normalizeWizardQualityIdentity(
-                          [
-                            tag,
-                            group?.effect ??
-                              "",
-                            typeLabels[
-                              group?.type
-                            ] ??
-                              ""
-                          ].join(" ")
-                        );
-
-                      const visible =
-                        matchesType &&
-                        (
-                          !query ||
-                          haystack.includes(
-                            query
-                          )
-                        );
-
-                      card.toggle(
-                        visible
-                      );
-
-                      if (
-                        visible &&
-                        !firstVisibleTag
-                      ) {
-                        firstVisibleTag =
-                          tag;
-                      }
-
-                      if (
-                        visible &&
-                        tag === selectedTag
-                      ) {
-                        selectedIsVisible =
-                          true;
-                      }
-                    }
-                  );
-
-                  html
-                    .find(
-                      ".dda-effect-picker__empty"
-                    )
-                    .toggle(
-                      !firstVisibleTag
-                    );
-
-                  if (
-                    !selectedIsVisible &&
-                    firstVisibleTag
-                  ) {
-                    selectGroup(
-                      firstVisibleTag
-                    );
-                  }
-                };
-
-              cards.on(
-                "click",
-                (event) => {
-                  event.preventDefault();
-
-                  selectGroup(
-                    String(
-                      event
-                        .currentTarget
-                        .dataset
-                        .effectCard ??
-                      ""
-                    )
-                  );
-                }
-              );
-
-              html
-                .find(
-                  "[data-effect-filter]"
-                )
-                .on(
-                  "click",
-                  (event) => {
-                    event.preventDefault();
-
-                    activeFilter =
-                      String(
-                        event
-                          .currentTarget
-                          .dataset
-                          .effectFilter ??
-                        "all"
-                      );
-
-                    html
-                      .find(
-                        "[data-effect-filter]"
-                      )
-                      .removeClass(
-                        "is-active"
-                      );
-
-                    $(
-                      event.currentTarget
-                    ).addClass(
-                      "is-active"
-                    );
-
-                    applyFilters();
-                  }
-                );
-
-              search.on(
-                "input",
-                applyFilters
-              );
-
-              selectGroup(
-                selectedTag
-              );
-            },
-
-            close: () => {
-              finish(null);
-            }
-          },
-
-          {
-            width:
-              780,
-
-            height:
-              "auto",
-
-            classes: [
-              "dda-effect-choice-dialog"
-            ]
+        
+                <label class="dda-effect-picker__attack">
+                  <span>
+                    ${text(
+                      "Aplicar este Efeito em",
+                      "Apply this Effect to"
+                    )}
+                  </span>
+        
+                  <select name="choiceKey"></select>
+                </label>
+        
+                <p class="dda-effect-picker__rank-note">
+                  ${text(
+                    `Esta escolha será registrada no Rank ${rankNumber}.`,
+                    `This choice will be recorded at Rank ${rankNumber}.`
+                  )}
+                </p>
+              </section>
+            </div>
+          </div>
+      `,
+      buttons: [
+        {
+          action: "confirm",
+          icon: "fa-solid fa-check",
+          label: text("Confirmar", "Confirm"),
+          default: true,
+          callback: (_event, button) => {
+            finish(String(button.form?.elements?.choiceKey?.value ?? ""));
           }
-        ).render(true);
-      }
-    );
+        },
+        {
+          action: "cancel",
+          icon: "fa-solid fa-xmark",
+          label: text("Cancelar", "Cancel"),
+          callback: () => finish(null)
+        }
+      ]
+    });
+
+    dialog.addEventListener("render", () => {
+      const html = $(dialog.element);
+      const search =
+        html.find(
+          ".dda-effect-picker__search"
+        );
+      
+      const cards =
+        html.find(
+          "[data-effect-card]"
+        );
+      
+      const attackSelect =
+        html.find(
+          "[name='choiceKey']"
+        );
+      
+      const selectGroup = (
+        tag
+      ) => {
+        const group =
+          groupsByTag.get(tag);
+      
+        if (!group) return;
+      
+        selectedTag =
+          tag;
+      
+        cards.removeClass(
+          "is-selected"
+        );
+      
+        cards
+          .filter(
+            `[data-effect-card="${tag}"]`
+          )
+          .addClass(
+            "is-selected"
+          );
+      
+        html
+          .find(
+            "[data-effect-title]"
+          )
+          .text(
+            `[${tag.toUpperCase()}]`
+          );
+      
+        html
+          .find(
+            "[data-effect-kind]"
+          )
+          .text(
+            typeLabels[
+              group.type
+            ] ??
+            typeLabels.unique
+          );
+      
+        html
+          .find(
+            "[data-effect-potency]"
+          )
+          .text(
+            group.potencyStat
+              ? group.potencyStat
+                  .toUpperCase()
+              : "—"
+          );
+      
+        html
+          .find(
+            "[data-effect-duration]"
+          )
+          .text(
+            getDurationLabel(
+              group.duration
+            )
+          );
+      
+        html
+          .find(
+            "[data-effect-count]"
+          )
+          .text(
+            group.options.length
+          );
+      
+        html
+          .find(
+            "[data-effect-description]"
+          )
+          .text(
+            group.effect ||
+            text(
+              "Nenhuma descrição disponível.",
+              "No description available."
+            )
+          );
+      
+        attackSelect.empty();
+      
+        for (
+          const option of
+          group.options
+        ) {
+          const element =
+            document.createElement(
+              "option"
+            );
+      
+          element.value =
+            option.key;
+      
+          element.textContent =
+            option.attackName ??
+            option.label ??
+            option.key;
+      
+          attackSelect.append(
+            element
+          );
+        }
+      };
+      
+      const applyFilters =
+        () => {
+          const query =
+            normalizeWizardQualityIdentity(
+              search.val()
+            );
+      
+          let firstVisibleTag =
+            "";
+      
+          let selectedIsVisible =
+            false;
+      
+          cards.each(
+            (
+              _index,
+              element
+            ) => {
+              const card =
+                $(element);
+      
+              const tag =
+                String(
+                  card.data(
+                    "effectCard"
+                  ) ??
+                  ""
+                );
+      
+              const group =
+                groupsByTag.get(
+                  tag
+                );
+      
+              const matchesType =
+                activeFilter ===
+                  "all" ||
+                group?.type ===
+                  activeFilter;
+      
+              const haystack =
+                normalizeWizardQualityIdentity(
+                  [
+                    tag,
+                    group?.effect ??
+                      "",
+                    typeLabels[
+                      group?.type
+                    ] ??
+                      ""
+                  ].join(" ")
+                );
+      
+              const visible =
+                matchesType &&
+                (
+                  !query ||
+                  haystack.includes(
+                    query
+                  )
+                );
+      
+              card.toggle(
+                visible
+              );
+      
+              if (
+                visible &&
+                !firstVisibleTag
+              ) {
+                firstVisibleTag =
+                  tag;
+              }
+      
+              if (
+                visible &&
+                tag === selectedTag
+              ) {
+                selectedIsVisible =
+                  true;
+              }
+            }
+          );
+      
+          html
+            .find(
+              ".dda-effect-picker__empty"
+            )
+            .toggle(
+              !firstVisibleTag
+            );
+      
+          if (
+            !selectedIsVisible &&
+            firstVisibleTag
+          ) {
+            selectGroup(
+              firstVisibleTag
+            );
+          }
+        };
+      
+      cards.on(
+        "click",
+        (event) => {
+          event.preventDefault();
+      
+          selectGroup(
+            String(
+              event
+                .currentTarget
+                .dataset
+                .effectCard ??
+              ""
+            )
+          );
+        }
+      );
+      
+      html
+        .find(
+          "[data-effect-filter]"
+        )
+        .on(
+          "click",
+          (event) => {
+            event.preventDefault();
+      
+            activeFilter =
+              String(
+                event
+                  .currentTarget
+                  .dataset
+                  .effectFilter ??
+                "all"
+              );
+      
+            html
+              .find(
+                "[data-effect-filter]"
+              )
+              .removeClass(
+                "is-active"
+              );
+      
+            $(
+              event.currentTarget
+            ).addClass(
+              "is-active"
+            );
+      
+            applyFilters();
+          }
+        );
+      
+      search.on(
+        "input",
+        applyFilters
+      );
+      
+      selectGroup(
+        selectedTag
+      );
+    }, { once: true });
+
+    dialog.addEventListener("close", () => finish(null), { once: true });
+    void dialog.render({ force: true });
+  });
 
   if (!selectedKey) {
     return null;
@@ -11170,117 +11406,50 @@ const availableOptions = isAttackChoice
         })
         .join("");
 
-    const selection =
-      await new Promise((resolve) => {
-        new Dialog({
-          title:
-            text(
-              `${quality.name} — Escolhas do Rank ${rankNumber}`,
-              `${quality.name} — Rank ${rankNumber} Choices`
-            ),
-
-          content: `
-            <form class="dda-quality-choice-form dda-naturewalk-choice-form">
-              <div class="form-group">
-                <label>
-                  ${game.i18n.localize(
-                    "DDA.Naturewalk.Element"
-                  )}
-                </label>
-
-                <select name="elementKey">
-                  ${elementOptionsHtml}
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label>
-                  ${game.i18n.localize(
-                    "DDA.Naturewalk.CoreStat"
-                  )}
-                </label>
-
-                <select name="mainStat">
-                  ${mainStatOptionsHtml}
-                </select>
-              </div>
-
-              <p class="notes">
-                ${game.i18n.format(
-                  "DDA.Naturewalk.ChoiceHint",
-                  {
-                    rank:
-                      rankNumber
-                  }
-                )}
-              </p>
-
-              <p class="notes">
-                ${game.i18n.localize(
-                  "DDA.Naturewalk.CoreStatHint"
-                )}
-              </p>
-            </form>
-          `,
-
-          buttons: {
-            confirm: {
-              label:
-                text(
-                  "Confirmar",
-                  "Confirm"
-                ),
-
-              callback: (html) => {
-                const root =
-                  html instanceof jQuery
-                    ? html[0]
-                    : html?.[0] ??
-                      html;
-
-                resolve({
-                  elementKey:
-                    String(
-                      root
-                        ?.querySelector(
-                          "[name='elementKey']"
-                        )
-                        ?.value ??
-                      ""
-                    ).trim(),
-
-                  mainStat:
-                    String(
-                      root
-                        ?.querySelector(
-                          "[name='mainStat']"
-                        )
-                        ?.value ??
-                      ""
-                    ).trim()
-                });
-              }
-            },
-
-            cancel: {
-              label:
-                text(
-                  "Cancelar",
-                  "Cancel"
-                ),
-
-              callback:
-                () => resolve(null)
-            }
-          },
-
-          close:
-            () => resolve(null),
-
-          default:
-            "confirm"
-        }).render(true);
-      });
+    const selection = await foundry.applications.api.DialogV2.wait({
+      classes: ["dda", "dda-quality-choice-dialog", "dda-naturewalk-choice-dialog"],
+      position: { width: 560, height: "auto" },
+      window: {
+        title: text(
+          `${quality.name} — Escolhas do Rank ${rankNumber}`,
+          `${quality.name} — Rank ${rankNumber} Choices`
+        )
+      },
+      modal: true,
+      content: `
+        <div class="dda-quality-choice-form dda-naturewalk-choice-form">
+          <div class="form-group">
+            <label>${game.i18n.localize("DDA.Naturewalk.Element")}</label>
+            <select name="elementKey">${elementOptionsHtml}</select>
+          </div>
+          <div class="form-group">
+            <label>${game.i18n.localize("DDA.Naturewalk.CoreStat")}</label>
+            <select name="mainStat">${mainStatOptionsHtml}</select>
+          </div>
+          <p class="notes">${game.i18n.format("DDA.Naturewalk.ChoiceHint", { rank: rankNumber })}</p>
+          <p class="notes">${game.i18n.localize("DDA.Naturewalk.CoreStatHint")}</p>
+        </div>
+      `,
+      buttons: [
+        {
+          action: "confirm",
+          label: text("Confirmar", "Confirm"),
+          icon: "fa-solid fa-check",
+          default: true,
+          callback: (_event, button) => ({
+            elementKey: String(button.form?.elements?.elementKey?.value ?? "").trim(),
+            mainStat: String(button.form?.elements?.mainStat?.value ?? "").trim()
+          })
+        },
+        {
+          action: "cancel",
+          label: text("Cancelar", "Cancel"),
+          icon: "fa-solid fa-xmark",
+          callback: () => null
+        }
+      ],
+      rejectClose: false
+    });
 
     if (
       !selection?.elementKey ||
@@ -11369,21 +11538,108 @@ const availableOptions = isAttackChoice
     );
   }
 
-const optionHtml = availableOptions
-  .map((option) => {
-    const key = this._escapeHtml(option.key);
-    const label = this._escapeHtml(option.label ?? option.key);
-const originalLabel =
-  !isAttackChoice &&
-  option.originalLabel
-    ? ` (${this._escapeHtml(
-        option.originalLabel
-      )})`
-    : "";
+const qualityIdentity = normalizeWizardQualityIdentity(
+  quality.id ?? quality.originalName ?? quality.name ?? ""
+);
+const isSystemBoost = ["impulsodesistema", "systemboost"].includes(qualityIdentity);
 
-    return `<option value="${key}">${label}${originalLabel}</option>`;
-  })
-  .join("");
+let selectedKey = null;
+
+if (isSystemBoost) {
+  const systemBoostOptionsHtml = availableOptions
+    .map((option, index) => {
+      const key = this._escapeHtml(String(option.key ?? ""));
+      const label = this._escapeHtml(String(option.label ?? option.key ?? ""));
+      const effect = this._escapeHtml(String(option.effect ?? ""));
+
+      return `
+        <label class="dda-system-boost-option">
+          <input type="radio" name="choiceKey" value="${key}" ${index === 0 ? "checked" : ""}>
+          <span class="dda-system-boost-option-copy">
+            <strong>${label}</strong>
+            ${effect ? `<small>${effect}</small>` : ""}
+          </span>
+          <i class="fa-solid fa-microchip" aria-hidden="true"></i>
+        </label>
+      `;
+    })
+    .join("");
+
+  selectedKey = await foundry.applications.api.DialogV2.wait({
+    classes: [
+      "dda",
+      "dda-quality-choice-dialog",
+      "dda-system-boost-choice-dialog"
+    ],
+    position: { width: 620, height: "auto" },
+    window: {
+      title: text(
+        `${quality.name} — Escolha do Rank ${rankNumber}`,
+        `${quality.name} — Rank ${rankNumber} Choice`
+      )
+    },
+    modal: true,
+    content: `
+      <div class="dda-quality-choice-form dda-system-boost-choice-form">
+        <header class="dda-system-boost-choice-hero">
+          <span class="dda-system-boost-choice-icon">
+            <i class="fa-solid fa-microchip" aria-hidden="true"></i>
+          </span>
+          <span>
+            <strong>${this._escapeHtml(String(quality.name ?? "System Boost"))}</strong>
+            <small>${text(
+              "Escolha uma Estatística Derivada para receber +1. Cada estatística só pode ser escolhida uma vez.",
+              "Choose one Derived Stat to receive +1. Each stat can only be chosen once."
+            )}</small>
+          </span>
+          <b>Rank ${rankNumber}</b>
+        </header>
+
+        <fieldset class="dda-system-boost-choice-grid">
+          <legend>${this._escapeHtml(String(choices.label ?? text("Estatística Derivada", "Derived Stat")))}</legend>
+          ${systemBoostOptionsHtml}
+        </fieldset>
+
+        <p class="notes">
+          ${text(
+            `A escolha será registrada no Rank ${rankNumber}. O limite de Ranks segue o Valor de Estágio (SV), até 4.`,
+            `This choice will be recorded at Rank ${rankNumber}. The Rank limit follows Stage Value (SV), up to 4.`
+          )}
+        </p>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: text("Confirmar", "Confirm"),
+        icon: "fa-solid fa-check",
+        default: true,
+        callback: (_event, button) => String(
+          button.form?.elements?.choiceKey?.value ?? ""
+        ) || null
+      },
+      {
+        action: "cancel",
+        label: text("Cancelar", "Cancel"),
+        icon: "fa-solid fa-xmark",
+        callback: () => null
+      }
+    ],
+    rejectClose: false
+  });
+} else {
+  const optionHtml = availableOptions
+    .map((option) => {
+      const key = this._escapeHtml(option.key);
+      const label = this._escapeHtml(option.label ?? option.key);
+      const originalLabel =
+        !isAttackChoice && option.originalLabel
+          ? ` (${this._escapeHtml(option.originalLabel)})`
+          : "";
+
+      return `<option value="${key}">${label}${originalLabel}</option>`;
+    })
+    .join("");
 
   const effectsHtml = availableOptions
     .map((option) => {
@@ -11402,53 +11658,53 @@ const originalLabel =
     .filter(Boolean)
     .join("");
 
-  const selectedKey = await new Promise((resolve) => {
-    new Dialog({
-      title: text(`${quality.name} — Escolha do Rank ${rankNumber}`, `${quality.name} — Rank ${rankNumber} Choice`),
-      content: `
-        <form class="dda-quality-choice-form">
-          <div class="form-group">
-            <label>${this._escapeHtml(choices.label ?? text("Escolha", "Choice"))}</label>
-
-            <select name="choiceKey">
-              ${optionHtml}
-            </select>
+  selectedKey = await foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-quality-choice-dialog"],
+    position: { width: 560, height: "auto" },
+    window: {
+      title: text(
+        `${quality.name} — Escolha do Rank ${rankNumber}`,
+        `${quality.name} — Rank ${rankNumber} Choice`
+      )
+    },
+    modal: true,
+    content: `
+      <div class="dda-quality-choice-form">
+        <div class="form-group">
+          <label>${this._escapeHtml(choices.label ?? text("Escolha", "Choice"))}</label>
+          <select name="choiceKey">${optionHtml}</select>
+        </div>
+        <p class="notes">
+          ${text(`Esta escolha será registrada no Rank ${rankNumber}.`, `This choice will be recorded at Rank ${rankNumber}.`)}
+        </p>
+        ${effectsHtml ? `
+          <div class="dda-quality-choice-effects">
+            <strong>${text("Opções disponíveis:", "Available options:")}</strong>
+            <ul>${effectsHtml}</ul>
           </div>
-
-          <p class="notes">
-            ${text(`Esta escolha será registrada no Rank ${rankNumber}.`, `This choice will be recorded at Rank ${rankNumber}.`)}
-          </p>
-
-          ${effectsHtml ? `
-            <div class="dda-quality-choice-effects">
-              <strong>${text("Opções disponíveis:", "Available options:")}</strong>
-              <ul>
-                ${effectsHtml}
-              </ul>
-            </div>
-          ` : ""}
-        </form>
-      `,
-      buttons: {
-        confirm: {
-          label: text("Confirmar", "Confirm"),
-          callback: (html) => {
-            const value = html.find
-              ? html.find("[name='choiceKey']").val()
-              : html[0]?.querySelector("[name='choiceKey']")?.value;
-
-            resolve(value);
-          }
-        },
-        cancel: {
-          label: text("Cancelar", "Cancel"),
-          callback: () => resolve(null)
-        }
+        ` : ""}
+      </div>
+    `,
+    buttons: [
+      {
+        action: "confirm",
+        label: text("Confirmar", "Confirm"),
+        icon: "fa-solid fa-check",
+        default: true,
+        callback: (_event, button) => String(
+          button.form?.elements?.choiceKey?.value ?? ""
+        ) || null
       },
-      close: () => resolve(null),
-      default: "confirm"
-    }).render(true);
+      {
+        action: "cancel",
+        label: text("Cancelar", "Cancel"),
+        icon: "fa-solid fa-xmark",
+        callback: () => null
+      }
+    ],
+    rejectClose: false
   });
+}
 
   if (!selectedKey) return null;
 
@@ -12476,13 +12732,12 @@ _qualityCostsPerRank(quality) {
 _calculateSelectedQualityCost(quality, rankValue = 1) {
   if (this._isFreeQuality(quality)) return 0;
   const baseCost = this._getQualityBaseDpCost(quality);
+  const rank = Math.max(1, Number(rankValue ?? quality?.rank?.value ?? 1));
+  const rawCost = this._qualityCostsPerRank(quality)
+    ? baseCost * rank
+    : baseCost;
 
-  if (this._qualityCostsPerRank(quality)) {
-    const rank = Math.max(1, Number(rankValue ?? quality?.rank?.value ?? 1));
-    return baseCost * rank;
-  }
-
-  return baseCost;
+  return applyIntrinsicQualityDiscount(rawCost, quality).payable;
 }
 async _onRemoveQuality(event) {
   event.preventDefault();
@@ -12511,7 +12766,7 @@ async _onRemoveQuality(event) {
       this._syncActiveFormBuildToGlobalState();
     }
 
-    this.render(false);
+    this._renderPreservingScroll();
   }
 }
 _getAvailableQualities() {
@@ -13088,6 +13343,15 @@ _getQualityCostLabel(quality, costInfo = null) {
   if (quality.isFree) return text("Grátis", "Free");
 
   const info = costInfo ?? this._getQualityPurchaseCostInfo(quality);
+  const intrinsicDiscount = getIntrinsicFirstPurchaseDiscount(quality);
+
+  if (intrinsicDiscount > 0 && quality.perRank) {
+    const baseCost = this._getQualityBaseDpCost(quality);
+    return text(
+      `${info.effectiveCost} PD no 1º Rank; +${baseCost} PD por Rank adicional`,
+      `${info.effectiveCost} DP for the 1st Rank; +${baseCost} DP per additional Rank`
+    );
+  }
 
   if (info.coreDiscountUsed > 0) {
     if (info.effectiveCost <= 0) {
@@ -13174,11 +13438,11 @@ _getGuideData() {
 const guides = {
   stats: {
         title: text("Wizardmon ajusta a forma atual:", "Wizardmon adjusts the current form:"),
-        text: text(`Você está editando a build de ${formName}. O PD total desta forma usa o PD base do estágio somado ao Bonus DP persistente do parceiro. Restante: ${dp.remaining ?? 0}/${dp.totalAvailable ?? 0}.`, `You are editing ${formName}'s build. This form's total DP uses the stage base DP plus the partner's persistent Bonus DP. Remaining: ${dp.remaining ?? 0}/${dp.totalAvailable ?? 0}.`)
+        text: text(`Você está editando a build de ${formName}. Bonus DP de Stats (${dp.sharedStatTotal ?? 0}) já está aplicado e não pode ser removido nesta forma. Apenas o Bonus DP alocado a Qualidades (${dp.sharedQualityAllocated ?? 0}) entra como orçamento adicional local. Restante utilizável: ${dp.remaining ?? 0}.`, `You are editing ${formName}'s build. Shared Stat Bonus DP (${dp.sharedStatTotal ?? 0}) is already applied and cannot be removed from this form. Only Bonus DP allocated to Qualities (${dp.sharedQualityAllocated ?? 0}) enters the local spendable budget. Spendable remaining: ${dp.remaining ?? 0}.`)
       },
       qualities: {
         title: text("Wizardmon abre as Qualidades desta forma:", "Wizardmon opens this form's Qualities:"),
-        text: text(`Escolha as Qualidades específicas desta forma. Elas serão salvas no snapshot da forma atual, não no ator modelo. Desconto Core: ${dp.coreDiscountRemaining ?? 0}/${dp.coreDiscountBase ?? 0}.`, `Choose this form's specific Qualities. They will be saved into the current form snapshot, not the template actor. Core Discount: ${dp.coreDiscountRemaining ?? 0}/${dp.coreDiscountBase ?? 0}.`)
+        text: text(`Escolha as Qualidades específicas desta forma. Esta build precisa comprometer ${dp.sharedQualityAllocated ?? 0} Bonus DP em Qualidades; as Qualidades podem ser diferentes das outras formas. Desconto Core: ${dp.coreDiscountRemaining ?? 0}/${dp.coreDiscountBase ?? 0}.`, `Choose this form's specific Qualities. This build must commit ${dp.sharedQualityAllocated ?? 0} Bonus DP to Qualities; the specific Qualities may differ from other forms. Core Discount: ${dp.coreDiscountRemaining ?? 0}/${dp.coreDiscountBase ?? 0}.`)
       },
       partnerQuestions: {
         title: text("Wizardmon fecha o grimório e observa o parceiro:", "Wizardmon closes the grimoire and watches the partner:"),
@@ -13317,12 +13581,11 @@ _isCoreDiscountEligible(quality) {
 _getQualityFullCost(quality, rankValue = null) {
   const baseCost = this._getQualityBaseDpCost(quality);
   const rank = Math.max(1, Number(rankValue ?? quality?.rank?.value ?? 1));
+  const rawCost = this._qualityCostsPerRank(quality)
+    ? baseCost * rank
+    : baseCost;
 
-  if (this._qualityCostsPerRank(quality)) {
-    return baseCost * rank;
-  }
-
-  return baseCost;
+  return applyIntrinsicQualityDiscount(rawCost, quality).payable;
 }
 
 _recalculateQualityCosts(coreDiscountBase = this._getCoreDiscountBase()) {

@@ -1,5 +1,6 @@
 import {
   areActorsAllies,
+  areActorsAlliesForQualities,
   findQuality,
   getActorDerivedStat,
   getActorSv,
@@ -9,6 +10,12 @@ import {
   hasQuality,
   normalizeKey
 } from "../rules/quality-automation.js";
+
+import {
+  getDDAMovementContext,
+  getDDAMovementTrace,
+  pathCrossesPredicate
+} from "../canvas/movement-context.js";
 
 import { spendActorActions } from "./action-economy.js";
 import { getTokenDistanceSpaces } from "./offensive-qualities.js";
@@ -50,9 +57,12 @@ function isPrimaryActiveGM() {
 
 function responsibleUser(actor) {
   const active = (game?.users?.contents ?? []).filter((user) => user.active);
-  const owners = active
-    .filter((user) => !user.isGM)
-    .filter((user) => actor?.testUserPermission?.(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER))
+  const charmIds = game?.dda?.bossQualities?.getCharmAuthorizedUserIds?.(actor, { includeGMs: false });
+  const owners = (Array.isArray(charmIds)
+    ? active.filter((user) => !user.isGM && charmIds.includes(String(user.id)))
+    : active
+      .filter((user) => !user.isGM)
+      .filter((user) => actor?.testUserPermission?.(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER)))
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
   return owners[0] ?? primaryActiveGM();
 }
@@ -135,7 +145,7 @@ export function getStanceAttackModifier(attacker, attackItem, { defender = null,
   if (stance === "sentry" && hasStanceQuality(attacker, "sentry") && ["range", "ranged"].includes(rangeType)) {
     modifier.ignoreNegativeAccuracyModifiers = true;
     const attackerToken = tokenForActor(attacker);
-    if (defender && targetToken && attackerToken && !areActorsAllies(attacker, defender)) {
+    if (defender && targetToken && attackerToken && !areActorsAlliesForQualities(attacker, defender)) {
       const distance = getTokenDistanceSpaces(attackerToken, targetToken);
       if (distance <= 2) {
         modifier.blocked = true;
@@ -179,7 +189,7 @@ function alliesWithin(actor, distance) {
   if (!sourceToken) return [];
   return (canvas?.tokens?.placeables ?? [])
     .filter((token) => token.actor && token.actor.uuid !== actor.uuid)
-    .filter((token) => areActorsAllies(actor, token.actor))
+    .filter((token) => areActorsAlliesForQualities(actor, token.actor))
     .filter((token) => getTokenDistanceSpaces(sourceToken, token) <= distance)
     .map((token) => token.actor);
 }
@@ -442,17 +452,27 @@ async function requestSentryReaction(sentry, moverToken) {
   });
 }
 
-async function handleSentryCrossing(tokenDocument, before, after) {
+async function handleSentryCrossing(tokenDocument, before, after, operation = {}) {
   if (!isPrimaryActiveGM() || !game?.combat?.started || !tokenDocument?.actor) return;
   const moverToken = tokenDocument.object ?? canvas?.tokens?.get(tokenDocument.id);
   if (!moverToken) return;
+  const session = tokenDocument.getFlag?.(SYSTEM_ID, "movementTracker") ?? null;
+  const movementContext = getDDAMovementContext(operation, { session });
+  if (!movementContext.reactions) return;
+  const trace = getDDAMovementTrace(operation);
+  const movementPoints = trace?.points?.length >= 2
+    ? trace.points
+    : [before, after];
   for (const template of sentryTemplates()) {
     const flag = getTemplateFlag(template);
     const sentry = await actorFromUuid(flag.actorUuid);
     if (!sentry || getCurrentStance(sentry) !== "sentry") continue;
-    const wasInside = pointInsideSentryTemplate(before, template);
-    const isInside = pointInsideSentryTemplate(after, template);
-    if (wasInside === isInside) continue;
+    const crossed = pathCrossesPredicate(
+      movementPoints,
+      (current) => pointInsideSentryTemplate(current, template),
+      { traversal: movementContext.traversal !== false }
+    );
+    if (!crossed) continue;
     const targetState = getState(tokenDocument.actor);
     const roundKey = `${getCombatId()}:${getCombatRound()}`;
     if (targetState.sentryZone?.hitRoundKey === roundKey) continue;
@@ -528,12 +548,12 @@ export function registerStanceQualities() {
     if (changed.x === undefined && changed.y === undefined) return;
     pendingTokenPositions.set(tokenDocument.uuid, tokenCenter(tokenDocument));
   });
-  Hooks.on("updateToken", (tokenDocument, changed) => {
+  Hooks.on("updateToken", (tokenDocument, changed, operation = {}) => {
     if (changed.x === undefined && changed.y === undefined) return;
     const before = pendingTokenPositions.get(tokenDocument.uuid) ?? tokenCenter(tokenDocument);
     pendingTokenPositions.delete(tokenDocument.uuid);
     const after = tokenCenter(tokenDocument);
-    void handleSentryCrossing(tokenDocument, before, after);
+    void handleSentryCrossing(tokenDocument, before, after, operation);
   });
   Hooks.on("combatEnd", () => {
     if (!isPrimaryActiveGM()) return;

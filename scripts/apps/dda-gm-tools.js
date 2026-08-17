@@ -10,6 +10,7 @@ const GM_TOOLS_TEMPLATE = `systems/${SYSTEM_ID}/templates/apps/dda-gm-tools.hbs`
 
 const {
   ApplicationV2,
+  DialogV2,
   HandlebarsApplicationMixin
 } = foundry.applications.api;
 
@@ -43,7 +44,7 @@ export function registerDdaGmToolsControls() {
     const tool = {
       name: "dda-gm-tools",
       title: "DDA.GmTools.Title",
-      icon: "dda-gm-tools-control-icon",
+      icon: "fa-solid fa-toolbox",
       order: 999,
       button: true,
       visible: game.user.isGM,
@@ -71,6 +72,7 @@ export function registerDdaGmToolsControls() {
     tokenControls.tools["dda-gm-tools"] = tool;
   });
 }
+
 
 export class DDAGmTools extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
@@ -191,12 +193,15 @@ export class DDAGmTools extends HandlebarsApplicationMixin(ApplicationV2) {
     const currentSession = getDdaSessionState();
 
     if (currentSession.active) {
-      const confirmed = await Dialog.confirm({
-        title: game.i18n.localize("DDA.GmTools.Session.RestartTitle"),
+      const confirmed = await DialogV2.confirm({
+        window: {
+          title: game.i18n.localize("DDA.GmTools.Session.RestartTitle")
+        },
         content: `<p>${game.i18n.localize("DDA.GmTools.Session.RestartContent")}</p>`,
-        yes: () => true,
-        no: () => false,
-        defaultYes: false
+        yes: { default: false },
+        no: { default: true },
+        rejectClose: false,
+        modal: true
       });
 
       if (!confirmed) return;
@@ -225,12 +230,15 @@ export class DDAGmTools extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
 
-    const confirmed = await Dialog.confirm({
-      title: game.i18n.localize("DDA.GmTools.Session.EndTitle"),
+    const confirmed = await DialogV2.confirm({
+      window: {
+        title: game.i18n.localize("DDA.GmTools.Session.EndTitle")
+      },
       content: `<p>${game.i18n.localize("DDA.GmTools.Session.EndContent")}</p>`,
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
+      yes: { default: false },
+      no: { default: true },
+      rejectClose: false,
+      modal: true
     });
 
     if (!confirmed) return;

@@ -1,4 +1,5 @@
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+import { getDdaBossQualities } from "../data/boss-qualities.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const DDAEnemyQualityBrowserBase = HandlebarsApplicationMixin(ApplicationV2);
@@ -10,7 +11,8 @@ const TIER_ORDER = [
   "perfect",
   "mega",
   "free",
-  "negative"
+  "negative",
+  "boss"
 ];
 
 const TIER_LABELS = {
@@ -20,7 +22,8 @@ const TIER_LABELS = {
   perfect: { pt: "Perfeitas", en: "Perfect" },
   mega: { pt: "Ultimates", en: "Ultimate" },
   free: { pt: "Gratuitas", en: "Free" },
-  negative: { pt: "Negativas", en: "Negative" }
+  negative: { pt: "Negativas", en: "Negative" },
+  boss: { pt: "Chefe", en: "Boss" }
 };
 
 const ENEMY_NATUREWALK_MAIN_STATS = [
@@ -49,6 +52,7 @@ const ENEMY_NATUREWALK_MAIN_STATS = [
 
 const ENEMY_QUALITY_CATEGORY_FILTERS = [
   { key: "all", pt: "Todas as categorias", en: "All categories" },
+  { key: "boss", pt: "Qualidades de Chefe", en: "Boss Qualities" },
   { key: "core", pt: "Centrais", en: "Core" },
   { key: "attack", pt: "Ataque", en: "Attack / Offensive" },
   { key: "defense", pt: "Defesa", en: "Defense" },
@@ -358,6 +362,10 @@ function matchesEnemyQualityCategory(
   const category = quality.category ?? {};
   const section = String(quality.section ?? "");
 
+  if (categoryKey === "boss") {
+    return Boolean(quality.bossQuality || category.boss);
+  }
+
   if (categoryKey === "core") {
     return Boolean(category.core);
   }
@@ -471,15 +479,24 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
       }
   };
   get title() {
-    return this.selectionMode === "superiorMode"
-      ? text(
-          "Qualidades do Modo",
-          "Mode Qualities"
-        )
-      : text(
-          "Qualidades do Inimigo",
-          "Enemy Qualities"
-        );
+    if (this.selectionMode === "superiorMode") {
+      return text(
+        "Qualidades do Modo",
+        "Mode Qualities"
+      );
+    }
+
+    if (String(this.wizard?.enemyBuild?.role ?? "") === "boss") {
+      return text(
+        "Qualidades do Boss",
+        "Boss Qualities"
+      );
+    }
+
+    return text(
+      "Qualidades do Inimigo",
+      "Enemy Qualities"
+    );
   }
   static PARTS = {
     main: {
@@ -508,8 +525,12 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
         ? "superiorMode"
         : "build";
 
+    const isBossBuild =
+      this.selectionMode === "build" &&
+      String(this.wizard?.enemyBuild?.role ?? "") === "boss";
+
     this.activeTier = "all";
-    this.activeCategory = "all";
+    this.activeCategory = isBossBuild ? "boss" : "all";
     this.searchTerm = "";
   }
 
@@ -520,7 +541,15 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
     const isSuperiorMode =
       this.selectionMode === "superiorMode";
 
-    const qualities = DDA_DIGIMON_QUALITIES
+    const isBossBuild =
+      !isSuperiorMode &&
+      String(this.wizard?.enemyBuild?.role ?? "") === "boss";
+
+    const qualityDefinitions = isBossBuild
+      ? [...getDdaBossQualities(), ...DDA_DIGIMON_QUALITIES]
+      : DDA_DIGIMON_QUALITIES;
+
+    const qualities = qualityDefinitions
       .filter((quality) => {
         if (this.activeTier !== "all" && quality.tier !== this.activeTier) {
           return false;
@@ -706,20 +735,24 @@ export class DDAEnemyQualityBrowser extends DDAEnemyQualityBrowserBase {
       searchTerm: this.searchTerm,
       qualities,
 
-      tiers: TIER_ORDER.map((key) => ({
-            key,
-            label: text(
-                TIER_LABELS[key]?.pt ?? key,
-                TIER_LABELS[key]?.en ?? key
-            ),
-            active: key === this.activeTier
-            })),
+      tiers: TIER_ORDER
+        .filter((key) => key !== "boss" || isBossBuild)
+        .map((key) => ({
+          key,
+          label: text(
+            TIER_LABELS[key]?.pt ?? key,
+            TIER_LABELS[key]?.en ?? key
+          ),
+          active: key === this.activeTier
+        })),
 
-            categories: ENEMY_QUALITY_CATEGORY_FILTERS.map((category) => ({
-            key: category.key,
-            label: text(category.pt, category.en),
-            active: category.key === this.activeCategory
-            })),
+      categories: ENEMY_QUALITY_CATEGORY_FILTERS
+        .filter((category) => category.key !== "boss" || isBossBuild)
+        .map((category) => ({
+          key: category.key,
+          label: text(category.pt, category.en),
+          active: category.key === this.activeCategory
+        })),
 
             labels: {
         search: text("Buscar Qualidade", "Search Quality"),
@@ -1002,470 +1035,341 @@ async _promptEnemyEffectAttackChoice(
     })
     .join("");
 
-  return new Promise((resolve) => {
-    let settled = false;
+  let selectedTag = effectGroups[0].tag;
+  let activeFilter = "all";
 
-    let selectedTag =
-      effectGroups[0].tag;
-
-    let activeFilter = "all";
-
-    const finish = (value) => {
-      if (settled) return;
-
-      settled = true;
-      resolve(value);
-    };
-
-    new Dialog({
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: {
       title: text(
         `${quality.name} — Escolher Efeito e Ataque`,
         `${quality.name} — Choose Effect and Attack`
-      ),
+      )
+    },
 
-      content: `
-        <form class="dda-effect-picker">
-          <header class="dda-effect-picker__header">
-            <span class="dda-effect-picker__eyebrow">
-              Enemy Builder
-            </span>
+    classes: [
+      "dda-effect-choice-dialog"
+    ],
 
-            <h2>
-              ${text(
-                "Escolha um Efeito",
-                "Choose an Effect"
-              )}
-            </h2>
+    position: {
+      width: 780,
+      height: "auto"
+    },
 
-            <p>
-              ${text(
-                "Escolha o Efeito e depois o Ataque que receberá essa Tag.",
-                "Choose the Effect and then the Attack that will receive its Tag."
-              )}
-            </p>
-          </header>
+    content: `
+      <div class="dda-effect-picker">
+        <header class="dda-effect-picker__header">
+          <span class="dda-effect-picker__eyebrow">
+            Enemy Builder
+          </span>
 
-          <div class="dda-effect-picker__toolbar">
-            <label class="dda-effect-picker__search-wrapper">
-              <i class="fas fa-search"></i>
+          <h2>
+            ${text(
+              "Escolha um Efeito",
+              "Choose an Effect"
+            )}
+          </h2>
 
-              <input
-                type="search"
-                class="dda-effect-picker__search"
-                autocomplete="off"
-                placeholder="${text(
-                  "Buscar efeito...",
-                  "Search effect..."
-                )}"
-              >
-            </label>
+          <p>
+            ${text(
+              "Escolha o Efeito e depois o Ataque que receberá essa Tag.",
+              "Choose the Effect and then the Attack that will receive its Tag."
+            )}
+          </p>
+        </header>
 
-            <div class="dda-effect-picker__filters">
-              ${filterHtml}
-            </div>
+        <div class="dda-effect-picker__toolbar">
+          <label class="dda-effect-picker__search-wrapper">
+            <i class="fas fa-search"></i>
+
+            <input
+              type="search"
+              class="dda-effect-picker__search"
+              autocomplete="off"
+              placeholder="${text(
+                "Buscar efeito...",
+                "Search effect..."
+              )}"
+            >
+          </label>
+
+          <div class="dda-effect-picker__filters">
+            ${filterHtml}
           </div>
+        </div>
 
-          <div class="dda-effect-picker__layout">
-            <section class="dda-effect-picker__catalog">
-              <div class="dda-effect-picker__cards">
-                ${cardsHtml}
-              </div>
+        <div class="dda-effect-picker__layout">
+          <section class="dda-effect-picker__catalog">
+            <div class="dda-effect-picker__cards">
+              ${cardsHtml}
+            </div>
 
-              <div class="dda-effect-picker__empty">
-                <i class="fas fa-filter-circle-xmark"></i>
+            <div class="dda-effect-picker__empty">
+              <i class="fas fa-filter-circle-xmark"></i>
 
-                <span>
-                  ${text(
-                    "Nenhum Efeito corresponde à busca.",
-                    "No Effect matches the search."
-                  )}
-                </span>
-              </div>
-            </section>
+              <span>
+                ${text(
+                  "Nenhum Efeito corresponde à busca.",
+                  "No Effect matches the search."
+                )}
+              </span>
+            </div>
+          </section>
 
-            <section class="dda-effect-picker__detail">
-              <div class="dda-effect-picker__detail-heading">
-                <span class="dda-effect-picker__selected-label">
-                  ${text(
-                    "Efeito selecionado",
-                    "Selected effect"
-                  )}
-                </span>
+          <section class="dda-effect-picker__detail">
+            <div class="dda-effect-picker__detail-heading">
+              <span class="dda-effect-picker__selected-label">
+                ${text(
+                  "Efeito selecionado",
+                  "Selected effect"
+                )}
+              </span>
 
-                <h3 data-effect-title></h3>
-              </div>
+              <h3 data-effect-title></h3>
+            </div>
 
-              <div class="dda-effect-picker__facts">
-                <div class="dda-effect-picker__fact">
-                  <strong>
-                    ${text("Tipo", "Type")}
-                  </strong>
-
-                  <span data-effect-kind></span>
-                </div>
-
-                <div class="dda-effect-picker__fact">
-                  <strong>
-                    ${text("Potência", "Potency")}
-                  </strong>
-
-                  <span data-effect-potency></span>
-                </div>
-
-                <div class="dda-effect-picker__fact">
-                  <strong>
-                    ${text("Duração", "Duration")}
-                  </strong>
-
-                  <span data-effect-duration></span>
-                </div>
-
-                <div class="dda-effect-picker__fact">
-                  <strong>
-                    ${text("Ataques", "Attacks")}
-                  </strong>
-
-                  <span data-effect-count></span>
-                </div>
-              </div>
-
-              <div class="dda-effect-picker__rules">
+            <div class="dda-effect-picker__facts">
+              <div class="dda-effect-picker__fact">
                 <strong>
-                  ${text(
-                    "Regras do Efeito",
-                    "Effect rules"
-                  )}
+                  ${text("Tipo", "Type")}
                 </strong>
 
-                <p data-effect-description></p>
+                <span data-effect-kind></span>
               </div>
 
-              <label class="dda-effect-picker__attack">
-                <span>
-                  ${text(
-                    "Aplicar este Efeito em",
-                    "Apply this Effect to"
-                  )}
-                </span>
+              <div class="dda-effect-picker__fact">
+                <strong>
+                  ${text("Potência", "Potency")}
+                </strong>
 
-                <select name="choiceKey"></select>
-              </label>
-            </section>
-          </div>
-        </form>
-      `,
+                <span data-effect-potency></span>
+              </div>
 
-      buttons: {
-        confirm: {
-          icon:
-            '<i class="fas fa-check"></i>',
+              <div class="dda-effect-picker__fact">
+                <strong>
+                  ${text("Duração", "Duration")}
+                </strong>
 
-          label:
-            text(
-              "Confirmar",
-              "Confirm"
-            ),
+                <span data-effect-duration></span>
+              </div>
 
-          callback: (html) => {
-            const selectedValue =
-              html
-                .find(
-                  "[name='choiceKey']"
-                )
-                .val();
+              <div class="dda-effect-picker__fact">
+                <strong>
+                  ${text("Ataques", "Attacks")}
+                </strong>
 
-            finish(String(
-              selectedValue ?? ""
-            ));
-          }
-        },
+                <span data-effect-count></span>
+              </div>
+            </div>
 
-        cancel: {
-          icon:
-            '<i class="fas fa-times"></i>',
+            <div class="dda-effect-picker__rules">
+              <strong>
+                ${text(
+                  "Regras do Efeito",
+                  "Effect rules"
+                )}
+              </strong>
 
-          label:
-            text(
-              "Cancelar",
-              "Cancel"
-            ),
+              <p data-effect-description></p>
+            </div>
 
-          callback: () => {
-            finish(null);
-          }
-        }
+            <label class="dda-effect-picker__attack">
+              <span>
+                ${text(
+                  "Aplicar este Efeito em",
+                  "Apply this Effect to"
+                )}
+              </span>
+
+              <select name="choiceKey"></select>
+            </label>
+          </section>
+        </div>
+      </div>
+    `,
+
+    buttons: [
+      {
+        action: "confirm",
+        icon: "fas fa-check",
+        label: text("Confirmar", "Confirm"),
+        default: true,
+        callback: (_event, button) => String(
+          button.form?.elements?.choiceKey?.value ?? ""
+        )
       },
+      {
+        action: "cancel",
+        icon: "fas fa-times",
+        label: text("Cancelar", "Cancel"),
+        callback: () => null
+      }
+    ],
 
-      default: "confirm",
+    rejectClose: false,
 
-      render: (html) => {
-        const search =
-          html.find(
-            ".dda-effect-picker__search"
-          );
+    render: (_event, dialog) => {
+      const html = $(dialog.element);
 
-        const cards =
-          html.find(
-            "[data-effect-card]"
-          );
+      const search = html.find(
+        ".dda-effect-picker__search"
+      );
 
-        const attackSelect =
-          html.find(
-            "[name='choiceKey']"
-          );
+      const cards = html.find(
+        "[data-effect-card]"
+      );
 
-        const selectGroup = (tag) => {
-          const group =
-            groupsByTag.get(tag);
+      const attackSelect = html.find(
+        "[name='choiceKey']"
+      );
 
-          if (!group) return;
+      const selectGroup = (tag) => {
+        const group = groupsByTag.get(tag);
+        if (!group) return;
 
-          selectedTag = tag;
+        selectedTag = tag;
 
-          cards.removeClass(
-            "is-selected"
-          );
+        cards.removeClass("is-selected");
 
-          cards
-            .filter(
-              `[data-effect-card="${tag}"]`
-            )
-            .addClass(
-              "is-selected"
-            );
-
-          html
-            .find(
-              "[data-effect-title]"
-            )
-            .text(
-              `[${tag.toUpperCase()}]`
-            );
-
-          html
-            .find(
-              "[data-effect-kind]"
-            )
-            .text(
-              typeLabels[group.type] ??
-              typeLabels.unique
-            );
-
-          html
-            .find(
-              "[data-effect-potency]"
-            )
-            .text(
-              group.potencyStat
-                ? group.potencyStat
-                    .toUpperCase()
-                : "—"
-            );
-
-          html
-            .find(
-              "[data-effect-duration]"
-            )
-            .text(
-              getDurationLabel(
-                group.duration
-              )
-            );
-
-          html
-            .find(
-              "[data-effect-count]"
-            )
-            .text(
-              group.options.length
-            );
-
-          html
-            .find(
-              "[data-effect-description]"
-            )
-            .text(
-              group.effect ||
-              text(
-                "Nenhuma descrição disponível.",
-                "No description available."
-              )
-            );
-
-          attackSelect.empty();
-
-          for (
-            const option of
-            group.options
-          ) {
-            const element =
-              document.createElement(
-                "option"
-              );
-
-            element.value =
-              option.key;
-
-            element.textContent =
-              option.attackName ??
-              option.label ??
-              option.key;
-
-            attackSelect.append(
-              element
-            );
-          }
-        };
-
-        const applyFilters = () => {
-          const query =
-            normalizeSearchText(
-              search.val()
-            );
-
-          let firstVisibleTag = "";
-          let selectedIsVisible = false;
-
-          cards.each(
-            (_index, element) => {
-              const card = $(element);
-
-              const tag = String(
-                card.data(
-                  "effectCard"
-                ) ??
-                ""
-              );
-
-              const group =
-                groupsByTag.get(tag);
-
-              const matchesType =
-                activeFilter === "all" ||
-                group?.type ===
-                  activeFilter;
-
-              const haystack =
-                normalizeSearchText(
-                  `${tag} ` +
-                  `${group?.effect ?? ""} ` +
-                  `${
-                    typeLabels[
-                      group?.type
-                    ] ?? ""
-                  }`
-                );
-
-              const visible =
-                matchesType &&
-                (
-                  !query ||
-                  haystack.includes(query)
-                );
-
-              card.toggle(visible);
-
-              if (
-                visible &&
-                !firstVisibleTag
-              ) {
-                firstVisibleTag = tag;
-              }
-
-              if (
-                visible &&
-                tag === selectedTag
-              ) {
-                selectedIsVisible = true;
-              }
-            }
-          );
-
-          html
-            .find(
-              ".dda-effect-picker__empty"
-            )
-            .toggle(
-              !firstVisibleTag
-            );
-
-          if (
-            !selectedIsVisible &&
-            firstVisibleTag
-          ) {
-            selectGroup(
-              firstVisibleTag
-            );
-          }
-        };
-
-        cards.on(
-          "click",
-          (event) => {
-            event.preventDefault();
-
-            selectGroup(String(
-              event.currentTarget
-                .dataset
-                .effectCard ??
-              ""
-            ));
-          }
-        );
+        cards
+          .filter(`[data-effect-card="${tag}"]`)
+          .addClass("is-selected");
 
         html
-          .find(
-            "[data-effect-filter]"
-          )
-          .on(
-            "click",
-            (event) => {
-              event.preventDefault();
+          .find("[data-effect-title]")
+          .text(`[${tag.toUpperCase()}]`);
 
-              activeFilter = String(
-                event.currentTarget
-                  .dataset
-                  .effectFilter ??
-                "all"
-              );
-
-              html
-                .find(
-                  "[data-effect-filter]"
-                )
-                .removeClass(
-                  "is-active"
-                );
-
-              $(event.currentTarget)
-                .addClass(
-                  "is-active"
-                );
-
-              applyFilters();
-            }
+        html
+          .find("[data-effect-kind]")
+          .text(
+            typeLabels[group.type] ??
+            typeLabels.unique
           );
 
-        search.on(
-          "input",
-          applyFilters
+        html
+          .find("[data-effect-potency]")
+          .text(
+            group.potencyStat
+              ? group.potencyStat.toUpperCase()
+              : "—"
+          );
+
+        html
+          .find("[data-effect-duration]")
+          .text(getDurationLabel(group.duration));
+
+        html
+          .find("[data-effect-count]")
+          .text(group.options.length);
+
+        html
+          .find("[data-effect-description]")
+          .text(
+            group.effect ||
+            text(
+              "Nenhuma descrição disponível.",
+              "No description available."
+            )
+          );
+
+        attackSelect.empty();
+
+        for (const option of group.options) {
+          const element = document.createElement("option");
+
+          element.value = option.key;
+          element.textContent =
+            option.attackName ??
+            option.label ??
+            option.key;
+
+          attackSelect.append(element);
+        }
+      };
+
+      const applyFilters = () => {
+        const query = normalizeSearchText(
+          search.val()
         );
 
-        selectGroup(selectedTag);
-      },
+        let firstVisibleTag = "";
+        let selectedIsVisible = false;
 
-      close: () => {
-        finish(null);
-      }
-    }, {
-      width: 780,
-      height: "auto",
+        cards.each((_index, element) => {
+          const card = $(element);
 
-      classes: [
-        "dda-effect-choice-dialog"
-      ]
-    }).render(true);
+          const tag = String(
+            card.data("effectCard") ?? ""
+          );
+
+          const group = groupsByTag.get(tag);
+
+          const matchesType =
+            activeFilter === "all" ||
+            group?.type === activeFilter;
+
+          const haystack = normalizeSearchText(
+            `${tag} ` +
+            `${group?.effect ?? ""} ` +
+            `${typeLabels[group?.type] ?? ""}`
+          );
+
+          const visible =
+            matchesType &&
+            (!query || haystack.includes(query));
+
+          card.toggle(visible);
+
+          if (visible && !firstVisibleTag) {
+            firstVisibleTag = tag;
+          }
+
+          if (visible && tag === selectedTag) {
+            selectedIsVisible = true;
+          }
+        });
+
+        html
+          .find(".dda-effect-picker__empty")
+          .toggle(!firstVisibleTag);
+
+        if (!selectedIsVisible && firstVisibleTag) {
+          selectGroup(firstVisibleTag);
+        }
+      };
+
+      cards.on("click", (event) => {
+        event.preventDefault();
+
+        selectGroup(String(
+          event.currentTarget.dataset.effectCard ?? ""
+        ));
+      });
+
+      html
+        .find("[data-effect-filter]")
+        .on("click", (event) => {
+          event.preventDefault();
+
+          activeFilter = String(
+            event.currentTarget.dataset.effectFilter ?? "all"
+          );
+
+          html
+            .find("[data-effect-filter]")
+            .removeClass("is-active");
+
+          $(event.currentTarget).addClass("is-active");
+
+          applyFilters();
+        });
+
+      search.on("input", applyFilters);
+
+      selectGroup(selectedTag);
+    }
   });
+
+  return result ?? null;
 }
 
 static async _onAddEnemyQuality(event, target) {
@@ -1492,6 +1396,7 @@ static async _onAddEnemyQuality(event, target) {
   );
 
   const quality =
+    this.wizard?.getEnemyQualityDefinitionById?.(qualityId) ??
     DDA_DIGIMON_QUALITIES.find(
       (entry) => {
         return String(

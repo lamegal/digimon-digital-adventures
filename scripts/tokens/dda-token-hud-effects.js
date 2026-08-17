@@ -326,7 +326,7 @@ async function applySpecialConsequences(actor, effect) {
     effect.actionRemoved = removed;
     effect.activatesAtEndOfNextTurn = removed === 0;
     if (typeof game?.dda?.actions?.endDigimonClash === "function") {
-      await game.dda.actions.endDigimonClash(actor, { reason: "stun" });
+      await game.dda.actions.endDigimonClash(actor, { reason: "stun", all: true });
     }
   }
   if (tag === "dot") {
@@ -421,6 +421,25 @@ async function configureEffect(actor, tag, existing = null) {
     rejectClose: false,
     modal: true
   });
+}
+
+export function getDdaTokenEffectTooltip(actor, tagValue) {
+  const tag = normalizeTag(tagValue);
+  return getEffectTooltip(actor, tag);
+}
+
+export async function configureAndApplyDdaTokenEffect(actor, tagValue) {
+  const tag = normalizeTag(tagValue);
+  if (!actor || !SUPPORTED_ACTOR_TYPES.has(String(actor.type ?? ""))) {
+    return { changed: false, reason: "unsupported" };
+  }
+  if (!EFFECT_GROUPS.some((group) => group.tags.includes(tag))) {
+    return { changed: false, reason: "unknown" };
+  }
+
+  const configured = await configureEffect(actor, tag, findEffect(actor, tag));
+  if (!configured) return { changed: false, reason: "cancelled" };
+  return adjustDdaTokenEffect(actor, tag, 1, configured);
 }
 
 export async function adjustDdaTokenEffect(actor, tagValue, delta = 1, config = null) {

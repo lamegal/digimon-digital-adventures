@@ -3,6 +3,7 @@ import { rollAttack } from "../rolls/attack-roll.js";
 import {
   findQuality,
   getActorDerivedStat,
+  getActorStageValue,
   getRoundUseState,
   hasQuality,
   rollDerivedCheck,
@@ -25,6 +26,9 @@ import {
 } from "./clash-qualities.js";
 import { requestSubstitute } from "./defensive-qualities.js";
 import { isFlexibleDigizoidWeaponEscapeAutomatic } from "./digizoid-gain-force.js";
+import {
+  applyHackersMemoryDerivedStatModifier
+} from "../rules/tamer-talent-transversal.js";
 
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 const DDA_CLASH_SOCKET_ACTION_UPDATE_ACTOR = "clashUpdateActor";
@@ -37,6 +41,10 @@ function localize(key) {
 
 function formatI18n(key, data = {}) {
   return game?.i18n?.format(key, data) ?? key;
+}
+
+function text(pt, en) {
+  return String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? en : pt;
 }
 
 function escapeHtml(value) {
@@ -122,7 +130,7 @@ Hooks.once("ready", () => {
         }
 
         if (payload.action === DDA_CLASH_SOCKET_ACTION_UPDATE_CLASH_STATE) {
-          await updateActorClashState(actor, payload.state ?? {}, { forceLocal: true });
+          await updateActorClashState(actor, payload.state ?? {}, { forceLocal: true, removeClashId: payload.removeClashId ?? "", replaceAll: Boolean(payload.replaceAll) });
         }
       }
 
@@ -276,6 +284,27 @@ function hasExposingHold(actor) {
   return hasExposingHoldQuality(actor);
 }
 
+function hasMultigrappler(actor) {
+  return hasQuality(actor, ["Multigrappler"]);
+}
+
+function getMultigrapplerCapacity(actor) {
+  if (!hasMultigrappler(actor)) return 1;
+  return Math.max(1, getActorStageValue(actor));
+}
+
+function getMultigrapplerReachData(actor) {
+  if (!hasMultigrappler(actor)) return { active: false, rank: 0, maximumDistance: 1 };
+  const reach = findQuality(actor, "reach");
+  if (!reach) return { active: false, rank: 0, maximumDistance: 1 };
+  const rank = Math.max(1, Number(reach.system?.rank?.value ?? 1));
+  return {
+    active: true,
+    rank,
+    maximumDistance: 1 + rank
+  };
+}
+
 function getSizeDifference(a, b) {
   return getSizeIndex(a?.system?.size) - getSizeIndex(b?.system?.size);
 }
@@ -384,7 +413,17 @@ async function rollClashCheck(actor, opponent, { bonus = 0, purpose = "contest" 
   const option = await chooseClashCheckOption(actor, opponent, { bonus, purpose });
   if (!option) return null;
 
-  const roll = await new Roll("3d6 + @modifier", { modifier: option.modifier }).evaluate();
+  const modifier =
+    applyHackersMemoryDerivedStatModifier(
+      actor,
+      opponent,
+      option.modifier
+    );
+
+  const roll = await new Roll(
+    "3d6 + @modifier",
+    { modifier }
+  ).evaluate();
 
   return {
     actor,
@@ -397,7 +436,7 @@ async function rollClashCheck(actor, opponent, { bonus = 0, purpose = "contest" 
     sizeBonus: option.sizeBonus,
     brawlerBonus: option.brawlerBonus,
     bonus: option.externalBonus,
-    modifier: option.modifier
+    modifier
   };
 }
 
@@ -420,7 +459,13 @@ async function rollSlipperyCheck(actor, opponent, { bonus = 0, prompt = true } =
   }
 
   const brawlerBonus = getBrawlerClashBonus(actor);
-  const modifier = getRamTotal(actor) * 2 + brawlerBonus + Number(bonus ?? 0);
+  const modifier = applyHackersMemoryDerivedStatModifier(
+    actor,
+    opponent,
+    getRamTotal(actor) * 2 +
+      brawlerBonus +
+      Number(bonus ?? 0)
+  );
   const roll = await new Roll("3d6 + @modifier", { modifier }).evaluate();
   return {
     actor,
@@ -449,7 +494,8 @@ async function rollWrestlemaniaDamageCheck(actor, opponent) {
     option.modifier,
     tn,
     `${localize("DDA.Quality.DataSpecialization.Wrestlemania")} — ${option.label}`,
-    "dda-wrestlemania-check-card"
+    "dda-wrestlemania-check-card",
+    { targetActor: opponent }
   );
 
   const damageBonus = result.criticalSuccess
@@ -491,8 +537,20 @@ async function markWranglerFreeClashUsed(actor) {
   });
 }
 
-async function rollFixedCheck(actor, statValue, tn, title, cardClass = "dda-clash-card") {
-  const modifier = Number(statValue ?? 0);
+async function rollFixedCheck(
+  actor,
+  statValue,
+  tn,
+  title,
+  cardClass = "dda-clash-card",
+  { targetActor = null } = {}
+) {
+  const modifier =
+    applyHackersMemoryDerivedStatModifier(
+      actor,
+      targetActor,
+      Number(statValue ?? 0)
+    );
   const roll = await new Roll("3d6 + @modifier", { modifier }).evaluate();
   const total = Number(roll.total ?? 0);
   const success = total >= tn;
@@ -544,16 +602,91 @@ function getOtherClashUuid(state, actor) {
   return state.opponentUuid || state.initiatorUuid;
 }
 
-function getClashState(actor) {
-  return foundry.utils.deepClone(actor?.system?.clash?.state ?? {});
+function getStoredClashStates(actor) {
+  const states = [];
+  const seen = new Set();
+  const sessions = actor?.system?.clash?.sessions;
+
+  if (sessions && typeof sessions === "object") {
+    for (const state of Object.values(sessions)) {
+      if (!state?.active || !state?.id || seen.has(String(state.id))) continue;
+      states.push(foundry.utils.deepClone(state));
+      seen.add(String(state.id));
+    }
+  }
+
+  // Backward compatibility with worlds created before Multigrappler stored
+  // simultaneous Clash sessions under system.clash.sessions.
+  const legacyState = actor?.system?.clash?.state ?? {};
+  if (legacyState?.active && legacyState?.id && !seen.has(String(legacyState.id))) {
+    states.push(foundry.utils.deepClone(legacyState));
+  }
+
+  return states;
+}
+
+function getClashState(actor, { clashId = "", opponentUuid = "" } = {}) {
+  const states = getStoredClashStates(actor);
+  if (!states.length) return foundry.utils.deepClone(actor?.system?.clash?.state ?? {});
+
+  if (clashId) {
+    const byId = states.find((state) => String(state.id ?? "") === String(clashId));
+    if (byId) return byId;
+  }
+
+  if (opponentUuid) {
+    const byOpponent = states.find((state) => String(getOtherClashUuid(state, actor)) === String(opponentUuid));
+    if (byOpponent) return byOpponent;
+  }
+
+  const primaryId = String(actor?.system?.clash?.state?.id ?? "");
+  return states.find((state) => String(state.id ?? "") === primaryId) ?? states[0];
+}
+
+function getActiveClashCount(actor) {
+  return getStoredClashStates(actor).length;
 }
 
 function hasActiveClash(actor) {
-  return Boolean(actor?.system?.clash?.state?.active || actor?.system?.combat?.clash?.active);
+  return getActiveClashCount(actor) > 0 || Boolean(actor?.system?.combat?.clash?.active);
+}
+
+function hasClashWith(actor, otherActor) {
+  return getStoredClashStates(actor).some((state) => String(getOtherClashUuid(state, actor)) === String(otherActor?.uuid ?? otherActor ?? ""));
+}
+
+function canJoinAdditionalClash(actor) {
+  return getActiveClashCount(actor) < getMultigrapplerCapacity(actor);
+}
+
+function getRangedMultigrapplerClashCount(actor) {
+  return getStoredClashStates(actor).filter((state) => (
+    state?.multigrapplerRanged?.active &&
+    String(state.multigrapplerRanged.ownerUuid ?? "") === String(actor?.uuid ?? "")
+  )).length;
+}
+
+function getStateMaximumClashDistance(state, leftActor, rightActor) {
+  let maximum = 1;
+  for (const actor of [leftActor, rightActor]) {
+    const extended = getExtendedGrappleData(actor);
+    if (extended.active) maximum = Math.max(maximum, extended.maximumDistance);
+    if (
+      state?.multigrapplerRanged?.active &&
+      String(state.multigrapplerRanged.ownerUuid ?? "") === String(actor?.uuid ?? "")
+    ) {
+      maximum = Math.max(maximum, Number(state.multigrapplerRanged.maximumDistance ?? 1));
+    }
+  }
+  return maximum;
 }
 
 export function isActorInActiveClash(actor) {
   return hasActiveClash(actor);
+}
+
+export function canInitiateAdditionalClash(actor) {
+  return Boolean(hasMultigrappler(actor) && canJoinAdditionalClash(actor));
 }
 
 function getTurnSignature(actor) {
@@ -561,6 +694,7 @@ function getTurnSignature(actor) {
     String(game?.combat?.id ?? "no-combat"),
     Number(game?.combat?.round ?? 0),
     Number(game?.combat?.turn ?? -1),
+    Number(actor?.system?.combat?.tamerTalentRoundWindows?.speedSurge?.sequence ?? 0),
     String(actor?.uuid ?? "")
   ].join(":");
 }
@@ -700,10 +834,21 @@ export async function getOutsideClashAttackContext({ attacker, defender, clashCo
     return { active: false };
   }
 
-  const state = getClashState(defender);
+  const states = getStoredClashStates(defender);
+  if (!states.length) return { active: false };
+  if (states.some((candidate) => String(getOtherClashUuid(candidate, defender)) === String(attacker.uuid))) {
+    return { active: false };
+  }
+
+  // Outside-Clash modifiers are applied once, never stacked per Multigrappler
+  // session. Prefer the session where this defender is exposed, otherwise keep
+  // the legacy primary-session behavior.
+  const state = states.find((candidate) => (
+    candidate.exposingHold?.active &&
+    String(candidate.exposingHold?.opponentUuid ?? "") === String(defender.uuid)
+  )) ?? getClashState(defender);
   const otherActor = await resolveActor(getOtherClashUuid(state, defender));
   if (!otherActor) return { active: false };
-  if (attacker.uuid === otherActor.uuid) return { active: false };
 
   const defenderIsExposedOpponent = Boolean(
     state.exposingHold?.active &&
@@ -966,66 +1111,86 @@ await updateActorData(baseActor, {
 }, { diff: false });
 }
 
-async function updateActorClashState(actor, state, { forceLocal = false } = {}) {
+async function updateActorClashState(
+  actor,
+  state,
+  { forceLocal = false, removeClashId = "", replaceAll = false } = {}
+) {
   if (!forceLocal && !canUpdateActor(actor)) {
-  return requestGMClashUpdate({
-    action: DDA_CLASH_SOCKET_ACTION_UPDATE_CLASH_STATE,
-    actorUuid: actor.uuid,
-    state
-  });
-}
-  const legacyState = getLegacyClashState(state, actor);
+    return requestGMClashUpdate({
+      action: DDA_CLASH_SOCKET_ACTION_UPDATE_CLASH_STATE,
+      actorUuid: actor.uuid,
+      state,
+      removeClashId,
+      replaceAll
+    });
+  }
+
+  const sessions = {};
+  if (!replaceAll) {
+    for (const existing of getStoredClashStates(actor)) {
+      if (!existing?.active || !existing?.id) continue;
+      sessions[String(existing.id)] = sanitizeClashStateMaps(existing);
+    }
+  }
+
+  if (removeClashId) delete sessions[String(removeClashId)];
+
+  if (state?.active && state?.id) {
+    sessions[String(state.id)] = sanitizeClashStateMaps(state);
+  }
+
+  const currentPrimaryId = String(actor?.system?.clash?.state?.id ?? "");
+  let primaryState = currentPrimaryId && sessions[currentPrimaryId]
+    ? sessions[currentPrimaryId]
+    : null;
+
+  if (!primaryState && state?.active && state?.id && sessions[String(state.id)]) {
+    primaryState = sessions[String(state.id)];
+  }
+
+  if (!primaryState) primaryState = Object.values(sessions)[0] ?? null;
+  const storedPrimary = primaryState
+    ? foundry.utils.deepClone(primaryState)
+    : getInactiveClashState(state?.endedReason ?? "manual");
+  const legacyState = getLegacyClashState(storedPrimary, actor);
   const tokenDocument = getSyntheticTokenDocument(actor);
 
   if (tokenDocument) {
-    // Synthetic token actors keep their actor-specific data in TokenDocument.delta.
-    // Actor.update can write new values, but stale nested map keys created by older
-    // builds may remain stuck either in the token delta or inherited from the base
-    // actor. Clean the base actor root, wipe the Clash delta, then write the
-    // complete fresh state back to the token document.
     await clearBaseActorClashForSyntheticToken(tokenDocument, { forceLocal });
-
     await tokenDocument.update({
       "delta.system.clash": null,
       "delta.system.combat.clash": null
     });
-
     await tokenDocument.update({
-      "delta.system.clash.state": state,
+      "delta.system.clash.state": storedPrimary,
+      "delta.system.clash.sessions": sessions,
       "delta.system.combat.clash": legacyState
     });
-
     return;
   }
 
-  const deleteUpdate = buildClashMapDeleteUpdate(actor, state);
-
-  if (Object.keys(deleteUpdate).length) {
-    await actor.update(deleteUpdate);
-  }
-
-  // Foundry deep-merges plain objects in Actor system data. If an older build
-  // created nested map keys such as { Scene: { ... } }, updating the map to {}
-  // or even null can still leave stale nested data behind on some actors.
-  // Delete the whole state object first, then write the sanitized state fresh.
+  // Remove the two dynamic containers before writing them again. This avoids
+  // stale Clash IDs surviving Foundry's deep merge when a Multigrappler leaves
+  // only one of several simultaneous Clashes.
   await actor.update({
-    "system.clash.-=state": null
+    "system.clash.-=state": null,
+    "system.clash.-=sessions": null
   });
 
   await actor.update({
-    "system.clash.state": state,
+    "system.clash.state": storedPrimary,
+    "system.clash.sessions": sessions,
     "system.combat.clash": legacyState
   });
 }
 
 async function syncClashStateForPair(actorA, actorB, state) {
   const sanitizedState = sanitizeClashStateMaps(state);
-
   const stateA = {
     ...foundry.utils.deepClone(sanitizedState),
     role: sanitizedState.controllerUuid === actorA.uuid ? "controller" : "opponent"
   };
-
   const updates = [updateActorClashState(actorA, stateA)];
 
   if (actorB) {
@@ -1033,11 +1198,20 @@ async function syncClashStateForPair(actorA, actorB, state) {
       ...foundry.utils.deepClone(sanitizedState),
       role: sanitizedState.controllerUuid === actorB.uuid ? "controller" : "opponent"
     };
-
     updates.push(updateActorClashState(actorB, stateB));
   }
 
   await Promise.all(updates);
+}
+
+async function removeClashStateForPair(actorA, actorB, state, reason = "manual") {
+  const clashId = String(state?.id ?? "");
+  if (!clashId) return;
+  const inactive = getInactiveClashState(reason);
+  await Promise.all([
+    actorA ? updateActorClashState(actorA, inactive, { removeClashId: clashId }) : null,
+    actorB ? updateActorClashState(actorB, inactive, { removeClashId: clashId }) : null
+  ].filter(Boolean));
 }
 
 function getInactiveClashState(reason = "manual") {
@@ -1179,11 +1353,11 @@ async function promptClashAction(actor, state = {}) {
   }
 }
 
-function renderActionButton(actor, labelKey, action = "menu") {
-  return `<button type="button" class="dda-clash-chat-action" data-action="dda-clash-action" data-clash-action="${escapeHtml(action)}" data-actor-uuid="${escapeHtml(actor.uuid)}">${escapeHtml(localize(labelKey))}</button>`;
+function renderActionButton(actor, labelKey, action = "menu", clashId = "") {
+  return `<button type="button" class="dda-clash-chat-action" data-action="dda-clash-action" data-clash-action="${escapeHtml(action)}" data-clash-id="${escapeHtml(clashId)}" data-actor-uuid="${escapeHtml(actor.uuid)}">${escapeHtml(localize(labelKey))}</button>`;
 }
 
-function renderClashCard({ title, lines = [], controllerActor = null, opponentActor = null, includeButtons = false, extraClass = "" }) {
+function renderClashCard({ title, lines = [], controllerActor = null, opponentActor = null, includeButtons = false, extraClass = "", clashId = "" }) {
   return `
     <div class="dda-chat-card dda-effect-card dda-clash-card ${escapeHtml(extraClass)}">
       <h2>${escapeHtml(title)}</h2>
@@ -1192,9 +1366,9 @@ function renderClashCard({ title, lines = [], controllerActor = null, opponentAc
       </ul>
       ${includeButtons ? `
         <div class="dda-clash-chat-actions">
-          ${controllerActor ? renderActionButton(controllerActor, "DDA.Clash.Button.ControllerActions", "menu") : ""}
-          ${opponentActor ? renderActionButton(opponentActor, "DDA.Clash.Button.OpponentActions", "menu") : ""}
-          ${controllerActor ? renderActionButton(controllerActor, "DDA.Clash.Button.End", "end") : ""}
+          ${controllerActor ? renderActionButton(controllerActor, "DDA.Clash.Button.ControllerActions", "menu", clashId) : ""}
+          ${opponentActor ? renderActionButton(opponentActor, "DDA.Clash.Button.OpponentActions", "menu", clashId) : ""}
+          ${controllerActor ? renderActionButton(controllerActor, "DDA.Clash.Button.End", "end", clashId) : ""}
         </div>
       ` : ""}
     </div>
@@ -1450,7 +1624,8 @@ async function executeExtendedGrapplePull(controller, opponent, state) {
     const check = await rollDerivedCheck(controller, "cpu", {
       skillKey: "featsOfStrength",
       tn: 12 + getActorDerivedStat(opponent, "cpu"),
-      title: localize("DDA.Clash.Action.Primary.Pull")
+      title: localize("DDA.Clash.Action.Primary.Pull"),
+      targetActor: opponent
     });
     if (!check) return null;
     if (!check.success) {
@@ -1484,6 +1659,7 @@ async function executeExtendedGrapplePull(controller, opponent, state) {
       controllerActor: controller,
       opponentActor: opponent,
       includeButtons: true,
+      clashId: state.id,
       extraClass: "dda-clash-action-result-card"
     })
   });
@@ -1528,6 +1704,7 @@ async function maybeGrantClashChargeMovement(attacker, defender, state, rollResu
       moverUuid: attacker.uuid,
       followerUuid: defender.uuid,
       maximum,
+      maximumDistance: getStateMaximumClashDistance(state, attacker, defender),
       kind: "charge",
       offsetX: followerToken && moverToken
         ? Number(followerToken.document.x ?? 0) - Number(moverToken.document.x ?? 0)
@@ -1573,7 +1750,11 @@ async function executeClashAttack(attacker, defender, state, action, { weakAttac
   const clashDistance = getClashDistance(attacker, defender);
   const attackerExtendedGrapple = getExtendedGrappleData(attacker);
   const defenderExtendedGrapple = getExtendedGrappleData(defender);
-  const extendedGrappleAccuracyPenalty = attackerExtendedGrapple.active && clashDistance > 0
+  const multigrapplerNoPenalty = Boolean(
+    state?.multigrapplerRanged?.active &&
+    String(state.multigrapplerRanged.ownerUuid ?? "") === String(attacker.uuid ?? "")
+  );
+  const extendedGrappleAccuracyPenalty = !multigrapplerNoPenalty && attackerExtendedGrapple.active && clashDistance > 0
     ? Math.max(0, Math.ceil(clashDistance))
     : 0;
   const defenderKeepsFullDodge = weakAttack && (
@@ -1612,11 +1793,11 @@ async function executeClashAttack(attacker, defender, state, action, { weakAttac
 
   const isRecoil = Number(rollResult.qualityAttackModifier?.recoilDistance ?? 0) > 0;
   if (isRecoil && hasPointBlank(attacker)) {
-    await endDigimonClash(attacker, { reason: "recoil" });
+    await endDigimonClash(attacker, { reason: "recoil", clashId: state.id });
     return rollResult;
   }
 
-  await maybeGrantClashChargeMovement(attacker, defender, getClashState(attacker), rollResult);
+  await maybeGrantClashChargeMovement(attacker, defender, state, rollResult);
   return rollResult;
 }
 
@@ -1656,9 +1837,13 @@ export async function initiateDigimonClash(actor) {
   const targetTokenObject = targetToken?.object ?? targetToken;
   const clashDistance = getTokenDistanceSpaces(initiatorToken, targetTokenObject);
   const extendedGrapple = getExtendedGrappleData(actor);
-  const maximumClashDistance = extendedGrapple.active
-    ? extendedGrapple.maximumDistance
-    : 1;
+  const multigrapplerReach = getMultigrapplerReachData(actor);
+  const remoteClash = Number.isFinite(clashDistance) && clashDistance > 1;
+  const maximumClashDistance = Math.max(
+    1,
+    extendedGrapple.active ? extendedGrapple.maximumDistance : 1,
+    multigrapplerReach.active ? multigrapplerReach.maximumDistance : 1
+  );
 
   if (!Number.isFinite(clashDistance) || clashDistance > maximumClashDistance) {
     ui.notifications.warn(formatI18n("DDA.Warning.ClashTargetOutOfReach", {
@@ -1666,6 +1851,23 @@ export async function initiateDigimonClash(actor) {
       reach: maximumClashDistance
     }));
     return null;
+  }
+
+  if (remoteClash && hasMultigrappler(actor)) {
+    if (!multigrapplerReach.active) {
+      ui.notifications.warn(text(
+        "Multigrappler só pode manter um Clash à distância se também possuir Reach.",
+        "Multigrappler can only maintain a ranged Clash if it also has Reach."
+      ));
+      return null;
+    }
+    if (getRangedMultigrapplerClashCount(actor) >= 1) {
+      ui.notifications.warn(text(
+        "Multigrappler só pode manter 1 inimigo em Clash à distância por vez.",
+        "Multigrappler can only maintain 1 enemy in a ranged Clash at a time."
+      ));
+      return null;
+    }
   }
 
   const turnContext = getActiveDDAUnitContext(actor);
@@ -1681,8 +1883,31 @@ export async function initiateDigimonClash(actor) {
     return null;
   }
 
-  if (hasActiveClash(actor) || hasActiveClash(targetActor)) {
-    ui.notifications.warn(localize("DDA.Warning.ClashParticipantAlreadyInClash"));
+  if (hasClashWith(actor, targetActor)) {
+    ui.notifications.warn(text(
+      "Esses Digimon já estão em Clash entre si.",
+      "These Digimon are already in a Clash with each other."
+    ));
+    return null;
+  }
+
+  if (!canJoinAdditionalClash(actor)) {
+    ui.notifications.warn(hasMultigrappler(actor)
+      ? text(
+          `${actor.name} já atingiu o limite de ${getMultigrapplerCapacity(actor)} Clashes simultâneos do Multigrappler.`,
+          `${actor.name} has already reached Multigrappler's limit of ${getMultigrapplerCapacity(actor)} simultaneous Clashes.`
+        )
+      : localize("DDA.Warning.ClashParticipantAlreadyInClash"));
+    return null;
+  }
+
+  if (!canJoinAdditionalClash(targetActor)) {
+    ui.notifications.warn(hasMultigrappler(targetActor)
+      ? text(
+          `${targetActor.name} já atingiu o limite de ${getMultigrapplerCapacity(targetActor)} Clashes simultâneos do Multigrappler.`,
+          `${targetActor.name} has already reached Multigrappler's limit of ${getMultigrapplerCapacity(targetActor)} simultaneous Clashes.`
+        )
+      : localize("DDA.Warning.ClashParticipantAlreadyInClash"));
     return null;
   }
 
@@ -1730,8 +1955,10 @@ export async function initiateDigimonClash(actor) {
     };
   }
 
-  const initiatorBonus = getNextContestBonus(getClashState(actor), actor.uuid);
-  const targetBonus = getNextContestBonus(getClashState(targetActor), targetActor.uuid);
+  // A new Multigrappler relationship is a fresh Clash. Comeback / next-contest
+  // bonuses belong to their original Clash session and must not leak into it.
+  const initiatorBonus = 0;
+  const targetBonus = 0;
 
   const initiatorRoll = await rollClashCheck(actor, targetActor, { bonus: initiatorBonus });
   if (!initiatorRoll) return null;
@@ -1816,6 +2043,15 @@ export async function initiateDigimonClash(actor) {
           startedDistance: clashDistance
         }
       : null,
+    multigrapplerRanged: remoteClash && hasMultigrappler(actor) && multigrapplerReach.active
+      ? {
+          active: true,
+          ownerUuid: actor.uuid,
+          rank: multigrapplerReach.rank,
+          maximumDistance: multigrapplerReach.maximumDistance,
+          startedDistance: clashDistance
+        }
+      : null,
     startedAt: new Date().toISOString()
   };
 
@@ -1878,7 +2114,8 @@ await updateActorData(targetActor, {
       lines,
       controllerActor: autoEndForSize ? null : controller,
       opponentActor: autoEndForSize ? null : opponent,
-      includeButtons: !autoEndForSize
+      includeButtons: !autoEndForSize,
+      clashId: stateBase.id
     })
   });
 
@@ -1887,9 +2124,9 @@ await updateActorData(targetActor, {
   return stateBase;
 }
 
-export async function performClashContestForInitiator(initiator, { automatic = false } = {}) {
+export async function performClashContestForInitiator(initiator, { automatic = false, clashId = "" } = {}) {
   if (!initiator || !hasActiveClash(initiator)) return null;
-  let state = getClashState(initiator);
+  let state = getClashState(initiator, { clashId });
   if (String(state.initiatorUuid ?? "") !== String(initiator.uuid)) return null;
 
   const currentRound = Number(game?.combat?.round ?? 0);
@@ -1921,6 +2158,7 @@ export async function performClashContestForInitiator(initiator, { automatic = f
         controllerActor: currentController,
         opponentActor: currentOpponent,
         includeButtons: true,
+        clashId: state.id,
         extraClass: "dda-clash-contest-card"
       })
     });
@@ -1977,11 +2215,12 @@ export async function performClashContestForInitiator(initiator, { automatic = f
       controllerActor: autoEndForSize ? null : controller,
       opponentActor: autoEndForSize ? null : opponent,
       includeButtons: !autoEndForSize,
+      clashId: state.id,
       extraClass: "dda-clash-contest-card"
     })
   });
 
-  if (autoEndForSize) await endDigimonClash(controller, { reason: "size" });
+  if (autoEndForSize) await endDigimonClash(controller, { reason: "size", clashId: state.id });
   return { controller, opponent, initiatorRoll, otherRoll, automatic };
 }
 
@@ -1992,60 +2231,80 @@ async function processAutomaticClashContests(combat) {
     if (combatant.actor) actors.set(combatant.actor.uuid, combatant.actor);
   }
   for (const actor of actors.values()) {
-    const state = getClashState(actor);
-    if (!state.active || state.initiatorUuid !== actor.uuid) continue;
     if (!getActiveDDAUnitContext(actor, combat).allowed) continue;
-    await performClashContestForInitiator(actor, { automatic: true });
+    for (const state of getStoredClashStates(actor)) {
+      if (!state.active || state.initiatorUuid !== actor.uuid) continue;
+      await performClashContestForInitiator(actor, { automatic: true, clashId: state.id });
+    }
   }
 }
 
 export async function clearClashStateForActor(actor, { reason = "formChange" } = {}) {
   if (!isDigimonLike(actor)) return false;
 
-  const state = foundry.utils.deepClone(actor.system?.clash?.state ?? {});
-  const inactiveState = getInactiveClashState(reason);
-
-  if (!state.active) {
-    await updateActorClashState(actor, inactiveState);
+  const states = getStoredClashStates(actor);
+  if (!states.length) {
+    await updateActorClashState(actor, getInactiveClashState(reason), { replaceAll: true });
     return true;
   }
 
-  const otherActor = await resolveActor(getOtherClashUuid(state, actor));
-  await syncClashStateForPair(actor, otherActor, inactiveState);
+  for (const state of states) {
+    const otherActor = await resolveActor(getOtherClashUuid(state, actor));
+    await removeClashStateForPair(actor, otherActor, state, reason);
+  }
   return true;
 }
 
-export async function endDigimonClash(actor, { reason = "manual" } = {}) {
+export async function endDigimonClash(
+  actor,
+  { reason = "manual", clashId = "", opponentUuid = "", all = false } = {}
+) {
   if (!isDigimonLike(actor)) {
     ui.notifications.warn(localize("DDA.Warning.ClashOnlyForDigimon"));
     return null;
   }
 
-  const state = foundry.utils.deepClone(actor.system.clash?.state ?? {});
-  if (!state.active) {
+  const states = getStoredClashStates(actor);
+  if (!states.length) {
     ui.notifications.warn(localize("DDA.Warning.NoActiveClash"));
     return null;
   }
 
-  const otherActor = await resolveActor(getOtherClashUuid(state, actor));
+  let targets;
+  if (all) {
+    targets = states;
+  } else if (!clashId && !opponentUuid && states.length > 1 && reason === "manual") {
+    const selectedState = await chooseActiveClashState(actor);
+    targets = selectedState?.active ? [selectedState] : [];
+  } else {
+    targets = [getClashState(actor, { clashId, opponentUuid })].filter((state) => state?.active);
+  }
 
-  const inactiveState = getInactiveClashState(reason);
-  await syncClashStateForPair(actor, otherActor, inactiveState);
+  if (!targets.length) {
+    ui.notifications.warn(localize("DDA.Warning.NoActiveClash"));
+    return null;
+  }
 
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: renderClashCard({
-      title: localize("DDA.Clash.EndTitle"),
-      lines: [
-        formatI18n("DDA.Clash.Ended", { a: escapeHtml(actor.name), b: escapeHtml(otherActor?.name ?? state.opponentName ?? "") }),
-        formatI18n("DDA.Clash.EndReasonLabel", { reason: escapeHtml(localize(`DDA.Clash.EndReason.${reason}`)) })
-      ],
-      extraClass: "dda-clash-ended-card"
-    })
-  });
+  for (const state of targets) {
+    const otherActor = await resolveActor(getOtherClashUuid(state, actor));
+    await removeClashStateForPair(actor, otherActor, state, reason);
+
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: renderClashCard({
+        title: localize("DDA.Clash.EndTitle"),
+        lines: [
+          formatI18n("DDA.Clash.Ended", { a: escapeHtml(actor.name), b: escapeHtml(otherActor?.name ?? state.opponentName ?? "") }),
+          formatI18n("DDA.Clash.EndReasonLabel", { reason: escapeHtml(localize(`DDA.Clash.EndReason.${reason}`)) })
+        ],
+        extraClass: "dda-clash-ended-card"
+      })
+    });
+
+    otherActor?.sheet?.render(false);
+  }
 
   actor.sheet?.render(false);
-  otherActor?.sheet?.render(false);
   return true;
 }
 
@@ -2056,37 +2315,57 @@ function getSelectedActiveClashTarget(actor) {
   const targetToken = targets[0];
   const targetActor = targetToken?.actor;
   if (!isDigimonLike(targetActor) || !hasActiveClash(targetActor)) return null;
-  const state = getClashState(targetActor);
-  if ([state.initiatorUuid, state.opponentUuid].includes(actor?.uuid)) return null;
-  return { targetToken, targetActor, state };
+  const states = getStoredClashStates(targetActor).filter((state) => (
+    ![state.initiatorUuid, state.opponentUuid].includes(actor?.uuid)
+  ));
+  if (!states.length) return null;
+  return { targetToken, targetActor, states };
+}
+
+function getAdjacentBreakClashStates(actor, selected) {
+  if (!selected) return [];
+  const actorToken = getTokenObjectForActor(actor);
+  const selectedToken = selected.targetToken?.object ?? selected.targetToken;
+  const selectedDistance = getTokenDistanceSpaces(actorToken, selectedToken);
+  return selected.states.filter((state) => {
+    const otherToken = (canvas?.tokens?.placeables ?? []).find((token) => (
+      token.actor?.uuid === getOtherClashUuid(state, selected.targetActor)
+    ));
+    const otherDistance = otherToken
+      ? getTokenDistanceSpaces(actorToken, otherToken)
+      : Number.POSITIVE_INFINITY;
+    return Math.min(selectedDistance, otherDistance) <= 1;
+  });
 }
 
 export function canAttemptBreakClash(actor) {
   if (!isDigimonLike(actor) || hasActiveClash(actor)) return false;
   const selected = getSelectedActiveClashTarget(actor);
-  if (!selected) return false;
-  const actorToken = getTokenObjectForActor(actor);
-  const selectedToken = selected.targetToken?.object ?? selected.targetToken;
-  const selectedDistance = getTokenDistanceSpaces(actorToken, selectedToken);
-  const otherToken = (canvas?.tokens?.placeables ?? []).find((token) => (
-    token.actor?.uuid === getOtherClashUuid(selected.state, selected.targetActor)
-  ));
-  const otherDistance = otherToken
-    ? getTokenDistanceSpaces(actorToken, otherToken)
-    : Number.POSITIVE_INFINITY;
-  return Math.min(selectedDistance, otherDistance) <= 1;
+  return getAdjacentBreakClashStates(actor, selected).length > 0;
 }
 
-async function rollClashSeparationCheck(actor, modifier, label) {
+async function rollClashSeparationCheck(
+  actor,
+  modifier,
+  label,
+  targetActor = null
+) {
+  const effectiveModifier =
+    applyHackersMemoryDerivedStatModifier(
+      actor,
+      targetActor,
+      Math.max(0, Number(modifier ?? 0))
+    );
+
   const roll = await new Roll("3d6 + @modifier", {
-    modifier: Math.max(0, Number(modifier ?? 0))
+    modifier: effectiveModifier
   }).evaluate();
   return {
     actor,
     label,
     roll,
     total: Number(roll.total ?? 0),
-    modifier: Math.max(0, Number(modifier ?? 0))
+    modifier: effectiveModifier
   };
 }
 
@@ -2102,7 +2381,39 @@ export async function breakClashFromOutside(actor) {
     return null;
   }
 
-  const state = selected.state;
+  const eligibleStates = getAdjacentBreakClashStates(actor, selected);
+  if (!eligibleStates.length) {
+    ui.notifications.warn(localize("DDA.Warning.ClashBreakMustBeAdjacent"));
+    return null;
+  }
+
+  let state = eligibleStates[0];
+  if (eligibleStates.length > 1) {
+    const selectedId = await foundry.applications.api.DialogV2.prompt({
+      classes: ["dda", "dda-clash-dialog", "dda-clash-quality-window"],
+      window: { title: localize("DDA.Clash.Break.Title") },
+      content: `<form class="dda-roll-dialog dda-clash-action-dialog dda-offensive-quality-dialog">
+        <p>${text("O alvo participa de vários Clashes. Escolha qual deles separar.", "The target is in multiple Clashes. Choose which one to separate.")}</p>
+        <div class="form-group"><label>${text("Clash", "Clash")}</label><select name="clashId">
+          ${eligibleStates.map((candidate) => {
+            const otherName = String(candidate.initiatorUuid ?? "") === String(selected.targetActor.uuid ?? "")
+              ? candidate.opponentName
+              : candidate.initiatorName;
+            return `<option value="${escapeHtml(candidate.id)}">${escapeHtml(selected.targetActor.name)} × ${escapeHtml(otherName ?? "—")}</option>`;
+          }).join("")}
+        </select></div>
+      </form>`,
+      ok: {
+        label: localize("DDA.Button.Confirm"),
+        callback: (_event, button) => String(button.form?.elements?.clashId?.value ?? "")
+      },
+      rejectClose: false,
+      modal: true
+    });
+    state = eligibleStates.find((candidate) => String(candidate.id) === String(selectedId ?? ""));
+    if (!state) return null;
+  }
+
   const other = await resolveActor(getOtherClashUuid(state, selected.targetActor));
   if (!other) {
     ui.notifications.warn(localize("DDA.Warning.ClashOpponentNotFound"));
@@ -2182,19 +2493,22 @@ export async function breakClashFromOutside(actor) {
   const separatorCheck = await rollClashSeparationCheck(
     actor,
     getCpuTotal(actor),
-    localize("DDA.Clash.Break.SeparatorCheck")
+    localize("DDA.Clash.Break.SeparatorCheck"),
+    controller
   );
   const allyCheck = declaration.opponentWilling
     ? await rollClashSeparationCheck(
         opponent,
         getCpuTotal(opponent),
-        localize("DDA.Clash.Break.WillingOpponentCheck")
+        localize("DDA.Clash.Break.WillingOpponentCheck"),
+        controller
       )
     : null;
   const controllerCheck = await rollClashSeparationCheck(
     controller,
     getRamTotal(controller),
-    localize("DDA.Clash.Break.ControllerCheck")
+    localize("DDA.Clash.Break.ControllerCheck"),
+    actor
   );
 
   const bestCpu = Math.max(
@@ -2204,7 +2518,7 @@ export async function breakClashFromOutside(actor) {
   const separated = bestCpu > controllerCheck.total;
 
   if (separated) {
-    await endDigimonClash(controller, { reason: "priedApart" });
+    await endDigimonClash(controller, { reason: "priedApart", clashId: state.id });
   }
 
   await ChatMessage.create({
@@ -2235,6 +2549,7 @@ export async function breakClashFromOutside(actor) {
       controllerActor: separated ? null : controller,
       opponentActor: separated ? null : opponent,
       includeButtons: !separated,
+      clashId: state.id,
       extraClass: `dda-clash-break-card ${separated ? "is-success" : "is-failure"}`
     })
   });
@@ -2248,14 +2563,69 @@ export async function breakClashFromOutside(actor) {
   };
 }
 
-export async function openDigimonClashActionMenu(actor) {
+async function chooseActiveClashState(actor, { clashId = "" } = {}) {
+  const states = getStoredClashStates(actor);
+  if (!states.length) return null;
+
+  if (clashId) {
+    const exact = states.find((state) => String(state.id ?? "") === String(clashId));
+    if (exact) return exact;
+  }
+
+  const targeted = Array.from(game?.user?.targets ?? []);
+  if (targeted.length === 1) {
+    const targetUuid = targeted[0]?.actor?.uuid ?? "";
+    const targetedState = states.find((state) => String(getOtherClashUuid(state, actor)) === String(targetUuid));
+    if (targetedState) return targetedState;
+  }
+
+  if (states.length === 1) return states[0];
+
+  try {
+    const selectedId = await foundry.applications.api.DialogV2.prompt({
+      classes: ["dda", "dda-clash-dialog", "dda-clash-quality-window"],
+      window: { title: text("Escolher Clash", "Choose Clash") },
+      content: `<form class="dda-roll-dialog dda-clash-action-dialog dda-offensive-quality-dialog">
+        <p>${text(
+          "Este Digimon está em vários Clashes. Escolha qual relação deseja resolver.",
+          "This Digimon is in multiple Clashes. Choose which relationship to resolve."
+        )}</p>
+        <div class="form-group"><label>${text("Oponente", "Opponent")}</label><select name="clashId">
+          ${states.map((state) => {
+            const otherName = String(state.initiatorUuid ?? "") === String(actor.uuid ?? "")
+              ? state.opponentName
+              : state.initiatorName;
+            const role = getRoleFor(actor, state) === "controller"
+              ? localize("DDA.Clash.Role.Controller")
+              : localize("DDA.Clash.Role.Opponent");
+            return `<option value="${escapeHtml(state.id)}">${escapeHtml(otherName ?? "—")} — ${escapeHtml(role)}</option>`;
+          }).join("")}
+        </select></div>
+      </form>`,
+      ok: {
+        label: localize("DDA.Button.Confirm"),
+        callback: (_event, button) => String(button.form?.elements?.clashId?.value ?? "")
+      },
+      rejectClose: false,
+      modal: true
+    });
+    return states.find((state) => String(state.id ?? "") === String(selectedId ?? "")) ?? null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+export async function openDigimonClashActionMenu(actor, { clashId = "" } = {}) {
   if (!isDigimonLike(actor)) {
     ui.notifications.warn(localize("DDA.Warning.ClashOnlyForDigimon"));
     return null;
   }
 
-  const state = foundry.utils.deepClone(actor.system.clash?.state ?? {});
-  if (!state.active) {
+  const charmGate = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmGate === "function" && !charmGate(actor, { user: game?.user, notify: true })) return null;
+
+  const state = await chooseActiveClashState(actor, { clashId });
+  if (!state?.active) {
     ui.notifications.warn(localize("DDA.Warning.NoActiveClash"));
     return null;
   }
@@ -2263,12 +2633,15 @@ export async function openDigimonClashActionMenu(actor) {
   const action = await promptClashAction(actor, state);
   if (!action) return null;
 
-  return executeClashAction(actor, action);
+  return executeClashAction(actor, action, { clashId: state.id });
 }
 
-export async function executeClashAction(actor, action) {
-  const state = foundry.utils.deepClone(actor.system.clash?.state ?? {});
-  if (!state.active) {
+export async function executeClashAction(actor, action, { clashId = "" } = {}) {
+  const charmGate = game?.dda?.bossQualities?.ensureCharmActionController;
+  if (typeof charmGate === "function" && !charmGate(actor, { user: game?.user, notify: true })) return null;
+
+  const state = await chooseActiveClashState(actor, { clashId });
+  if (!state?.active) {
     ui.notifications.warn(localize("DDA.Warning.NoActiveClash"));
     return null;
   }
@@ -2285,7 +2658,7 @@ export async function executeClashAction(actor, action) {
       ui.notifications.warn(localize("DDA.Warning.ClashOnlyControllerCanEnd"));
       return null;
     }
-    return endDigimonClash(actor, { reason: "controller" });
+    return endDigimonClash(actor, { reason: "controller", clashId: state.id });
   }
 
   if (role === "controller") {
@@ -2388,7 +2761,8 @@ async function executeClashMoveAction(controller, opponent, state) {
     check = await rollDerivedCheck(controller, "cpu", {
       skillKey: "featsOfStrength",
       tn: 10 + getCpuTotal(opponent),
-      title: localize("DDA.Clash.MonsterStrength.Title")
+      title: localize("DDA.Clash.MonsterStrength.Title"),
+      targetActor: opponent
     });
     drag = Boolean(check?.success);
     fullMovement = Boolean(check?.criticalSuccess);
@@ -2397,7 +2771,9 @@ async function executeClashMoveAction(controller, opponent, state) {
       controller,
       getClashTotal(controller) + getBrawlerClashBonus(controller),
       10 + getClashTotal(opponent),
-      localize("DDA.Clash.MonsterStrength.Title")
+      localize("DDA.Clash.MonsterStrength.Title"),
+      "dda-clash-card",
+      { targetActor: opponent }
     );
     drag = Boolean(check?.success);
     fullMovement = Boolean(check?.criticalSuccess);
@@ -2414,9 +2790,7 @@ async function executeClashMoveAction(controller, opponent, state) {
       moverUuid: controller.uuid,
       followerUuid: drag ? opponent.uuid : "",
       maximum,
-      maximumDistance: getExtendedGrappleData(controller).active
-        ? getExtendedGrappleData(controller).maximumDistance
-        : 1,
+      maximumDistance: getStateMaximumClashDistance(state, controller, opponent),
       kind: drag ? "monsterStrength" : "reposition",
       offsetX: followerToken && moverToken ? Number(followerToken.document.x ?? 0) - Number(moverToken.document.x ?? 0) : 0,
       offsetY: followerToken && moverToken ? Number(followerToken.document.y ?? 0) - Number(moverToken.document.y ?? 0) : 0,
@@ -2444,7 +2818,8 @@ async function executeClashMoveAction(controller, opponent, state) {
       )],
       controllerActor: controller,
       opponentActor: opponent,
-      includeButtons: true
+      includeButtons: true,
+      clashId: state.id
     })
   });
   return { moved: true, drag, maximum, check };
@@ -2513,7 +2888,7 @@ async function executeClashThrowAction(controller, opponent, state, { alreadySpe
   }
 
   const thrownToken = getTokenObjectForActor(opponent);
-  await endDigimonClash(controller, { reason: finisher ? "finisherThrow" : "throw" });
+  await endDigimonClash(controller, { reason: finisher ? "finisherThrow" : "throw", clashId: state.id });
   await game.dda?.movementTracker?.grantMovement?.(opponent, distance, {
     kind: "clash-throw",
     actionCost: 0,
@@ -2602,7 +2977,14 @@ async function executeClashFinisher(controller, opponent, state) {
   const option = await chooseClashCheckOption(controller, opponent, { bonus: battery, purpose: "damage" });
   if (!option) return null;
   const tn = 12 + Math.max(getCpuTotal(opponent), getRamTotal(opponent));
-  const check = await rollFixedCheck(controller, option.modifier, tn, localize("DDA.Clash.Action.Primary.Finisher"));
+  const check = await rollFixedCheck(
+    controller,
+    option.modifier,
+    tn,
+    localize("DDA.Clash.Action.Primary.Finisher"),
+    "dda-clash-card",
+    { targetActor: opponent }
+  );
   const benefit = check.success ? await chooseFinisherBenefit() : "";
 
   const attackResult = await rollAttack(controller, attackItem, {
@@ -2629,7 +3011,7 @@ async function executeClashFinisher(controller, opponent, state) {
   if (check.success && benefit === "throw") {
     followUp = await executeClashThrowAction(controller, opponent, state, { alreadySpent: true, finisher: true });
   } else {
-    await endDigimonClash(controller, { reason: "finisher" });
+    await endDigimonClash(controller, { reason: "finisher", clashId: state.id });
   }
 
   if (check.success && benefit === "secondAttack") {
@@ -2701,7 +3083,8 @@ async function executePrimaryClashAction(controller, opponent, state, action) {
         ],
         controllerActor: controller,
         opponentActor: opponent,
-        includeButtons: true
+        includeButtons: true,
+        clashId: nextState.id
       })
     });
     return true;
@@ -2742,7 +3125,8 @@ async function executeSecondaryClashAction(opponent, controller, state, action) 
         lines: [formatI18n("DDA.Clash.ActionResult.Comeback", { opponent: escapeHtml(opponent.name) })],
         controllerActor: controller,
         opponentActor: opponent,
-        includeButtons: true
+        includeButtons: true,
+        clashId: nextState.id
       })
     });
     return true;
@@ -2758,7 +3142,14 @@ async function executeSecondaryClashAction(opponent, controller, state, action) 
     state = spent.state;
     const tn = 12 + getCpuTotal(controller);
     const statValue = getBestCpuOrRam(opponent);
-    const result = await rollFixedCheck(opponent, statValue, tn, localize("DDA.Clash.Action.Secondary.ContestPin"));
+    const result = await rollFixedCheck(
+      opponent,
+      statValue,
+      tn,
+      localize("DDA.Clash.Action.Secondary.ContestPin"),
+      "dda-clash-card",
+      { targetActor: controller }
+    );
     let nextState = state;
     if (result.success) {
       let nextContestBonus = foundry.utils.deepClone(state.nextContestBonus ?? {});
@@ -2775,7 +3166,8 @@ async function executeSecondaryClashAction(opponent, controller, state, action) 
           : formatI18n("DDA.Clash.ActionResult.ContestPinFailure", { opponent: escapeHtml(opponent.name) })],
         controllerActor: controller,
         opponentActor: opponent,
-        includeButtons: true
+        includeButtons: true,
+        clashId: nextState.id
       })
     });
     return result;
@@ -2796,7 +3188,7 @@ async function executeSecondaryClashAction(opponent, controller, state, action) 
         state.initiatorUuid === controller.uuid ? opponent : controller,
         "flexibleDigizoidWeaponry"
       );
-      await endDigimonClash(opponent, { reason: "escape" });
+      await endDigimonClash(opponent, { reason: "escape", clashId: state.id });
       await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: opponent }),
         content: renderClashCard({
@@ -2820,7 +3212,7 @@ async function executeSecondaryClashAction(opponent, controller, state, action) 
 
     if (winner.uuid === opponent.uuid) {
       await blockClashPairUntilNextRound(state.initiatorUuid === controller.uuid ? controller : opponent, state.initiatorUuid === controller.uuid ? opponent : controller, slipperyRoll ? "slippery" : "escape");
-      await endDigimonClash(opponent, { reason: slipperyRoll ? "slippery" : "escape" });
+      await endDigimonClash(opponent, { reason: slipperyRoll ? "slippery" : "escape", clashId: state.id });
     } else {
       let nextContestBonus = foundry.utils.deepClone(state.nextContestBonus ?? {});
       nextContestBonus = setClashMapValue(nextContestBonus, opponent, 0);
@@ -2843,7 +3235,8 @@ async function executeSecondaryClashAction(opponent, controller, state, action) 
         ],
         controllerActor: winner.uuid === opponent.uuid ? null : controller,
         opponentActor: winner.uuid === opponent.uuid ? null : opponent,
-        includeButtons: winner.uuid !== opponent.uuid
+        includeButtons: winner.uuid !== opponent.uuid,
+        clashId: state.id
       })
     });
     return { winner, opponentRoll, controllerRoll, slippery: Boolean(slipperyRoll) };
@@ -2859,7 +3252,7 @@ async function executeSecondaryClashAction(opponent, controller, state, action) 
     const { useTeleportClashEscape } = await import("./utility-qualities.js");
     const teleportResult = await useTeleportClashEscape(opponent);
     if (!teleportResult?.used) return null;
-    await endDigimonClash(opponent, { reason: "teleport" });
+    await endDigimonClash(opponent, { reason: "teleport", clashId: state.id });
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: opponent }),
       content: renderClashCard({
@@ -2889,8 +3282,9 @@ export async function handleClashChatAction(event) {
   }
 
   const action = button?.dataset?.clashAction ?? "menu";
-  if (action === "menu") return openDigimonClashActionMenu(actor);
-  return executeClashAction(actor, action);
+  const clashId = String(button?.dataset?.clashId ?? "");
+  if (action === "menu") return openDigimonClashActionMenu(actor, { clashId });
+  return executeClashAction(actor, action, { clashId });
 }
 
 function getTokenDocumentForActor(actor) {
@@ -2918,9 +3312,11 @@ async function followClashMove(document, changed, options = {}) {
   if (options.ddaClashMoveFollower || options.ddaClashForcedMovement || options.ddaDistantForce) return;
   if (!("x" in changed || "y" in changed || "elevation" in changed)) return;
   const actor = document.actor;
-  const state = getClashState(actor);
-  const move = state.clashMove ?? {};
-  if (!state.active || !move.active || move.moverUuid !== actor?.uuid || !move.followerUuid) return;
+  const state = getStoredClashStates(actor).find((candidate) => (
+    candidate?.clashMove?.active && candidate.clashMove.moverUuid === actor?.uuid
+  ));
+  const move = state?.clashMove ?? {};
+  if (!state?.active || !move.active || !move.followerUuid) return;
   const follower = await resolveActor(move.followerUuid);
   const followerDocument = getTokenDocumentForActor(follower);
   if (!followerDocument) return;
@@ -2937,13 +3333,14 @@ async function clearExpiredClashMoves(combat) {
   const processed = new Set();
   for (const combatant of combat.combatants ?? []) {
     const actor = combatant.actor;
-    const state = getClashState(actor);
-    if (!state.active || !state.clashMove?.active || processed.has(state.id)) continue;
-    processed.add(state.id);
-    if (String(state.clashMove.turnSignature ?? "") === signature) continue;
-    const other = await resolveActor(getOtherClashUuid(state, actor));
-    const next = { ...state, clashMove: null };
-    await syncClashStateForPair(actor, other, next);
+    for (const state of getStoredClashStates(actor)) {
+      if (!state.active || !state.clashMove?.active || processed.has(state.id)) continue;
+      processed.add(state.id);
+      if (String(state.clashMove.turnSignature ?? "") === signature) continue;
+      const other = await resolveActor(getOtherClashUuid(state, actor));
+      const next = { ...state, clashMove: null };
+      await syncClashStateForPair(actor, other, next);
+    }
   }
 }
 
@@ -2958,82 +3355,167 @@ function shouldAllowClashTokenMove(document, changed, options = {}) {
     options.ddaGiantHijackerFollow ||
     options.ddaGiantHijackerAttach
   ) return true;
+
   const actor = document.actor;
-  const state = getClashState(actor);
-  if (!state.active) return true;
-  const move = state.clashMove ?? {};
-  if (!move.active || move.moverUuid !== actor?.uuid) {
+  const states = getStoredClashStates(actor);
+  if (!states.length) return true;
+
+  const moveState = states.find((state) => (
+    state?.clashMove?.active && state.clashMove.moverUuid === actor?.uuid
+  ));
+  if (!moveState) {
     ui.notifications.warn(localize("DDA.Warning.ClashMovementRequiresMoveAction"));
     return false;
   }
-  if (move.followerUuid) return true;
-  const otherUuid = getOtherClashUuid(state, actor);
-  const otherActor = canvas?.tokens?.placeables?.find((token) => token.actor?.uuid === otherUuid)?.actor;
-  const otherDocument = getTokenDocumentForActor(otherActor);
-  if (!otherDocument) return true;
-  const maximumDistance = Math.max(1, Number(move.maximumDistance ?? 1));
-  if (getDocumentDistanceSpaces(document, changed, otherDocument) > maximumDistance) {
-    ui.notifications.warn(formatI18n("DDA.Warning.ClashMoveMustMaintainReach", { reach: maximumDistance }));
-    return false;
+
+  for (const state of states) {
+    const move = state.clashMove ?? {};
+    // The follower in the selected Clash is moved with the controller immediately
+    // after this update. Every other simultaneous Clash must still remain in reach.
+    if (String(state.id) === String(moveState.id) && move.followerUuid) continue;
+
+    const otherUuid = getOtherClashUuid(state, actor);
+    const otherActor = canvas?.tokens?.placeables?.find((token) => token.actor?.uuid === otherUuid)?.actor;
+    const otherDocument = getTokenDocumentForActor(otherActor);
+    if (!otherDocument) continue;
+    const maximumDistance = getStateMaximumClashDistance(state, actor, otherActor);
+    if (getDocumentDistanceSpaces(document, changed, otherDocument) > maximumDistance) {
+      ui.notifications.warn(text(
+        `O movimento quebraria o Clash com ${otherActor?.name ?? "outro Digimon"}.`,
+        `The movement would break the Clash with ${otherActor?.name ?? "another Digimon"}.`
+      ));
+      return false;
+    }
   }
+
   return true;
 }
 
-export async function handleClashForcedMovement({ defender, source = null, direction = "push", potency = 0, destination = {} } = {}) {
-  if (!defender || !hasActiveClash(defender)) return { handled: false };
-  const state = getClashState(defender);
-  const other = await resolveActor(getOtherClashUuid(state, defender));
-  if (!other) return { handled: false };
+
+export async function handleClashForcedMovement({
+  defender,
+  source = null,
+  direction = "push",
+  potency = 0,
+  destination = {},
+  suppressThickSkin = false
+} = {}) {
+  if (!defender) return { handled: false };
+
+  if (!suppressThickSkin) {
+    const {
+      maybeResolveThickSkinForcedMovement
+    } = await import(
+      "../rules/tamer-talent-combat-survival.js"
+    );
+
+    const reaction =
+      await maybeResolveThickSkinForcedMovement({
+        defender,
+        source,
+        direction,
+        spaces: Math.max(0, Number(potency ?? 0))
+      });
+
+    if (reaction?.used) {
+      return {
+        handled: true,
+        moved: false,
+        thickSkin: true,
+        reflected: Boolean(reaction.reflected),
+        reflectedMovement: Boolean(reaction.reflectedMovement)
+      };
+    }
+  }
+
+  const states = getStoredClashStates(defender);
+  if (!states.length) return { handled: false };
+
   const defenderDocument = getTokenDocumentForActor(defender);
-  const otherDocument = getTokenDocumentForActor(other);
-  if (!defenderDocument || !otherDocument) return { handled: false };
-  const maximumDistance = Math.max(
-    getExtendedGrappleData(defender).active ? getExtendedGrappleData(defender).maximumDistance : 1,
-    getExtendedGrappleData(other).active ? getExtendedGrappleData(other).maximumDistance : 1
-  );
-  const proposedDistance = getDocumentDistanceSpaces(defenderDocument, destination, otherDocument);
+  if (!defenderDocument) return { handled: false };
   const moveUpdate = { x: Number(destination.x), y: Number(destination.y) };
-  if (proposedDistance <= maximumDistance) {
+  const relationships = [];
+
+  for (const state of states) {
+    const other = await resolveActor(getOtherClashUuid(state, defender));
+    const otherDocument = getTokenDocumentForActor(other);
+    if (!other || !otherDocument) continue;
+    relationships.push({
+      state,
+      other,
+      otherDocument,
+      maximumDistance: getStateMaximumClashDistance(state, defender, other),
+      proposedDistance: getDocumentDistanceSpaces(defenderDocument, destination, otherDocument)
+    });
+  }
+
+  if (!relationships.length) return { handled: false };
+  const breaking = relationships.filter((entry) => entry.proposedDistance > entry.maximumDistance);
+  if (!breaking.length) {
     await updateClashToken(defenderDocument, moveUpdate, { animate: true, ddaClashForcedMovement: true });
     return { handled: true, moved: true, clashEnded: false };
   }
 
-  const controller = state.controllerUuid === defender.uuid ? defender : other;
-  const controllerCheck = await rollFixedCheck(
-    controller,
-    getCpuTotal(controller),
-    10 + Math.max(0, Number(potency ?? 0)),
-    localize("DDA.Clash.ForcedMovement.HoldCheck")
-  );
-
-  if (controllerCheck.success) {
-    const dx = Number(destination.x) - Number(defenderDocument.x ?? 0);
-    const dy = Number(destination.y) - Number(defenderDocument.y ?? 0);
-    await updateClashToken(defenderDocument, moveUpdate, { animate: true, ddaClashForcedMovement: true });
-    await updateClashToken(otherDocument, {
-      x: Number(otherDocument.x ?? 0) + dx,
-      y: Number(otherDocument.y ?? 0) + dy
-    }, { animate: true, ddaClashForcedMovement: true });
-    return { handled: true, moved: true, carriedOther: true, clashEnded: false };
+  const held = [];
+  const broken = [];
+  for (const entry of breaking) {
+    const controller = entry.state.controllerUuid === defender.uuid ? defender : entry.other;
+    const controllerCheck = await rollFixedCheck(
+      controller,
+      getCpuTotal(controller),
+      10 + Math.max(0, Number(potency ?? 0)),
+      localize("DDA.Clash.ForcedMovement.HoldCheck"),
+      "dda-clash-card",
+      { targetActor: defender }
+    );
+    if (controllerCheck.success) held.push({ ...entry, controller, controllerCheck });
+    else broken.push({ ...entry, controller, controllerCheck });
   }
 
+  const dx = Number(destination.x) - Number(defenderDocument.x ?? 0);
+  const dy = Number(destination.y) - Number(defenderDocument.y ?? 0);
   await updateClashToken(defenderDocument, moveUpdate, { animate: true, ddaClashForcedMovement: true });
-  await endDigimonClash(defender, { reason: direction === "pull" ? "pull" : "push" });
-  return { handled: true, moved: true, clashEnded: true };
+
+  for (const entry of held) {
+    await updateClashToken(entry.otherDocument, {
+      x: Number(entry.otherDocument.x ?? 0) + dx,
+      y: Number(entry.otherDocument.y ?? 0) + dy
+    }, { animate: true, ddaClashForcedMovement: true });
+  }
+
+  for (const entry of broken) {
+    await endDigimonClash(defender, {
+      reason: direction === "pull" ? "pull" : "push",
+      clashId: entry.state.id
+    });
+  }
+
+  return {
+    handled: true,
+    moved: true,
+    carriedOther: held.length > 0,
+    carriedCount: held.length,
+    clashEnded: broken.length > 0,
+    endedClashIds: broken.map((entry) => entry.state.id)
+  };
 }
+
 
 export async function handleClashEffectApplied(defender, effectKey = "", sourceActor = null) {
   if (!defender || !hasActiveClash(defender)) return false;
   const key = String(effectKey ?? "").replace(/^\[|\]$/g, "").toLowerCase();
-  const state = getClashState(defender);
-  const other = await resolveActor(getOtherClashUuid(state, defender));
   if (["stun", "paralyze"].includes(key)) {
-    await endDigimonClash(defender, { reason: key });
+    await endDigimonClash(defender, { reason: key, all: true });
     return true;
   }
-  if (key === "fear" && sourceActor && other?.uuid === sourceActor.uuid) {
-    await endDigimonClash(defender, { reason: "fear" });
-    return true;
+  if (key === "fear" && sourceActor) {
+    const affected = getStoredClashStates(defender).filter((state) => (
+      String(getOtherClashUuid(state, defender)) === String(sourceActor.uuid)
+    ));
+    for (const state of affected) {
+      await endDigimonClash(defender, { reason: "fear", clashId: state.id });
+    }
+    return affected.length > 0;
   }
   return false;
 }

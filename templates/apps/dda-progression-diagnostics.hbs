@@ -1,0 +1,174 @@
+<section class="dda-progression-diagnostics-root">
+  {{#unless isGM}}
+    <p class="dda-progression-diagnostics-empty">{{localize "DDA.Progression.Diagnostics.GMOnly"}}</p>
+  {{else}}
+    <header class="dda-progression-diagnostics-header">
+      <div>
+        <span class="dda-progression-diagnostics-kicker"><i class="fa-solid fa-stethoscope"></i> {{localize "DDA.Progression.Diagnostics.Kicker"}}</span>
+        <h2>{{localize "DDA.Progression.Diagnostics.Title"}}</h2>
+        <p>{{labels.subtitle}}</p>
+      </div>
+
+      <div class="dda-progression-diagnostics-header-actions">
+        <label class="dda-progression-diagnostics-search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" data-diagnostic-search placeholder="{{localize 'DDA.Progression.Diagnostics.SearchPlaceholder'}}" />
+        </label>
+
+        <label class="dda-progression-diagnostics-filter">
+          <span>{{localize "DDA.Progression.Diagnostics.FilterStatus"}}</span>
+          <select data-diagnostic-status>
+            <option value="all">{{localize "DDA.Progression.Diagnostics.FilterAll"}}</option>
+            <option value="ok">{{localize "DDA.Progression.Diagnostics.Status.OK"}}</option>
+            <option value="review">{{localize "DDA.Progression.Diagnostics.Status.Review"}}</option>
+            <option value="legacy">{{localize "DDA.Progression.Diagnostics.Status.Legacy"}}</option>
+            <option value="incomplete">{{localize "DDA.Progression.Diagnostics.Status.Incomplete"}}</option>
+          </select>
+        </label>
+
+        <button type="button" data-action="refresh">
+          <i class="fa-solid fa-rotate"></i>
+          {{localize "DDA.GMPartnerProgress.Refresh"}}
+        </button>
+      </div>
+    </header>
+
+    <section class="dda-progression-diagnostics-summary">
+      <article class="is-total"><strong>{{summary.total}}</strong><span>{{localize "DDA.Progression.Diagnostics.Summary.Total"}}</span></article>
+      <article class="is-ok"><strong>{{summary.ok}}</strong><span>{{localize "DDA.Progression.Diagnostics.Status.OK"}}</span></article>
+      <article class="is-review"><strong>{{summary.review}}</strong><span>{{localize "DDA.Progression.Diagnostics.Status.Review"}}</span></article>
+      <article class="is-legacy"><strong>{{summary.legacy}}</strong><span>{{localize "DDA.Progression.Diagnostics.Status.Legacy"}}</span></article>
+      <article class="is-incomplete"><strong>{{summary.incomplete}}</strong><span>{{localize "DDA.Progression.Diagnostics.Status.Incomplete"}}</span></article>
+    </section>
+
+    <div class="dda-progression-diagnostics-toolbar-note">
+      <span><strong data-diagnostic-visible-count>{{summary.total}}</strong> {{localize "DDA.Progression.Diagnostics.Visible"}}</span>
+      <p>{{localize "DDA.Progression.Diagnostics.SafeRepairHint"}}</p>
+    </div>
+
+    {{#unless hasRows}}
+      <p class="dda-progression-diagnostics-empty">{{localize "DDA.Progression.Diagnostics.NoTamers"}}</p>
+    {{/unless}}
+
+    <div class="dda-progression-diagnostics-list">
+      {{#each rows as |row|}}
+        <article
+          class="dda-progression-diagnostic-card status-{{row.status}}"
+          data-diagnostic-row
+          data-status="{{row.status}}"
+          data-search="{{row.tamerName}} {{row.partnerName}} {{row.statusLabel}}"
+        >
+          <header class="dda-progression-diagnostic-card-header">
+            <div class="dda-progression-diagnostic-identity">
+              <img src="{{row.tamerImg}}" alt="{{row.tamerName}}" />
+              <div>
+                <span>{{localize "DDA.Actor.Tamer"}}</span>
+                <h3>{{row.tamerName}}</h3>
+              </div>
+              <i class="fa-solid fa-link"></i>
+              <img src="{{row.partnerImg}}" alt="{{row.partnerName}}" />
+              <div>
+                <span>{{localize "DDA.GMPartnerProgress.Partner"}}</span>
+                <h3>{{row.partnerName}}</h3>
+              </div>
+            </div>
+
+            <span class="dda-progression-diagnostic-status status-{{row.status}}">{{row.statusLabel}}</span>
+          </header>
+
+          <div class="dda-progression-diagnostic-metrics">
+            <section>
+              <h4>{{localize "DDA.Progression.Diagnostics.TamerProgress"}}</h4>
+              <dl>
+                <div><dt>{{localize "DDA.TamerSheet.Milestones"}}</dt><dd>{{row.milestonesCompleted}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.Diagnostics.History"}}</dt><dd>{{row.milestoneHistoryCount}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.Diagnostics.Ledger"}}</dt><dd>{{row.ledgerReleasedCount}}</dd></div>
+                <div><dt>{{localize "DDA.TamerSheet.AttributeCap"}}</dt><dd>{{row.attributeCap}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.Diagnostics.HighestAttribute"}}</dt><dd>{{row.highestAttribute}}</dd></div>
+                <div><dt>{{localize "DDA.TamerSheet.GrowthPoints"}}</dt><dd>{{row.growthAvailable}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.Diagnostics.PackageRemaining"}}</dt><dd>{{row.growthPackageRemaining}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.Diagnostics.IP"}}</dt><dd>{{row.inspirationValue}} / {{row.inspirationMax}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.Diagnostics.IPGrantedRecorded"}}</dt><dd>{{row.inspirationGrantedRecorded}}</dd></div>
+              </dl>
+            </section>
+
+            <section>
+              <h4>{{localize "DDA.Progression.Diagnostics.PartnerProgress"}}</h4>
+              <dl>
+                <div><dt>{{localize "DDA.Progression.BonusDP.Total"}}</dt><dd>{{row.bonusDpTotal}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.Diagnostics.SharedStatDP"}}</dt><dd>{{row.statAllocated}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.BonusDP.QualityAllocation"}}</dt><dd>{{row.qualityAllocated}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.BonusDP.Unallocated"}}</dt><dd>{{row.unallocated}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.Diagnostics.Canonical"}}</dt><dd>{{#if row.canonicalAllocationStored}}✓{{else}}—{{/if}}</dd></div>
+                <div><dt>{{localize "DDA.Progression.Diagnostics.Parity"}}</dt><dd>{{#if row.parityComplete}}✓{{else}}—{{/if}}</dd></div>
+              </dl>
+            </section>
+          </div>
+
+          {{#if row.issues.length}}
+            <section class="dda-progression-diagnostic-issues">
+              <h4>{{localize "DDA.Progression.Diagnostics.Findings"}}</h4>
+              <ul>
+                {{#each row.issues as |issue|}}
+                  <li class="severity-{{issue.severity}}">
+                    <span>{{issue.label}}</span>
+                    <p>{{issue.text}}</p>
+                  </li>
+                {{/each}}
+              </ul>
+            </section>
+          {{else}}
+            <p class="dda-progression-diagnostic-clean"><i class="fa-solid fa-circle-check"></i> {{localize "DDA.Progression.Diagnostics.NoFindings"}}</p>
+          {{/if}}
+
+          {{#if row.hasPartner}}
+            <details class="dda-progression-diagnostic-forms">
+              <summary>{{localize "DDA.Progression.Diagnostics.FormDetails"}}</summary>
+              {{#if row.forms.length}}
+                <div class="dda-progression-diagnostic-form-list">
+                  {{#each row.forms as |form|}}
+                    <div class="status-{{form.status}}">
+                      <strong>{{form.name}}</strong>
+                      <span>{{form.stage}}</span>
+                      <span>{{form.statusLabel}}</span>
+                      <span>{{localize "DDA.Progression.BonusDP.QualitySpent"}}: {{form.qualitySpent}}</span>
+                      <span>{{localize "DDA.Progression.Diagnostics.SharedStats"}}: {{form.statBonusText}}</span>
+                    </div>
+                  {{/each}}
+                </div>
+              {{else}}
+                <p>{{localize "DDA.Progression.Diagnostics.NoPreparedForms"}}</p>
+              {{/if}}
+            </details>
+          {{/if}}
+
+          <footer class="dda-progression-diagnostic-actions">
+            <button type="button" data-action="openTamer" data-uuid="{{row.tamerUuid}}">
+              <i class="fa-solid fa-user"></i> {{localize "DDA.GMPartnerProgress.OpenTamer"}}
+            </button>
+
+            {{#if row.hasPartner}}
+              <button type="button" data-action="openPartner" data-uuid="{{row.partnerUuid}}">
+                <i class="fa-solid fa-paw"></i> {{localize "DDA.GMPartnerProgress.OpenPartner"}}
+              </button>
+
+              <button type="button" data-action="reconcileBonusDp" data-tamer-uuid="{{row.tamerUuid}}">
+                <i class="fa-solid fa-sliders"></i> {{localize "DDA.Progression.Diagnostics.Reconcile"}}
+              </button>
+
+              <button type="button" data-action="openPlanner" data-tamer-uuid="{{row.tamerUuid}}">
+                <i class="fa-solid fa-diagram-project"></i> {{localize "DDA.Button.PartnerFormPlanner"}}
+              </button>
+            {{/if}}
+
+            {{#if row.repairable}}
+              <button type="button" class="is-repair" data-action="repairSafe" data-tamer-uuid="{{row.tamerUuid}}" data-partner-uuid="{{row.partnerUuid}}">
+                <i class="fa-solid fa-screwdriver-wrench"></i> {{localize "DDA.Progression.Diagnostics.RepairSafe"}}
+              </button>
+            {{/if}}
+          </footer>
+        </article>
+      {{/each}}
+    </div>
+  {{/unless}}
+</section>

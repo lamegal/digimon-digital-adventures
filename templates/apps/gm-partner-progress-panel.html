@@ -51,6 +51,11 @@
           </select>
         </label>
 
+        <button type="button" class="dda-gm-progress-diagnostics-button" data-action="openProgressionDiagnostics">
+          <i class="fas fa-stethoscope"></i>
+          {{localize "DDA.Progression.Diagnostics.Button.Open"}}
+        </button>
+
         <button type="button" data-action="refresh">
           <i class="fas fa-sync-alt"></i>
           {{localize "DDA.GMPartnerProgress.Refresh"}}
@@ -85,6 +90,104 @@
         </div>
       </header>
 
+      <div class="dda-gm-progression-method-board">
+        <div class="dda-gm-progression-method-choice">
+          <span>{{localize "DDA.Progression.Label.Method"}}</span>
+          <div>
+            <button type="button" data-action="setProgressionNarrative" class="{{#if campaign.narrativeMethod}}is-active{{/if}}">
+              <i class="fas fa-book-open"></i>
+              {{localize "DDA.Progression.Method.Narrative"}}
+            </button>
+            <button type="button" data-action="setProgressionXp" class="{{#if campaign.xpMethod}}is-active{{/if}}">
+              <i class="fas fa-star"></i>
+              {{localize "DDA.Progression.Method.XP"}}
+            </button>
+          </div>
+        </div>
+
+        {{#if campaign.xpMethod}}
+          <section class="dda-gm-xp-tracker">
+            <div class="dda-gm-xp-meter">
+              <div>
+                <span>{{localize "DDA.Progression.Label.PartyXP"}}</span>
+                <strong>{{campaign.experience.value}} / {{campaign.experience.max}}</strong>
+              </div>
+              <progress value="{{campaign.experience.value}}" max="{{campaign.experience.max}}"></progress>
+              <small>{{localize "DDA.Progression.Hint.XPSources"}}</small>
+            </div>
+
+            <div class="dda-gm-xp-actions">
+              <button type="button" data-action="addXp1" title="{{localize 'DDA.Progression.Tooltip.AddOneXP'}}">
+                <i class="fas fa-plus"></i> 1 XP
+              </button>
+              <button type="button" data-action="addXp2" title="{{localize 'DDA.Progression.Tooltip.AddTwoXP'}}">
+                <i class="fas fa-plus"></i> 2 XP
+              </button>
+              <button type="button" data-action="subtractXp1" class="is-secondary" title="{{localize 'DDA.Progression.Tooltip.RemoveOneXP'}}">
+                <i class="fas fa-minus"></i> 1 XP
+              </button>
+              <button type="button" data-action="createXpMilestone" class="is-milestone" {{#unless campaign.experience.ready}}disabled{{/unless}}>
+                <i class="fas fa-flag-checkered"></i>
+                {{localize "DDA.Progression.Button.CreateXPMilestone"}}
+              </button>
+            </div>
+          </section>
+        {{else}}
+          <p class="dda-gm-progression-method-hint">
+            {{localize "DDA.Progression.Hint.NarrativeMethod"}}
+          </p>
+        {{/if}}
+      </div>
+
+      <section class="dda-gm-default-range-board">
+        <div>
+          <span class="dda-gm-default-range-title">{{localize "DDA.Progression.DefaultRange.Title"}}</span>
+          <small>{{localize "DDA.Progression.DefaultRange.Hint"}}</small>
+        </div>
+
+        <label>
+          <span>{{localize "DDA.Progression.DefaultRange.Template"}}</span>
+          <select data-progress-control="default-range-template">
+            <option value="limited" {{#if campaign.defaultRange.limited}}selected{{/if}}>{{localize "DDA.Progression.DefaultRange.Limited"}}</option>
+            <option value="complete" {{#if campaign.defaultRange.complete}}selected{{/if}}>{{localize "DDA.Progression.DefaultRange.Complete"}}</option>
+            <option value="manual" {{#if campaign.defaultRange.manual}}selected{{/if}}>{{localize "DDA.Progression.DefaultRange.Manual"}}</option>
+          </select>
+        </label>
+
+        <label class="{{#unless campaign.defaultRange.manual}}is-muted{{/unless}}">
+          <span>{{localize "DDA.Progression.DefaultRange.ManualValue"}}</span>
+          <select data-progress-control="default-range-manual" {{#unless campaign.defaultRange.manual}}disabled{{/unless}}>
+            <option value="2" {{#if (eq campaign.defaultRange.manualValue 2)}}selected{{/if}}>2 — {{localize "DDA.Stage.Child"}}</option>
+            <option value="3" {{#if (eq campaign.defaultRange.manualValue 3)}}selected{{/if}}>3 — {{localize "DDA.Stage.Adult"}}</option>
+            <option value="4" {{#if (eq campaign.defaultRange.manualValue 4)}}selected{{/if}}>4 — {{localize "DDA.Stage.Perfect"}}</option>
+            <option value="5" {{#if (eq campaign.defaultRange.manualValue 5)}}selected{{/if}}>5 — {{localize "DDA.Stage.Ultimate"}}</option>
+          </select>
+        </label>
+
+        <label>
+          <span>{{localize "DDA.Progression.DefaultRange.DefaultStagePolicy"}}</span>
+          <select data-progress-control="default-stage-policy">
+            <option value="range" {{#if campaign.defaultRange.defaultStageRange}}selected{{/if}}>{{localize "DDA.Progression.DefaultRange.DefaultStageRange"}}</option>
+            <option value="rookie" {{#if campaign.defaultRange.defaultStageRookie}}selected{{/if}}>{{localize "DDA.Progression.DefaultRange.DefaultStageRookie"}}</option>
+          </select>
+        </label>
+
+        <button type="button" class="dda-gm-default-range-sync" data-action="syncDefaultRanges">
+          <i class="fas fa-arrows-rotate"></i>
+          {{localize "DDA.Progression.DefaultRange.Sync"}}
+        </button>
+
+        <p class="dda-gm-default-range-rule">
+          {{#if campaign.defaultRange.limited}}
+            {{localize "DDA.Progression.DefaultRange.LimitedHint"}}
+          {{else if campaign.defaultRange.complete}}
+            {{localize "DDA.Progression.DefaultRange.CompleteHint"}}
+          {{else}}
+            {{localize "DDA.Progression.DefaultRange.ManualHint"}}
+          {{/if}}
+        </p>
+      </section>
+
       <div class="dda-gm-milestone-composer">
         <label class="dda-gm-milestone-reason">
           <span>{{localize "DDA.Progression.Label.MilestoneReason"}}</span>
@@ -95,36 +198,39 @@
           ></textarea>
         </label>
 
-        <label>
-          <span>{{localize "DDA.Progression.Label.Source"}}</span>
-          <select data-milestone-field="method">
-            <option value="narrative">{{localize "DDA.Progression.Method.Narrative"}}</option>
-            <option value="xp">{{localize "DDA.Progression.Method.XP"}}</option>
-            <option value="gm">{{localize "DDA.Progression.Method.GM"}}</option>
-          </select>
-        </label>
+        {{#if campaign.narrativeMethod}}
+          <label>
+            <span>{{localize "DDA.Progression.Label.Source"}}</span>
+            <select data-milestone-field="method">
+              <option value="narrative">{{localize "DDA.Progression.Method.Narrative"}}</option>
+              <option value="gm">{{localize "DDA.Progression.Method.GM"}}</option>
+            </select>
+          </label>
 
-        <label>
-          <span>{{localize "DDA.Progression.Label.IndividualTarget"}}</span>
-          <select data-milestone-field="individual-tamer">
-            {{#each allTamers as |tamer|}}
-              <option value="{{tamer.uuid}}" {{#if (eq ../selectedTamerUuid tamer.uuid)}}selected{{/if}}>
-                {{tamer.name}}
-              </option>
-            {{/each}}
-          </select>
-        </label>
+          <label>
+            <span>{{localize "DDA.Progression.Label.IndividualTarget"}}</span>
+            <select data-milestone-field="individual-tamer">
+              {{#each allTamers as |tamer|}}
+                <option value="{{tamer.uuid}}" {{#if (eq ../selectedTamerUuid tamer.uuid)}}selected{{/if}}>
+                  {{tamer.name}}
+                </option>
+              {{/each}}
+            </select>
+          </label>
+        {{/if}}
 
         <div class="dda-gm-milestone-composer-actions">
-          <button type="button" data-action="createPartyMilestone" {{#unless selectedTargetCount}}disabled{{/unless}}>
-            <i class="fas fa-users"></i>
-            {{localize "DDA.Progression.Button.GrantTeamMilestone"}}
-          </button>
+          {{#if campaign.narrativeMethod}}
+            <button type="button" data-action="createPartyMilestone" {{#unless selectedTargetCount}}disabled{{/unless}}>
+              <i class="fas fa-users"></i>
+              {{localize "DDA.Progression.Button.GrantTeamMilestone"}}
+            </button>
 
-          <button type="button" data-action="createIndividualMilestone" {{#unless allTamers.length}}disabled{{/unless}}>
-            <i class="fas fa-user-plus"></i>
-            {{localize "DDA.Progression.Button.GrantIndividualMilestone"}}
-          </button>
+            <button type="button" data-action="createIndividualMilestone" {{#unless allTamers.length}}disabled{{/unless}}>
+              <i class="fas fa-user-plus"></i>
+              {{localize "DDA.Progression.Button.GrantIndividualMilestone"}}
+            </button>
+          {{/if}}
 
           <button type="button" data-action="releasePendingMilestones" {{#unless campaign.pendingCount}}disabled{{/unless}}>
             <i class="fas fa-unlock"></i>
@@ -132,11 +238,13 @@
           </button>
         </div>
 
-        <p class="dda-gm-milestone-selection-hint">
-          {{localize "DDA.Progression.Label.TeamTargets"}}:
-          <strong>{{selectedTargetLabel}}</strong>
-          <span>({{selectedTargetCount}})</span>
-        </p>
+        {{#if campaign.narrativeMethod}}
+          <p class="dda-gm-milestone-selection-hint">
+            {{localize "DDA.Progression.Label.TeamTargets"}}:
+            <strong>{{selectedTargetLabel}}</strong>
+            <span>({{selectedTargetCount}})</span>
+          </p>
+        {{/if}}
       </div>
     </section>
 
@@ -263,6 +371,16 @@
                 <div>
                   <dt>{{localize "DDA.TamerSheet.Milestones"}}</dt>
                   <dd>{{tamer.milestonesCompleted}}</dd>
+                </div>
+
+                <div>
+                  <dt>{{localize "DDA.Progression.DefaultRange.Short"}}</dt>
+                  <dd>{{tamer.defaultRange}}</dd>
+                </div>
+
+                <div>
+                  <dt>{{localize "DDA.Progression.DefaultRange.DefaultForm"}}</dt>
+                  <dd title="{{tamer.defaultFormName}}">{{tamer.defaultStageLabel}}</dd>
                 </div>
 
                 <div>

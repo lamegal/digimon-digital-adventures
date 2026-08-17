@@ -2,7 +2,7 @@
   "id": "digimon-digital-adventures",
   "title": "Digimon Digital Adventures V2",
   "description": "Sistema não oficial para jogar Digimon Digital Adventures 2ª Edição no Foundry Virtual Tabletop. Inclui fichas para Digi-Escolhidos, Digimon parceiros e NPCs, com suporte a Aspectos, PI, PE, Tormentos, Marcos, PD, Qualidades, Ataques, Estágios Evolutivos, Posturas, Ações de Combate e rolagens de Testes e Reservas.",
-  "version": "2.0.19-beta.3",
+  "version": "2.0.20-beta",
   "compatibility": {
     "minimum": "13",
     "verified": "13"
@@ -19,7 +19,8 @@
     "scripts/data/motifs.js",
     "scripts/data/option-cards.js",
     "scripts/data/expendable-items.js",
-    "scripts/data/equipment-items.js"
+    "scripts/data/equipment-items.js",
+    "scripts/ui/dda-core-ui.js"
   ],
   "styles": [
     "styles/wizard.css",
@@ -35,7 +36,6 @@
     "styles/hybrid-evolution.css",
     "styles/dda-quality-browser.css",
     "styles/dda-enemy-quality-browser.css",
-    "styles/tamer-talent-browser.css",
     "styles/gm-partner-progress-panel.css",
     "styles/dda-partner-form-planner.css",
     "styles/crest-plaque.css",
@@ -49,7 +49,9 @@
     "styles/dda-stance-preservation-utility.css",
     "styles/dda-effect-qualities.css",
     "styles/dda-mode-evoker.css",
-    "styles/dda-token-hud-effects.css"
+    "styles/dda-token-hud-effects.css",
+    "styles/dda-token-hud.css",
+    "styles/dda-core-ui-v4.css"
   ],
   "languages": [
     {
@@ -171,8 +173,8 @@
   "secondaryTokenAttribute": "combat.actions",
   "url": "https://github.com/lamegal/digimon-digital-adventures",
   "manifest": "https://raw.githubusercontent.com/lamegal/digimon-digital-adventures/main/system.json",
-  "download": "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.19-beta.3/digimon-digital-adventures-v2.0.19-beta.3.zip",
+  "download": "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.20-beta/digimon-digital-adventures-v2.0.20-beta.zip",
   "bugs": "https://github.com/lamegal/digimon-digital-adventures/issues",
-  "changelog": "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.19-beta.3",
+  "changelog": "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.20-beta",
   "license": "LICENSE"
 }

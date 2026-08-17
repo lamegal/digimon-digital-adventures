@@ -326,11 +326,13 @@ export async function maybeApplyGritSurvival(
       : "";
 
   const confirmed =
-    await Dialog.confirm({
-      title:
-        game.i18n.localize(
-          "DDA.TamerTalent.Grit.Title"
-        ),
+    await foundry.applications.api.DialogV2.confirm({
+      window: {
+        title:
+          game.i18n.localize(
+            "DDA.TamerTalent.Grit.Title"
+          )
+      },
 
       content: `
         <div class="dda-confirm-dialog dda-grit-survival-dialog">
@@ -363,9 +365,9 @@ export async function maybeApplyGritSurvival(
         </div>
       `,
 
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
+      yes: {},
+      no: { default: true },
+      rejectClose: false
     });
 
   if (!confirmed) {
@@ -530,11 +532,13 @@ export async function maybeApplyAvoidingConsequences(
       : "";
 
   const confirmed =
-    await Dialog.confirm({
-      title:
-        game.i18n.localize(
-          "DDA.TamerTalent.AvoidingConsequences.Title"
-        ),
+    await foundry.applications.api.DialogV2.confirm({
+      window: {
+        title:
+          game.i18n.localize(
+            "DDA.TamerTalent.AvoidingConsequences.Title"
+          )
+      },
 
       content: `
         <div class="dda-confirm-dialog dda-avoiding-consequences-dialog">
@@ -578,9 +582,9 @@ export async function maybeApplyAvoidingConsequences(
         </div>
       `,
 
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
+      yes: {},
+      no: { default: true },
+      rejectClose: false
     });
 
   return {

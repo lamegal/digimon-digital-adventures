@@ -1,4 +1,4 @@
-Cumulative Foundry VTT v13 beta release covering every system change from v2.0.8-beta through v2.0.19-beta.3.
+Cumulative Foundry VTT v13 beta release covering every system change from v2.0.8-beta through v2.0.20-beta.
 
 Release cycle overview
 
@@ -19,6 +19,68 @@ Existing embedded Qualities continue to resolve through canonical IDs and suppor
 Opening an Actor, Wizard or Quality Browser may refresh missing derived automation metadata without spending DP or duplicating purchases.
 
 A backup of the world and system folder is still strongly recommended before installing any beta build.
+
+Digimon Digital Adventures V2 — v2.0.20-beta
+
+Pre-release consolidation — Progression, Special Evolutions, Bosses, Tamer Talents and Foundry v13 UI
+
+Partner progression and form persistence
+
+Expanded the Partner progression flow with per-form builds, Bonus DP handling, prepared future forms and safer snapshot persistence.
+
+Made the active Partner Actor the source of truth for the current form while preserving inactive forms as snapshots, preventing stale form data from overwriting the active Digimon.
+
+Preserved attacks, token art, Quality state, Jogress metadata and prepared-form data across Digivolution, regression and Current Form Wizard edits.
+
+Special Evolutions
+
+Audited Blast Evolution against the Section 9.10 flow, including active-Combat requirements, legal target-form routing, Signature Move conversion, Intercede behavior, Aftermath checks and Milestone-based use recovery.
+
+Hardened Jogress with transactional Action/EP payment, participant-specific return-form mapping, shared-initiative handling, secondary-Partner suspension and token restoration, mastered-recipe persistence and rollback safety.
+
+Improved Forced Evolution and shared Special Evolution cleanup so temporary evolution state does not contaminate persistent Partner snapshots.
+
+Boss rules and encounter runtime
+
+Added automated Boss Qualities and Boss Effect support, including Suppression, Superior Domain, Tormentor, Charm, Frenzy, Multigrappler, True Sight and Unchangeable Fate.
+
+Added Boss Template multi-pool Wound handling, per-player Boss turns, Raid Boss telegraph/resolution turns and Multi-Stage Boss transitions with full Wound recovery.
+
+Hardened multiplayer authority, synthetic-token identity, technical Combatant cleanup, continuous-damage routing and Boss defeat handling.
+
+Tamer Talents, combat reactions and terrain
+
+Expanded Tamer Talent automation across combat, survival, movement, narrative, Special Orders and transversal rules.
+
+Added the DDA44 combat/survival set including Bullrush, Challenger, Thick Skin, Survival Instinct, Revitalize and Overlooked.
+
+Added Section 9.07a Area Intercede, Fastball interaction and True Guardian Area Attack reactions, with multiplayer-safe Interrupt payment and owner-routed repositioning.
+
+Consolidated movement context and Section 9.09g terrain handling for Basic, Difficult and Dangerous Terrain.
+
+Partner Wizard and ready-made Rookie builds
+
+Reworked Partner Wizard layout, readability and responsive behavior across Origin, Stage, Identity, Initial Line, Attributes and Qualities.
+
+Fixed duplicated ready-made-build selection controls and restored readable DialogV2 styling for roll/check windows.
+
+Audited the 14 Rookie example builds against the current Quality catalog and DP rules; corrected Melee Damage Dealer, Berserker and Area Control templates while preserving Core Discount and System Boost first-purchase discount behavior.
+
+Foundry v13 and ApplicationV2 cleanup
+
+Migrated the final legacy Pool Check Dialog constructor to DialogV2 and removed the remaining static legacy Application/Dialog constructor reference from active system scripts.
+
+Added missing bilingual localization for Charm contest and Clash Action Menu labels.
+
+Continued ApplicationV2 migration and UI cleanup across sheets, Wizards, Quality Browsers, evolution tools and action windows.
+
+Compatibility
+
+Designed for Foundry Virtual Tabletop v13.
+
+No world migration is required for this beta. Existing canonical IDs, supported legacy names and persistent form snapshots remain compatible.
+
+A world backup is strongly recommended before installing the beta.
 
 Digimon Digital Adventures V2 — v2.0.19-beta.3
 

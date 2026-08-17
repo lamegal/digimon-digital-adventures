@@ -106,9 +106,9 @@
 }
 
 .dda-hybrid-panel-actions button,
-form.dda-tamer-window-sheet .hybrid-partner,
-form.dda-tamer-window-sheet .end-hybrid-partner,
-form.dda-tamer-window-sheet .open-hybrid-sheet {
+:is(form, div).dda-tamer-window-sheet .hybrid-partner,
+:is(form, div).dda-tamer-window-sheet .end-hybrid-partner,
+:is(form, div).dda-tamer-window-sheet .open-hybrid-sheet {
   min-width: 92px !important;
   height: 30px !important;
   padding: 0 0.75rem !important;
@@ -127,9 +127,9 @@ form.dda-tamer-window-sheet .open-hybrid-sheet {
 }
 
 .dda-hybrid-panel-actions button:hover,
-form.dda-tamer-window-sheet .hybrid-partner:hover,
-form.dda-tamer-window-sheet .end-hybrid-partner:hover,
-form.dda-tamer-window-sheet .open-hybrid-sheet:hover {
+:is(form, div).dda-tamer-window-sheet .hybrid-partner:hover,
+:is(form, div).dda-tamer-window-sheet .end-hybrid-partner:hover,
+:is(form, div).dda-tamer-window-sheet .open-hybrid-sheet:hover {
   color: #ffffff !important;
   background: linear-gradient(180deg, rgba(36, 122, 170, 1), rgba(8, 56, 96, 1)) !important;
   border-color: rgba(190, 245, 255, 0.72) !important;

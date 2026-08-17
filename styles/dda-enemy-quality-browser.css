@@ -689,3 +689,17 @@
   flex: 0 0 auto !important;
   color: #74d9ff !important;
 }
+/* Boss-only catalog accents */
+.dda-enemy-quality-browser button[data-category="boss"] {
+  --category-top: rgba(168, 63, 42, 0.98);
+  --category-bottom: rgba(82, 25, 24, 0.99);
+  --category-border: rgba(255, 193, 90, 0.82);
+  --category-glow: rgba(255, 129, 67, 0.40);
+}
+
+.dda-enemy-quality-browser button[data-tier="boss"] {
+  --tier-top: rgba(169, 67, 34, 0.98);
+  --tier-bottom: rgba(77, 29, 18, 0.99);
+  --tier-border: rgba(255, 199, 101, 0.82);
+  --tier-glow: rgba(255, 140, 69, 0.38);
+}

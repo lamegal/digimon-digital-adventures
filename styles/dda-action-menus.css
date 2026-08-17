@@ -215,6 +215,14 @@
   color: #83efb8;
 }
 
+.dda-compact-action__automation.is-assisted {
+  color: #ffe4a4;
+}
+
+.dda-compact-action__automation.is-narrative {
+  color: #b7c7ff;
+}
+
 .dda-compact-action__cost,
 .dda-compact-action-detail__cost {
   display: inline-flex;

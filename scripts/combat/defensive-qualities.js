@@ -1,5 +1,6 @@
 import {
   areActorsAllies,
+  areActorsAlliesForQualities,
   findQuality,
   getActorDerivedStat,
   getActorSv,
@@ -156,9 +157,12 @@ function isPrimaryActiveGM() {
 
 function resolveResponsibleUser(actor) {
   const users = (game?.users?.contents ?? []).filter((user) => user.active);
-  const owners = users
-    .filter((user) => !user.isGM)
-    .filter((user) => actor?.testUserPermission?.(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER))
+  const charmIds = game?.dda?.bossQualities?.getCharmAuthorizedUserIds?.(actor, { includeGMs: false });
+  const owners = (Array.isArray(charmIds)
+    ? users.filter((user) => !user.isGM && charmIds.includes(String(user.id)))
+    : users
+      .filter((user) => !user.isGM)
+      .filter((user) => actor?.testUserPermission?.(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER)))
     .sort((left, right) => String(left.id).localeCompare(String(right.id)));
 
   if (owners.length) return owners[0];
@@ -334,7 +338,7 @@ export async function addCombatMonsterResolve(actor, amount, {
   if (gainedFromWounds <= 0 || getCombatMonsterResolveMax(actor) <= 0) return null;
 
   const isOwnQuality = sourceKind === "selfQuality";
-  const validEnemyDamage = sourceKind === "attack" && attacker && !areActorsAllies(actor, attacker);
+  const validEnemyDamage = sourceKind === "attack" && attacker && !areActorsAlliesForQualities(actor, attacker);
   if (!isOwnQuality && !validEnemyDamage) return null;
 
   const before = getCombatMonsterResolve(actor);
@@ -375,13 +379,13 @@ export async function applyCombatMonsterResolveFromEffectDamage({
 
     const appliedDamage = Math.min(
       remainingDamage,
-      Math.max(0, number(entry?.amount))
+      Math.max(0, number(entry?.bossTemplatePool?.applied ?? entry?.amount))
     );
     remainingDamage -= appliedDamage;
     if (appliedDamage <= 0) continue;
 
     const source = await resolveActor(entry?.sourceActorUuid);
-    if (!source || source.uuid === actor.uuid || areActorsAllies(actor, source)) continue;
+    if (!source || source.uuid === actor.uuid || areActorsAlliesForQualities(actor, source)) continue;
 
     firstEnemy ??= source;
     enemyDamage += appliedDamage;

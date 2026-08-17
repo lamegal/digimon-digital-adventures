@@ -1,5 +1,9 @@
 import { DDADigimonDatabase } from "../data/digimon-database.js";
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+import {
+  getDdaBossQualityById,
+  isDdaBossQuality
+} from "../data/boss-qualities.js";
 import { DDAEnemyQualityBrowser } from "./dda-enemy-quality-browser.js";
 import { buildQualityItemData } from "./digimon-quality-browser.js";
 import {
@@ -9,6 +13,9 @@ import {
   getDdaPortraitPath,
   getDdaTokenPath
 } from "../data/dda-portrait-and-manual-digimon-data.js";
+import {
+  applyIntrinsicQualityDiscount
+} from "../rules/core-qualities.js";
 
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 const DDA_ENEMY_FORM_LIMIT = 120;
@@ -402,6 +409,77 @@ function createEnemySuperiorModeDraft() {
   };
 }
 
+function createEnemyBossDraft(form = null) {
+  const stageBaseDp = getEnemyStageBaseDp(form ?? {});
+
+  return {
+    partySize: 4,
+    partyMilestones: 0,
+    averagePartyDp: stageBaseDp,
+
+    options: {
+      bigScary: {
+        enabled: false,
+        dpIncreasePercent: 50
+      },
+      bossTemplate: {
+        enabled: false
+      },
+      tagTeam: {
+        enabled: false
+      },
+      raidBoss: {
+        enabled: false
+      },
+      multiStage: {
+        enabled: false,
+        stageCount: 2
+      }
+    },
+
+    raidNotes: "",
+    multiStageNotes: ""
+  };
+}
+
+function clampEnemyBossNumber(value, min, max, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(numeric)));
+}
+
+function normalizeEnemyBossDraft(boss = {}, form = null) {
+  const defaults = createEnemyBossDraft(form);
+  const source = foundry.utils.mergeObject(
+    defaults,
+    foundry.utils.deepClone(boss ?? {}),
+    { inplace: false }
+  );
+
+  source.partySize = clampEnemyBossNumber(source.partySize, 1, 12, 4);
+  source.partyMilestones = clampEnemyBossNumber(source.partyMilestones, 0, 99, 0);
+  source.averagePartyDp = clampEnemyBossNumber(
+    source.averagePartyDp,
+    0,
+    999,
+    getEnemyStageBaseDp(form ?? {})
+  );
+  source.options.bigScary.dpIncreasePercent = clampEnemyBossNumber(
+    source.options?.bigScary?.dpIncreasePercent,
+    10,
+    100,
+    50
+  );
+  source.options.multiStage.stageCount = clampEnemyBossNumber(
+    source.options?.multiStage?.stageCount,
+    2,
+    99,
+    2
+  );
+
+  return source;
+}
+
 function createEnemyBuild(form = null) {
   const stageBaseDp =
     getEnemyStageBaseDp(form ?? {});
@@ -427,6 +505,7 @@ function createEnemyBuild(form = null) {
 
     selectedQualities: [],
     superiorMode: createEnemySuperiorModeDraft(),
+    boss: createEnemyBossDraft(form),
     role: "standard",
     goal: "",
     motivation: "",
@@ -1271,8 +1350,9 @@ function getEnemyQualityPositiveCost(quality = {}, rank = 1) {
 
   const dp = Math.max(0, Number(quality.cost?.dp ?? 0));
   const effectiveRank = Math.max(1, Number(rank ?? 1));
+  const rawCost = quality.cost?.perRank ? dp * effectiveRank : dp;
 
-  return quality.cost?.perRank ? dp * effectiveRank : dp;
+  return applyIntrinsicQualityDiscount(rawCost, quality).payable;
 }
 
 function getEnemyQualityNegativeValue(quality = {}, rank = 1) {
@@ -1288,6 +1368,42 @@ function getEnemyQualityNegativeValue(quality = {}, rank = 1) {
   const effectiveRank = Math.max(1, Number(rank ?? 1));
 
   return quality.cost?.perRank ? dp * effectiveRank : dp;
+}
+
+function applyEnemyCoreDiscount(rows = [], coreDiscountBase = 0) {
+  let remaining = Math.max(0, Number(coreDiscountBase ?? 0));
+  let used = 0;
+
+  const decoratedRows = (Array.isArray(rows) ? rows : []).map((row) => {
+    const quality = row?.quality ?? {};
+    const beforeCore = Math.max(0, Number(row?.qualityDp ?? 0));
+    const eligible = Boolean(
+      quality?.cost?.coreDiscountAvailable ||
+      quality?.category?.core
+    );
+
+    const coreDiscountUsed = eligible && beforeCore > 0 && remaining > 0
+      ? Math.min(beforeCore, remaining)
+      : 0;
+
+    remaining -= coreDiscountUsed;
+    used += coreDiscountUsed;
+
+    return {
+      ...row,
+      qualityDpBeforeCore: beforeCore,
+      coreDiscountUsed,
+      discountedByCore: coreDiscountUsed > 0,
+      qualityDp: Math.max(0, beforeCore - coreDiscountUsed)
+    };
+  });
+
+  return {
+    rows: decoratedRows,
+    base: Math.max(0, Number(coreDiscountBase ?? 0)),
+    used,
+    remaining
+  };
 }
 
 function getEnemyQualityFreeLimit(form = {}) {
@@ -1352,9 +1468,10 @@ const ENEMY_QUALITY_STAGE_ORDER = {
 function getEnemyQualityById(qualityId = "") {
   const id = String(qualityId ?? "").trim();
 
-  return DDA_DIGIMON_QUALITIES.find((quality) => {
-    return String(quality.id ?? "") === id;
-  }) ?? null;
+  return getDdaBossQualityById(id) ??
+    DDA_DIGIMON_QUALITIES.find((quality) => {
+      return String(quality.id ?? "") === id;
+    }) ?? null;
 }
 
 function getEnemyQualityStageOrder(quality = {}) {
@@ -1719,6 +1836,7 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
       openSuperiorModeQualityBrowser: DDADigimonEnemyWizard._onOpenSuperiorModeQualityBrowser,
       removeSuperiorModeQuality: DDADigimonEnemyWizard._onRemoveSuperiorModeQuality,
       toggleNpcAlignment: DDADigimonEnemyWizard._onToggleNpcAlignment,
+      applyBossRecommendedDp: DDADigimonEnemyWizard._onApplyBossRecommendedDp,
       createEnemyNpc: DDADigimonEnemyWizard._onCreateEnemyNpc
     }
   };
@@ -1795,6 +1913,11 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
     const isEnemyNpc =
       !isAllyNpc;
 
+    const isBossBuild = Boolean(
+      isEnemyNpc &&
+      enemyBuild?.role === "boss"
+    );
+
     return {
       isGM: true,
 
@@ -1821,6 +1944,7 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
 
       isAllyNpc,
       isEnemyNpc,
+      isBossBuild,
 
       enemyDevicePath:
         isAllyNpc
@@ -2027,6 +2151,55 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
         tactic: text("Tática / gimmick", "Tactic / gimmick"),
         notes: text("Notas secretas do Narrador", "GM private notes"),
 
+        bossBuilder: text("Boss Builder", "Boss Builder"),
+        bossBuilderHint: text(
+          "Combine as opções de Chefe conforme a necessidade do encontro. Qualidades de Chefe aparecem em uma categoria própria no catálogo.",
+          "Combine Boss options as needed for the encounter. Boss Qualities appear in their own category in the Quality browser."
+        ),
+        bossPartySize: text("Jogadores no grupo", "Players in party"),
+        bossPartyMilestones: text("Milestones do grupo", "Party Milestones"),
+        bossAveragePartyDp: text("PD médio do grupo", "Average party DP"),
+        bossRecommendedDp: text("PD recomendado", "Recommended DP"),
+        bossApplyDp: text("Aplicar PD recomendado", "Apply recommended DP"),
+        bossQualityAdvice: text(
+          "Normalmente, um Boss deve possuir apenas 1 ou 2 Qualidades de Chefe.",
+          "A Boss should usually have only 1 or 2 Boss Qualities."
+        ),
+        bossQualityCount: text("Qualidades de Chefe", "Boss Qualities"),
+        bossOptionBigScary: text("Opção 1 · Grande Reserva de PD", "Option 1 · Big Scary DP Pool"),
+        bossOptionBigScaryHint: text(
+          "Aumenta o PD recomendado entre 10% e 100% acima do PD médio do grupo.",
+          "Recommends 10% to 100% more DP than the party average."
+        ),
+        bossDpIncrease: text("Aumento de PD", "DP increase"),
+        bossOptionTemplate: text("Opção 2 · Boss Template", "Option 2 · Boss Template"),
+        bossOptionTemplateHint: text(
+          "Planeja um Turno e um Pool de Ferimentos por jogador. Cada pool usa as Caixas de Ferimento normais desta build.",
+          "Plans one Turn and one Wound Pool per player. Each pool uses this build's normal Wound Boxes."
+        ),
+        bossPoolCount: text("Pools / Turnos", "Pools / Turns"),
+        bossWoundsPerPool: text("Ferimentos por pool", "Wounds per pool"),
+        bossOptionTagTeam: text("Opção 3 · Tag Team Boss", "Option 3 · Tag Team Boss"),
+        bossOptionTagTeamHint: text(
+          "Recomenda um Digimon inimigo por jogador. Esta opção é um plano de encontro; crie ou duplique os NPCs necessários.",
+          "Recommends one enemy Digimon per player. This is encounter planning; create or duplicate the required NPCs."
+        ),
+        bossEnemyCount: text("Inimigos recomendados", "Recommended enemies"),
+        bossOptionRaid: text("Opção 4 · Raid Boss", "Option 4 · Raid Boss"),
+        bossOptionRaidHint: text(
+          "Usa como referência +50% de PD e calcula o NA do Decipher Intent da Raid Action.",
+          "Uses +50% DP as a reference and calculates the Raid Action Decipher Intent TN."
+        ),
+        bossRaidTn: text("NA da Raid Action", "Raid Action TN"),
+        bossRaidNotes: text("Notas / mecânicas da Raid Action", "Raid Action notes / mechanics"),
+        bossOptionMultiStage: text("Opção 5 · Boss Multi-Stage", "Option 5 · Multi-Stage Boss"),
+        bossOptionMultiStageHint: text(
+          "Planeja de 2 a 4 fases. A troca de forma e a recuperação total são registradas como configuração do Boss.",
+          "Plans 2 to 4 phases. Form changes and full recovery are stored as Boss configuration."
+        ),
+        bossStageCount: text("Número de fases", "Number of stages"),
+        bossMultiStageNotes: text("Plano das fases / formas", "Stage / form plan"),
+
         baseDpHint: text(
           "Por padrão, use o valor do estágio. Ajuste apenas quando o antagonista tiver um rank próprio.",
           "Use the stage value by default. Adjust it only when the antagonist has its own rank."
@@ -2070,6 +2243,7 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
           "Choose Qualities from the browser. Their cost is counted against the enemy's DP budget."
         ),
         qualityDp: text("PD em Qualidades", "Quality DP"),
+        coreDiscount: text("Desconto Core", "Core Discount"),
         negativeDp: text("PD negativo", "Negative DP"),
         freeQualities: text("Gratuitas", "Free"),
 
@@ -2227,10 +2401,62 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
       });
     });
 
-    root.querySelector("[data-enemy-role]")?.addEventListener("change", (event) => {
-      this.enemyBuild.role = String(
+    root.querySelector("[data-enemy-role]")?.addEventListener("change", async (event) => {
+      const nextRole = String(
         event.currentTarget?.value ?? "standard"
       );
+
+      this.enemyBuild.role = nextRole;
+
+      if (nextRole !== "boss") {
+        this._removeEnemyBossQualitySelections();
+        if (this._enemyQualityBrowser) {
+          this._enemyQualityBrowser.activeTier = "all";
+          this._enemyQualityBrowser.activeCategory = "all";
+        }
+      } else if (this._enemyQualityBrowser) {
+        this._enemyQualityBrowser.activeTier = "all";
+        this._enemyQualityBrowser.activeCategory = "boss";
+      }
+
+      await this._renderPreservingScroll({
+        preserveForms: true,
+        preservePreview: true
+      });
+
+      await this._enemyQualityBrowser?.render({ force: true });
+    });
+
+    root.querySelectorAll("[data-boss-option]").forEach((input) => {
+      input.addEventListener("change", async (event) => {
+        const key = String(event.currentTarget?.dataset?.bossOption ?? "");
+        if (!key) return;
+        this._setEnemyBossOption(key, Boolean(event.currentTarget?.checked));
+        await this._renderPreservingScroll({
+          preserveForms: true,
+          preservePreview: true
+        });
+      });
+    });
+
+    root.querySelectorAll("[data-boss-number]").forEach((input) => {
+      input.addEventListener("change", async (event) => {
+        const key = String(event.currentTarget?.dataset?.bossNumber ?? "");
+        if (!key) return;
+        this._setEnemyBossNumber(key, event.currentTarget?.value);
+        await this._renderPreservingScroll({
+          preserveForms: true,
+          preservePreview: true
+        });
+      });
+    });
+
+    root.querySelectorAll("[data-boss-text]").forEach((field) => {
+      field.addEventListener("input", (event) => {
+        const key = String(event.currentTarget?.dataset?.bossText ?? "");
+        if (!key) return;
+        this._setEnemyBossText(key, event.currentTarget?.value);
+      });
     });
 
     root.querySelectorAll("[data-enemy-build-text]").forEach((field) => {
@@ -2657,6 +2883,23 @@ static async _onRemoveEnemyAttack(event, target) {
       ?.render({ force: true });
   }
 
+  static async _onApplyBossRecommendedDp(event) {
+    event.preventDefault();
+
+    const form = this._getSelectedForm();
+    if (!form || String(this.enemyBuild?.role ?? "") !== "boss") return;
+
+    const preview = this._getEnemyBuildPreview(form);
+    const recommended = Math.max(0, Number(preview.boss?.recommendedBaseDp ?? 0));
+
+    this.enemyBuild.baseDp = recommended;
+
+    await this._renderPreservingScroll({
+      preserveForms: true,
+      preservePreview: true
+    });
+  }
+
     static async _onToggleNpcAlignment(
     event
   ) {
@@ -2666,6 +2909,11 @@ static async _onRemoveEnemyAttack(event, target) {
       this.npcAlignment === "ally"
         ? "enemy"
         : "ally";
+
+    if (this.npcAlignment === "ally" && this.enemyBuild?.role === "boss") {
+      this.enemyBuild.role = "standard";
+      this._removeEnemyBossQualitySelections();
+    }
 
     await this._renderPreservingScroll({
       preserveForms: true,
@@ -2722,8 +2970,12 @@ static async _onRemoveEnemyAttack(event, target) {
     setText("[data-enemy-spent-dp]", build.spentDp);
     setText("[data-enemy-remaining-dp]", build.remainingDp);
 
-        setText("[data-enemy-quality-dp]", build.qualityDp);
+    setText("[data-enemy-quality-dp]", build.qualityDp);
     setText("[data-enemy-negative-quality-dp]", build.negativeQualityDp);
+    setText(
+      "[data-enemy-core-discount]",
+      `${build.coreDiscountUsed}/${build.coreDiscountBase}`
+    );
     setText(
       "[data-enemy-free-quality-count]",
       `${build.freeQualityCount}/${build.freeQualityLimit}`
@@ -2761,11 +3013,164 @@ static async _onRemoveEnemyAttack(event, target) {
       this.enemyBuild?.role ?? "standard"
     );
 
-    return ENEMY_ROLE_DEFINITIONS.map((entry) => ({
-      key: entry.key,
-      label: text(entry.pt, entry.en),
-      selected: entry.key === currentRole
-    }));
+    return ENEMY_ROLE_DEFINITIONS
+      .filter((entry) => {
+        return this.npcAlignment !== "ally" || entry.key !== "boss";
+      })
+      .map((entry) => ({
+        key: entry.key,
+        label: text(entry.pt, entry.en),
+        selected: entry.key === currentRole
+      }));
+  }
+
+  getEnemyQualityDefinitionById(qualityId = "") {
+    return getEnemyQualityById(qualityId);
+  }
+
+  _removeEnemyBossQualitySelections() {
+    this.enemyBuild.selectedQualities = (
+      this.enemyBuild?.selectedQualities ?? []
+    ).filter((selection) => {
+      const quality = getEnemyQualityById(selection?.id);
+      return !isDdaBossQuality(quality);
+    });
+  }
+
+  _ensureEnemyBossDraft(form = this._getSelectedForm()) {
+    this.enemyBuild ??= createEnemyBuild(form);
+    this.enemyBuild.boss = normalizeEnemyBossDraft(
+      this.enemyBuild.boss,
+      form
+    );
+    return this.enemyBuild.boss;
+  }
+
+  _setEnemyBossOption(key = "", enabled = false) {
+    const boss = this._ensureEnemyBossDraft();
+    const option = boss.options?.[String(key ?? "")];
+    if (!option) return;
+    option.enabled = Boolean(enabled);
+  }
+
+  _setEnemyBossNumber(key = "", value = 0) {
+    const boss = this._ensureEnemyBossDraft();
+    const numericKey = String(key ?? "");
+
+    if (numericKey === "partySize") {
+      boss.partySize = clampEnemyBossNumber(value, 1, 12, boss.partySize);
+      return;
+    }
+
+    if (numericKey === "partyMilestones") {
+      boss.partyMilestones = clampEnemyBossNumber(value, 0, 99, boss.partyMilestones);
+      return;
+    }
+
+    if (numericKey === "averagePartyDp") {
+      boss.averagePartyDp = clampEnemyBossNumber(value, 0, 999, boss.averagePartyDp);
+      return;
+    }
+
+    if (numericKey === "bigScaryPercent") {
+      boss.options.bigScary.dpIncreasePercent = clampEnemyBossNumber(
+        value,
+        10,
+        100,
+        boss.options.bigScary.dpIncreasePercent
+      );
+      return;
+    }
+
+    if (numericKey === "multiStageCount") {
+      boss.options.multiStage.stageCount = clampEnemyBossNumber(
+        value,
+        2,
+        99,
+        boss.options.multiStage.stageCount
+      );
+    }
+  }
+
+  _setEnemyBossText(key = "", value = "") {
+    const boss = this._ensureEnemyBossDraft();
+    const textValue = String(value ?? "");
+
+    if (key === "raidNotes") boss.raidNotes = textValue;
+    if (key === "multiStageNotes") boss.multiStageNotes = textValue;
+  }
+
+  _getEnemyBossPreview(form = this._getSelectedForm(), {
+    stageValue = getEnemyStageValue(form ?? {}),
+    stageBaseDp = getEnemyStageBaseDp(form ?? {}),
+    wounds = 0,
+    selectedQualityRows = []
+  } = {}) {
+    const boss = normalizeEnemyBossDraft(this.enemyBuild?.boss, form);
+    this.enemyBuild.boss = boss;
+
+    const isBoss =
+      this.npcAlignment !== "ally" &&
+      String(this.enemyBuild?.role ?? "") === "boss";
+
+    const partySize = boss.partySize;
+    const averagePartyDp = boss.averagePartyDp || stageBaseDp;
+    const bigScaryPercent = boss.options.bigScary.enabled
+      ? boss.options.bigScary.dpIncreasePercent
+      : 0;
+    const raidPercent = boss.options.raidBoss.enabled ? 50 : 0;
+    const recommendedIncreasePercent = Math.max(
+      bigScaryPercent,
+      raidPercent
+    );
+    const recommendedBaseDp = recommendedIncreasePercent > 0
+      ? Math.max(
+          stageBaseDp,
+          Math.ceil(averagePartyDp * (1 + (recommendedIncreasePercent / 100)))
+        )
+      : stageBaseDp;
+
+    const bossQualityCount = selectedQualityRows.filter((row) => {
+      return isDdaBossQuality(row.quality);
+    }).length;
+
+    return {
+      ...foundry.utils.deepClone(boss),
+      enabled: isBoss,
+      recommendedIncreasePercent,
+      recommendedBaseDp,
+      raidTn: 10 + Math.max(0, Number(stageValue ?? 0)) + boss.partyMilestones,
+      poolCount: partySize,
+      turnCount: partySize,
+      woundsPerPool: Math.max(0, Number(wounds ?? 0)),
+      totalWoundCapacity: Math.max(0, Number(wounds ?? 0)) * partySize,
+      tagTeamEnemyCount: partySize,
+      bossQualityCount,
+      bossQualityOverAdvice: bossQualityCount > 2,
+      stageCount: boss.options.multiStage.stageCount,
+      options: {
+        bigScary: {
+          ...boss.options.bigScary,
+          checked: Boolean(boss.options.bigScary.enabled)
+        },
+        bossTemplate: {
+          ...boss.options.bossTemplate,
+          checked: Boolean(boss.options.bossTemplate.enabled)
+        },
+        tagTeam: {
+          ...boss.options.tagTeam,
+          checked: Boolean(boss.options.tagTeam.enabled)
+        },
+        raidBoss: {
+          ...boss.options.raidBoss,
+          checked: Boolean(boss.options.raidBoss.enabled)
+        },
+        multiStage: {
+          ...boss.options.multiStage,
+          checked: Boolean(boss.options.multiStage.enabled)
+        }
+      }
+    };
   }
 
   _ensureEnemyBuildForForm(form) {
@@ -2794,6 +3199,7 @@ _resetEnemyBuildForForm(form, {
       next.motivation = String(previous.motivation ?? "");
       next.tactic = String(previous.tactic ?? "");
       next.notes = String(previous.notes ?? "");
+      next.boss = normalizeEnemyBossDraft(previous.boss, form);
     }
 
     if (preserveBudget) {
@@ -4009,7 +4415,10 @@ if (
   )
     .filter((effect) => {
       const effectTag = String(
-        effect.key ?? ""
+        effect.effectTag ??
+        effect.attackTag ??
+        effect.key ??
+        ""
       )
         .trim()
         .replace(/^\[|\]$/g, "")
@@ -4023,7 +4432,10 @@ if (
     })
     .flatMap((effect) => {
       const effectTag = String(
-        effect.key ?? ""
+        effect.effectTag ??
+        effect.attackTag ??
+        effect.key ??
+        ""
       )
         .trim()
         .replace(/^\[|\]$/g, "")
@@ -4036,13 +4448,34 @@ if (
           );
         })
         .filter((attack) => {
-          if (!effect.requiresDamageTag) {
-            return true;
+          const functionType = String(
+            attack.functionType ?? ""
+          ).toLowerCase();
+
+          if (effect.requiresDamageTag && functionType !== "damage") {
+            return false;
           }
 
-          return String(
-            attack.functionType ?? ""
-          ).toLowerCase() === "damage";
+          if (effect.requiresSupportTag && functionType !== "support") {
+            return false;
+          }
+
+          if (effect.requiresSignature && !attack.isSignature) {
+            return false;
+          }
+
+          if (effect.forbidsAreaAttack) {
+            const existingTags = this._getEnemyAttackQualityTags(
+              attack.key,
+              { selectedQualityRows: this._getEnemySelectedQualityRows() }
+            );
+
+            if (existingTags.some((tag) => String(tag).startsWith("t:"))) {
+              return false;
+            }
+          }
+
+          return true;
         })
         .map((attack) => ({
           ...foundry.utils.deepClone(
@@ -4057,7 +4490,9 @@ if (
 
           label:
             `${attack.label} — ` +
-            `[${effectTag.toUpperCase()}]`,
+            (effect.variantLabel
+              ? `[${effectTag.toUpperCase()}] — ${effect.variantLabel}`
+              : `[${effectTag.toUpperCase()}]`),
 
           originalLabel: String(
             effect.originalLabel ??
@@ -4199,6 +4634,15 @@ getEnemyQualityEffectiveMax(
   quality = {},
   form = this._getSelectedForm()
 ) {
+  const qualityId = getEnemyQualityId(quality);
+
+  if (
+    isDdaBossQuality(quality) &&
+    String(quality.boss?.rankLimit ?? "") === "stage"
+  ) {
+    return Math.max(0, getEnemyStageValue(form ?? {}));
+  }
+
   const rankLimit = quality.rankLimit ?? {};
   const rankLimitType = String(
     rankLimit.type ?? ""
@@ -4212,13 +4656,22 @@ getEnemyQualityEffectiveMax(
       form?.stageKey ?? "child"
     );
 
-    return Math.max(
+    const stageMaximum = Math.max(
       0,
       Number(
         rankLimit.byStage?.[stageKey] ??
         getEnemyQualityDeclaredMaxRank(quality)
       )
     );
+
+    if (
+      qualityId === "algoritmo" &&
+      this.getEnemyQualitySelectionRank("algoritmoSupremoBoss") > 0
+    ) {
+      return stageMaximum + 1;
+    }
+
+    return stageMaximum;
   }
 
   if (rankLimitType === "derivedStat") {
@@ -4227,8 +4680,6 @@ getEnemyQualityEffectiveMax(
       form
     );
   }
-
-  const qualityId = getEnemyQualityId(quality);
 
   if (
   enemyQualityUsesEffectAttackChoice(
@@ -4434,7 +4885,11 @@ _getEnemyQualityAvailableChoiceOptions(
       quality
     );
 
-  if (quality.choices?.cannotRepeat) {
+  const limitlessSystemAllowsRepeat =
+    qualityId === "impulsoDeSistema" &&
+    this.getEnemyQualitySelectionRank("sistemaIlimitadoBoss") > 0;
+
+  if (quality.choices?.cannotRepeat && !limitlessSystemAllowsRepeat) {
     options = options.filter((option) => {
       return !usedKeys.has(
         String(option.key ?? "")
@@ -5124,7 +5579,16 @@ _buildEnemyAttackItems(form = {}, build = {}) {
 
             duration:
               effectChoice?.duration ??
-              true
+              true,
+
+            bossEffect: Boolean(effectChoice?.effectTag),
+            selectedAttribute: String(effectChoice?.selectedAttribute ?? ""),
+            maximumDuration: Number.isFinite(Number(effectChoice?.maximumDuration))
+              ? Number(effectChoice.maximumDuration)
+              : null,
+            requiresSupportTag: Boolean(effectChoice?.requiresSupportTag),
+            requiresSignature: Boolean(effectChoice?.requiresSignature),
+            forbidsAreaAttack: Boolean(effectChoice?.forbidsAreaAttack)
           },
 
           accuracy: {
@@ -6101,6 +6565,16 @@ const choiceRows = getEnemyQualityChoiceRows(
   }
 
   _validateEnemyQualityRequirements(quality = {}, form = {}) {
+    if (
+      isDdaBossQuality(quality) &&
+      String(this.enemyBuild?.role ?? "") !== "boss"
+    ) {
+      return text(
+        "Qualidades de Chefe só podem ser adicionadas quando a Função no encontro é Chefe.",
+        "Boss Qualities can only be added when the encounter role is Boss."
+      );
+    }
+
 if (
   enemyQualityRequiresAttackChoice(quality) &&
   !this.getEnemyAttackChoiceOptions().length
@@ -6112,7 +6586,13 @@ if (
 }
 
 
-    if (getEnemyQualityStageOrder(quality) > getEnemyFormStageOrder(form)) {
+    const unleashedPotentialRanks =
+      this.getEnemyQualitySelectionRank("potencialLiberadoBoss");
+
+    const effectivePurchaseStage =
+      getEnemyFormStageOrder(form) + unleashedPotentialRanks;
+
+    if (getEnemyQualityStageOrder(quality) > effectivePurchaseStage) {
       return text(
         "O estágio desta forma ainda não atende ao requisito da Qualidade.",
         "This form's stage does not meet the Quality requirement yet."
@@ -6137,14 +6617,27 @@ if (
       const row = selectedRows.find((entry) => getEnemyQualityNameKeys(entry.quality).some((key) => wanted.has(key)));
       return Math.max(0, Number(row?.rank ?? 0));
     };
+    const qualityIdentity = normalizeEnemyQualityName(
+      quality.id ?? quality.originalName ?? quality.name ?? ""
+    );
+
+    if (
+      qualityIdentity === "algoritmosupremoboss" &&
+      selectedRank(["algoritmo", "algorithm"]) < 2
+    ) {
+      return text(
+        "Requer 2 Ranks de Algoritmo.",
+        "Requires 2 Ranks of Algorithm."
+      );
+    }
+
     if (family === "weaponry" && selectedRank(["arma", "weapon"]) < 1) {
       return text("Requer 1 Rank de Arma.", "Requires 1 Rank of Weapon.");
     }
     if (family === "gainForce" && selectedRank(["instinto", "instinct"]) < 1) {
       return text("Requer 1 Rank de Instinto.", "Requires 1 Rank of Instinct.");
     }
-    const identity = normalizeEnemyQualityName(quality.id ?? quality.originalName ?? quality.name ?? "");
-    if (["armamentodedigizoidepuro", "puredigizoidweaponry", "overwritepuro", "pureoverwrite"].includes(identity) && selectedRank(["algoritmo", "algorithm"]) < 3) {
+    if (["armamentodedigizoidepuro", "puredigizoidweaponry", "overwritepuro", "pureoverwrite"].includes(qualityIdentity) && selectedRank(["algoritmo", "algorithm"]) < 3) {
       return text("Requer 3 Ranks de Algoritmo.", "Requires 3 Ranks of Algorithm.");
     }
 
@@ -6918,13 +7411,20 @@ const sizeModifiers = ENEMY_SIZE_MODIFIERS[form.size]
       return total + entry.investment;
     }, 0);
 const attackRows = this._getEnemyAttackRows();
-    const selectedQualityRows = this._getEnemySelectedQualityRows(form);
+    const selectedQualityRowsBeforeCore = this._getEnemySelectedQualityRows(form);
 
     const superiorMode =
       this._getEnemySuperiorModePreview(
         form,
-        selectedQualityRows
+        selectedQualityRowsBeforeCore
       );
+
+    const coreDiscount = applyEnemyCoreDiscount(
+      selectedQualityRowsBeforeCore,
+      stageValue
+    );
+
+    const selectedQualityRows = coreDiscount.rows;
 
     const qualityDp = selectedQualityRows.reduce((total, row) => {
       return total + Number(row.qualityDp ?? 0);
@@ -6966,6 +7466,18 @@ const attackRows = this._getEnemyAttackRows();
       !hasBudgetOverrun &&
       !hasSuperiorModeConfigurationError;
 
+    const wounds = Math.max(
+      1,
+      stageValue + (statTotals.health * 2)
+    );
+
+    const bossPreview = this._getEnemyBossPreview(form, {
+      stageValue,
+      stageBaseDp,
+      wounds,
+      selectedQualityRows
+    });
+
     return {
       ...foundry.utils.deepClone(build),
 
@@ -6989,10 +7501,9 @@ const attackRows = this._getEnemyAttackRows();
       attackRows,
       attackCount: attackRows.length,
 
-      wounds: Math.max(
-        1,
-        stageValue + (statTotals.health * 2)
-      ),
+      wounds,
+      boss: bossPreview,
+      isBoss: bossPreview.enabled,
 
       movement: Math.max(
         0,
@@ -7012,6 +7523,9 @@ const attackRows = this._getEnemyAttackRows();
       freeQualityCount,
       freeQualityLimit,
       negativeQualityLimit,
+      coreDiscountBase: coreDiscount.base,
+      coreDiscountUsed: coreDiscount.used,
+      coreDiscountRemaining: coreDiscount.remaining,
 
       totalDp,
       spentDp,
@@ -7663,6 +8177,46 @@ const tokenCandidates = await getTokenCandidates(
           ) === "boss"
           ? "boss"
           : "standard",
+
+      boss: !isAlly && build.isBoss
+        ? {
+            version: 1,
+            partySize: Number(build.boss?.partySize ?? 1),
+            partyMilestones: Number(build.boss?.partyMilestones ?? 0),
+            averagePartyDp: Number(build.boss?.averagePartyDp ?? 0),
+            recommendedBaseDp: Number(build.boss?.recommendedBaseDp ?? baseDp),
+            recommendedIncreasePercent: Number(build.boss?.recommendedIncreasePercent ?? 0),
+            bossQualityCount: Number(build.boss?.bossQualityCount ?? 0),
+            options: foundry.utils.deepClone(build.boss?.options ?? {}),
+            bossTemplate: build.boss?.options?.bossTemplate?.enabled
+              ? {
+                  poolCount: Number(build.boss?.poolCount ?? 1),
+                  turnCount: Number(build.boss?.turnCount ?? 1),
+                  woundsPerPool: Number(build.boss?.woundsPerPool ?? 0),
+                  totalWoundCapacity: Number(build.boss?.totalWoundCapacity ?? 0)
+                }
+              : null,
+            tagTeam: build.boss?.options?.tagTeam?.enabled
+              ? {
+                  recommendedEnemyCount: Number(build.boss?.tagTeamEnemyCount ?? 1)
+                }
+              : null,
+            raid: build.boss?.options?.raidBoss?.enabled
+              ? {
+                  decipherIntentTn: Number(build.boss?.raidTn ?? 0),
+                  telegraphRounds: 1,
+                  notes: String(build.boss?.raidNotes ?? "")
+                }
+              : null,
+            multiStage: build.boss?.options?.multiStage?.enabled
+              ? {
+                  stageCount: Number(build.boss?.stageCount ?? 2),
+                  recoverFullWounds: true,
+                  notes: String(build.boss?.multiStageNotes ?? "")
+                }
+              : null
+          }
+        : null,
 
       baseDpOverride: baseDp === stageBaseDp
         ? null

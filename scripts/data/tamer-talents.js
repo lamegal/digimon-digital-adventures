@@ -32,9 +32,10 @@ const DDA_TAMER_TALENTS_PT = [
     automation: {
         enabled: true,
         type: "grantActions",
-        target: "partnerOrTarget",
+        target: "partner",
         amount: 1,
-        note: "A ação extra deve ser usada para Mover ou Movimento Difícil."
+        restrictedToMovement: true,
+        note: "A ação extra só pode ser gasta em Mover ou Movimento Difícil e expira ao fim da ativação compartilhada."
     }
   },
 
@@ -67,7 +68,7 @@ const DDA_TAMER_TALENTS_PT = [
     automation: {
   enabled: true,
   type: "healWounds",
-  target: "partnerOrTarget",
+  target: "partner",
   amount: 1,
   amountIfHasTempWounds: 2
 }
@@ -98,7 +99,11 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerTurn",
     uses: { enabled: false, value: 0, max: 0, recharge: "" },
     specialOrder: { name: "HEY YOU" },
-    effect: "O Digi-Escolhido e um Digimon aliado disposto provocam um inimigo visível. Aplica [TAUNT 3] com Duração 3, tratando o aliado como conjurador. Não pode ser usado novamente até [TAUNT] terminar."
+    effect: "O Digi-Escolhido e um Digimon aliado disposto provocam um inimigo visível. Aplica [TAUNT 3] com Duração 3, tratando o aliado como conjurador. Não pode ser usado novamente até [TAUNT] terminar.",
+    automation: {
+      enabled: true,
+      type: "officialEffectSpecialOrder"
+    }
   },
 
   {
@@ -156,11 +161,9 @@ const DDA_TAMER_TALENTS_PT = [
     specialOrder: { name: "TOUGH IT OUT" },
     effect: "O Digimon parceiro é curado de um Efeito Negativo como se tivesse usado [CLEANSE]. Não pode ser usado novamente no mesmo turno.",
     automation: {
-  enabled: true,
-  type: "cleanseNegativeEffect",
-  target: "partnerOrTarget",
-  amount: 1
-}
+      enabled: true,
+      type: "officialEffectSpecialOrder"
+    }
   },
 
   // =====================================================
@@ -264,7 +267,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "always",
     uses: { enabled: false, value: 0, max: 0, recharge: "" },
     specialOrder: { name: "" },
-    effect: "O Digi-Escolhido e seu Digimon não produzem som de passos e não deixam pegadas, embora ainda possam ser percebidos por outros indícios."
+    effect: "O Digi-Escolhido e seu Digimon não produzem som de passos e não deixam pegadas, embora ainda possam ser percebidos por outros indícios.",
+    automation: { enabled: true, type: "narrativeTamerTalent" }
   },
 
   {
@@ -385,7 +389,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerRest",
     uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
     specialOrder: { name: "" },
-    effect: "Ao ter sucesso em Manipular em uma cena de interpretação, pode implantar uma ideia menor e razoável em um PNJ por alguns minutos."
+    effect: "Ao ter sucesso em Manipular em uma cena de interpretação, pode implantar uma ideia menor e razoável em um PNJ por alguns minutos.",
+    automation: { enabled: true, type: "narrativeTamerTalent" }
   },
 
   {
@@ -445,7 +450,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerRest",
     uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
     specialOrder: { name: "" },
-    effect: "Ao ter sucesso em Persuasão em uma cena de interpretação, pode fazer PNJs afetados se tornarem amigáveis por alguns minutos."
+    effect: "Ao ter sucesso em Persuasão em uma cena de interpretação, pode fazer PNJs afetados se tornarem amigáveis por alguns minutos.",
+    automation: { enabled: true, type: "narrativeTamerTalent" }
   },
 
   {
@@ -459,7 +465,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "always",
     uses: { enabled: false, value: 0, max: 0, recharge: "" },
     specialOrder: { name: "" },
-    effect: "Pode usar Direcionar com 1 Ação extra para dividir o bônus entre seu próprio Digimon e outro Digimon aliado disposto, sem sofrer penalidade por Direcionar outro Digimon."
+    effect: "Pode usar Direcionar com 1 Ação extra para dividir o bônus entre seu próprio Digimon e outro Digimon aliado disposto, sem sofrer penalidade por Direcionar outro Digimon.",
+    automation: { enabled: true, type: "beTheWinnersAction" }
   },
 
   {
@@ -484,7 +491,8 @@ const DDA_TAMER_TALENTS_PT = [
       }
     },
     specialOrder: { name: "" },
-    effect: "Pode perguntar ao Narrador se uma ação imediata terá bons resultados, maus resultados ou ambos. Usos por Descanso iguais a Decifrar Intenção acima de 2."
+    effect: "Pode perguntar ao Narrador se uma ação imediata terá bons resultados, maus resultados ou ambos. Usos por Descanso iguais a Decifrar Intenção acima de 2.",
+    automation: { enabled: true, type: "narrativeTamerTalent" }
   },
 
   {
@@ -509,10 +517,11 @@ const DDA_TAMER_TALENTS_PT = [
     isSpecialOrder: false,
     useType: "active",
     actionCost: "special",
-    frequency: "oncePerRest",
-    uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
+    frequency: "special",
+    uses: { enabled: false, value: 0, max: 0, recharge: "" },
     specialOrder: { name: "" },
-    effect: "Ao preparar uma refeição, concede Caixas de Ferimento Temporárias iguais à Sobrevivência acima de 2 para quem comer, até o próximo Descanso."
+    effect: "Ao preparar uma refeição, concede Caixas de Ferimento Temporárias iguais à Sobrevivência acima de 2 para quem comer, até o próximo Descanso.",
+    automation: { enabled: true, type: "transversalTamerTalent" }
   },
 
   {
@@ -526,7 +535,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "always",
     uses: { enabled: false, value: 0, max: 0, recharge: "" },
     specialOrder: { name: "" },
-    effect: "Sempre sabe onde fica o norte e conhece a rota exata de volta ao último assentamento ou local civilizado visitado."
+    effect: "Sempre sabe onde fica o norte e conhece a rota exata de volta ao último assentamento ou local civilizado visitado.",
+    automation: { enabled: true, type: "narrativeTamerTalent" }
   },
 
   {
@@ -554,7 +564,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerRest",
     uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
     specialOrder: { name: "" },
-    effect: "Quando precisaria fazer Conhecimento para lembrar informação com NA 15 ou menor, pode escolher obter Sucesso Crítico automático."
+    effect: "Quando precisaria fazer Conhecimento para lembrar informação com NA 15 ou menor, pode escolher obter Sucesso Crítico automático.",
+    automation: { enabled: true, type: "transversalTamerTalent" }
   },
 
   {
@@ -674,10 +685,10 @@ const DDA_TAMER_TALENTS_PT = [
     automation: {
       enabled: true,
       type: "grantActions",
-      target: "partnerOrTarget",
+      target: "partner",
       amount: 2,
-      grantAttackRoundOverride: true,
-      note: "O Digimon recebe uma janela adicional para um Ataque nesta Rodada."
+      grantVirtualRound: true,
+      note: "O Digimon inicia uma nova janela virtual de Rodada: limites por Rodada e por turno são reiniciados sem avançar o Combat Tracker."
     }
   },
 
@@ -722,16 +733,9 @@ const DDA_TAMER_TALENTS_PT = [
     specialOrder: { name: "I BELIEVE IN YOU" },
     effect: "Concede [BASTION 2] a um Digimon aliado disposto, incluindo o parceiro, até o início do próximo turno do Digi-Escolhido.",
     automation: {
-  enabled: true,
-  type: "applyEffect",
-  target: "target",
-  tag: "bastion",
-  label: "[BASTION 2]",
-  value: 2,
-  duration: 1,
-  category: "positive",
-  note: "Dura até o início do próximo turno do Digi-Escolhido."
-}
+      enabled: true,
+      type: "officialEffectSpecialOrder"
+    }
   },
 
   {
@@ -745,7 +749,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerRest",
     uses: { enabled: true, value: 1, max: 1, recharge: "rest" },
     specialOrder: { name: "WAKE UP, DON’T QUIT NOW" },
-    effect: "Quando o Digimon está com 0 Caixas ou voltou ao Estágio Padrão após ser derrotado, retorna ao estágio em que foi derrotado e recupera 7 Caixas de Ferimento."
+    effect: "Quando o Digimon está com 0 Caixas ou voltou ao Estágio Padrão após ser derrotado, retorna ao estágio em que foi derrotado e recupera 7 Caixas de Ferimento.",
+    automation: { enabled: true, type: "combatSurvivalSpecialOrder" }
   },
 
   {
@@ -759,7 +764,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerCombat",
     uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
     specialOrder: { name: "TIME FOR PLAN B" },
-    effect: "Quando o Digimon faria um Ataque, pode tratá-lo como Movimento Assinatura se ainda não fosse. Após o ataque, o efeito acaba."
+    effect: "Quando o Digimon faria um Ataque, pode tratá-lo como Movimento Assinatura se ainda não fosse. Após o ataque, o efeito acaba.",
+    automation: { enabled: true, type: "attackDirectSpecialOrder" }
   },
 
   {
@@ -775,16 +781,9 @@ const DDA_TAMER_TALENTS_PT = [
     specialOrder: { name: "I’VE FOUND AN EXPLOIT" },
     effect: "Inflige [DEBILITATE] em um inimigo com Potência igual ao SV dele até o início do próximo turno do Digi-Escolhido.",
     automation: {
-  enabled: true,
-  type: "applyEffect",
-  target: "target",
-  tag: "debilitate",
-  label: "[DEBILITATE]",
-  valueFrom: "targetSv",
-  duration: 1,
-  category: "negative",
-  note: "Dura até o início do próximo turno do Digi-Escolhido."
-}
+      enabled: true,
+      type: "officialEffectSpecialOrder"
+    }
   },
 
   {
@@ -812,7 +811,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "special",
     uses: { enabled: false, value: 0, max: 0, recharge: "" },
     specialOrder: { name: "" },
-    effect: "Gastando 7 PI não temporários, adiciona ou subtrai Vontade + 5 a um Teste ou Pool e pode definir o resultado de cada dado rolado."
+    effect: "Gastando 9 PI não temporários, que podem ser divididos entre os jogadores, adiciona ou subtrai 12 a um Teste ou Pool e pode definir o resultado de cada dado rolado.",
+    automation: { enabled: true, type: "transversalTamerTalent" }
   },
 
   // =====================================================
@@ -844,7 +844,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerCombat",
     uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
     specialOrder: { name: "PUT 100% INTO THIS" },
-    effect: "Quando o Digimon faz um Ataque que não seja Movimento Assinatura, ele não rola Precisão e o alvo não rola Esquiva; o ataque tem sucessos automáticos iguais ao SV do atacante."
+    effect: "Quando o Digimon faz um Ataque que não seja Movimento Assinatura, ele não rola Precisão e o alvo não rola Esquiva; o ataque tem sucessos automáticos iguais ao SV do atacante.",
+    automation: { enabled: true, type: "attackDirectSpecialOrder" }
   },
 
   {
@@ -860,16 +861,9 @@ const DDA_TAMER_TALENTS_PT = [
     specialOrder: { name: "NOW YOU SEE US" },
     effect: "Escolhe um inimigo. O Digi-Escolhido e seu Digimon desaparecem de sua vista como se ele estivesse sob [BLIND] até o início do próximo turno do Digi-Escolhido.",
     automation: {
-  enabled: true,
-  type: "applyEffect",
-  target: "target",
-  tag: "blind",
-  label: "[BLIND]",
-  value: 1,
-  duration: 1,
-  category: "negative",
-  note: "O efeito dura até o início do próximo turno do Digi-Escolhido e não pode ser reduzido ou ignorado."
-}
+      enabled: true,
+      type: "officialEffectSpecialOrder"
+    }
   },
 
   {
@@ -883,7 +877,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerCombat",
     uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
     specialOrder: { name: "THIS TRAIN WON’T STOP" },
-    effect: "O Digimon pode fazer Movimento Difícil como Ação Livre imediatamente e, até o fim do turno, faz Movimento Difícil custando 1 Ação a menos, mínimo 1."
+    effect: "O Digimon pode fazer Movimento Difícil como Ação Livre imediatamente e, até o fim do turno, faz Movimento Difícil custando 1 Ação a menos, mínimo 1.",
+    automation: { enabled: true, type: "combatSurvivalSpecialOrder" }
   },
 
   {
@@ -913,17 +908,9 @@ const DDA_TAMER_TALENTS_PT = [
     specialOrder: { name: "HAVE SOME OF THIS" },
     effect: "Arremessa um objeto permitido pelo Narrador em um inimigo visível. O alvo sofre Dano Inalterável igual ao SV e [STUN] até o próximo turno do Digi-Escolhido.",
     automation: {
-  enabled: true,
-  type: "unalterableDamageAndEffect",
-  target: "target",
-  damageFrom: "targetSv",
-  tag: "stun",
-  label: "[STUN]",
-  value: 1,
-  duration: 1,
-  category: "control",
-  note: "Causa Dano Inalterável igual ao SV do alvo e aplica [STUN] até o próximo turno do Digi-Escolhido."
-}
+      enabled: true,
+      type: "officialEffectSpecialOrder"
+    }
   },
 
   {
@@ -937,7 +924,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerCombat",
     uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
     specialOrder: { name: "YOU’VE ALREADY LOST" },
-    effect: "Causa um Direcionar negativo em um inimigo, impondo penalidade à próxima Pool de Precisão ou Esquiva antes do próximo turno do Digi-Escolhido."
+    effect: "Causa um Direcionar negativo em um inimigo, impondo penalidade à próxima Pool de Precisão ou Esquiva antes do próximo turno do Digi-Escolhido.",
+    automation: { enabled: true, type: "attackDirectSpecialOrder" }
   },
 
   {
@@ -951,7 +939,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerCombat",
     uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
     specialOrder: { name: "HEY, OVER HERE" },
-    effect: "Quando um inimigo ataca um aliado ou o parceiro, o Digi-Escolhido o distrai; o inimigo rola metade dos dados no ataque."
+    effect: "Quando um inimigo ataca um aliado ou o parceiro, o Digi-Escolhido o distrai; o inimigo rola metade dos dados no ataque.",
+    automation: { enabled: true, type: "reactiveAttackInterrupt" }
   },
 
   {
@@ -965,7 +954,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerCombat",
     uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
     specialOrder: { name: "WE CAN DO THIS, TOGETHER" },
-    effect: "Concede benefícios de Direcionar a 2 Digimon aliados dispostos, incluindo o parceiro, sem penalidade por Direcionar Digimon de outro Tamer."
+    effect: "Concede benefícios de Direcionar a 2 Digimon aliados dispostos, incluindo o parceiro, sem penalidade por Direcionar Digimon de outro Tamer.",
+    automation: { enabled: true, type: "attackDirectSpecialOrder" }
   },
 
   {
@@ -979,7 +969,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerCombat",
     uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
     specialOrder: { name: "I ALREADY KNOW YOUR NEXT MOVE" },
-    effect: "Escolhe um inimigo e declara uma Ação Segurar cujo gatilho pode ser qualquer Ação futura desse alvo, incluindo Interceder."
+    effect: "Escolhe um inimigo e declara uma Ação Segurar cujo gatilho pode ser qualquer Ação futura desse alvo, incluindo Interceder.",
+    automation: { enabled: true, type: "transversalTamerTalent" }
   },
 
   {
@@ -1007,7 +998,8 @@ const DDA_TAMER_TALENTS_PT = [
     frequency: "oncePerCombat",
     uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
     specialOrder: { name: "I KNOW ALL YOUR TRICKS" },
-    effect: "Contra um inimigo específico já enfrentado, aumenta em +1 a Potência de Qualidades/Efeitos aliados que usam Estatística Derivada contra ele, ou reduz em -1 a Potência equivalente usada por ele."
+    effect: "Contra um inimigo específico já enfrentado, aumenta em +1 a Potência de Qualidades/Efeitos aliados que usam Estatística Derivada contra ele, ou reduz em -1 a Potência equivalente usada por ele.",
+    automation: { enabled: true, type: "transversalTamerTalent" }
   },
 
   {
@@ -1023,16 +1015,9 @@ const DDA_TAMER_TALENTS_PT = [
     specialOrder: { name: "I’VE FIGURED IT OUT" },
     effect: "Escolhe um inimigo e inflige [EXPLOIT 3], ignorando imunidades de Overwrite ou Resistance. O efeito dura até o fim do combate, até ser limpo ou até o inimigo gastar 2 Ações defendendo a fraqueza.",
     automation: {
-  enabled: true,
-  type: "applyEffect",
-  target: "target",
-  tag: "exploit",
-  label: "[EXPLOIT 3]",
-  value: 3,
-  duration: 99,
-  category: "negative",
-  note: "Dura até o fim do combate, até ser limpo, ou até o alvo gastar 2 Ações para defender a fraqueza."
-}
+      enabled: true,
+      type: "officialEffectSpecialOrder"
+    }
   },
 
   {
@@ -1048,7 +1033,7 @@ const DDA_TAMER_TALENTS_PT = [
     specialOrder: { name: "NOW FOCUS" },
     effect: "Quando o Digimon faz um Teste próprio como Ação ou parte de uma Qualidade, ganha +5 no Teste. Pode ser usado após o resultado ser conhecido.",
     automation: {
-      enabled: false,
+      enabled: true,
       type: "postCheckBonus",
       target: "partnerOrTarget",
       amount: 5,
@@ -1069,17 +1054,6 @@ const DDA_TAMER_TALENTS_PT = [
     uses: { enabled: true, value: 1, max: 1, recharge: "combat" },
     specialOrder: { name: "SHOW THEM WHAT YOU’RE MADE OF" },
     effect: "Após o Digimon acertar um Ataque contra um inimigo, o Digimon e todos os aliados ganham [BASTION 1] com Duração 3.",
-    automation: {
-  enabled: true,
-  type: "applyEffectToTargets",
-  target: "targets",
-  tag: "bastion",
-  label: "[BASTION 1]",
-  value: 1,
-  duration: 3,
-  category: "positive",
-  note: "Aplica [BASTION 1] ao Digimon e aliados selecionados."
-}
   }
 ];
 
@@ -1089,7 +1063,11 @@ const DDA_TAMER_TALENTS_PT = [
 
 const DDA_TAMER_TALENTS_EN_PATCH = {
   "quickStep": {
-    "effect": "When the Tamer takes the Reposition Action, they gain +1 Success to the final result."
+    "effect": "When the Tamer takes the Reposition Action, they gain +1 Success to the final result.",
+    automation: {
+      enabled: true,
+      type: "officialEffectSpecialOrder"
+    }
   },
   "strikeFast": {
     "effect": "The Tamer helps their Digimon increase their momentum. The Digimon gains 1 extra Action, which must be used to take the Move or Difficult Move Action.",
@@ -1248,7 +1226,7 @@ const DDA_TAMER_TALENTS_EN_PATCH = {
     "effect": "When Initiative is rolled, the Tamer makes a Willpower Pool Check. Their Digimon gains Temporary Wound Boxes equal to the number of Successes + the highest SV among all enemies present, to a max of 5. These Temporary Wound Boxes stack with other sources and are always removed first. These last until the end of Combat."
   },
   "miracle": {
-    "effect": "Through sheer force of willpower, the Tamer gains total narrative control of a roll. By spending 7 IP, the Tamer may add or subtract a bonus of Willpower + 5 to a Check or Pool. Then they may set the results of each die rolled. You cannot use Temporary IP for this Tamer Talent."
+    "effect": "Through sheer force of willpower, the Tamer gains total narrative control of a roll. By spending 9 IP, which may be pooled together by the players, the Tamer may add or subtract 12 to a Check or Pool. Then they may set the results of each die rolled. Temporary IP cannot be used for this Tamer Talent."
   },
   "quickening": {
     "effect": "When the Tamer’s Digimon would be Attacked, before rolling Dodge the Tamer can declare this Special Order. The Digimon automatically dodges the incoming Attack without needing to roll. No Qualities that require a successful Dodge can be triggered with this Special Order."

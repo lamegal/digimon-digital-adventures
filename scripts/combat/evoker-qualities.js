@@ -1,6 +1,8 @@
+import { withDDAMovementContext } from "../canvas/movement-context.js";
 import { spendActorActions } from "./action-economy.js";
-import { areActorsAllies } from "../rules/quality-automation.js";
+import { areActorsAllies, areActorsAlliesForQualities } from "../rules/quality-automation.js";
 import { getTokenGridDistance } from "./positioning.js";
+import { hasBossQuality } from "./boss-qualities.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const CREATION_FLAG = `flags.${SYSTEM_ID}.evokerCreation`;
@@ -464,6 +466,7 @@ async function useConjure(actor, { prepaidActions = false, accessOverride = null
       <label>${text("Quantidade de espaços", "Number of spaces")}<input type="number" name="spaces" min="1" max="4" value="1"></label>
       <label>${text("Aparência", "Appearance")}<input type="text" name="appearance" required value="${escape(configuredAppearance)}" ${configuredAppearance ? "readonly" : ""} placeholder="${text("Descreva a criação", "Describe the creation")}"></label>
       <label>${text("Elemento (Plataforma/Terreno)", "Element (Platform/Terrain)")}<select name="element"><option value="">—</option>${elements.map((element) => `<option value="${escape(element.key)}">${escape(element.label)}</option>`).join("")}</select></label>
+      <label>${text("Camada do Terreno", "Terrain Layer")}<select name="terrainLayer"><option value="surface">${text("Superfície", "Surface")}</option><option value="aerial">${text("Aérea", "Aerial")}</option></select></label>
       <label>${text("Terreno da Plataforma", "Platform Terrain")}<select name="platformTerrain"><option value="">${text("Sem Elemento", "No Element")}</option><option value="basic">${text("Básico", "Basic")}</option><option value="difficult">${text("Difícil", "Difficult")}</option></select></label>
       <label><input type="checkbox" name="existingElement"> ${text("Elemento já existe (Terreno)", "Element already exists (Terrain)")}</label>
       <label><input type="checkbox" name="dangerous"> ${text("Terreno Perigoso (+1 Mastery)", "Dangerous Terrain (+1 Mastery)")}</label>
@@ -474,6 +477,7 @@ async function useConjure(actor, { prepaidActions = false, accessOverride = null
       spaces: Math.max(1, Math.min(4, number(button.form?.elements?.spaces?.value, 1))),
       appearance: String(button.form?.elements?.appearance?.value ?? "").trim(),
       element: String(button.form?.elements?.element?.value ?? "").trim(),
+      terrainLayer: String(button.form?.elements?.terrainLayer?.value ?? "surface") === "aerial" ? "aerial" : "surface",
       platformTerrain: String(button.form?.elements?.platformTerrain?.value ?? "").trim(),
       existingElement: Boolean(button.form?.elements?.existingElement?.checked),
       dangerous: Boolean(button.form?.elements?.dangerous?.checked),
@@ -540,6 +544,7 @@ async function useConjure(actor, { prepaidActions = false, accessOverride = null
     heightSpaces: result.kind === "walls" ? dos : 1,
     segmentCount: points.length,
     terrain: result.kind === "terrain" ? (result.dangerous ? "dangerous" : "difficult") : "",
+    terrainLayer: result.kind === "terrain" ? result.terrainLayer : "surface",
     element: result.element,
     platformTerrain: result.kind === "platform" ? result.platformTerrain : "",
     windows: result.kind === "walls" && result.windows,
@@ -574,7 +579,34 @@ async function useSummon(actor, { prepaidActions = false, accessOverride = null 
     ui.notifications.warn(text("Invocar já foi usado nesta rodada.", "Summon was already used this round."));
     return { handled: true, success: false };
   }
-  const type = getSummonerType(quality);
+  let type = getSummonerType(quality);
+
+  if (hasBossQuality(actor, "omnipotentSummoning")) {
+    const selectedType = await chooseCreation(
+      text("Invocação Onipotente", "Omnipotent Summoning"),
+      `<form class="dda-evoker-grid">
+        <label>${text("Tipo de Lacaio", "Minion Type")}
+          <select name="minionType">
+            <option value="infantry" ${type === "infantry" ? "selected" : ""}>${text("Infantaria", "Infantry")}</option>
+            <option value="protector" ${type === "protector" ? "selected" : ""}>${text("Protetor", "Protector")}</option>
+            <option value="recon" ${type === "recon" ? "selected" : ""}>${text("Reconhecimento", "Recon")}</option>
+            <option value="volatile" ${type === "volatile" ? "selected" : ""}>${text("Volátil", "Volatile")}</option>
+          </select>
+        </label>
+        <p>${text(
+          "Invocação Onipotente permite escolher o tipo de Lacaio a cada Invocação.",
+          "Omnipotent Summoning lets you choose the Minion type each time you Summon."
+        )}</p>
+      </form>`,
+      (_event, button) => String(button.form?.elements?.minionType?.value ?? type)
+    );
+
+    if (!selectedType) return { handled: true, success: false };
+    if (["infantry", "protector", "recon", "volatile"].includes(selectedType)) {
+      type = selectedType;
+    }
+  }
+
   const base = { infantry: 4, protector: 3, recon: 2, volatile: 1 }[type];
   const existing = creationActorsForSource(actor, "minion");
   const mastery = getMastery(actor);
@@ -862,7 +894,7 @@ export async function useEvokerMinionAid(actor) {
   const source = await fromUuid(flag?.sourceActorUuid ?? "").catch(() => null);
   const targetToken = Array.from(game.user?.targets ?? [])[0];
   const target = targetToken?.actor;
-  if (!source || !target || target.uuid === actor.uuid || game.user.targets.size !== 1 || !areActorsAllies(source, target)) {
+  if (!source || !target || target.uuid === actor.uuid || game.user.targets.size !== 1 || !areActorsAlliesForQualities(source, target)) {
     ui.notifications.warn(text("Selecione exatamente um aliado.", "Select exactly one ally."));
     return null;
   }
@@ -888,7 +920,7 @@ export async function requestEvokerProtectorIntercede({ attacker, targetToken } 
     const protector = token.actor;
     const flag = protector?.flags?.[SYSTEM_ID]?.evokerCreation;
     if (flag?.kind !== "minion" || flag.subtype !== "protector") continue;
-    if (protector.uuid === attacker?.uuid || protector.uuid === target.uuid || !areActorsAllies(protector, target)) continue;
+    if (protector.uuid === attacker?.uuid || protector.uuid === target.uuid || !areActorsAlliesForQualities(protector, target)) continue;
     const source = await fromUuid(flag.sourceActorUuid ?? "").catch(() => null);
     if (!source || number(source.system?.combat?.actions?.value) < 1) continue;
     const movement = Math.max(0, number(protector.system?.miscStats?.movement?.total ?? protector.system?.miscStats?.movement?.value));
@@ -912,7 +944,13 @@ export async function requestEvokerProtectorIntercede({ attacker, targetToken } 
     const current = { x: number(candidate.token.document?.x), y: number(candidate.token.document?.y) };
     return Math.hypot(left.x - current.x, left.y - current.y) - Math.hypot(right.x - current.x, right.y - current.y);
   })[0];
-  if (destination) await candidate.token.document.update(destination, { animate: true, ddaEvokerProtectorIntercede: true });
+  if (destination) await candidate.token.document.update(destination, withDDAMovementContext(
+    { animate: true, ddaEvokerProtectorIntercede: true },
+    {
+      mode: "automated", movementBudget: "none", voluntary: true, reactions: true,
+      traversal: true, source: "evokerProtectorIntercede", unwilling: false
+    }
+  ));
   await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: candidate.protector }), content: `<div class="dda-chat-card"><h2>${text("Protetor — Interceder", "Protector — Intercede")}</h2><p><strong>${candidate.protector.name}</strong> ${text("recebe o Ataque no lugar do aliado; 1 Ação foi gasta de", "takes the Attack for the ally; 1 Action was spent from")} <strong>${candidate.source.name}</strong>.</p></div>` });
   return {
     id: foundry.utils.randomID(),

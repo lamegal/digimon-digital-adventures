@@ -1,5 +1,7 @@
 import { DDA } from "./config.js";
 import { getCampaignLevelSummary } from "./rules/campaign-rules.js";
+import { registerTamerProgressionSocket } from "./rules/tamer-progression.js";
+import { registerPlayerInspirationSocket } from "./rules/player-inspiration.js";
 import { DDAActor } from "./documents/actor-document.js";
 import { DDAItem } from "./documents/item-document.js";
 import { registerHandlebarsHelpers } from "./helpers/handlebars.js";
@@ -7,7 +9,10 @@ import { DDACharacterSheet } from "./sheets/character-sheet.js";
 import { DDADigimonSheet } from "./sheets/digimon-sheet.js";
 import { DDAGroupSheet } from "./sheets/group-sheet.js";
 import { DDAItemSheet } from "./sheets/item-sheet.js";
-import { bindDamageApplicationButtons } from "./rolls/damage-application.js";
+import {
+  bindDamageApplicationButtons,
+  registerDamageApplicationSocket
+} from "./rolls/damage-application.js";
 import {
   bindAreaAttackBulkDodgeCard,
   bindAttackDodgeChatCard,
@@ -29,8 +34,16 @@ import {
 
 import { openEncounterCalculator } from "./apps/encounter-calculator.js";
 import { DDA_TAMER_TALENTS } from "./data/tamer-talents.js";
+import {
+  auditTamerTalentImplementations,
+  DDA_TAMER_TALENT_IMPLEMENTATIONS
+} from "./data/tamer-talent-implementation.js";
 import { getTamerTalentUsesMax } from "./rules/tamer-talent-automation.js";
 import { registerTamerTalentSocket } from "./rules/tamer-talent-socket.js";
+import { registerTamerTalentAttackDirectHooks } from "./rules/tamer-talent-attack-direct.js";
+import { registerTamerTalentCombatSurvivalHooks } from "./rules/tamer-talent-combat-survival.js";
+import { registerTamerTalentTransversalHooks } from "./rules/tamer-talent-transversal.js";
+import { registerTamerTalentNarrativeHooks } from "./rules/tamer-talent-narrative.js";
 import { DDADigimonQualityBrowser } from "./apps/digimon-quality-browser.js";
 import { DDAGmTools, registerDdaGmToolsControls } from "./apps/dda-gm-tools.js";
 import { DDADigimonWizard } from "./wizard/dda-digimon-wizard.js";
@@ -50,9 +63,13 @@ import { registerEffectQualities } from "./combat/effect-qualities.js";
 import { registerEvokerQualities } from "./combat/evoker-qualities.js";
 import { registerDigizoidGainForce } from "./combat/digizoid-gain-force.js";
 import { registerFreeNegativeQualities } from "./combat/free-negative-qualities.js";
+import { registerBossQualities } from "./combat/boss-qualities.js";
+import { bindRaidActionChatCard, registerBossEncounterHooks } from "./combat/boss-encounters.js";
 import { registerIntercede } from "./combat/intercede.js";
 import { registerDdaHealthPips } from "./canvas/health-pips.js";
 import { registerDdaTokenHudEffects } from "./tokens/dda-token-hud-effects.js";
+import { registerDdaTokenActionTracker } from "./tokens/dda-token-action-tracker.js";
+import { registerDdaRadialTokenHud } from "./tokens/dda-token-hud.js";
 function registerDdaDefaultTokenDispositions() {
   Hooks.on("preCreateActor", (actor, data) => {
     if (!actor) return;
@@ -108,9 +125,7 @@ import { registerOwnershipSyncHooks, syncExistingPartnerOwnership } from "./util
 const ActorCollection = foundry.documents.collections.Actors;
 const ItemCollection = foundry.documents.collections.Items;
 
-const ActorSheetV1 = foundry.appv1.sheets.ActorSheet;
-const ItemSheetV1 = foundry.appv1?.sheets?.ItemSheet;
-const ItemSheetV2 = foundry.applications.sheets.ItemSheetV2;
+const { ActorSheetV2, ItemSheetV2 } = foundry.applications.sheets;
 
 async function loadDDAFlatTranslations() {
   const lang = game.i18n.lang ?? "en";
@@ -164,7 +179,7 @@ Hooks.once("init", async function () {
   CONFIG.Actor.documentClass = DDAActor;
   CONFIG.Item.documentClass = DDAItem;
 
-ActorCollection.unregisterSheet("core", ActorSheetV1);
+if (ActorSheetV2) ActorCollection.unregisterSheet("core", ActorSheetV2);
 
 ActorCollection.registerSheet(
   "digimon-digital-adventures",
@@ -196,7 +211,6 @@ ActorCollection.registerSheet(
   }
 );
 
-if (ItemSheetV1) ItemCollection.unregisterSheet("core", ItemSheetV1);
 if (ItemSheetV2) ItemCollection.unregisterSheet("core", ItemSheetV2);
 
 ItemCollection.registerSheet(
@@ -291,6 +305,9 @@ ItemCollection.registerSheet(
 
   registerDigimonTokenScaleHooks();
   registerDdaTokenHudEffects();
+  registerDdaRadialTokenHud();
+  registerBossQualities();
+  registerBossEncounterHooks();
   registerDDACombatInitiativeHooks();
   registerAreaAttackTerrainHooks();
 
@@ -344,7 +361,30 @@ Hooks.once("ready", async () => {
   game.dda.actions.takeTamerBreak = takeTamerBreak;
 
   registerAttackDodgeResponseListener();
+  registerDamageApplicationSocket();
   registerTamerTalentSocket();
+  registerTamerTalentAttackDirectHooks();
+  registerTamerTalentCombatSurvivalHooks();
+  registerTamerTalentTransversalHooks();
+  registerTamerTalentNarrativeHooks();
+  registerTamerProgressionSocket();
+  registerPlayerInspirationSocket();
+
+  game.dda.tamerTalents ??= {};
+  game.dda.tamerTalents.implementations = DDA_TAMER_TALENT_IMPLEMENTATIONS;
+  game.dda.tamerTalents.audit = () => {
+    return auditTamerTalentImplementations(DDA_TAMER_TALENTS);
+  };
+
+  const tamerTalentAudit = game.dda.tamerTalents.audit();
+  if (tamerTalentAudit.ok) {
+    console.log(
+      `DDA | Tamer Talent audit passed: ${tamerTalentAudit.implementationCount}/${tamerTalentAudit.talentCount}`,
+      tamerTalentAudit.modeCounts
+    );
+  } else {
+    console.warn("DDA | Tamer Talent audit found registry problems.", tamerTalentAudit);
+  }
 
 if (game.user.isGM) {
   await syncExistingPartnerOwnership();
@@ -458,6 +498,10 @@ void bindAttackDodgeChatCard(message, root).catch((error) => {
     console.warn("DDA | Could not bind Tactical Adaptation prompt.", error);
   });
 
+  void bindRaidActionChatCard(message, root).catch((error) => {
+    console.warn("DDA | Could not bind Raid Action prompt.", error);
+  });
+
   root.querySelectorAll(".dda-clash-chat-action").forEach((button) => {
     button.addEventListener("click", handleClashChatAction);
   });
@@ -521,6 +565,7 @@ Hooks.once("ready", () => {
   registerFreeNegativeQualities();
   registerIntercede();
   registerDdaHealthPips();
+  registerDdaTokenActionTracker();
   registerDdaDefaultTokenDispositions();
 });
 

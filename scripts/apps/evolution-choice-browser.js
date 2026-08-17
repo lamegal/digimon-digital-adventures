@@ -15,6 +15,9 @@ import {
 import {
   resolveDigimonPortrait
 } from "../helpers/digimon-portrait-resolver.js";
+
+const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
+const DDAEvolutionApplicationBase = HandlebarsApplicationMixin(ApplicationV2);
 const STAGE_ORDER = ["baby1", "baby2", "child", "adult", "perfect", "ultimate", "ultimatePlus"];
 
 const DDA_EVOLUTION_CARD_STATIC_IMAGE_OVERRIDES = Object.freeze({
@@ -150,65 +153,76 @@ async function openEvolutionCompatibilityDevTool() {
   const exclusions = getStoredDevObject(DEV_EVOLUTION_EXCLUSIONS_FLAG);
   const formatJson = (value) => JSON.stringify(value ?? {}, null, 2);
 
-  return new Promise((resolve) => {
-    new Dialog({
-      title: "DDA Dev Tool — Compatibilidade de Evolução",
-      content: `
-        <form class="dda-dev-evolution-compatibility-form">
-          <p class="notes">
-            Ajustes salvos como configuração oculta de mundo. Afetam o Browser de Evolução para todos os usuários deste mundo.
-          </p>
+  return DialogV2.wait({
+    classes: ["dda", "dda-evolution-compatibility-dev-dialog"],
+    position: { width: 720, height: "auto" },
+    window: { title: "DDA Dev Tool — Compatibilidade de Evolução" },
+    modal: true,
+    content: `
+      <div class="dda-dev-evolution-compatibility-form">
+        <p class="notes">
+          Ajustes salvos como configuração oculta de mundo. Afetam o Browser de Evolução para todos os usuários deste mundo.
+        </p>
 
-          <div class="form-group stacked">
-            <label>Overrides de compatibilidade</label>
-            <textarea name="overrides" spellcheck="false" rows="12">${escapeHtml(formatJson(overrides))}</textarea>
-            <p class="hint">Exemplo: { "relemon": { "viximon": 95 }, "viximon": { "renamon": { "score": 98, "reason": "Linha principal" } } }</p>
-          </div>
+        <div class="form-group stacked">
+          <label>Overrides de compatibilidade</label>
+          <textarea name="overrides" spellcheck="false" rows="12">${escapeHtml(formatJson(overrides))}</textarea>
+          <p class="hint">Exemplo: { "relemon": { "viximon": 95 }, "viximon": { "renamon": { "score": 98, "reason": "Linha principal" } } }</p>
+        </div>
 
-          <div class="form-group stacked">
-            <label>Exclusões</label>
-            <textarea name="exclusions" spellcheck="false" rows="8">${escapeHtml(formatJson(exclusions))}</textarea>
-            <p class="hint">Exemplo: { "*": ["algomonbabyii"], "relemon": ["tokomon"] }</p>
-          </div>
-        </form>
-      `,
-      buttons: {
-        save: {
-          label: "Salvar",
-          callback: async (html) => {
-            const form = html[0]?.querySelector?.("form");
-            try {
-              const nextOverrides = parseDevJson(form?.overrides?.value, {});
-              const nextExclusions = parseDevJson(form?.exclusions?.value, { "*": [] });
+        <div class="form-group stacked">
+          <label>Exclusões</label>
+          <textarea name="exclusions" spellcheck="false" rows="8">${escapeHtml(formatJson(exclusions))}</textarea>
+          <p class="hint">Exemplo: { "*": ["algomonbabyii"], "relemon": ["tokomon"] }</p>
+        </div>
+      </div>
+    `,
+    buttons: [
+      {
+        action: "save",
+        label: "Salvar",
+        icon: "fa-solid fa-floppy-disk",
+        default: true,
+        callback: async (_event, button) => {
+          try {
+            const nextOverrides = parseDevJson(
+              button.form?.elements?.namedItem?.("overrides")?.value,
+              {}
+            );
+            const nextExclusions = parseDevJson(
+              button.form?.elements?.namedItem?.("exclusions")?.value,
+              { "*": [] }
+            );
 
-              await setStoredDevObject(DEV_EVOLUTION_COMPATIBILITY_FLAG, nextOverrides);
-              await setStoredDevObject(DEV_EVOLUTION_EXCLUSIONS_FLAG, nextExclusions);
-
-              ui.notifications.info("Ajustes de compatibilidade salvos.");
-              resolve({ overrides: nextOverrides, exclusions: nextExclusions });
-            } catch (error) {
-              ui.notifications.error(`JSON inválido: ${error.message}`);
-              resolve(null);
-            }
+            await setStoredDevObject(DEV_EVOLUTION_COMPATIBILITY_FLAG, nextOverrides);
+            await setStoredDevObject(DEV_EVOLUTION_EXCLUSIONS_FLAG, nextExclusions);
+            ui.notifications.info("Ajustes de compatibilidade salvos.");
+            return { overrides: nextOverrides, exclusions: nextExclusions };
+          } catch (error) {
+            ui.notifications.error(`JSON inválido: ${error.message}`);
+            return null;
           }
-        },
-        clear: {
-          label: "Limpar ajustes",
-          callback: async () => {
-            await unsetStoredDevObject(DEV_EVOLUTION_COMPATIBILITY_FLAG);
-            await unsetStoredDevObject(DEV_EVOLUTION_EXCLUSIONS_FLAG);
-            ui.notifications.info("Ajustes de compatibilidade limpos.");
-            resolve({ overrides: {}, exclusions: {} });
-          }
-        },
-        cancel: {
-          label: "Cancelar",
-          callback: () => resolve(null)
         }
       },
-      default: "save",
-      close: () => resolve(null)
-    }, { width: 720 }).render(true);
+      {
+        action: "clear",
+        label: "Limpar ajustes",
+        icon: "fa-solid fa-eraser",
+        callback: async () => {
+          await unsetStoredDevObject(DEV_EVOLUTION_COMPATIBILITY_FLAG);
+          await unsetStoredDevObject(DEV_EVOLUTION_EXCLUSIONS_FLAG);
+          ui.notifications.info("Ajustes de compatibilidade limpos.");
+          return { overrides: {}, exclusions: {} };
+        }
+      },
+      {
+        action: "cancel",
+        label: "Cancelar",
+        icon: "fa-solid fa-xmark",
+        callback: () => null
+      }
+    ],
+    rejectClose: false
   });
 }
 
@@ -1100,18 +1114,26 @@ function buildEvolutionChoiceSlotUpdate(stageKey = "", forms = []) {
   };
 }
 
-export class DDAEvolutionChoiceBrowser extends Application {
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: "dda-evolution-choice-browser",
-      classes: ["dda", "dda-evolution-choice-browser"],
-      template: "systems/digimon-digital-adventures/templates/apps/evolution-choice-browser.html",
-      title: localize("DDA.EvolutionChoice.Title"),
+export class DDAEvolutionChoiceBrowser extends DDAEvolutionApplicationBase {
+  static DEFAULT_OPTIONS = {
+    id: "dda-evolution-choice-browser",
+    classes: ["dda", "dda-evolution-choice-browser"],
+    position: {
       width: 860,
-      height: 720,
+      height: 720
+    },
+    window: {
+      title: "DDA.EvolutionChoice.Title",
       resizable: true
-    });
-  }
+    }
+  };
+
+  static PARTS = {
+    main: {
+      template: "systems/digimon-digital-adventures/templates/apps/evolution-choice-browser.html",
+      scrollable: [".dda-evolution-choice-root"]
+    }
+  };
 
 constructor(digimonActor, options = {}) {
   super(options);
@@ -1121,8 +1143,8 @@ constructor(digimonActor, options = {}) {
   this.pendingChoice = null;
 }
 
-  async getData(options = {}) {
-    const context = await super.getData(options);
+  async _prepareContext(options) {
+    const context = await super._prepareContext(options);
     const tamer = await this._getLinkedTamer();
     const currentStage = this.actor.system?.stage || "";
     const targetStage = nextStage(currentStage);
@@ -1188,9 +1210,10 @@ const visibleExploration = explorationCandidates.filter((entry) => {
     };
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
-    const root = html instanceof jQuery ? html : $(html);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+    if (!(this.element instanceof HTMLElement)) return;
+    const root = $(this.element);
     root.find("[data-action='select-evolution-choice']").on("click", this._onSelectChoice.bind(this));
     root.find("[data-action='clear-evolution-choice']").on("click", this._onClearEvolutionChoice.bind(this));
     root.find("[data-action='save-evolution-choice']").on("click", this._onSaveEvolutionChoice.bind(this));
@@ -2944,28 +2967,38 @@ function exportEvolutionCompatibilityCuration() {
   return data;
 }
 
-class DDAEvolutionCompatibilityEditor extends Application {
+class DDAEvolutionCompatibilityEditor extends DDAEvolutionApplicationBase {
   static ALL_ORIGINS_KEY = "__all__";
 
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: "dda-evolution-compatibility-editor",
-      classes: ["dda", "dda-evolution-compatibility-editor"],
-      title: "DDA Dev — Curadoria de Evolução",
+  static DEFAULT_OPTIONS = {
+    id: "dda-evolution-compatibility-editor",
+    classes: ["dda", "dda-evolution-compatibility-editor"],
+    position: {
       width: 1080,
-      height: 780,
+      height: 780
+    },
+    window: {
+      title: "DDA Dev — Curadoria de Evolução",
       resizable: true
-    });
-  }
+    }
+  };
+
+  static PARTS = {
+    main: {
+      template: "systems/digimon-digital-adventures/templates/apps/evolution-compatibility-editor.html",
+      scrollable: [".dda-evolution-compatibility-editor-root"]
+    }
+  };
 
   constructor(options = {}) {
-    super(options);
+    const { origin, originKey, targetStage, showAllOrigins, ...applicationOptions } = options;
+    super(applicationOptions);
     const sources = getAllEvolutionEditorSources();
-    const requestedOrigin = devLookupKey(options.origin ?? options.originKey ?? "");
-    this.originKey = options.showAllOrigins || options.originKey === DDAEvolutionCompatibilityEditor.ALL_ORIGINS_KEY
+    const requestedOrigin = devLookupKey(origin ?? originKey ?? "");
+    this.originKey = showAllOrigins || originKey === DDAEvolutionCompatibilityEditor.ALL_ORIGINS_KEY
       ? DDAEvolutionCompatibilityEditor.ALL_ORIGINS_KEY
       : requestedOrigin || sources[0]?.key || DDAEvolutionCompatibilityEditor.ALL_ORIGINS_KEY;
-    this.targetStage = options.targetStage || "child";
+    this.targetStage = targetStage || "child";
     this.searchTerm = "";
     this.showHidden = true;
     this.showDuplicates = true;
@@ -2983,8 +3016,8 @@ class DDAEvolutionCompatibilityEditor extends Application {
     return this.originKey === DDAEvolutionCompatibilityEditor.ALL_ORIGINS_KEY;
   }
 
-  async getData(options = {}) {
-    const context = await super.getData(options);
+  async _prepareContext(options) {
+    const context = await super._prepareContext(options);
     const rawSources = getAllEvolutionEditorSources();
     const allSource = {
       key: DDAEvolutionCompatibilityEditor.ALL_ORIGINS_KEY,
@@ -3052,7 +3085,7 @@ class DDAEvolutionCompatibilityEditor extends Application {
         return String(a.displayName ?? a.name ?? "").localeCompare(String(b.displayName ?? b.name ?? ""), game.i18n.lang);
       });
 
-    return {
+    const viewData = {
       ...context,
       origin,
       originKey: this.originKey,
@@ -3070,6 +3103,9 @@ class DDAEvolutionCompatibilityEditor extends Application {
       visibleDuplicateCount: candidates.filter((candidate) => candidate.duplicate && !candidate.hidden).length,
       curationJson: JSON.stringify({ overrides: this.draftOverrides, exclusions: this.draftExclusions }, null, 2)
     };
+
+    viewData.editorHtml = this._renderEditorHtml(viewData);
+    return viewData;
   }
 
   _getPendingSummary() {
@@ -3120,10 +3156,6 @@ class DDAEvolutionCompatibilityEditor extends Application {
       usableLabel: candidate.usable ? "Importado" : "Não importado",
       image: candidate.img || "icons/svg/mystery-man.svg"
     };
-  }
-
-  async _renderInner(data) {
-    return $(this._renderEditorHtml(data));
   }
 
   _renderEditorHtml(data) {
@@ -3235,9 +3267,10 @@ class DDAEvolutionCompatibilityEditor extends Application {
     `;
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
-    const root = html instanceof jQuery ? html : $(html);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+    if (!(this.element instanceof HTMLElement)) return;
+    const root = $(this.element);
 
     root.find("[data-action='select-origin']").on("change", (event) => {
       this.originKey = event.currentTarget.value || this.originKey;
@@ -3457,12 +3490,12 @@ class DDAEvolutionCompatibilityEditor extends Application {
 
   async _onCleanStageDuplicates(event) {
     event.preventDefault();
-    const confirmed = await Dialog.confirm({
-      title: "Limpar duplicatas do estágio",
+    const confirmed = await DialogV2.confirm({
+      window: { title: "Limpar duplicatas do estágio" },
       content: `<p>Marcar para ocultar globalmente duplicatas inferiores de <strong>${stageLabel(this.targetStage)}</strong>, mantendo a melhor entrada de cada nome?</p><p>Isso só grava depois que você clicar em <strong>Salvar alterações</strong>.</p>`,
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
+      yes: { label: "Marcar duplicatas" },
+      no: { label: "Cancelar", default: true },
+      rejectClose: false
     });
 
     if (!confirmed) return;
@@ -3475,12 +3508,12 @@ class DDAEvolutionCompatibilityEditor extends Application {
   async _onClearOrigin(event) {
     event.preventDefault();
     const label = this._isGlobalSanitationMode ? "curadoria global" : "curadoria da origem";
-    const confirmed = await Dialog.confirm({
-      title: this._isGlobalSanitationMode ? "Limpar curadoria global" : "Limpar curadoria da origem",
+    const confirmed = await DialogV2.confirm({
+      window: { title: this._isGlobalSanitationMode ? "Limpar curadoria global" : "Limpar curadoria da origem" },
       content: `<p>Remover todos os ajustes da ${label} no rascunho?</p><p>Isso só grava depois que você clicar em <strong>Salvar alterações</strong>.</p>`,
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
+      yes: { label: "Limpar" },
+      no: { label: "Cancelar", default: true },
+      rejectClose: false
     });
 
     if (!confirmed) return;
@@ -3500,12 +3533,12 @@ class DDAEvolutionCompatibilityEditor extends Application {
 
   async _onDiscardCuration(event) {
     event.preventDefault();
-    const confirmed = await Dialog.confirm({
-      title: "Descartar alterações",
+    const confirmed = await DialogV2.confirm({
+      window: { title: "Descartar alterações" },
       content: "<p>Descartar todas as alterações pendentes e recarregar a curadoria salva?</p>",
-      yes: () => true,
-      no: () => false,
-      defaultYes: false
+      yes: { label: "Descartar" },
+      no: { label: "Cancelar", default: true },
+      rejectClose: false
     });
 
     if (!confirmed) return;

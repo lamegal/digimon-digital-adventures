@@ -1,6 +1,7 @@
 import {
   EFFECT_TAGS,
   areActorsAllies,
+  areActorsAlliesForQualities,
   clearUseState,
   findQuality,
   getActorDerivedStat,
@@ -243,7 +244,7 @@ async function executeDigitalHazard(attacker, attackItem) {
 
   if (attacker.system?.clash?.state?.active) {
     const { endDigimonClash } = await import("./clash.js");
-    await endDigimonClash(attacker, { reason: "digitalHazard" });
+    await endDigimonClash(attacker, { reason: "digitalHazard", all: true });
   }
 
   await ChatMessage.create({
@@ -329,7 +330,7 @@ async function executeZeroUnit(attacker, attackItem, mode) {
 
   if (mode === "revive") {
     const target = selected?.actor;
-    if (!target || !areActorsAllies(attacker, target) || actorWounds(target).value > 0) {
+    if (!target || !areActorsAlliesForQualities(attacker, target) || actorWounds(target).value > 0) {
       ui.notifications.warn(text("Selecione um único aliado derrotado.", "Select one defeated ally."));
       return null;
     }
@@ -348,7 +349,7 @@ async function executeZeroUnit(attacker, attackItem, mode) {
     await applyZeroPositiveEffect(attacker, target, attackItem, instinct);
   } else {
     const allies = (canvas?.tokens?.placeables ?? []).filter((token) => (
-      token.actor && sourceToken && areActorsAllies(attacker, token.actor) && tokenDistance(sourceToken, token) <= sv
+      token.actor && sourceToken && areActorsAlliesForQualities(attacker, token.actor) && tokenDistance(sourceToken, token) <= sv
     ));
     const credit = instinct + battery;
     await ChatMessage.create({
@@ -648,7 +649,7 @@ export async function reduceEnemyUnalterableDamageWithShiningArmor(actor, damage
     return { damage: amount, reduction: 0 };
   }
   const attacker = options.attacker ?? null;
-  if (!attacker || areActorsAllies(actor, attacker)) return { damage: amount, reduction: 0 };
+  if (!attacker || areActorsAlliesForQualities(actor, attacker)) return { damage: amount, reduction: 0 };
 
   const useIt = await foundry.applications.api.DialogV2.confirm({
     classes: ["dda", "dda-defensive-quality-window"],

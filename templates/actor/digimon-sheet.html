@@ -1,4 +1,4 @@
-<form
+<div
   class="{{cssClass}} dda-digimon-sheet dda-digimon-window-sheet {{#if npcPresentation.isEnemy}}dda-enemy-npc-sheet{{/if}} {{#if npcPresentation.isAlly}}dda-ally-npc-sheet{{/if}}"
   autocomplete="off"
 >
@@ -188,16 +188,16 @@
 
 
 <nav class="sheet-tabs tabs" data-group="primary">
-  <a class="item" data-tab="summary">{{localize "DDA.Tab.Summary"}}</a>
-  <a class="item" data-tab="stats">{{localize "DDA.Tab.Stats"}}</a>
-  <a class="item" data-tab="combat">{{localize "DDA.Tab.Combat"}}</a>
-  <a class="item" data-tab="qualities">{{localize "DDA.Tab.Qualities"}}</a>
-  <a class="item" data-tab="evolution">{{localize "DDA.Tab.Evolution"}}</a>
-  <a class="item" data-tab="notes">{{localize "DDA.Tab.Notes"}}</a>
+  <a class="item {{tabs.primary.summary.cssClass}}" data-group="primary" data-tab="summary">{{localize "DDA.Tab.Summary"}}</a>
+  <a class="item {{tabs.primary.stats.cssClass}}" data-group="primary" data-tab="stats">{{localize "DDA.Tab.Stats"}}</a>
+  <a class="item {{tabs.primary.combat.cssClass}}" data-group="primary" data-tab="combat">{{localize "DDA.Tab.Combat"}}</a>
+  <a class="item {{tabs.primary.qualities.cssClass}}" data-group="primary" data-tab="qualities">{{localize "DDA.Tab.Qualities"}}</a>
+  <a class="item {{tabs.primary.evolution.cssClass}}" data-group="primary" data-tab="evolution">{{localize "DDA.Tab.Evolution"}}</a>
+  <a class="item {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">{{localize "DDA.Tab.Notes"}}</a>
 </nav>
 
   <section class="sheet-body">
-<section class="tab dda-summary-tab" data-group="primary" data-tab="summary">
+<section class="tab dda-summary-tab {{tabs.primary.summary.cssClass}}" data-group="primary" data-tab="summary">
 
   <div class="dda-digimon-classification-row">
 
@@ -316,7 +316,7 @@
 
     <div class="resource-box">
       <label>{{localize "DDA.Creation.BonusDP"}}</label>
-      <input type="number" name="system.creation.dp.bonus" value="{{system.creation.dp.bonus}}" />
+      <input type="number" name="system.creation.dp.bonus" value="{{system.creation.dp.bonus}}" readonly />
     </div>
 
     <div class="resource-box">
@@ -337,6 +337,22 @@
     <div class="resource-box">
       <label>{{localize "DDA.Creation.RemainingDP"}}</label>
       <input type="number" name="system.creation.dp.remaining" value="{{system.creation.dp.remaining}}" readonly />
+    </div>
+
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Progression.BonusDP.SharedStats"}}</label>
+      <input type="number" value="{{system.creation.dp.sharedStatTotal}}" readonly />
+    </div>
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Progression.BonusDP.QualityAllocation"}}</label>
+      <input type="number" value="{{system.creation.dp.sharedQualityAllocated}}" readonly />
+    </div>
+
+    <div class="resource-box">
+      <label>{{localize "DDA.Progression.BonusDP.Unallocated"}}</label>
+      <input type="number" value="{{system.creation.dp.bonusUnallocated}}" readonly />
     </div>
 
     <div class="resource-box">
@@ -387,7 +403,7 @@
 </details>
 </section>
 
-    <section class="tab dda-stats-tab" data-group="primary" data-tab="stats">
+    <section class="tab dda-stats-tab {{tabs.primary.stats.cssClass}}" data-group="primary" data-tab="stats">
       <h2>{{localize "DDA.DigimonSheet.MainStats"}}</h2>
 
 <div class="stat-table">
@@ -608,7 +624,7 @@
       </div>
     </section>
 
-    <section class="tab dda-combat-tab" data-group="primary" data-tab="combat">
+    <section class="tab dda-combat-tab {{tabs.primary.combat.cssClass}}" data-group="primary" data-tab="combat">
       <h2>{{localize "DDA.Tab.Combat"}}</h2>
 
 <div class="combat-actions">
@@ -663,6 +679,36 @@
     </select>
   </div>
 </div>
+
+{{#if bossTemplateRuntime}}
+<section class="dda-boss-template-runtime">
+  <h3>{{bossTemplateRuntime.title}}</h3>
+  <div class="resource-grid">
+    <div class="resource-box">
+      <label>{{bossTemplateRuntime.turnsLabel}}</label>
+      <strong>{{bossTemplateRuntime.turnCount}}</strong>
+    </div>
+    <div class="resource-box">
+      <label>{{bossTemplateRuntime.remainingLabel}}</label>
+      <strong>{{bossTemplateRuntime.remainingPools}} / {{bossTemplateRuntime.poolCount}}</strong>
+    </div>
+  </div>
+  {{#if bossTemplateRuntime.active}}
+  <div class="resource-grid dda-boss-template-pools">
+    {{#each bossTemplateRuntime.pools as |pool|}}
+    <div class="resource-box dda-boss-template-pool {{#unless pool.value}}depleted{{/unless}}">
+      <label>{{pool.label}}{{#if pool.assignedUserName}} — {{pool.assignedUserName}}{{/if}}</label>
+      <div class="inline-inputs">
+        <strong>{{pool.value}}</strong><span>/</span><strong>{{pool.max}}</strong>
+      </div>
+    </div>
+    {{/each}}
+  </div>
+  {{else}}
+  <p class="hint">{{bossTemplateRuntime.waitingLabel}}</p>
+  {{/if}}
+</section>
+{{/if}}
 
 {{#if hasQualityResources}}
 <h3>{{localize "DDA.DigimonSheet.QualityResources"}}</h3>
@@ -817,7 +863,7 @@
 
     </section>
 
-<section class="tab dda-qualities-tab" data-group="primary" data-tab="qualities">
+<section class="tab dda-qualities-tab {{tabs.primary.qualities.cssClass}}" data-group="primary" data-tab="qualities">
 <div class="section-header">
   <h2>{{localize "DDA.Item.Qualities"}}</h2>
 
@@ -979,7 +1025,7 @@
   {{/if}}
 </section>
 
-<section class="tab dda-evolution-tab" data-group="primary" data-tab="evolution">
+<section class="tab dda-evolution-tab {{tabs.primary.evolution.cssClass}}" data-group="primary" data-tab="evolution">
   <div class="dda-evolution-graph-header dda-evolution-toolbar">
     <div class="dda-evolution-toolbar-copy">
       <h2>{{localize "DDA.Evolution.TitleCompact"}}</h2>
@@ -1096,7 +1142,7 @@
   </div>
 </section>
 
-    <section class="tab dda-notes-tab" data-group="primary" data-tab="notes">
+    <section class="tab dda-notes-tab {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">
       <h2>{{localize "DDA.Tab.Notes"}}</h2>
 
 <div class="grid-2 dda-digimon-notes-profile-grid">
@@ -1121,4 +1167,4 @@
       </div>
     </div>
   </div>
-</form>
+</div>

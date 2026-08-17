@@ -16,6 +16,10 @@ import {
   prepareTamerActionPoolOptions
 } from "../combat/tamer-actions.js";
 import {
+  maybeApplyPersonalCheerleaderReroll,
+  prepareAttackDirectTalentPoolOptions
+} from "../rules/tamer-talent-attack-direct.js";
+import {
   consumeDigimonActionPoolEffects,
   prepareDigimonActionPoolOptions
 } from "../combat/digimon-actions.js";
@@ -27,6 +31,14 @@ import {
   consumeOmniscientHoldDodge,
   prepareOmniscientHoldPoolOptions
 } from "../combat/digizoid-gain-force.js";
+import {
+  prepareMiracleRoll
+} from "../rules/tamer-talent-transversal.js";
+import {
+  applyPoolPlayerInspiration,
+  buildPlayerInspirationNote,
+  preparePoolPlayerInspiration
+} from "../rules/player-inspiration.js";
 
 function getEvasiveManeuversReserve(
   actor
@@ -140,6 +152,11 @@ export async function rollPool(actor, statKey, options = {}) {
     statKey,
     options
   );
+  options = prepareAttackDirectTalentPoolOptions(
+    actor,
+    statKey,
+    options
+  );
   options = prepareDigimonActionPoolOptions(
     actor,
     statKey,
@@ -245,7 +262,7 @@ const qualityAutomaticSuccessesHtml = buildQualityAutomaticSuccessesHtml({
   qualityAutomaticSuccessesAbsorbed
 });
 
-const dice = Math.max(
+const diceBeforeFinalMultiplier = Math.max(
   0,
 
   baseDice -
@@ -257,6 +274,36 @@ const dice = Math.max(
   guidingDice -
   dodgePenalty
 );
+
+const finalDiceMultiplier = Math.max(
+  0,
+  Number(options.finalDiceMultiplier ?? 1)
+);
+
+let dice = finalDiceMultiplier === 1
+  ? diceBeforeFinalMultiplier
+  : Math.max(0, Math.floor(diceBeforeFinalMultiplier * finalDiceMultiplier));
+
+const prePlayerInspiration = options.allowPlayerInspiration === false
+  ? { blocked: false, originalDiceCount: dice, diceCount: dice, choices: [] }
+  : await preparePoolPlayerInspiration(
+      actor,
+      { diceCount: dice }
+    );
+
+dice = prePlayerInspiration.diceCount;
+
+const miracle = await prepareMiracleRoll(
+  actor,
+  {
+    kind: "pool",
+    diceCount: dice
+  }
+);
+
+if (miracle.used) {
+  dice = Math.max(0, Math.floor(Number(miracle.diceCount ?? dice)));
+}
 
 if (dice <= 0 && automaticSuccesses <= 0) {
   if (options.allowZeroSuccesses) {
@@ -280,6 +327,12 @@ content: `
 
       ${qualityAutomaticSuccessesHtml}
 
+      ${miracle.used
+        ? `<li class="pool-miracle-note"><strong>Miracle:</strong> -12 ${String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "dice reduced this Pool to 0d6" : "dados reduziram esta Pool para 0d6"}.</li>`
+        : ""}
+
+      ${buildPlayerInspirationNote(prePlayerInspiration, { kind: "pool" })}
+
       <li class="pool-total-successes">
         ${localize("DDA.Pool.TotalSuccesses")}:
         <strong>0</strong>.
@@ -289,11 +342,21 @@ content: `
 `
     });
 
+    await consumeTamerActionPoolEffects(actor, options);
+    await consumeDigimonActionPoolEffects(actor, options);
+    if (guidingDice > 0) await consumeGuidingDice(actor, guidingDice);
+
     return {
       roll: null,
       rolledSuccesses: 0,
       automaticSuccesses: 0,
-      totalSuccesses: 0
+      totalSuccesses: 0,
+      personalCheerleaderRerolledDice: [],
+      ddaTamerDirectEffects: Array.isArray(options.ddaTamerDirectEffects)
+        ? foundry.utils.deepClone(options.ddaTamerDirectEffects)
+        : [],
+      miracle,
+      playerInspiration: prePlayerInspiration
     };
   }
 
@@ -302,13 +365,26 @@ content: `
 }
 
   let roll = dice > 0 ? await new Roll(`${dice}d6`).evaluate() : null;
-  const variableReroll = await maybeUseVariableReroll(actor, roll, {
-    source: `mainStatPool:${statKey}`,
-    title: statLabel
-  });
+
+  if (miracle.used && roll) {
+    const results = roll.dice?.[0]?.results ?? [];
+    const forced = Array.from(miracle.diceValues ?? []);
+    for (let index = 0; index < Math.min(results.length, forced.length); index += 1) {
+      results[index].result = forced[index];
+      results[index].active = true;
+    }
+    roll._total = forced.reduce((total, value) => total + Number(value ?? 0), 0);
+  }
+
+  const variableReroll = miracle.used
+    ? { roll, used: false }
+    : await maybeUseVariableReroll(actor, roll, {
+        source: `mainStatPool:${statKey}`,
+        title: statLabel
+      });
   roll = variableReroll.roll;
 
-  const diceResults = roll?.dice[0]?.results ?? [];
+  let diceResults = roll?.dice[0]?.results ?? [];
   const rerollLimit = Math.max(
     0,
     Number(options.rerollResultsUpTo ?? 0),
@@ -322,10 +398,12 @@ content: `
   );
   const protectedDiceStart = Math.max(0, diceResults.length - rerollProtectedDice);
 
-  lowRerollDeclaration = await getLowRerollDeclaration(actor, statKey, {
-    diceResults,
-    protectedDiceStart
-  });
+  lowRerollDeclaration = miracle.used
+    ? null
+    : await getLowRerollDeclaration(actor, statKey, {
+        diceResults,
+        protectedDiceStart
+      });
 
   if (lowRerollDeclaration?.label) {
     rerollLabel = lowRerollDeclaration.label;
@@ -402,6 +480,54 @@ content: `
     }
   }
 
+const personalCheerleaderRerolledDice = miracle.used
+  ? []
+  : await maybeApplyPersonalCheerleaderReroll(
+      actor,
+      statKey,
+      diceResults,
+      options
+    );
+
+const postPlayerInspiration = options.allowPlayerInspiration === false
+  ? {
+      blocked: false,
+      roll,
+      diceCount: dice,
+      diceResults: diceResults.map((result) => ({
+        result: Number(result.result ?? 0),
+        active: result.active !== false
+      })),
+      bonusRolls: [],
+      rerolled: false,
+      choices: []
+    }
+  : await applyPoolPlayerInspiration(
+      actor,
+      {
+        roll,
+        diceCount: dice,
+        currentLabel: `${dice}d6`
+      }
+    );
+
+if (postPlayerInspiration.roll !== undefined) {
+  roll = postPlayerInspiration.roll;
+}
+
+dice = postPlayerInspiration.diceCount;
+diceResults = postPlayerInspiration.diceResults;
+
+const playerInspiration = {
+  blocked: Boolean(prePlayerInspiration.blocked || postPlayerInspiration.blocked),
+  choices: [
+    ...(prePlayerInspiration.choices ?? []),
+    ...(postPlayerInspiration.choices ?? [])
+  ],
+  pre: prePlayerInspiration,
+  post: postPlayerInspiration
+};
+
 const adjustedDiceResults = diceResults.map((result) => {
   const raw = Number(result.result ?? 0);
   const adjusted = raw + resultModifier;
@@ -450,6 +576,32 @@ const resultsHtml = adjustedDiceResults
       </li>
     `
     : "";
+
+  const personalCheerleaderHtml = personalCheerleaderRerolledDice.length
+    ? `
+      <li class="pool-personal-cheerleader-note">
+        <strong>Personal Cheerleader:</strong>
+        <div class="dda-dice-results">
+          ${personalCheerleaderRerolledDice.map((entry) => `<span class="dda-die ${entry.original >= 5 ? "success" : "failure"}">${entry.original}</span> → <span class="dda-die ${entry.result >= 5 ? "success" : "failure"}">${entry.result}</span>`).join(" ")}
+        </div>
+      </li>
+    `
+    : "";
+
+  const miracleHtml = miracle.used
+    ? `
+      <li class="pool-miracle-note">
+        <strong>Miracle:</strong>
+        ${miracle.operation === "plus" ? "+12" : "-12"}
+        ${String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "dice; all results chosen by the players" : "dados; todos os resultados escolhidos pelos jogadores"}.
+      </li>
+    `
+    : "";
+
+  const playerInspirationHtml = buildPlayerInspirationNote(
+    playerInspiration,
+    { kind: "pool" }
+  );
 
 const content = `
   <div class="dda-chat-card dda-effect-card effect-special dda-pool-card dda-pool-${statKey}">
@@ -539,6 +691,9 @@ ${
       ` : ""}
 
       ${rerollHtml}
+      ${personalCheerleaderHtml}
+      ${miracleHtml}
+      ${playerInspirationHtml}
 
       ${rerollProtectedDice > 0 && effectiveRerollLimit > 0 ? `
         <li class="pool-reroll-protected-note">
@@ -573,10 +728,10 @@ await ChatMessage.create({
 
   content,
 
-  rolls:
-    roll
-      ? [roll]
-      : []
+  rolls: [
+    ...(roll ? [roll] : []),
+    ...(postPlayerInspiration.bonusRolls ?? [])
+  ]
 });
 
 const luckyNumberResult =
@@ -652,11 +807,18 @@ return {
   guidingDiceRemaining: guidingDiceAfter?.current ?? 0,
 
   luckyNumberResult,
-  variableReroll
+  variableReroll,
+
+  personalCheerleaderRerolledDice,
+  ddaTamerDirectEffects: Array.isArray(options.ddaTamerDirectEffects)
+    ? foundry.utils.deepClone(options.ddaTamerDirectEffects)
+    : [],
+  miracle,
+  playerInspiration
 };
 }
 
-function getPoolDialogData(actor, statKey, stat, options = {}) {
+async function getPoolDialogData(actor, statKey, stat, options = {}) {
   const system = actor.system;
 
   const currentStance = system.combat?.currentStance ?? "neutral";
@@ -854,72 +1016,67 @@ ${
   </form>
 `;
 
-  return new Promise((resolve) => {
-    new Dialog({
-      title: formatI18n("DDA.Pool.RollTitle", { stat: statLabel }),
-      content,
-      buttons: {
-        roll: {
-          label: localize("DDA.Button.Roll"),
-          callback: (html) => {
-            const form = html[0].querySelector("form");
+  return await foundry.applications.api.DialogV2.wait({
+    window: {
+      title: formatI18n("DDA.Pool.RollTitle", { stat: statLabel })
+    },
+    classes: ["dda", "dda-pool-roll-dialog"],
+    content,
+    buttons: [
+      {
+        action: "roll",
+        label: localize("DDA.Button.Roll"),
+        icon: "fa-solid fa-dice",
+        default: true,
+        callback: (_event, button) => {
+          const form = button.form;
+          if (!form) return null;
 
-            const automaticSuccesses =
-              Number(form.automaticSuccesses.value) + Number(form.coverBonus.value);
+          const automaticSuccesses =
+            Number(form.elements.automaticSuccesses?.value ?? 0) +
+            Number(form.elements.coverBonus?.value ?? 0);
 
-resolve({
-  manualDiceModifier: Number(form.manualDiceModifier.value),
-  externalDiceModifier,
-  resultModifier,
-  resultModifierSummary,
-  automaticSuccesses,
-dodgePenalty:
-  Number(
-    form.dodgePenalty.value
-  ),
-
-evasiveManeuversDice:
-  Math.min(
-    evasiveManeuversCurrent,
-
-    Math.max(
-      0,
-      Math.floor(
-        Number(
-          form.elements
-            .evasiveManeuversDice
-            ?.value ?? 0
-        )
-      )
-    )
-  ),
-
-guidingDice:
-  Math.min(
-    guidingDiceCurrent,
-    Math.max(0, Math.floor(Number(form.elements.guidingDice?.value ?? 0)))
-  ),
-
-qualityBaseDicePenalty:
-  Number(
-    options
-      .qualityBaseDicePenalty ?? 0
-  ),
-  qualityAutomaticSuccesses: Number(options.qualityAutomaticSuccesses ?? 0),
-  qualityAutomaticSuccessesTotal: Number(options.qualityAutomaticSuccessesTotal ?? options.qualityAutomaticSuccesses ?? 0),
-  qualityAutomaticSuccessesAbsorbed: Number(options.qualityAutomaticSuccessesAbsorbed ?? 0),
-  stanceDiceModifier
-});
-          }
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel"),
-          callback: () => resolve(null)
+          return {
+            manualDiceModifier: Number(form.elements.manualDiceModifier?.value ?? 0),
+            externalDiceModifier,
+            resultModifier,
+            resultModifierSummary,
+            automaticSuccesses,
+            dodgePenalty: Number(form.elements.dodgePenalty?.value ?? 0),
+            evasiveManeuversDice: Math.min(
+              evasiveManeuversCurrent,
+              Math.max(
+                0,
+                Math.floor(Number(form.elements.evasiveManeuversDice?.value ?? 0))
+              )
+            ),
+            guidingDice: Math.min(
+              guidingDiceCurrent,
+              Math.max(0, Math.floor(Number(form.elements.guidingDice?.value ?? 0)))
+            ),
+            qualityBaseDicePenalty: Number(options.qualityBaseDicePenalty ?? 0),
+            qualityAutomaticSuccesses: Number(options.qualityAutomaticSuccesses ?? 0),
+            qualityAutomaticSuccessesTotal: Number(
+              options.qualityAutomaticSuccessesTotal ??
+              options.qualityAutomaticSuccesses ??
+              0
+            ),
+            qualityAutomaticSuccessesAbsorbed: Number(
+              options.qualityAutomaticSuccessesAbsorbed ?? 0
+            ),
+            stanceDiceModifier
+          };
         }
       },
-      default: "roll",
-      close: () => resolve(null)
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel"),
+        icon: "fa-solid fa-xmark",
+        callback: () => null
+      }
+    ],
+    rejectClose: false,
+    modal: true
   });
 }
 

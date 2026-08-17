@@ -101,12 +101,13 @@ async function resolveActor(
         cleanUuid
       );
 
-    return (
-      document?.documentName ===
-        "Actor"
-        ? document
-        : null
-    );
+    if (document?.documentName === "Token") {
+      return document.actor ?? null;
+    }
+
+    return document?.documentName === "Actor"
+      ? document
+      : null;
   } catch (error) {
     console.warn(
       "DDA | Could not resolve Actor for Tamer Talent socket request.",
@@ -607,6 +608,56 @@ async function handleEndlessDreamGrantRequest(
   );
 }
 
+async function handleOfficialSpecialOrderRequest(
+  request
+) {
+  const requestingUser =
+    game.users?.get(
+      request.requestingUserId
+    );
+
+  const tamer =
+    await resolveActor(
+      request.tamerUuid
+    );
+
+  const talentId = String(
+    request.talentId ?? ""
+  ).trim();
+
+  if (
+    !requestingUser ||
+    !tamer ||
+    tamer.type !== "character" ||
+    !talentId ||
+    !canUserControlActor(
+      requestingUser,
+      tamer
+    ) ||
+    !hasUnlockedOfficialTamerTalent(
+      tamer,
+      talentId
+    )
+  ) {
+    return {
+      ok: false,
+      reason: "invalidRequest"
+    };
+  }
+
+  const {
+    executeOfficialSpecialOrderMutation
+  } = await import(
+    "./tamer-talent-special-orders.js"
+  );
+
+  return executeOfficialSpecialOrderMutation(
+    tamer,
+    talentId,
+    request.selection ?? {}
+  );
+}
+
 async function handleSocketRequest(
   request
 ) {
@@ -648,6 +699,14 @@ async function handleSocketRequest(
     ) {
       result =
         await handleEndlessDreamGrantRequest(
+          request
+        );
+    } else if (
+      request.type ===
+        "officialSpecialOrderRequest"
+    ) {
+      result =
+        await handleOfficialSpecialOrderRequest(
           request
         );
     }
@@ -763,6 +822,14 @@ function requestFromActiveGm(
   const requestId =
     foundry.utils.randomID();
 
+  const timeoutMs = Math.max(
+    REQUEST_TIMEOUT_MS,
+    integer(
+      payload.timeoutMs,
+      REQUEST_TIMEOUT_MS
+    )
+  );
+
   return new Promise(
     (resolve) => {
       const timeoutId =
@@ -777,7 +844,7 @@ function requestFromActiveGm(
               reason: "timeout"
             });
           },
-          REQUEST_TIMEOUT_MS
+          timeoutMs
         );
 
       pendingRequests.set(
@@ -950,5 +1017,46 @@ export async function requestEndlessDreamDistribution(
 
     allocations:
       cleanAllocations
+  });
+}
+
+export async function requestOfficialSpecialOrderExecution(
+  tamer,
+  talentId,
+  selection = {}
+) {
+  if (
+    !tamer ||
+    tamer.type !== "character" ||
+    !String(talentId ?? "").trim()
+  ) {
+    return {
+      ok: false,
+      reason: "invalidRequest"
+    };
+  }
+
+  if (game.user?.isGM) {
+    const {
+      executeOfficialSpecialOrderMutation
+    } = await import(
+      "./tamer-talent-special-orders.js"
+    );
+
+    return executeOfficialSpecialOrderMutation(
+      tamer,
+      String(talentId).trim(),
+      selection
+    );
+  }
+
+  return requestFromActiveGm({
+    type: "officialSpecialOrderRequest",
+    tamerUuid: tamer.uuid,
+    talentId: String(talentId).trim(),
+    selection: foundry.utils.deepClone(
+      selection ?? {}
+    ),
+    timeoutMs: 5 * 60 * 1000
   });
 }

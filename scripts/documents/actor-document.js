@@ -16,9 +16,17 @@ import {
   isWeaponInstinctConflict,
   getDataOptimizationKey,
   getNativeDataSpecializations,
-  getMissingDataSpecializationFreeGrants
+  getMissingDataSpecializationFreeGrants,
+  applyIntrinsicQualityDiscount
 } from "../rules/core-qualities.js";
 import { prepareEvokerCreationActor } from "../combat/evoker-qualities.js";
+import { hasUnlockedOfficialTamerTalent } from "../rules/tamer-resources.js";
+import {
+  isActorBossDisarmed,
+  isDataAbsorbActive,
+  isWeaponBenefitQuality
+} from "../combat/boss-qualities.js";
+import { isQualitySuppressedByBossState } from "../rules/quality-automation.js";
 
 
 const DDA_DIGIMON_MAIN_STAT_MIN =
@@ -610,9 +618,27 @@ export class DDAActor extends Actor {
   _prepareCharacterData() {
     const system = this.system;
 
+    const demoralizePenalties = {};
+    for (const effect of (Array.isArray(system.effects?.active) ? system.effects.active : [])) {
+      const tag = normalizeDigimonEffectTag(effect?.tag);
+      const attribute = String(effect?.selectedAttribute ?? "").trim().toLowerCase();
+      if (tag !== "demoralize" || !attribute || !system.attributes?.[attribute]) continue;
+      demoralizePenalties[attribute] = Math.max(0, Number(demoralizePenalties[attribute] ?? 0)) + 1;
+    }
+    for (const [attribute, penalty] of Object.entries(demoralizePenalties)) {
+      const stat = system.attributes?.[attribute];
+      if (!stat) continue;
+      const before = Math.max(0, Number(stat.value ?? 0));
+      stat.bossDemoralizeBase = before;
+      stat.bossDemoralizePenalty = penalty;
+      stat.value = Math.max(0, before - penalty);
+    }
+
     const willpower = Number(system.attributes?.willpower?.value ?? 0);
     const endurance = Number(system.skills?.endurance?.value ?? 0);
     const agility = Number(system.attributes?.agility?.value ?? 0);
+    const athletics = Number(system.skills?.athletics?.value ?? 0);
+    const naturalExplorer = hasUnlockedOfficialTamerTalent(this, "naturalExplorer");
     const milestoneValue = Number(
       system.advancement?.milestones?.completed ?? 0
     );
@@ -633,7 +659,12 @@ export class DDAActor extends Actor {
         0,
         endurance
       );
-    const movement = Math.max(0, agility);
+    const movement = Math.max(
+      0,
+      naturalExplorer
+        ? Math.max(agility, athletics)
+        : agility
+    );
     const attributeCap = getTamerAttributeCap(this);
 
     system.advancement ??= {};
@@ -742,6 +773,13 @@ export class DDAActor extends Actor {
       }
 
       system.derived.movement.value = movement;
+      system.derived.movement.total = movement;
+      system.derived.movement.land = movement;
+      system.derived.movement.climb = naturalExplorer ? movement : Math.max(0, Number(system.derived.movement.climb ?? 0));
+      system.derived.movement.swim = naturalExplorer ? movement : Math.max(0, Number(system.derived.movement.swim ?? 0));
+      system.derived.movement.jump = naturalExplorer ? movement : Math.max(0, Number(system.derived.movement.jump ?? 0));
+      system.derived.movement.ignoresDifficultTerrain = naturalExplorer;
+      system.derived.movement.naturalExplorer = naturalExplorer;
 
     system.advancement.attributeCap.current = attributeCap;
     system.advancement.attributeCap.final = Math.max(
@@ -947,6 +985,8 @@ _prepareDigimonPersistentEvolutionState(system) {
   }
 
   system.evolution.defaultStage = String(system.evolution.defaultStage ?? system.stage ?? "child");
+  system.evolution.defaultFormUuid = String(system.evolution.defaultFormUuid ?? "");
+  system.evolution.defaultFormName = String(system.evolution.defaultFormName ?? "");
   system.evolution.currentStage = String(system.evolution.currentStage ?? system.stage ?? "child");
   system.evolution.currentFormUuid = String(system.evolution.currentFormUuid ?? system.evolution.sourceFormUuid ?? "");
   system.evolution.currentFormName = String(system.evolution.currentFormName ?? system.evolution.sourceFormName ?? system.species ?? "");
@@ -1247,6 +1287,11 @@ system.qualityFeatures.utility = {
   chaoticBalance: false
 };
 
+system.qualityFeatures.boss = {
+  dataAbsorbActive: isDataAbsorbActive(this),
+  disarmed: isActorBossDisarmed(this)
+};
+
 system.utilityBonuses ??= {};
 
 system.utilityBonuses.technician = {
@@ -1444,6 +1489,17 @@ system.qualityFeatures.coreValidation.valid = system.qualityFeatures.coreValidat
     if (item.type !== "quality") continue;
 
     const itemSystem = item.system ?? {};
+
+    // Boss [DISARM] removes the benefits of Weapon and every Quality tied to
+    // Weapon for the remainder of the current Combat. The Item itself remains
+    // on the Actor; only its mechanical grants are ignored while disarmed.
+    if (system.qualityFeatures.boss.disarmed && isWeaponBenefitQuality(item)) {
+      continue;
+    }
+    if (isQualitySuppressedByBossState(this, item)) {
+      continue;
+    }
+
 const grants = foundry.utils.deepClone(itemSystem.grants ?? {});
 
 grants.mainStats ??= {};
@@ -2835,7 +2891,10 @@ _prepareDigimonEffectBonuses(system) {
     if (!tag) continue;
 
     /* Metadados de interface para o painel de Efeitos da ficha. */
-    effect.canResist = ["fear", "doom", "taunt"].includes(tag);
+    effect.canResist =
+      ["fear", "doom", "taunt"].includes(tag) &&
+      !effect.disableEffectResistance &&
+      !effect.cannotUseResistanceCheck;
     const displayedMagnitude = Number(effect.value ?? effect.potency ?? 0);
     effect.hasDisplayMagnitude = Number.isFinite(displayedMagnitude) && displayedMagnitude > 0;
     effect.displayMagnitude = effect.hasDisplayMagnitude ? displayedMagnitude : 0;
@@ -3276,6 +3335,29 @@ _prepareDigimonMainStats(system) {
       tooltipLines.push(`${stat.breakdown.totalLabel}: ${total}`);
 
       stat.tooltip = tooltipLines.join("\n");    }
+
+    const bossBugActive = (Array.isArray(system.effects?.active) ? system.effects.active : [])
+      .some((effect) => normalizeDigimonEffectTag(effect?.tag) === "bug");
+    if (bossBugActive) {
+      const swapNumericDerivedData = (leftKey, rightKey) => {
+        const left = derivedStats[leftKey];
+        const right = derivedStats[rightKey];
+        if (!left || !right) return;
+        const numericKeys = ["base", "sizeBonus", "qualityBonus", "value", "total"];
+        const leftSnapshot = Object.fromEntries(numericKeys.map((key) => [key, left[key]]));
+        const rightSnapshot = Object.fromEntries(numericKeys.map((key) => [key, right[key]]));
+        for (const key of numericKeys) {
+          left[key] = rightSnapshot[key];
+          right[key] = leftSnapshot[key];
+        }
+        left.bossBugSwappedFrom = rightKey;
+        right.bossBugSwappedFrom = leftKey;
+        if (left.breakdown) left.breakdown.total = left.total;
+        if (right.breakdown) right.breakdown.total = right.total;
+      };
+      swapNumericDerivedData("cpu", "dos");
+      swapNumericDerivedData("bit", "ram");
+    }
   }
 
   _prepareDigimonMiscStats(system) {
@@ -3366,7 +3448,7 @@ if (miscStats.movement) {
   const movementSizeBonus = Number(sizeModifiers.movement ?? 0);
   const sizeLabel = getReadableSizeLabel(system.size);
 
-  const movementTotal = Math.max(
+  const calculatedMovementTotal = Math.max(
     0,
     movementBase +
     movementBonus +
@@ -3374,6 +3456,14 @@ if (miscStats.movement) {
     movementSizeBonus +
     movementEffectBonus
   );
+
+  const dataAbsorbMovementLock = Boolean(
+    system.qualityFeatures?.boss?.dataAbsorbActive
+  );
+
+  const movementTotal = dataAbsorbMovementLock
+    ? 0
+    : calculatedMovementTotal;
 
   miscStats.movement.base = movementBase;
   miscStats.movement.bonus = movementBonus;
@@ -3401,6 +3491,14 @@ if (miscStats.movement) {
 
   if (movementEffectBonus !== 0) {
     tooltipLines.push(`${localizeActorKey("DDA.TooltipEffectBonus")}: ${formatSignedNumber(movementEffectBonus)}`);
+  }
+
+  if (dataAbsorbMovementLock) {
+    tooltipLines.push(
+      game.i18n?.lang?.startsWith("en")
+        ? `Data Absorb: ${calculatedMovementTotal} → 0`
+        : `Absorção de Dados: ${calculatedMovementTotal} → 0`
+    );
   }
 
   tooltipLines.push(`${localizeActorKey("DDA.Label.Total")}: ${movementTotal}`);
@@ -3656,6 +3754,7 @@ _prepareDigimonMovementTypes(system) {
 
   for (const item of this.items) {
     if (item.type !== "quality") continue;
+    if (isQualitySuppressedByBossState(this, item)) continue;
 
     const itemSystem = item.system ?? {};
     const grants = itemSystem.grants ?? {};
@@ -4038,6 +4137,31 @@ _prepareDigimonDp(system) {
       );
     }, 0);
 
+  const sharedStatBonus = system.advancement?.sharedStatBonus ?? {};
+  const sharedStatTotal = stageKey === "baby1"
+    ? 0
+    : ["accuracy", "damage", "dodge", "armor", "health"]
+      .reduce((total, key) => {
+        return total + Math.max(
+          0,
+          Math.floor(Number(sharedStatBonus?.[key] ?? 0))
+        );
+      }, 0);
+
+  const sharedQualityAllocated = stageKey === "baby1"
+    ? 0
+    : Math.max(
+        0,
+        Math.floor(Number(
+          system.advancement?.sharedQualityDp?.allocated ?? 0
+        ))
+      );
+
+  const localSpentStatDp = Math.max(
+    0,
+    spentStatDp - sharedStatTotal
+  );
+
   const explicitManualNegative = (
     dp.manualNegative ??
     creation.manualNegativeDp
@@ -4067,54 +4191,58 @@ _prepareDigimonDp(system) {
     negativeQualityDp
   );
 
-  const spentTotal = (
-    spentStatDp +
-    spentQualityDp
-  );
-
   const localDpPool = (
     baseDp +
     totalNegativeDp
   );
 
-  const spentBaseStats = Math.min(
-    spentStatDp,
-    localDpPool
+  const spentBonusStats = Math.min(
+    bonusDp,
+    sharedStatTotal
   );
 
-  const localAfterStats = Math.max(
+  const qualityBudget = Math.min(
+    Math.max(0, bonusDp - spentBonusStats),
+    sharedQualityAllocated
+  );
+
+  const spentBonusQualities = Math.min(
+    qualityBudget,
+    spentQualityDp
+  );
+
+  const spentBaseStats = localSpentStatDp;
+  const spentBaseQualities = Math.max(
     0,
-    localDpPool - spentBaseStats
+    spentQualityDp - spentBonusQualities
   );
 
-  const spentBaseQualities = Math.min(
-    spentQualityDp,
-    localAfterStats
+  const spentTotal = (
+    spentBaseStats +
+    spentBonusStats +
+    spentBaseQualities +
+    spentBonusQualities
   );
 
-  const spentBonusStats = Math.max(
+  const localRemaining = (
+    localDpPool -
+    spentBaseStats -
+    spentBaseQualities
+  );
+
+  const qualityRemaining = Math.max(
     0,
-    spentStatDp - spentBaseStats
+    qualityBudget - spentBonusQualities
   );
 
-  const spentBonusQualities = Math.max(
+  const bonusUnallocated = Math.max(
     0,
-    spentQualityDp - spentBaseQualities
-  );
-
-  const formBonusRemaining = Math.max(
-    0,
-    bonusDp - spentBonusStats - spentBonusQualities
+    bonusDp - spentBonusStats - qualityBudget
   );
 
   const remainingDp = Math.max(
     0,
-    (
-      localDpPool -
-      spentBaseStats -
-      spentBaseQualities
-    ) +
-    formBonusRemaining
+    localRemaining + qualityRemaining + bonusUnallocated
   );
 
   const totalDp = (
@@ -4152,6 +4280,19 @@ _prepareDigimonDp(system) {
   creation.dp.spentBonusStats = spentBonusStats;
   creation.dp.spentBonusQualities =
     spentBonusQualities;
+
+  creation.dp.sharedStatBonusApplied = stageKey === "baby1"
+    ? { accuracy: 0, damage: 0, dodge: 0, armor: 0, health: 0 }
+    : {
+        accuracy: Math.max(0, Math.floor(Number(creation.dp.sharedStatBonusApplied?.accuracy ?? 0))),
+        damage: Math.max(0, Math.floor(Number(creation.dp.sharedStatBonusApplied?.damage ?? 0))),
+        dodge: Math.max(0, Math.floor(Number(creation.dp.sharedStatBonusApplied?.dodge ?? 0))),
+        armor: Math.max(0, Math.floor(Number(creation.dp.sharedStatBonusApplied?.armor ?? 0))),
+        health: Math.max(0, Math.floor(Number(creation.dp.sharedStatBonusApplied?.health ?? 0)))
+      };
+  creation.dp.sharedStatTotal = spentBonusStats;
+  creation.dp.sharedQualityAllocated = qualityBudget;
+  creation.dp.bonusUnallocated = bonusUnallocated;
 
   creation.dp.spentTotal = spentTotal;
   creation.dp.remaining = remainingDp;
@@ -4479,6 +4620,11 @@ function getQualityTotalCost(itemSystem) {
       ? baseCost * paidRank
       : baseCost;
 
+  const intrinsicCost = applyIntrinsicQualityDiscount(
+    rankedBaseCost,
+    itemSystem
+  );
+
   const storedDiscount = (Array.isArray(itemSystem.cost?.dpDiscountSources)
     ? itemSystem.cost.dpDiscountSources
     : []).reduce((total, entry) => {
@@ -4486,7 +4632,7 @@ function getQualityTotalCost(itemSystem) {
     }, 0);
 
   return Math.max(0,
-    rankedBaseCost +
+    intrinsicCost.payable +
     attachedChoiceCost -
     storedDiscount
   );

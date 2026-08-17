@@ -57,6 +57,48 @@
         </section>
       {{/if}}
 
+      {{#if hasJogressPlans}}
+        <section class="dda-partner-form-planner__jogress">
+          <header>
+            <div>
+              <h3><i class="fas fa-link"></i> {{localize "DDA.PartnerFormPlanner.Jogress.Title"}}</h3>
+              <p>{{localize "DDA.PartnerFormPlanner.Jogress.Hint"}}</p>
+            </div>
+          </header>
+
+          <div class="dda-partner-form-planner__jogress-grid">
+            {{#each jogressPlans as |plan|}}
+              <article class="dda-partner-form-planner__jogress-card {{#if plan.prepared}}is-prepared{{/if}}">
+                <img src="{{plan.resultImg}}" alt="{{plan.resultName}}">
+                <div class="dda-partner-form-planner__jogress-copy">
+                  <span>{{plan.resultStageLabel}}</span>
+                  <strong>{{plan.resultName}}</strong>
+                  <small>{{plan.sourceFormName}} + {{plan.partnerFormName}} ({{plan.partnerTamerName}})</small>
+                  <div class="dda-partner-form-planner__jogress-budget">
+                    <span>{{localize "DDA.PartnerFormPlanner.Jogress.BaseDP"}} <b>{{plan.baseDp}}</b></span>
+                    <span>+ {{plan.primaryBonusDp}}</span>
+                    <span>+ {{plan.secondaryBonusDp}}</span>
+                    <strong>= {{plan.totalDp}} {{localize "DDA.Resource.DP.Short"}}</strong>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-action="planJogress"
+                  data-jogress-plan-key="{{plan.key}}"
+                >
+                  <i class="fas {{#if plan.prepared}}fa-sliders-h{{else}}fa-hammer{{/if}}"></i>
+                  {{#if plan.prepared}}
+                    {{localize "DDA.PartnerFormPlanner.Jogress.Adjust"}}
+                  {{else}}
+                    {{localize "DDA.PartnerFormPlanner.Jogress.Prepare"}}
+                  {{/if}}
+                </button>
+              </article>
+            {{/each}}
+          </div>
+        </section>
+      {{/if}}
+
       {{#if hasForms}}
         <section class="dda-partner-form-planner__forms">
           <header>

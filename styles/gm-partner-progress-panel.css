@@ -1186,3 +1186,690 @@
     width: 100%;
   }
 }
+
+/* ===================================================== */
+/* DDA56 — Official Milestone / XP progression controls  */
+/* ===================================================== */
+.dda-gm-progression-method-board {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(133, 208, 255, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(8, 36, 58, 0.9), rgba(5, 25, 43, 0.92));
+}
+
+.dda-gm-progression-method-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.dda-gm-progression-method-choice > span {
+  color: #c8efff;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dda-gm-progression-method-choice > div,
+.dda-gm-xp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.dda-gm-progression-method-choice button,
+.dda-gm-xp-actions button {
+  min-height: 30px;
+  padding: 0.28rem 0.6rem;
+  color: #dff6ff;
+  font-size: 0.66rem;
+  font-weight: 900;
+  border: 1px solid rgba(140, 216, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(13, 58, 86, 0.88);
+}
+
+.dda-gm-progression-method-choice button.is-active,
+.dda-gm-xp-actions button.is-milestone:not(:disabled) {
+  color: #fff;
+  border-color: rgba(174, 234, 255, 0.5);
+  background: linear-gradient(180deg, rgba(39, 139, 187, 0.98), rgba(14, 78, 126, 0.98));
+  box-shadow: 0 0 12px rgba(63, 194, 255, 0.14);
+}
+
+.dda-gm-xp-tracker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.dda-gm-xp-meter {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.dda-gm-xp-meter > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.dda-gm-xp-meter span,
+.dda-gm-xp-meter small,
+.dda-gm-progression-method-hint {
+  color: #b8dfea;
+  font-size: 0.67rem;
+}
+
+.dda-gm-xp-meter strong {
+  color: #fff;
+  font-size: 0.92rem;
+}
+
+.dda-gm-xp-meter progress {
+  width: 100%;
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  accent-color: #39afe0;
+}
+
+.dda-gm-progression-method-hint {
+  margin: 0;
+}
+
+@media (max-width: 800px) {
+  .dda-gm-xp-tracker {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===================================================== */
+/* DDA58 — Progression Diagnostics                       */
+/* ===================================================== */
+.dda-gm-progress-diagnostics-button {
+  background:
+    linear-gradient(180deg, rgba(118, 79, 178, 0.96), rgba(58, 37, 102, 0.98)) !important;
+  border-color: rgba(207, 174, 255, 0.52) !important;
+}
+
+#dda-progression-diagnostics {
+  --dda-diag-ink: #eaf8ff;
+  --dda-diag-muted: rgba(208, 234, 248, 0.72);
+  --dda-diag-line: rgba(119, 206, 255, 0.24);
+  --dda-diag-panel: rgba(5, 24, 42, 0.94);
+  --dda-diag-ok: #63ddb5;
+  --dda-diag-review: #ff8e9a;
+  --dda-diag-legacy: #f2c46d;
+  --dda-diag-incomplete: #7dcfff;
+
+  color: var(--dda-diag-ink) !important;
+  border: 1px solid rgba(119, 214, 255, 0.42) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.56), 0 0 28px rgba(63, 194, 255, 0.12) !important;
+}
+
+#dda-progression-diagnostics .window-header {
+  min-height: 38px !important;
+  color: var(--dda-diag-ink) !important;
+  background: linear-gradient(90deg, rgba(3, 16, 30, 1), rgba(16, 57, 91, 0.98)) !important;
+  border-bottom: 1px solid rgba(133, 219, 255, 0.3) !important;
+}
+
+#dda-progression-diagnostics .window-content {
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(66, 188, 255, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(7, 29, 49, 0.99), rgba(3, 16, 31, 0.99)) !important;
+}
+
+.dda-progression-diagnostics-root {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 0.7rem;
+  height: 100%;
+  min-height: 0;
+  padding: 0.9rem;
+  box-sizing: border-box;
+}
+
+.dda-progression-diagnostics-root button,
+.dda-progression-diagnostics-root select,
+.dda-progression-diagnostics-root input {
+  font: inherit;
+  color: var(--dda-diag-ink);
+}
+
+.dda-progression-diagnostics-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.8rem 0.9rem;
+  background: linear-gradient(135deg, rgba(8, 48, 79, 0.96), rgba(4, 25, 47, 0.95));
+  border: 1px solid rgba(133, 219, 255, 0.3);
+  border-radius: 12px;
+}
+
+.dda-progression-diagnostics-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #9ae8ff;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dda-progression-diagnostics-header h2 {
+  margin: 0.1rem 0 0;
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1.05;
+}
+
+.dda-progression-diagnostics-header p {
+  margin: 0.22rem 0 0;
+  max-width: 720px;
+  color: var(--dda-diag-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.dda-progression-diagnostics-header-actions {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.dda-progression-diagnostics-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 240px;
+  padding: 0.35rem 0.55rem;
+  background: rgba(4, 22, 38, 0.85);
+  border: 1px solid var(--dda-diag-line);
+  border-radius: 9px;
+}
+
+.dda-progression-diagnostics-search i { color: #91defa; }
+.dda-progression-diagnostics-search input {
+  width: 100%;
+  min-height: 28px;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.dda-progression-diagnostics-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.dda-progression-diagnostics-filter > span {
+  color: var(--dda-diag-muted);
+  font-size: 0.55rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dda-progression-diagnostics-filter select,
+.dda-progression-diagnostics-header-actions > button {
+  min-height: 34px;
+  padding: 0.3rem 0.6rem;
+  background: linear-gradient(180deg, rgba(19, 82, 122, 0.96), rgba(5, 40, 68, 0.96)) !important;
+  border: 1px solid rgba(128, 212, 255, 0.32) !important;
+  border-radius: 8px !important;
+}
+
+.dda-progression-diagnostics-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.dda-progression-diagnostics-summary article {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  background: rgba(6, 29, 48, 0.78);
+  border: 1px solid var(--dda-diag-line);
+  border-radius: 10px;
+}
+
+.dda-progression-diagnostics-summary strong {
+  color: #fff;
+  font-size: 1.08rem;
+}
+
+.dda-progression-diagnostics-summary span {
+  color: var(--dda-diag-muted);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dda-progression-diagnostics-summary .is-ok { border-color: rgba(99, 221, 181, 0.28); }
+.dda-progression-diagnostics-summary .is-review { border-color: rgba(255, 142, 154, 0.3); }
+.dda-progression-diagnostics-summary .is-legacy { border-color: rgba(242, 196, 109, 0.32); }
+.dda-progression-diagnostics-summary .is-incomplete { border-color: rgba(125, 207, 255, 0.3); }
+
+.dda-progression-diagnostics-toolbar-note {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 0.2rem;
+  color: var(--dda-diag-muted);
+  font-size: 0.62rem;
+}
+
+.dda-progression-diagnostics-toolbar-note p { margin: 0; }
+.dda-progression-diagnostics-toolbar-note strong { color: #fff; }
+
+.dda-progression-diagnostics-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(92, 193, 235, 0.7) rgba(4, 20, 34, 0.8);
+}
+
+.dda-progression-diagnostic-card {
+  margin-bottom: 0.7rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(8, 38, 62, 0.94), rgba(4, 22, 39, 0.96));
+  border: 1px solid var(--dda-diag-line);
+  border-left: 4px solid rgba(125, 207, 255, 0.72);
+  border-radius: 11px;
+}
+
+.dda-progression-diagnostic-card[hidden] { display: none !important; }
+.dda-progression-diagnostic-card.status-ok { border-left-color: var(--dda-diag-ok); }
+.dda-progression-diagnostic-card.status-review { border-left-color: var(--dda-diag-review); }
+.dda-progression-diagnostic-card.status-legacy { border-left-color: var(--dda-diag-legacy); }
+.dda-progression-diagnostic-card.status-incomplete { border-left-color: var(--dda-diag-incomplete); }
+
+.dda-progression-diagnostic-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(3, 20, 35, 0.58);
+  border-bottom: 1px solid rgba(125, 205, 255, 0.12);
+}
+
+.dda-progression-diagnostic-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.dda-progression-diagnostic-identity img {
+  width: 38px;
+  height: 38px;
+  object-fit: cover;
+  border: 1px solid rgba(149, 224, 255, 0.3);
+  border-radius: 9px;
+}
+
+.dda-progression-diagnostic-identity > i {
+  color: rgba(173, 224, 245, 0.62);
+  font-size: 0.72rem;
+}
+
+.dda-progression-diagnostic-identity span {
+  display: block;
+  color: var(--dda-diag-muted);
+  font-size: 0.5rem;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.dda-progression-diagnostic-identity h3 {
+  margin: 0.08rem 0 0;
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.dda-progression-diagnostic-status {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+.dda-progression-diagnostic-status.status-ok { color: var(--dda-diag-ok); }
+.dda-progression-diagnostic-status.status-review { color: var(--dda-diag-review); }
+.dda-progression-diagnostic-status.status-legacy { color: var(--dda-diag-legacy); }
+.dda-progression-diagnostic-status.status-incomplete { color: var(--dda-diag-incomplete); }
+
+.dda-progression-diagnostic-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem 0;
+}
+
+.dda-progression-diagnostic-metrics section {
+  padding: 0.5rem 0.6rem;
+  background: rgba(5, 27, 46, 0.66);
+  border: 1px solid rgba(125, 205, 255, 0.12);
+  border-radius: 9px;
+}
+
+.dda-progression-diagnostic-metrics h4,
+.dda-progression-diagnostic-issues h4 {
+  margin: 0 0 0.4rem;
+  color: #dff7ff;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dda-progression-diagnostic-metrics dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.dda-progression-diagnostic-metrics dl > div {
+  min-width: 0;
+  padding: 0.35rem 0.4rem;
+  background: rgba(5, 21, 36, 0.7);
+  border-radius: 7px;
+}
+
+.dda-progression-diagnostic-metrics dt {
+  color: var(--dda-diag-muted);
+  font-size: 0.48rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.dda-progression-diagnostic-metrics dd {
+  margin: 0.08rem 0 0;
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.dda-progression-diagnostic-issues {
+  padding: 0.65rem 0.75rem 0;
+}
+
+.dda-progression-diagnostic-issues ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dda-progression-diagnostic-issues li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+  padding: 0.42rem 0.5rem;
+  background: rgba(4, 22, 38, 0.72);
+  border: 1px solid rgba(125, 205, 255, 0.1);
+  border-radius: 8px;
+}
+
+.dda-progression-diagnostic-issues li > span {
+  padding: 0.12rem 0.35rem;
+  font-size: 0.5rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  border-radius: 999px;
+}
+.dda-progression-diagnostic-issues .severity-review > span { color: var(--dda-diag-review); background: rgba(255, 142, 154, 0.1); }
+.dda-progression-diagnostic-issues .severity-legacy > span { color: var(--dda-diag-legacy); background: rgba(242, 196, 109, 0.1); }
+.dda-progression-diagnostic-issues .severity-incomplete > span { color: var(--dda-diag-incomplete); background: rgba(125, 207, 255, 0.1); }
+
+.dda-progression-diagnostic-issues p,
+.dda-progression-diagnostic-clean {
+  margin: 0;
+  color: #d8edf6;
+  font-size: 0.62rem;
+  line-height: 1.4;
+}
+
+.dda-progression-diagnostic-clean {
+  margin: 0.65rem 0.75rem 0;
+  padding: 0.45rem 0.55rem;
+  color: #dffff5;
+  background: rgba(43, 149, 118, 0.12);
+  border: 1px solid rgba(99, 221, 181, 0.18);
+  border-radius: 8px;
+}
+
+.dda-progression-diagnostic-forms {
+  margin: 0.65rem 0.75rem 0;
+  background: rgba(4, 21, 37, 0.65);
+  border: 1px solid rgba(125, 205, 255, 0.12);
+  border-radius: 8px;
+}
+
+.dda-progression-diagnostic-forms summary {
+  padding: 0.45rem 0.55rem;
+  color: #cfefff;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.dda-progression-diagnostic-form-list {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.dda-progression-diagnostic-form-list > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) 0.7fr 0.8fr 0.9fr minmax(160px, 1.5fr);
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.35rem 0.45rem;
+  color: #d8edf6;
+  font-size: 0.58rem;
+  background: rgba(9, 42, 65, 0.55);
+  border-radius: 7px;
+}
+
+.dda-progression-diagnostic-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.65rem 0.75rem 0.75rem;
+}
+
+.dda-progression-diagnostic-actions button {
+  min-height: 30px !important;
+  padding: 0.28rem 0.55rem !important;
+  color: #eafaff !important;
+  font-size: 0.56rem !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  background: linear-gradient(180deg, rgba(22, 92, 132, 0.95), rgba(8, 49, 80, 0.98)) !important;
+  border: 1px solid rgba(137, 218, 255, 0.26) !important;
+  border-radius: 8px !important;
+}
+
+.dda-progression-diagnostic-actions button.is-repair {
+  margin-left: auto;
+  background: linear-gradient(180deg, rgba(42, 133, 106, 0.96), rgba(16, 77, 61, 0.98)) !important;
+  border-color: rgba(125, 240, 190, 0.32) !important;
+}
+
+.dda-progression-diagnostics-empty {
+  margin: 1rem;
+  color: var(--dda-diag-muted);
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .dda-progression-diagnostics-header {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-progression-diagnostics-header-actions {
+    justify-content: flex-start;
+  }
+
+  .dda-progression-diagnostics-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dda-progression-diagnostic-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-progression-diagnostic-metrics dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dda-progression-diagnostic-form-list > div {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ===================================================== */
+/* DDA60 — Default Range campaign controls               */
+/* ===================================================== */
+.dda-gm-default-range-board {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(180px, 240px) minmax(150px, 190px);
+  gap: 0.7rem;
+  align-items: end;
+  margin: 0.75rem 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(117, 209, 255, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(8, 42, 66, 0.9), rgba(5, 28, 46, 0.9));
+}
+
+.dda-gm-default-range-board > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.dda-gm-default-range-title {
+  color: #effbff;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dda-gm-default-range-board small,
+.dda-gm-default-range-rule {
+  color: #b9ddea;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.dda-gm-default-range-board label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dda-gm-default-range-board label > span {
+  color: #cceefa;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dda-gm-default-range-board select {
+  min-height: 32px;
+  color: #ecfbff;
+  background: #08243a;
+  border: 1px solid rgba(137, 212, 255, 0.22);
+  border-radius: 7px;
+}
+
+.dda-gm-default-range-board .is-muted {
+  opacity: 0.48;
+}
+
+.dda-gm-default-range-rule {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 0.15rem;
+}
+
+@media (max-width: 900px) {
+  .dda-gm-default-range-board {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dda-gm-default-range-board > div:first-child,
+  .dda-gm-default-range-rule {
+    grid-column: 1 / -1;
+  }
+}
+.dda-gm-default-range-sync {
+  justify-self: end;
+  align-self: end;
+  min-height: 32px !important;
+  padding: 0.35rem 0.65rem !important;
+  color: #eafaff !important;
+  font-size: 0.64rem !important;
+  font-weight: 900 !important;
+  background: linear-gradient(180deg, rgba(28, 108, 151, 0.96), rgba(9, 58, 93, 0.98)) !important;
+  border: 1px solid rgba(151, 224, 255, 0.3) !important;
+  border-radius: 8px !important;
+}
+@media (min-width: 901px) {
+  .dda-gm-default-range-board {
+    grid-template-columns: minmax(260px, 1fr) minmax(180px, 230px) minmax(140px, 170px) auto;
+  }
+}
+
+/* ===================================================== */
+/* DDA61 — Default Range source-rule corrections         */
+/* ===================================================== */
+@media (min-width: 1100px) {
+  .dda-gm-default-range-board {
+    grid-template-columns:
+      minmax(240px, 1fr)
+      minmax(150px, 200px)
+      minmax(145px, 190px)
+      minmax(190px, 250px)
+      auto;
+  }
+}

@@ -1,6 +1,8 @@
 import { confirmApplyHumanScalingToAllDigimonTokens } from "./tokens/digimon-token-scale.js";
+import { DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED } from "./rules/special-evolution-methods.js";
 
 const MODULE_ID = "digimon-digital-adventures";
+const { DialogV2 } = foundry.applications.api;
 
 let reloadRecommendedTimeout = null;
 let reloadPromptOpen = false;
@@ -25,16 +27,25 @@ function promptReloadRecommended() {
 
     reloadPromptOpen = true;
 
-    Dialog.confirm({
-      title: game.i18n.localize("DDA.Settings.ReloadPrompt.Title"),
+    void DialogV2.confirm({
+      window: {
+        title: game.i18n.localize("DDA.Settings.ReloadPrompt.Title")
+      },
       content: `<p>${game.i18n.localize("DDA.Settings.ReloadPrompt.Content")}</p>`,
-      yes: () => {
+      yes: { default: false },
+      no: { default: true },
+      rejectClose: false,
+      modal: true
+    }).then((confirmed) => {
+      if (confirmed) {
         window.location.reload();
-      },
-      no: () => {
-        reloadPromptOpen = false;
-      },
-      defaultYes: false
+        return;
+      }
+
+      reloadPromptOpen = false;
+    }).catch((error) => {
+      reloadPromptOpen = false;
+      console.error("DDA | Failed to display reload recommendation dialog", error);
     });
   }, 350);
 }
@@ -56,12 +67,22 @@ function promptReloadForSetting(settingNameKey = "DDA.Settings.ReloadRequired.Se
   const settingName = localize(settingNameKey);
   const content = `<p>${game.i18n.format("DDA.Settings.ReloadRequiredContent", { setting: settingName })}</p>`;
 
-  Dialog.confirm({
-    title,
+  void DialogV2.confirm({
+    window: { title },
     content,
-    yes: () => window.location.reload(),
-    no: () => ui.notifications.info(localize("DDA.Settings.ReloadRequiredNotification")),
-    defaultYes: true
+    yes: { default: true },
+    no: { default: false },
+    rejectClose: false,
+    modal: true
+  }).then((confirmed) => {
+    if (confirmed) {
+      window.location.reload();
+      return;
+    }
+
+    ui.notifications.info(localize("DDA.Settings.ReloadRequiredNotification"));
+  }).catch((error) => {
+    console.error("DDA | Failed to display reload-required dialog", error);
   });
 }
 
@@ -270,7 +291,8 @@ game.settings.register(MODULE_ID, "enableHybridEvolution", {
   name: "DDA.Settings.EnableHybridEvolution.Name",
   hint: "DDA.Settings.EnableHybridEvolution.Hint",
   scope: "world",
-  config: true,
+  // Kept registered for backward compatibility with existing worlds.
+  config: DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED,
   type: Boolean,
   default: false
 });
@@ -280,7 +302,8 @@ game.settings.register(MODULE_ID, "enableBioMergeEvolution", {
   name: "DDA.Settings.EnableBioMergeEvolution.Name",
   hint: "DDA.Settings.EnableBioMergeEvolution.Hint",
   scope: "world",
-  config: true,
+  // Kept registered for backward compatibility with existing worlds.
+  config: DDA_HYBRID_SPECIAL_WORKFLOW_SUPPORTED,
   type: Boolean,
   default: false
 });
@@ -418,6 +441,13 @@ game.settings.register(MODULE_ID, "humanScaling", {
       experience: {
         value: 0,
         max: 7
+      },
+      evolution: {
+        defaultRange: {
+          template: "limited",
+          manualValue: 2,
+          defaultStagePolicy: "range"
+        }
       },
       records: []
     }

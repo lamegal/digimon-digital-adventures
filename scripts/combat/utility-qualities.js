@@ -1,5 +1,6 @@
 import {
   areActorsAllies,
+  areActorsAlliesForQualities,
   findQuality,
   getActorDerivedStat,
   getActorStageValue,
@@ -11,9 +12,11 @@ import {
   rollDerivedCheck
 } from "../rules/quality-automation.js";
 
+import { withDDAMovementContext } from "../canvas/movement-context.js";
 import { spendActorActions } from "./action-economy.js";
 import { getTokenDistanceSpaces } from "./offensive-qualities.js";
 import { applyDamage } from "../rolls/damage-application.js";
+import { hasBossQuality } from "./boss-qualities.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const STATE_PATH = "system.combat.utilityQualities";
@@ -223,7 +226,7 @@ function canPlaceTokenAt(token, point) {
   if (!token || !point) return false;
 
   try {
-    const visibility = canvas?.effects?.visibility?.testVisibility?.(
+    const visibility = canvas?.visibility?.testVisibility?.(
       point,
       { object: token }
     );
@@ -255,7 +258,7 @@ async function adjacentTransportAllies(actor) {
   if (!sourceToken) return [];
   const candidates = (canvas?.tokens?.placeables ?? [])
     .filter((token) => token.actor && token.actor.uuid !== actor.uuid)
-    .filter((token) => areActorsAllies(actor, token.actor))
+    .filter((token) => areActorsAlliesForQualities(actor, token.actor))
     .filter((token) => getTokenDistanceSpaces(sourceToken, token) <= 1);
   if (!candidates.length) return [];
   const result = await foundry.applications.api.DialogV2.prompt({
@@ -274,7 +277,13 @@ async function moveTokenCenter(token, point) {
   const document = token.document ?? token;
   const x = point.x - Math.max(1, number(document.width, 1)) * grid / 2;
   const y = point.y - Math.max(1, number(document.height, 1)) * grid / 2;
-  await document.update({ x, y }, { animate: false, ddaTeleport: true });
+  await document.update({ x, y }, withDDAMovementContext(
+    { animate: false, ddaTeleport: true },
+    {
+      mode: "teleport", movementBudget: "none", voluntary: true, reactions: true,
+      traversal: false, source: "teleport", unwilling: false
+    }
+  ));
 }
 
 async function performTeleport(actor, { actionCost = 1, reaction = false, clashEscape = false } = {}) {
@@ -430,7 +439,13 @@ async function swapGlamorTokens(actor, sourceToken, targets) {
   await canvas.scene.updateEmbeddedDocuments("Token", [
     { _id: sourceDocument.id, x: allyDocument.x, y: allyDocument.y },
     { _id: allyDocument.id, x: sourceDocument.x, y: sourceDocument.y }
-  ], { animate: false, ddaGlamorSwap: true });
+  ], withDDAMovementContext(
+    { animate: false, ddaGlamorSwap: true },
+    {
+      mode: "teleport", movementBudget: "none", voluntary: true, reactions: true,
+      traversal: false, source: "glamorSwap", unwilling: false
+    }
+  ));
   return ally;
 }
 
@@ -438,7 +453,7 @@ async function useGlamor(actor, item) {
   const sourceToken = tokenForActor(actor);
   const range = Math.max(0, number(actor.system?.miscStats?.range?.total ?? actor.system?.miscStats?.range?.value));
   const candidates = (canvas?.tokens?.placeables ?? [])
-    .filter((token) => token.actor && areActorsAllies(actor, token.actor))
+    .filter((token) => token.actor && areActorsAlliesForQualities(actor, token.actor))
     .filter((token) => !sourceToken || getTokenDistanceSpaces(sourceToken, token) <= range);
   const result = await foundry.applications.api.DialogV2.prompt({
     classes: ["dda", "dda-utility-quality-window"],
@@ -595,7 +610,7 @@ async function refreshIllusionaryShroud(templateDocument) {
     if (!actor) continue;
     const inside = insideIds.has(token.id);
     const isController = actor.uuid === controller.uuid;
-    const allyKnows = Boolean(flag.alliesKnow && areActorsAllies(controller, actor));
+    const allyKnows = Boolean(flag.alliesKnow && areActorsAlliesForQualities(controller, actor));
     const sharesElement = Boolean(element && actorSharesNaturewalkElement(actor, element));
     const shouldBlind = inside && !isController && !allyKnows && !sharesElement;
 
@@ -676,7 +691,7 @@ async function useIllusionaryOverlay(actor, item) {
   const state = getState(actor);
   const tnIncrease = Math.max(0, number(state.illusionaryOverlay?.tnIncrease));
   const enemies = (game?.combat?.combatants?.contents ?? [])
-    .filter((combatant) => combatant.actor && !areActorsAllies(actor, combatant.actor)).length;
+    .filter((combatant) => combatant.actor && !areActorsAlliesForQualities(actor, combatant.actor)).length;
   const check = await rollDerivedCheck(actor, "bit", {
     skillKey: "manipulate",
     tn: 8 + enemies + tnIncrease,
@@ -802,6 +817,69 @@ function legalDomainOptions(actor, domainQuality) {
   return Object.entries(DOMAIN_OPTIONS).filter(([, option]) => native.has(canonicalElement(option.element))).map(([key]) => key);
 }
 
+function adaptiveDomainElement(actor) {
+  if (!hasQuality(actor, "adaptiveElement")) return "";
+  const adaptiveQuality = findQuality(actor, "adaptiveElement");
+  return canonicalElement(selectedChoiceKeys(adaptiveQuality)[0] ?? "");
+}
+
+function domainKeysFromFlag(flag = {}) {
+  const raw = Array.isArray(flag?.domainKeys) && flag.domainKeys.length
+    ? flag.domainKeys
+    : [flag?.domainKey];
+  return [...new Set(raw.map(domainOptionKey).filter((key) => Boolean(DOMAIN_OPTIONS[key])))];
+}
+
+function superiorDomainSecondaryOptions(actor, primaryKey) {
+  if (!hasBossQuality(actor, "superiorDomain")) return [];
+  const primary = DOMAIN_OPTIONS[primaryKey];
+  if (!primary) return [];
+
+  const primaryElement = canonicalElement(primary.element);
+  const elements = new Set(actorNaturewalkElements(actor));
+  const adaptiveElement = adaptiveDomainElement(actor);
+  if (adaptiveElement) elements.add(adaptiveElement);
+
+  const paired = Object.entries(DOMAIN_OPTIONS)
+    .filter(([key, option]) => key !== primaryKey && canonicalElement(option.element) === primaryElement)
+    .map(([key]) => key);
+
+  const alternateElements = [...elements].filter((element) => element && element !== primaryElement);
+  const alternate = Object.entries(DOMAIN_OPTIONS)
+    .filter(([, option]) => alternateElements.includes(canonicalElement(option.element)))
+    .map(([key]) => key);
+
+  return [...new Set([...paired, ...alternate])];
+}
+
+async function chooseSuperiorDomainSecondary(actor, primaryKey) {
+  const legal = superiorDomainSecondaryOptions(actor, primaryKey);
+  if (!legal.length) return "";
+  if (legal.length === 1) return legal[0];
+
+  const primary = DOMAIN_OPTIONS[primaryKey];
+  return await foundry.applications.api.DialogV2.prompt({
+    classes: ["dda", "dda-utility-quality-window"],
+    window: { title: text("Domínio Superior", "Superior Domain") },
+    content: `<form class="dda-roll-dialog dda-utility-quality-dialog">
+      <p>${text(
+        `O primeiro Efeito é <strong>${escapeHtml(text(primary.labelPt, primary.labelEn))}</strong>. Escolha o segundo Efeito de Domínio.`,
+        `The first Effect is <strong>${escapeHtml(text(primary.labelPt, primary.labelEn))}</strong>. Choose the second Domain Effect.`
+      )}</p>
+      <div class="form-group"><label>${text("Segundo Efeito", "Second Effect")}</label><select name="secondaryDomain">${legal.map((key) => {
+        const option = DOMAIN_OPTIONS[key];
+        return `<option value="${key}">${escapeHtml(text(option.labelPt, option.labelEn))} — ${escapeHtml(option.element)}</option>`;
+      }).join("")}</select></div>
+    </form>`,
+    ok: {
+      label: text("Aplicar ambos", "Apply Both"),
+      callback: (_event, button) => String(button.form.elements.secondaryDomain?.value ?? "")
+    },
+    rejectClose: false,
+    modal: true
+  }) ?? "";
+}
+
 async function chooseDomain(actor, item) {
   const legal = legalDomainOptions(actor, item);
   if (!legal.length) {
@@ -847,7 +925,7 @@ function tokensInsideCircle(templateDocument) {
 
 async function chosenDomainTargets(controller, template, option) {
   let tokens = tokensInsideCircle(template).filter((token) => token.actor);
-  if (option.relation === "ally") tokens = tokens.filter((token) => areActorsAllies(controller, token.actor));
+  if (option.relation === "ally") tokens = tokens.filter((token) => areActorsAlliesForQualities(controller, token.actor));
   if (option.excludeSelf) tokens = tokens.filter((token) => token.actor.uuid !== controller.uuid);
   if (!tokens.length) return [];
 
@@ -872,12 +950,12 @@ async function chosenDomainTargets(controller, template, option) {
   return tokens.filter((token) => selected.has(token.id));
 }
 
-async function applyDomainPulse(controller, templateDocument, { creation = false } = {}) {
+async function applySingleDomainPulse(controller, templateDocument, domainKey, { creation = false } = {}) {
   const flag = templateDocument?.getFlag?.(SYSTEM_ID, DOMAIN_FLAG);
-  const option = DOMAIN_OPTIONS[flag?.domainKey];
+  const option = DOMAIN_OPTIONS[domainKey];
   if (!controller || !option) return null;
   const tokens = tokensInsideCircle(templateDocument);
-  const enemies = tokens.filter((token) => token.actor && !areActorsAllies(controller, token.actor));
+  const enemies = tokens.filter((token) => token.actor && !areActorsAlliesForQualities(controller, token.actor));
   const stage = Math.max(1, number(getActorStageValue(controller)));
   const potency = option.stat ? Math.max(0, number(getActorDerivedStat(controller, option.stat))) : 0;
   const domainElement = canonicalElement(flag?.element ?? option.element);
@@ -892,7 +970,7 @@ async function applyDomainPulse(controller, templateDocument, { creation = false
   if (option.mode === "hostileAura" || option.mode === "hostileEffect") {
     for (const token of enemies) {
       if (actorSharesNaturewalkElement(token.actor, domainElement)) continue;
-      await addOrRefreshEffect(token.actor, { tag: option.tag, potency, duration: option.mode === "hostileAura" ? 1 : 1, sourceActor: controller, special: { domainKey: flag.domainKey, domainAura: option.mode === "hostileAura" } });
+      await addOrRefreshEffect(token.actor, { tag: option.tag, potency, duration: option.mode === "hostileAura" ? 1 : 1, sourceActor: controller, special: { domainKey: domainKey, domainAura: option.mode === "hostileAura" } });
       results.push(`${token.name}: [${option.tag.toUpperCase()} ${potency}]`);
     }
   }
@@ -901,7 +979,7 @@ async function applyDomainPulse(controller, templateDocument, { creation = false
     for (const token of await chosenDomainTargets(controller, templateDocument, option)) {
       if (token.actor.uuid === controller.uuid && option.tag === "push") continue;
       if (ignoresHarmfulDomain(token)) continue;
-      await addOrRefreshEffect(token.actor, { tag: option.tag, potency, duration: 1, sourceActor: controller, special: { domainKey: flag.domainKey } });
+      await addOrRefreshEffect(token.actor, { tag: option.tag, potency, duration: 1, sourceActor: controller, special: { domainKey: domainKey } });
       results.push(`${token.name}: [${option.tag.toUpperCase()} ${potency}]`);
     }
   }
@@ -913,7 +991,7 @@ async function applyDomainPulse(controller, templateDocument, { creation = false
       if (ignoresHarmfulDomain(token)) continue;
       const roll = await new Roll("1d6").evaluate();
       if (number(roll.total) >= 5) {
-        await addOrRefreshEffect(token.actor, { tag: option.tag, potency, duration: 1, sourceActor: controller, special: { domainKey: flag.domainKey, ignoresDotOncePerCombat: option.tag === "dot" } });
+        await addOrRefreshEffect(token.actor, { tag: option.tag, potency, duration: 1, sourceActor: controller, special: { domainKey: domainKey, ignoresDotOncePerCombat: option.tag === "dot" } });
         results.push(`${token.name}: [${option.tag.toUpperCase()} ${potency || ""}]`);
       }
     }
@@ -936,7 +1014,7 @@ async function applyDomainPulse(controller, templateDocument, { creation = false
 
   if (option.mode === "shield") {
     const amount = enemies.length;
-    await addOrRefreshEffect(controller, { tag: "shield", potency: amount, duration: 1, sourceActor: controller, special: { domainKey: flag.domainKey } });
+    await addOrRefreshEffect(controller, { tag: "shield", potency: amount, duration: 1, sourceActor: controller, special: { domainKey: domainKey } });
     results.push(`${controller.name}: [SHIELD ${amount}]`);
   }
 
@@ -959,6 +1037,19 @@ async function applyDomainPulse(controller, templateDocument, { creation = false
   return results;
 }
 
+
+async function applyDomainPulse(controller, templateDocument, { creation = false } = {}) {
+  const flag = templateDocument?.getFlag?.(SYSTEM_ID, DOMAIN_FLAG);
+  const keys = domainKeysFromFlag(flag);
+  if (!controller || !keys.length) return null;
+  const results = [];
+  for (const key of keys) {
+    const applied = await applySingleDomainPulse(controller, templateDocument, key, { creation });
+    if (Array.isArray(applied)) results.push(...applied);
+  }
+  return results;
+}
+
 async function useDomainControl(actor, item) {
   const declaration = await chooseDomain(actor, item);
   if (!declaration?.key) return null;
@@ -972,6 +1063,8 @@ async function useDomainControl(actor, item) {
       ? declaration.effectiveElement
       : adaptiveElement || option.element
   );
+  const superiorSecondaryKey = await chooseSuperiorDomainSecondary(actor, declaration.key);
+  const domainKeys = [...new Set([declaration.key, superiorSecondaryKey].filter(Boolean))];
   if (!declaration.sourcePresent) {
     if (!hasQuality(actor, "conjurer")) {
       ui.notifications.warn(text("Sem fonte do Elemento, Controle de Domínio exige Conjurador.", "Without an Element source, Domain Control requires Conjurer."));
@@ -992,13 +1085,13 @@ async function useDomainControl(actor, item) {
   const [template] = await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{
     t: "circle", user: game.user.id, x: center.x, y: center.y, distance: stage + 1, direction: 0,
     fillColor: "#00897b", borderColor: "#4db6ac",
-    flags: { [SYSTEM_ID]: { [DOMAIN_FLAG]: { active: true, actorUuid: actor.uuid, actorName: actor.name, domainKey: declaration.key, element: effectiveElement, sourcePresent: declaration.sourcePresent, turnsRemaining: stage + 1, createdTurnKey: currentTurnKey(actor) } } }
+    flags: { [SYSTEM_ID]: { [DOMAIN_FLAG]: { active: true, actorUuid: actor.uuid, actorName: actor.name, domainKey: declaration.key, domainKeys, element: effectiveElement, sourcePresent: declaration.sourcePresent, turnsRemaining: stage + 1, createdTurnKey: currentTurnKey(actor) } } }
   }]);
   const state = getState(actor);
-  state.domainControl = { selectedDomain: declaration.key, effectiveElement, templateId: template.id, sourcePresent: declaration.sourcePresent, turnsRemaining: stage + 1, active: true };
+  state.domainControl = { selectedDomain: declaration.key, selectedDomains: domainKeys, effectiveElement, templateId: template.id, sourcePresent: declaration.sourcePresent, turnsRemaining: stage + 1, active: true };
   await updateState(actor, state);
   await applyDomainPulse(actor, template, { creation: true });
-  return { success: true, template, domain: declaration.key };
+  return { success: true, template, domain: declaration.key, domains: domainKeys };
 }
 
 function activeDomainForActor(actor) {
@@ -1020,27 +1113,28 @@ export function getDomainAttackModifier(attacker, defender) {
   const attackerDomain = activeDomainForActor(attacker);
   if (attackerDomain) {
     const flag = attackerDomain.getFlag(SYSTEM_ID, DOMAIN_FLAG);
-    const option = DOMAIN_OPTIONS[flag.domainKey];
     const targetToken = tokenForActor(defender);
     const targetInside = targetToken && tokensInsideCircle(attackerDomain).some((token) => token.id === targetToken.id);
 
-    if (targetInside && option?.mode === "exploit" && !actorSharesNaturewalkElement(defender, canonicalElement(flag.element ?? option.element))) {
-      const potency = Math.max(0, number(getActorDerivedStat(attacker, "dos")));
-      result.exploitPotency = potency;
-      result.targetDodgePenalty += potency;
-      result.targetArmorPenalty += potency;
-      result.qualities.push({
-        id: "domain-volatile-element",
-        name: text(option.labelPt, option.labelEn),
-        parts: [text(`Alvo tratado como [EXPLOIT ${potency}]`, `Target treated as [EXPLOIT ${potency}]`)]
-      });
+    for (const key of domainKeysFromFlag(flag)) {
+      const option = DOMAIN_OPTIONS[key];
+      if (targetInside && option?.mode === "exploit" && !actorSharesNaturewalkElement(defender, canonicalElement(option.element))) {
+        const potency = Math.max(0, number(getActorDerivedStat(attacker, "dos")));
+        result.exploitPotency = Math.max(result.exploitPotency, potency);
+        result.targetDodgePenalty += potency;
+        result.targetArmorPenalty += potency;
+        result.qualities.push({
+          id: `domain-${key}`,
+          name: text(option.labelPt, option.labelEn),
+          parts: [text(`Alvo tratado como [EXPLOIT ${potency}]`, `Target treated as [EXPLOIT ${potency}]`)]
+        });
+      }
     }
   }
 
   const defenderDomain = activeDomainForActor(defender);
   if (defenderDomain) {
     const flag = defenderDomain.getFlag(SYSTEM_ID, DOMAIN_FLAG);
-    const option = DOMAIN_OPTIONS[flag.domainKey];
     const attackerToken = tokenForActor(attacker);
     const defenderToken = tokenForActor(defender);
     const inside = tokensInsideCircle(defenderDomain);
@@ -1048,20 +1142,23 @@ export function getDomainAttackModifier(attacker, defender) {
       inside.some((token) => token.id === attackerToken.id) &&
       inside.some((token) => token.id === defenderToken.id);
 
-    if (
-      bothInside &&
-      option?.mode === "pacify" &&
-      !isMinion(attacker) &&
-      !actorSharesNaturewalkElement(attacker, canonicalElement(flag.element ?? option.element))
-    ) {
-      const potency = Math.max(0, number(getActorDerivedStat(defender, "dos")));
-      result.accuracyBonus -= potency;
-      result.damageBonus -= potency;
-      result.qualities.push({
-        id: "domain-peaceful-pressure",
-        name: text(option.labelPt, option.labelEn),
-        parts: [text(`Atacante tratado como [PACIFY ${potency}]`, `Attacker treated as [PACIFY ${potency}]`)]
-      });
+    for (const key of domainKeysFromFlag(flag)) {
+      const option = DOMAIN_OPTIONS[key];
+      if (
+        bothInside &&
+        option?.mode === "pacify" &&
+        !isMinion(attacker) &&
+        !actorSharesNaturewalkElement(attacker, canonicalElement(option.element))
+      ) {
+        const potency = Math.max(0, number(getActorDerivedStat(defender, "dos")));
+        result.accuracyBonus -= potency;
+        result.damageBonus -= potency;
+        result.qualities.push({
+          id: `domain-${key}`,
+          name: text(option.labelPt, option.labelEn),
+          parts: [text(`Atacante tratado como [PACIFY ${potency}]`, `Attacker treated as [PACIFY ${potency}]`)]
+        });
+      }
     }
   }
 
@@ -1078,16 +1175,18 @@ export function getDomainMovementContext(actor, point) {
   for (const template of (canvas?.scene?.templates?.contents ?? [])) {
     const flag = template.getFlag?.(SYSTEM_ID, DOMAIN_FLAG);
     if (!flag?.active) continue;
-    const option = DOMAIN_OPTIONS[flag.domainKey];
-    if (!option?.terrain) continue;
     const inside = Math.hypot(point.x - number(template.x), point.y - number(template.y)) / Math.max(1, number(canvas?.grid?.size, 100)) <= number(template.distance);
     if (!inside) continue;
     const controller = actorFromCanvasOrWorldUuid(flag.actorUuid);
-    const domainElement = canonicalElement(flag.element ?? option.element);
-    if (actorSharesNaturewalkElement(actor, domainElement)) continue;
-    if (option.terrain === "enemy" && controller && areActorsAllies(controller, actor)) continue;
-    if (option.terrainExemption && actor.system?.qualityFeatures?.advancedMobility?.types?.includes?.(option.terrainExemption)) continue;
-    return { difficult: true, source: text(option.labelPt, option.labelEn), element: domainElement };
+    for (const key of domainKeysFromFlag(flag)) {
+      const option = DOMAIN_OPTIONS[key];
+      if (!option?.terrain) continue;
+      const domainElement = canonicalElement(option.element);
+      if (actorSharesNaturewalkElement(actor, domainElement)) continue;
+      if (option.terrain === "enemy" && controller && areActorsAlliesForQualities(controller, actor)) continue;
+      if (option.terrainExemption && actor.system?.qualityFeatures?.advancedMobility?.types?.includes?.(option.terrainExemption)) continue;
+      return { difficult: true, source: text(option.labelPt, option.labelEn), element: domainElement };
+    }
   }
   return null;
 }
@@ -1170,7 +1269,7 @@ async function useDataScan(actor, item) {
   const state = getState(actor);
   if (state.dataScan?.lockedCombatId === getCombatId()) return null;
   if (!(await spendActorActions(actor, 1, { requireActiveUnit: Boolean(game?.combat?.started) }))) return null;
-  const check = await rollDerivedCheck(actor, "bit", { skillKey: "knowledge", tn: 10 + number(getActorDerivedStat(targetToken.actor, "dos")), title: item.name });
+  const check = await rollDerivedCheck(actor, "bit", { skillKey: "knowledge", tn: 10 + number(getActorDerivedStat(targetToken.actor, "dos")), title: item.name, targetActor: targetToken.actor });
   state.dataScan = { ...(state.dataScan ?? {}), lockedCombatId: check?.criticalFailure ? getCombatId() : state.dataScan?.lockedCombatId ?? "" };
   await updateState(actor, state);
   if (!check?.success) return check;
@@ -1252,7 +1351,7 @@ async function payTransporterActionDebt(actor, state) {
     const candidates = (game?.combat?.combatants?.contents ?? [])
       .map((combatant) => combatant.actor)
       .filter((candidate) => candidate && candidate.uuid !== actor.uuid)
-      .filter((candidate) => areActorsAllies(actor, candidate))
+      .filter((candidate) => areActorsAlliesForQualities(actor, candidate))
       .filter((candidate) => number(candidate.system?.combat?.actions?.value) >= remaining);
 
     let payer = null;
@@ -1499,4 +1598,3 @@ export function registerUtilityQualities() {
     performTeleport
   };
 }
-

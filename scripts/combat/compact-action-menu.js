@@ -92,7 +92,12 @@ function normalizeEntry(entry) {
 function renderAutomation(entry) {
   if (!entry.automationStatus) return "";
   const automated = entry.automationClass.includes("automated");
-  const icon = automated ? "fa-solid fa-gears" : "fa-solid fa-hand";
+  const narrative = entry.automationClass.includes("narrative");
+  const icon = narrative
+    ? "fa-solid fa-book-open"
+    : automated
+      ? "fa-solid fa-gears"
+      : "fa-solid fa-hand";
   return `
     <i
       class="${icon} dda-compact-action__automation ${escapeHtml(entry.automationClass)}"

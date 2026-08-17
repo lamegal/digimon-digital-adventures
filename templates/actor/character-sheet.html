@@ -1,11 +1,11 @@
-<form class="{{cssClass}} dda-character-sheet dda-tamer-window-sheet" autocomplete="off">
+<div class="{{cssClass}} dda-character-sheet dda-tamer-window-sheet" autocomplete="off">
   <div class="dda-window-shell dda-tamer-window-shell">
 
     <div class="dda-window-side-device {{#if digiviceSkin.revealed}}has-crest-digivice{{/if}} {{#if digiviceSkin.active}}is-crest-resonating{{/if}}" style="--dda-digivice-frame: url('{{digiviceSkin.frame}}');">
     <img
       class="dda-device-portrait"
       src="{{actor.img}}"
-      data-edit="img"
+      data-action="editImage"
       title="{{actor.name}}"
     />
 
@@ -138,20 +138,56 @@
     </div>
   </div>
 
-  <section class="dda-header-column dda-header-partner-column">
+  <section class="dda-header-column dda-header-partner-column dda-header-partner-summary">
     <div class="form-group compact partner-block">
       <label>{{localize "DDA.TamerSheet.Partner"}}</label>
-      <input type="text" value="{{partnerIdentityName}}" readonly />
+      <input type="text" value="{{partnerHeaderName}}" readonly />
     </div>
 
     <div class="partner-actions">
       <button
         type="button"
-        class="open-partner-sheet"
-        title="{{localize "DDA.TamerSheet.Tooltip.OpenPartnerSheet"}}"
+        class="open-partner-sheet dda-header-icon-action"
+        data-tooltip="{{localize "DDA.Button.Open"}}"
+        title="{{localize "DDA.Button.Open"}}"
+        aria-label="{{localize "DDA.TamerSheet.Tooltip.OpenPartnerSheet"}}"
       >
-        {{localize "DDA.Button.Open"}}
+        <img
+          class="dda-header-digimon-logo"
+          src="systems/digimon-digital-adventures/assets/ui/Digimon-Logo-3.webp"
+          alt=""
+          aria-hidden="true"
+        />
+        <span class="dda-visually-hidden">{{localize "DDA.Button.Open"}}</span>
       </button>
+
+      <button
+        type="button"
+        class="evolution-options-partner"
+        data-tooltip="{{localize "DDA.TamerSheet.Tooltip.DigivolveOrRegressPartner"}}"
+        title="{{localize "DDA.TamerSheet.Tooltip.DigivolveOrRegressPartner"}}"
+        aria-label="{{localize "DDA.TamerSheet.Tooltip.DigivolveOrRegressPartner"}}"
+      >
+        {{localize "DDA.Button.Digivolve"}}
+      </button>
+
+      {{#if specialEvolutionSettings.enableJogressEvolution}}
+      <button
+        type="button"
+        class="jogress-partner dda-header-icon-action"
+        data-tooltip="{{localize "DDA.Button.Jogress"}}"
+        title="{{localize "DDA.Button.Jogress"}}"
+        aria-label="{{localize "DDA.TamerSheet.Tooltip.JogressPartner"}}"
+      >
+        <img
+          class="dda-header-dna-icon"
+          src="systems/digimon-digital-adventures/assets/ui/dna.svg"
+          alt=""
+          aria-hidden="true"
+        />
+        <span class="dda-visually-hidden">{{localize "DDA.Button.Jogress"}}</span>
+      </button>
+      {{/if}}
 
       {{#if specialEvolutionSettings.enableHybridEvolution}}
       <button
@@ -170,33 +206,6 @@
         title="{{localize "DDA.TamerSheet.Tooltip.BioMergePartner"}}"
       >
         {{localize "DDA.Button.BioMerge"}}
-      </button>
-      {{/if}}
-    </div>
-  </section>
-
-  <section class="dda-header-column dda-header-form-column">
-    <div class="form-group compact current-form-block">
-      <label>{{localize "DDA.TamerSheet.CurrentForm"}}</label>
-      <input type="text" value="{{partnerCurrentSpecies}}" readonly />
-    </div>
-
-    <div class="current-form-actions evolution-form-actions">
-      <button
-        type="button"
-        class="evolution-options-partner"
-        title="{{localize "DDA.TamerSheet.Tooltip.DigivolvePartner"}}"
-      >
-        {{localize "DDA.Button.Digivolve"}}
-      </button>
-
-      {{#if specialEvolutionSettings.enableJogressEvolution}}
-      <button
-        type="button"
-        class="jogress-partner"
-        title="{{localize "DDA.TamerSheet.Tooltip.JogressPartner"}}"
-      >
-        {{localize "DDA.Button.Jogress"}}
       </button>
       {{/if}}
     </div>
@@ -230,17 +239,17 @@
 {{/if}}
 
   <nav class="sheet-tabs tabs" data-group="primary">
-    <a class="item" data-tab="stats">{{localize "DDA.TamerSheet.Tab.StatsAndSkills"}}</a>
-    <a class="item" data-tab="aspects">{{localize "DDA.TamerSheet.Tab.Aspects"}}</a>    
-    <a class="item" data-tab="combat">{{localize "DDA.TamerSheet.Tab.Combat"}}</a>
-    <a class="item" data-tab="inventory">{{localize "DDA.TamerSheet.Tab.Inventory"}}</a>
-    <a class="item" data-tab="torments">{{localize "DDA.TamerSheet.Tab.TalentsAndTorments"}}</a>
-    <a class="item" data-tab="advancement">{{localize "DDA.TamerSheet.Tab.Advancement"}}</a>
-    <a class="item" data-tab="notes">{{localize "DDA.TamerSheet.Tab.Notes"}}</a>
+    <a class="item {{tabs.primary.stats.cssClass}}" data-group="primary" data-tab="stats">{{localize "DDA.TamerSheet.Tab.StatsAndSkills"}}</a>
+    <a class="item {{tabs.primary.aspects.cssClass}}" data-group="primary" data-tab="aspects">{{localize "DDA.TamerSheet.Tab.Aspects"}}</a>    
+    <a class="item {{tabs.primary.combat.cssClass}}" data-group="primary" data-tab="combat">{{localize "DDA.TamerSheet.Tab.Combat"}}</a>
+    <a class="item {{tabs.primary.inventory.cssClass}}" data-group="primary" data-tab="inventory">{{localize "DDA.TamerSheet.Tab.Inventory"}}</a>
+    <a class="item {{tabs.primary.torments.cssClass}}" data-group="primary" data-tab="torments">{{localize "DDA.TamerSheet.Tab.TalentsAndTorments"}}</a>
+    <a class="item {{tabs.primary.advancement.cssClass}}" data-group="primary" data-tab="advancement">{{localize "DDA.TamerSheet.Tab.Advancement"}}</a>
+    <a class="item {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">{{localize "DDA.TamerSheet.Tab.Notes"}}</a>
   </nav>
 
   <section class="sheet-body">
-<section class="tab dda-tamer-aspects-tab" data-group="primary" data-tab="aspects">
+<section class="tab dda-tamer-aspects-tab {{tabs.primary.aspects.cssClass}}" data-group="primary" data-tab="aspects">
   <div class="dda-aspect-card-grid">
 
     <article class="dda-aspect-card dda-aspect-major-card">
@@ -326,7 +335,7 @@
   </div>
 </section>
 
-    <section class="tab dda-tamer-stats-tab" data-group="primary" data-tab="stats">
+    <section class="tab dda-tamer-stats-tab {{tabs.primary.stats.cssClass}}" data-group="primary" data-tab="stats">
       <h2>{{localize "DDA.TamerSheet.Attributes"}}</h2>
 
       <div class="resource-grid">
@@ -384,7 +393,7 @@
 </div>
     </section>
 
-    <section class="tab dda-tamer-combat-tab" data-group="primary" data-tab="combat">
+    <section class="tab dda-tamer-combat-tab {{tabs.primary.combat.cssClass}}" data-group="primary" data-tab="combat">
       <h2>{{localize "DDA.TamerSheet.Combat"}}</h2>
 
 <div class="combat-actions">
@@ -403,7 +412,7 @@
     {{localize "DDA.Button.RecoveryOptions"}}
   </button>
 
-  {{#if specialEvolutionSettings.enableForcedEvolution}}
+  {{#if forcedActive}}
   <button
     type="button"
     class="end-forced-evolution-partner"
@@ -495,7 +504,7 @@
     </section>
 
 
-    <section class="tab dda-tamer-inventory-tab" data-group="primary" data-tab="inventory">
+    <section class="tab dda-tamer-inventory-tab {{tabs.primary.inventory.cssClass}}" data-group="primary" data-tab="inventory">
       <header class="dda-inventory-page-header">
         <div>
           <h2>{{localize "DDA.Inventory.Title"}}</h2>
@@ -570,7 +579,7 @@
       </div>
     </section>
 
-    <section class="tab dda-tamer-torments-tab" data-group="primary" data-tab="torments">
+    <section class="tab dda-tamer-torments-tab {{tabs.primary.torments.cssClass}}" data-group="primary" data-tab="torments">
       <div class="combat-actions">
         <button type="button" class="recovery-menu">{{localize "DDA.Button.RecoveryOptions"}}</button>
       </div>
@@ -628,6 +637,13 @@
   <span class="tamer-talent-tag requirement">
     {{item.requirementText}}
   </span>
+
+
+  {{#if item.implementationLabel}}
+    <span class="tamer-talent-tag implementation {{item.implementationClass}}">
+      {{item.implementationLabel}}
+    </span>
+  {{/if}}
 
   {{#if item.system.isAdvanced}}
     <span class="tamer-talent-tag advanced">{{localize "DDA.TamerTalent.Advanced"}}</span>
@@ -706,7 +722,7 @@
       </div>
     </section>
 
-    <section class="tab dda-tamer-advancement-tab" data-group="primary" data-tab="advancement">
+    <section class="tab dda-tamer-advancement-tab {{tabs.primary.advancement.cssClass}}" data-group="primary" data-tab="advancement">
       <h2>{{localize "DDA.TamerSheet.Advancement"}}</h2>
 
       <div class="combat-actions dda-tamer-advancement-actions">
@@ -719,6 +735,17 @@
           {{localize "DDA.Button.Open"}}
           {{localize "DDA.TamerSheet.Advancement"}}
         </button>
+
+        {{#if system.partner.uuid}}
+        <button
+          type="button"
+          class="open-partner-bonus-dp"
+          title="{{localize "DDA.Progression.BonusDP.Title"}}"
+        >
+          <i class="fa-solid fa-microchip"></i>
+          {{localize "DDA.Progression.BonusDP.Button.Open"}}
+        </button>
+        {{/if}}
       </div>
 
       <details class="dda-campaign-rules-summary dda-campaign-rules-details">
@@ -778,7 +805,9 @@
   <button type="button" class="open-partner-sheet">{{localize "DDA.Button.OpenPartner"}}</button>
   <button type="button" class="evolution-options-partner">{{localize "DDA.Button.DigivolvePartner"}}</button>
   <button type="button" class="open-partner-form-planner">{{localize "DDA.Button.PartnerFormPlanner"}}</button>
+  {{#if specialEvolutionSettings.enableJogressEvolution}}
   <button type="button" class="jogress-partner">{{localize "DDA.Button.Jogress"}}</button>
+  {{/if}}
   {{#if hybridActive}}
   <button type="button" class="end-hybrid-partner">{{localize "DDA.Button.EndHybrid"}}</button>
   {{else}}
@@ -840,7 +869,7 @@
 
 </section>
 
-<section class="tab dda-tamer-notes-tab" data-group="primary" data-tab="notes">
+<section class="tab dda-tamer-notes-tab {{tabs.primary.notes.cssClass}}" data-group="primary" data-tab="notes">
   <h2>{{localize "DDA.TamerSheet.Notes"}}</h2>
 
   <div class="grid-2">
@@ -869,4 +898,4 @@
       </div>
     </div>
   </div>
-</form>
+</div>

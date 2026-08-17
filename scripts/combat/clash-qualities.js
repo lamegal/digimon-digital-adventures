@@ -1,6 +1,7 @@
 import { rollAttack } from "../rolls/attack-roll.js";
 import {
   areActorsAllies,
+  areActorsAlliesForQualities,
   findQuality,
   getActorDerivedStat,
   getActorStageValue,
@@ -362,7 +363,8 @@ export async function useGiantHijacker(actor) {
   const result = await rollDerivedCheck(actor, "cpu", {
     skillKey: "athletics",
     tn,
-    title: text("Sequestrador de Gigantes", "Giant Hijacker")
+    title: text("Sequestrador de Gigantes", "Giant Hijacker"),
+    targetActor: host
   });
   if (!result) return null;
 
@@ -434,7 +436,8 @@ export async function shakeOffGiantHijacker(actor) {
   const tn = 10 + getActorDerivedStat(rider, "ram") + Math.max(0, number(state.removalTnBonus));
   const result = await rollDerivedCheck(actor, "cpu", {
     tn,
-    title: text("Remover Sequestrador", "Shake Off Hijacker")
+    title: text("Remover Sequestrador", "Shake Off Hijacker"),
+    targetActor: rider
   });
   if (result?.success) await clearGiantHijacker(actor, { reason: "shakenOff" });
   return result;
@@ -447,7 +450,7 @@ function getEligibleFastballAllies(actor) {
   return (canvas?.tokens?.placeables ?? []).filter((token) => {
     const ally = token.actor;
     if (!isDigimon(ally) || ally.uuid === actor.uuid) return false;
-    if (!areActorsAllies(actor, ally)) return false;
+    if (!areActorsAlliesForQualities(actor, ally)) return false;
     if (getTokenDistanceSpaces(actorToken, token) > maxDistance) return false;
     if (!hasMonsterStrength(actor) && getSizeIndex(ally) >= getSizeIndex(actor)) return false;
     return getChargeAttacks(ally).length > 0;
@@ -457,7 +460,7 @@ function getEligibleFastballAllies(actor) {
 function getEligibleFastballEnemies(actor) {
   return (canvas?.tokens?.placeables ?? []).filter((token) => {
     const target = token.actor;
-    return isDigimon(target) && !areActorsAllies(actor, target);
+    return isDigimon(target) && !areActorsAlliesForQualities(actor, target);
   });
 }
 
@@ -566,9 +569,15 @@ export async function useFastball(actor) {
     grantedAttackAction: choice.actionCost >= 2 ? 1 : 0,
     useThrowerAttack: choice.useThrowerAttack,
     noCrashDamage: hasPowerThrow(actor) || hasQuality(ally, "tumbler"),
-    authorizedUserIds: (game.users?.contents ?? [])
-      .filter((user) => user.isGM || ally.testUserPermission(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER))
-      .map((user) => user.id)
+    authorizedUserIds: (() => {
+      const charmIds = game?.dda?.bossQualities?.getCharmAuthorizedUserIds?.(ally, { includeGMs: true });
+      if (Array.isArray(charmIds)) return (game.users?.contents ?? [])
+        .filter((user) => user.active && charmIds.includes(String(user.id)))
+        .map((user) => user.id);
+      return (game.users?.contents ?? [])
+        .filter((user) => user.isGM || ally.testUserPermission(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER))
+        .map((user) => user.id);
+    })()
   };
 
   await ChatMessage.create({
@@ -701,7 +710,7 @@ export async function useDistantForce(actor) {
     content: `<form class="dda-clash-quality-form">
       <div class="form-group"><label>${text("Efeito", "Effect")}</label><select name="direction"><option value="push">[PUSH]</option><option value="pull">[PULL]</option></select></div>
       <div class="form-group"><label>${text("Estatística para distância", "Distance stat")}</label><select name="stat"><option value="bit">BIT (${getActorDerivedStat(actor, "bit")})</option><option value="dos">DOS (${getActorDerivedStat(actor, "dos")})</option></select></div>
-      <label class="dda-clash-choice"><input type="checkbox" name="willing" ${areActorsAllies(actor, target) ? "checked" : ""}><span>${text("O alvo está disposto", "The target is willing")}</span></label>
+      <label class="dda-clash-choice"><input type="checkbox" name="willing" ${areActorsAlliesForQualities(actor, target) ? "checked" : ""}><span>${text("O alvo está disposto", "The target is willing")}</span></label>
     </form>`,
     buttons: [
       { action: "confirm", label: text("Usar", "Use"), default: true, callback: (_event, button) => ({

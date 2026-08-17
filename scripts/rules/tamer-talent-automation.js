@@ -9,6 +9,12 @@ import {
   getEndlessDreamTemporaryIpCapacity
 } from "./tamer-resources.js";
 
+import {
+  applySpeedSurgeVirtualRound,
+  grantStrikeFastActionReserve,
+  resolveTamerTalentPartner
+} from "./tamer-talent-runtime.js";
+
 /**
  * Shared runtime for official and homebrew Tamer Talents.
  *
@@ -335,18 +341,56 @@ export async function useTamerTalent(tamer, talent, options = {}) {
     return automationResult;
   }
 
+  if (automationResult.deferCommit) {
+    return {
+      ...automationResult,
+      success: true,
+      actionCost: validation.actionCost,
+      actionCostNumber: 0,
+      uses: validation.uses
+    };
+  }
+
+  const finalActionCostNumber = Math.max(
+    0,
+    Number(
+      automationResult.actionCostNumberOverride ??
+      validation.actionCostNumber
+    )
+  );
+
+  const currentActions = Number(
+    tamer.system?.combat?.actions?.value ??
+    validation.currentActions ??
+    0
+  );
+
+  if (finalActionCostNumber > currentActions) {
+    return {
+      success: false,
+      applied: false,
+      message: formatI18n(
+        "DDA.Warning.NotEnoughActionsForTalent",
+        { actor: tamer.name, talent: talent.name },
+        `${tamer.name} não possui Ações suficientes para usar ${talent.name}.`
+      )
+    };
+  }
+
   await commitTamerTalentUse(tamer, talent, {
     ...options,
-    actionCostNumber: validation.actionCostNumber,
-    currentActions: validation.currentActions,
+    actionCostNumber: finalActionCostNumber,
+    currentActions,
     uses: validation.uses
   });
 
   return {
     ...automationResult,
     success: true,
-    actionCost: validation.actionCost,
-    actionCostNumber: validation.actionCostNumber,
+    actionCost: automationResult.prepaidActionCost !== undefined
+      ? String(automationResult.prepaidActionCost)
+      : validation.actionCost,
+    actionCostNumber: automationResult.prepaidActionCost ?? finalActionCostNumber,
     uses: getTamerTalentUses(
   tamer,
   talent,
@@ -360,8 +404,8 @@ async function commitTamerTalentUse(tamer, talent, options = {}) {
   const item = options.item ?? null;
   const actionCostNumber = Number(options.actionCostNumber ?? 0);
   const currentActions = Number(
-    options.currentActions ??
     tamer.system?.combat?.actions?.value ??
+    options.currentActions ??
     0
   );
 
@@ -479,6 +523,98 @@ export async function executeTamerTalentAutomation(tamer, talent) {
 
     case "unalterableDamageAndEffect":
       return applyUnalterableDamageAndEffectAutomation(tamer, talent, automation);
+
+    case "officialEffectSpecialOrder": {
+      const {
+        executeOfficialEffectSpecialOrder
+      } = await import(
+        "./tamer-talent-special-orders.js"
+      );
+
+      return executeOfficialEffectSpecialOrder(
+        tamer,
+        talent
+      );
+    }
+
+    case "attackDirectSpecialOrder": {
+      const {
+        executeAttackDirectSpecialOrder
+      } = await import(
+        "./tamer-talent-attack-direct.js"
+      );
+
+      return executeAttackDirectSpecialOrder(
+        tamer,
+        talent
+      );
+    }
+
+    case "combatSurvivalSpecialOrder": {
+      const {
+        executeCombatSurvivalSpecialOrder
+      } = await import(
+        "./tamer-talent-combat-survival.js"
+      );
+
+      return executeCombatSurvivalSpecialOrder(
+        tamer,
+        talent
+      );
+    }
+
+    case "transversalTamerTalent": {
+      const {
+        executeTransversalTamerTalent
+      } = await import(
+        "./tamer-talent-transversal.js"
+      );
+
+      return executeTransversalTamerTalent(
+        tamer,
+        talent
+      );
+    }
+
+    case "narrativeTamerTalent": {
+      const {
+        executeNarrativeTamerTalent
+      } = await import(
+        "./tamer-talent-narrative.js"
+      );
+
+      return executeNarrativeTamerTalent(
+        tamer,
+        talent
+      );
+    }
+
+    case "beTheWinnersAction": {
+      const { useBeTheWinners } = await import(
+        "./tamer-talent-attack-direct.js"
+      );
+      return useBeTheWinners(tamer, { postChat: false });
+    }
+
+    case "reactiveAttackInterrupt":
+      return {
+        success: false,
+        applied: false,
+        message: localize(
+          "DDA.TamerTalent.Reactive.DistractingGesture",
+          "HEY, OVER HERE aparece automaticamente quando um inimigo declara um Ataque contra um aliado ou o Partner."
+        )
+      };
+
+    case "postCheckBonus":
+      return {
+        success: false,
+        applied: false,
+        message: localize(
+          "DDA.TamerTalent.Reactive.TakeTheLead",
+          "NOW FOCUS aparece automaticamente depois que o resultado de um Teste próprio do Partner é conhecido."
+        )
+      };
 
     default:
       return {
@@ -1388,10 +1524,21 @@ async function applyEndlessDreamDistributionAutomation(
   };
 }
 
+function frenzyBlocksTamerInfluence(actor) {
+  return Boolean(game?.dda?.bossQualities?.isFrenzyTamerInfluenceBlocked?.(actor));
+}
+
 async function getTamerTalentPrimaryTarget(tamer, automation) {
+  if (automation.target === "partner") {
+    const partner = await resolveTamerTalentPartner(tamer);
+    return partner && !frenzyBlocksTamerInfluence(partner)
+      ? { actor: partner, token: null, source: "partner" }
+      : null;
+  }
+
   const targets = Array.from(game.user?.targets ?? []);
 
-  if (targets.length === 1 && targets[0]?.actor) {
+  if (targets.length === 1 && targets[0]?.actor && !frenzyBlocksTamerInfluence(targets[0].actor)) {
     return {
       actor: targets[0].actor,
       token: targets[0],
@@ -1403,15 +1550,21 @@ async function getTamerTalentPrimaryTarget(tamer, automation) {
     return null;
   }
 
-  const partnerUuid =
-    tamer.system?.partner?.currentFormUuid ||
-    tamer.system?.partner?.uuid;
+  // The persistent Partner Actor is the runtime document. currentFormUuid may
+  // legitimately be a DDA-SNAPSHOT.* logical-form reference, so never make a
+  // single fromUuid() call against it and give up before trying the base Actor.
+  const partnerReferences = [
+    tamer.system?.partner?.uuid,
+    tamer.system?.partner?.currentFormUuid
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
 
-  if (partnerUuid) {
+  for (const partnerReference of new Set(partnerReferences)) {
     try {
-      const partner = await fromUuid(partnerUuid);
+      const partner = await fromUuid(partnerReference);
 
-      if (partner?.documentName === "Actor") {
+      if (partner?.documentName === "Actor" && !frenzyBlocksTamerInfluence(partner)) {
         return {
           actor: partner,
           token: null,
@@ -1419,10 +1572,14 @@ async function getTamerTalentPrimaryTarget(tamer, automation) {
         };
       }
     } catch (error) {
-      console.warn(
-        "DDA | Não foi possível resolver o parceiro para automação de Talento.",
-        error
-      );
+      // Snapshot references are expected to fail fromUuid(); keep trying the
+      // persistent Actor reference instead of treating that as a missing Partner.
+      if (!String(partnerReference).startsWith("DDA-SNAPSHOT.")) {
+        console.warn(
+          "DDA | Não foi possível resolver o parceiro para automação de Talento.",
+          error
+        );
+      }
     }
   }
 
@@ -1474,42 +1631,60 @@ async function applyGrantActionsAutomation(tamer, talent, automation) {
   if (!target?.actor) return noTargetResult();
   if (!isDigimonLike(target.actor)) return invalidDigimonTargetResult();
 
-  const currentActions = Number(target.actor.system?.combat?.actions?.value ?? 0);
   const amount = Math.max(0, Number(automation.amount ?? 0));
-  const nextActions = currentActions + amount;
 
-  const updates = {
-    "system.combat.actions.value": nextActions
-  };
-
-  if (automation.grantAttackRoundOverride) {
-    const effects = foundry.utils.deepClone(
-      target.actor.system?.effects?.active ?? []
+  if (talent.id === "strikeFast" || automation.restrictedToMovement === true) {
+    const reserve = await grantStrikeFastActionReserve(
+      tamer,
+      target.actor,
+      amount || 1
     );
 
-    const existingWindow = effects.find((effect) => {
-      return getEffectTagKey(effect.tag) === "speedsurgeattackwindow";
-    });
-
-    if (!existingWindow) {
-      effects.push({
-        ...buildTamerTalentEffect(tamer, talent, {
-          ...automation,
-          tag: "speedSurgeAttackWindow",
-          label: "[SPEED SURGE]",
-          value: 1,
-          duration: 1,
-          category: "special"
-        }, target.actor),
-        consumeOn: "attack",
-        grantsAttackRoundOverride: true
-      });
-    }
-
-    updates["system.effects.active"] = effects;
+    return {
+      success: true,
+      applied: true,
+      targetName: target.actor.name,
+      message: formatI18n(
+        "DDA.TamerTalent.Automation.GrantRestrictedAction.Message",
+        { target: target.actor.name, amount: reserve.remaining },
+        `${target.actor.name} recebe ${amount || 1} Ação extra restrita a Mover ou Movimento Difícil.`
+      ),
+      details: automation.note ?? ""
+    };
   }
 
-  await target.actor.update(updates);
+  if (talent.id === "speedSurge" || automation.grantVirtualRound === true) {
+    await applySpeedSurgeVirtualRound(tamer, target.actor);
+
+    const effects = foundry.utils.deepClone(
+      target.actor.system?.effects?.active ?? []
+    ).filter((effect) => getEffectTagKey(effect.tag) !== "speedsurgeattackwindow");
+
+    const currentActions = Number(target.actor.system?.combat?.actions?.value ?? 0);
+    await target.actor.update({
+      "system.combat.actions.value": currentActions + amount,
+      "system.effects.active": effects
+    });
+
+    return {
+      success: true,
+      applied: true,
+      targetName: target.actor.name,
+      message: formatI18n(
+        "DDA.TamerTalent.Automation.SpeedSurge.Message",
+        { target: target.actor.name, amount },
+        `${target.actor.name} recebe ${amount} Ações e inicia uma nova janela virtual de Rodada.`
+      ),
+      details: automation.note ?? ""
+    };
+  }
+
+  const currentActions = Number(target.actor.system?.combat?.actions?.value ?? 0);
+  const nextActions = currentActions + amount;
+
+  await target.actor.update({
+    "system.combat.actions.value": nextActions
+  });
 
   return {
     success: true,
@@ -1711,51 +1886,53 @@ function isNegativeTamerTalentEffect(effect) {
 }
 
 async function chooseEffectToCleanse(actor, effects) {
-  return new Promise((resolve) => {
-    new Dialog({
+  const { DialogV2 } = foundry.applications.api;
+
+  return DialogV2.wait({
+    window: {
       title: localize(
         "DDA.Dialog.CleanseEffect.Title",
         "Remover Efeito"
-      ),
-      content: `
-        <form class="dda-roll-dialog dda-cleanse-effect-dialog">
-          <p>${formatI18n(
-            "DDA.Dialog.CleanseEffect.Content",
-            {
-              actor: `<strong>${escapeHtml(actor.name)}</strong>`
-            },
-            `Escolha um Efeito Negativo de ${escapeHtml(actor.name)}.`
-          )}</p>
+      )
+    },
+    position: { width: 420 },
+    content: `
+      <div class="dda-roll-dialog dda-cleanse-effect-dialog">
+        <p>${formatI18n(
+          "DDA.Dialog.CleanseEffect.Content",
+          {
+            actor: `<strong>${escapeHtml(actor.name)}</strong>`
+          },
+          `Escolha um Efeito Negativo de ${escapeHtml(actor.name)}.`
+        )}</p>
 
-          <div class="form-group">
-            <label>${localize("DDA.Label.Effect", "Efeito")}</label>
+        <div class="form-group">
+          <label>${localize("DDA.Label.Effect", "Efeito")}</label>
 
-            <select name="effectId">
-              ${effects.map((effect) => `
-                <option value="${escapeHtml(effect.id)}">
-                  ${escapeHtml(effect.label ?? effect.tag ?? effect.id)}
-                </option>
-              `).join("")}
-            </select>
-          </div>
-        </form>`,
-      buttons: {
-        confirm: {
-          label: localize("DDA.Button.Remove", "Remover"),
-          callback: (html) => resolve(
-            html[0].querySelector("form")?.effectId?.value ?? null
-          )
-        },
-        cancel: {
-          label: localize("DDA.Button.Cancel", "Cancelar"),
-          callback: () => resolve(null)
-        }
+          <select name="effectId">
+            ${effects.map((effect) => `
+              <option value="${escapeHtml(effect.id)}">
+                ${escapeHtml(effect.label ?? effect.tag ?? effect.id)}
+              </option>
+            `).join("")}
+          </select>
+        </div>
+      </div>`,
+    buttons: [
+      {
+        action: "confirm",
+        label: localize("DDA.Button.Remove", "Remover"),
+        default: true,
+        callback: (_event, button) =>
+          button.form?.elements?.effectId?.value ?? null
       },
-      default: "confirm",
-      close: () => resolve(null)
-    }, {
-      width: 420
-    }).render(true);
+      {
+        action: "cancel",
+        label: localize("DDA.Button.Cancel", "Cancelar"),
+        callback: () => null
+      }
+    ],
+    rejectClose: false
   });
 }
 

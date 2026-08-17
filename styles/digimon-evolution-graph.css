@@ -1423,7 +1423,7 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
   border-radius: 7px !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-content {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-content {
   padding: 0 !important;
   overflow: hidden !important;
   background: #061425 !important;
@@ -1455,7 +1455,7 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
 /* Faz o mapa solar herdar o visual também no pop-up      */
 /* ===================================================== */
 
-.window-app.dda-evolution-graph-popout-window .window-content {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-content {
   padding: 0 !important;
   overflow: hidden !important;
   background:
@@ -1813,7 +1813,7 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
 /* DDA — Evolution Graph Pop-out: Item Sheet Shell        */
 /* ===================================================== */
 
-.window-app.dda-evolution-graph-popout-window {
+:is(.window-app, .application).dda-evolution-graph-popout-window {
   background: transparent !important;
   box-shadow: none !important;
   border: none !important;
@@ -1821,7 +1821,7 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
 }
 
 /* Barra superior padrão do Foundry transformada em aba estilo ficha */
-.window-app.dda-evolution-graph-popout-window .window-header {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header {
   position: relative !important;
 
   height: 34px !important;
@@ -1853,7 +1853,7 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
   z-index: 5 !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-title {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-title {
   color: #f3fbff !important;
 
   font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
@@ -1867,12 +1867,12 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
 }
 
 /* Esconde botões nativos extras, se existirem */
-.window-app.dda-evolution-graph-popout-window .window-header .header-button:not(.close) {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header .header-button:not(.close) {
   display: none !important;
 }
 
 /* Botão nativo de fechar, estilo bolinha vermelha da ficha */
-.window-app.dda-evolution-graph-popout-window .window-header .close {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header .close {
   position: fixed !important;
 
   width: 22px !important;
@@ -1903,19 +1903,19 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
   z-index: 20 !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-header .close::before {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header .close::before {
   content: "×" !important;
   font-size: 1rem !important;
   font-weight: 900 !important;
   line-height: 1 !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-header .close i {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header .close i {
   display: none !important;
 }
 
 /* Casca principal igual às fichas de item */
-.window-app.dda-evolution-graph-popout-window .window-content {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-content {
   padding: 10px !important;
   overflow: hidden !important;
 
@@ -2318,14 +2318,14 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
 
 /* ---------- Casca / header ---------- */
 
-.window-app.dda-evolution-graph-popout-window {
+:is(.window-app, .application).dda-evolution-graph-popout-window {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   overflow: visible !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-header {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header {
   position: relative !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -2350,7 +2350,7 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
   z-index: 5 !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-title {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-title {
   color: #eefbff !important;
   font-family: "PixelOperatorBold", "Chronotype", Arial, sans-serif !important;
   font-size: 0.68rem !important;
@@ -2361,11 +2361,11 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
   text-shadow: 0 1px 0 rgba(0,0,0,0.45) !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-header .header-button:not(.close) {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header .header-button:not(.close) {
   display: none !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-header .close {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header .close {
   position: absolute !important;
   right: 6px !important;
   top: 50% !important;
@@ -2395,7 +2395,7 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
   z-index: 8 !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-header .close::before {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header .close::before {
   content: "×" !important;
   color: #fff !important;
   font-size: 0.86rem !important;
@@ -2403,11 +2403,11 @@ section.dda-evolution-tab .dda-evolution-graph-header button.clear-evolution-gra
   line-height: 1 !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-header .close i {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-header .close i {
   display: none !important;
 }
 
-.window-app.dda-evolution-graph-popout-window .window-content {
+:is(.window-app, .application).dda-evolution-graph-popout-window .window-content {
   padding: 10px !important;
   overflow: hidden !important;
 

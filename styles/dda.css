@@ -565,7 +565,7 @@
 /* DDA — Barra nativa da janela                          */
 /* ===================================================== */
 
-.window-app.digimon-digital-adventures .window-header,
+:is(.window-app, .application).digimon-digital-adventures .window-header,
 .app.digimon-digital-adventures .window-header {
   position: relative;
   overflow: hidden;
@@ -588,7 +588,7 @@
     0 0 12px rgba(0, 0, 0, 0.25);
 }
 
-.window-app.digimon-digital-adventures .window-header::before,
+:is(.window-app, .application).digimon-digital-adventures .window-header::before,
 .app.digimon-digital-adventures .window-header::before {
   content: "";
   position: absolute;
@@ -612,7 +612,7 @@
     );
 }
 
-.window-app.digimon-digital-adventures .window-header::after,
+:is(.window-app, .application).digimon-digital-adventures .window-header::after,
 .app.digimon-digital-adventures .window-header::after {
   content: "";
   position: absolute;
@@ -647,7 +647,7 @@
   );
 }
 
-.window-app.digimon-digital-adventures .window-title,
+:is(.window-app, .application).digimon-digital-adventures .window-title,
 .app.digimon-digital-adventures .window-title {
   position: relative;
   z-index: 2;
@@ -663,7 +663,7 @@
   text-shadow: 0 0 6px rgba(80, 180, 255, 0.35);
 }
 
-.window-app.digimon-digital-adventures .window-title::before,
+:is(.window-app, .application).digimon-digital-adventures .window-title::before,
 .app.digimon-digital-adventures .window-title::before {
   content: "";
   position: absolute;
@@ -683,7 +683,7 @@
     0 0 10px rgba(80, 180, 255, 0.35);
 }
 
-.window-app.digimon-digital-adventures .window-header a.header-button,
+:is(.window-app, .application).digimon-digital-adventures .window-header a.header-button,
 .app.digimon-digital-adventures .window-header a.header-button {
   position: relative;
   z-index: 2;
@@ -706,14 +706,14 @@
   box-shadow: inset 0 0 8px rgba(0, 100, 180, 0.10);
 }
 
-.window-app.digimon-digital-adventures .window-header a.header-button:hover,
+:is(.window-app, .application).digimon-digital-adventures .window-header a.header-button:hover,
 .app.digimon-digital-adventures .window-header a.header-button:hover {
   color: #ffffff;
   background: rgba(90, 180, 255, 0.16);
   text-shadow: 0 0 6px rgba(120, 220, 255, 0.45);
 }
 
-.window-app.digimon-digital-adventures .window-header a.header-button i,
+:is(.window-app, .application).digimon-digital-adventures .window-header a.header-button i,
 .app.digimon-digital-adventures .window-header a.header-button i {
   color: #ffffff;
   opacity: 0.95;
@@ -920,7 +920,7 @@
 /* DDA — Barra nativa da janela da ficha                 */
 /* ===================================================== */
 
-.window-app:has(.dda-digimon-sheet) .window-header {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-header {
   position: relative;
   overflow: hidden;
   height: 34px;
@@ -942,7 +942,7 @@
     0 0 12px rgba(0, 0, 0, 0.25);
 }
 
-.window-app:has(.dda-digimon-sheet) .window-header::before {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-header::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -965,7 +965,7 @@
     );
 }
 
-.window-app:has(.dda-digimon-sheet) .window-header::after {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-header::after {
   content: "";
   position: absolute;
   left: 250px;
@@ -999,7 +999,7 @@
   );
 }
 
-.window-app:has(.dda-digimon-sheet) .window-title {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-title {
   position: relative;
   z-index: 2;
   flex: 1 1 auto;
@@ -1014,7 +1014,7 @@
   text-shadow: 0 0 5px rgba(80, 180, 255, 0.35);
 }
 
-.window-app:has(.dda-digimon-sheet) .window-title::before {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-title::before {
   content: "";
   position: absolute;
   left: 0;
@@ -1031,7 +1031,7 @@
   filter: drop-shadow(0 0 5px rgba(100, 210, 255, 0.45));
 }
 
-.window-app:has(.dda-digimon-sheet) .window-header a.header-button {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-header a.header-button {
   position: relative;
   z-index: 2;
   display: inline-flex;
@@ -1053,13 +1053,13 @@
   box-shadow: inset 0 0 8px rgba(0, 100, 180, 0.10);
 }
 
-.window-app:has(.dda-digimon-sheet) .window-header a.header-button:hover {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-header a.header-button:hover {
   color: #ffffff;
   background: rgba(90, 180, 255, 0.16);
   text-shadow: 0 0 6px rgba(120, 220, 255, 0.45);
 }
 
-.window-app:has(.dda-digimon-sheet) .window-header a.header-button i {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-header a.header-button i {
   color: #ffffff;
   opacity: 0.95;
   margin-right: 2px;
@@ -2904,7 +2904,7 @@
 /* DDA — Fonte Chronotype para títulos       */
 /* ----------------------------------------- */
 
-.window-app:has(.dda-digimon-sheet) .window-title,
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-title,
 .dda-digimon-sheet .sheet-tabs a,
 .dda-digimon-sheet .dda-summary-tab > h2,
 .dda-digimon-sheet .dda-stats-tab > h2,
@@ -3138,23 +3138,23 @@
 /* ----------------------------------------- */
 
 /* Firefox */
-.window-app:has(.dda-digimon-sheet) .window-content {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-content {
   scrollbar-width: thin;
   scrollbar-color: #0d5f9c #06192b;
 }
 
 /* Chromium / Foundry */
-.window-app:has(.dda-digimon-sheet) .window-content::-webkit-scrollbar {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-content::-webkit-scrollbar {
   width: 12px;
 }
 
-.window-app:has(.dda-digimon-sheet) .window-content::-webkit-scrollbar-track {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-content::-webkit-scrollbar-track {
   background:
     linear-gradient(180deg, rgba(4, 16, 30, 0.96), rgba(8, 28, 48, 0.96));
   border-left: 1px solid rgba(90, 170, 220, 0.20);
 }
 
-.window-app:has(.dda-digimon-sheet) .window-content::-webkit-scrollbar-thumb {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-content::-webkit-scrollbar-thumb {
   background:
     linear-gradient(180deg, rgba(18, 105, 165, 0.98), rgba(5, 48, 88, 0.98));
   border: 2px solid rgba(4, 16, 30, 0.96);
@@ -3165,7 +3165,7 @@
     0 0 8px rgba(80, 180, 255, 0.25);
 }
 
-.window-app:has(.dda-digimon-sheet) .window-content::-webkit-scrollbar-thumb:hover {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-content::-webkit-scrollbar-thumb:hover {
   background:
     linear-gradient(180deg, rgba(35, 145, 210, 0.98), rgba(8, 72, 125, 0.98));
   box-shadow:
@@ -3173,7 +3173,7 @@
     0 0 10px rgba(100, 210, 255, 0.38);
 }
 
-.window-app:has(.dda-digimon-sheet) .window-content::-webkit-scrollbar-corner {
+:is(.window-app, .application):has(.dda-digimon-sheet) .window-content::-webkit-scrollbar-corner {
   background: #06192b;
 }
 /* ----------------------------------------- */
@@ -9338,7 +9338,7 @@
 
 /* ---------- Foundry window base ---------- */
 
-.window-app.dda.sheet.actor.digimon {
+:is(.window-app, .application).dda.sheet.actor.digimon {
   background: transparent !important;
   border: none !important;
   box-shadow:
@@ -9347,7 +9347,7 @@
   overflow: visible !important;
 }
 
-.window-app.dda.sheet.actor.digimon .window-content {
+:is(.window-app, .application).dda.sheet.actor.digimon .window-content {
   background: transparent !important;
   padding: 0 !important;
   overflow: hidden !important;
@@ -9357,7 +9357,7 @@
 }
 
 /* Mantém o resize bonito */
-.window-app.dda.sheet.actor.digimon .window-resizable-handle {
+:is(.window-app, .application).dda.sheet.actor.digimon .window-resizable-handle {
   position: absolute !important;
   right: 10px !important;
   bottom: 10px !important;
@@ -9726,7 +9726,7 @@
 /* ===================================================== */
 
 /* Esconde visualmente a barra superior nativa, mas mantém uma faixa invisível para arrastar */
-.window-app.dda.sheet.actor.digimon .window-header {
+:is(.window-app, .application).dda.sheet.actor.digimon .window-header {
   height: 12px !important;
   min-height: 12px !important;
   max-height: 12px !important;
@@ -9745,13 +9745,13 @@
 }
 
 /* Remove os textos e botões nativos da barra */
-.window-app.dda.sheet.actor.digimon .window-title,
-.window-app.dda.sheet.actor.digimon .window-header a.header-button {
+:is(.window-app, .application).dda.sheet.actor.digimon .window-title,
+:is(.window-app, .application).dda.sheet.actor.digimon .window-header a.header-button {
   display: none !important;
 }
 
 /* Ajusta a janela para compensar a barra invisível */
-.window-app.dda.sheet.actor.digimon .window-content {
+:is(.window-app, .application).dda.sheet.actor.digimon .window-content {
   margin-top: -12px !important;
 }
 
@@ -9855,8 +9855,8 @@
 /* ===================================================== */
 
 /* A janela do Foundry não deve desenhar fundo próprio */
-.window-app.dda.sheet.actor.digimon,
-.app.window-app.dda.sheet.actor.digimon {
+:is(.window-app, .application).dda.sheet.actor.digimon,
+.app:is(.window-app, .application).dda.sheet.actor.digimon {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -9864,8 +9864,8 @@
 }
 
 /* A área de conteúdo também precisa ser transparente */
-.window-app.dda.sheet.actor.digimon .window-content,
-.app.window-app.dda.sheet.actor.digimon .window-content {
+:is(.window-app, .application).dda.sheet.actor.digimon .window-content,
+.app:is(.window-app, .application).dda.sheet.actor.digimon .window-content {
   background: transparent !important;
   background-image: none !important;
   border: none !important;
@@ -10056,7 +10056,7 @@
 /* DDA — modo minimizado customizado                     */
 /* ===================================================== */
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed {
   width: 250px !important;
   height: 230px !important;
   min-width: 250px !important;
@@ -10069,22 +10069,22 @@
 }
 
 /* Esconde todo o conteúdo da ficha */
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame-glow,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-paper,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .window-resizable-handle {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame-glow,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-paper,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .window-resizable-handle {
   display: none !important;
 }
 
 /* Esconde a faixa invisível da window-header também */
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .window-header {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .window-header {
   display: none !important;
 }
 
 /* Container transparente no modo minimizado */
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .window-content,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-sheet,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-shell {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .window-content,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-sheet,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-shell {
   display: block !important;
   width: 250px !important;
   height: 230px !important;
@@ -10099,7 +10099,7 @@
 }
 
 /* No modo minimizado, o Digivice fica centralizado e inteiro */
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-side-device {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-side-device {
   display: block !important;
 
   left: 0 !important;
@@ -10115,7 +10115,7 @@
 }
 
 /* Mantém os botões no Digivice minimizado */
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-device-button {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-device-button {
   display: block !important;
   pointer-events: auto !important;
 }
@@ -10124,8 +10124,8 @@
 /* ===================================================== */
 
 /* Remove de vez a faixa lateral azul antiga */
-.window-app.dda.sheet.actor.digimon .dda-digimon-sheet::after,
-.window-app.dda.sheet.actor.digimon .dda-digimon-window-sheet::after {
+:is(.window-app, .application).dda.sheet.actor.digimon .dda-digimon-sheet::after,
+:is(.window-app, .application).dda.sheet.actor.digimon .dda-digimon-window-sheet::after {
   content: none !important;
   display: none !important;
 }
@@ -10147,7 +10147,7 @@
   z-index: 20 !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-dragging .dda-window-side-device {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-dragging .dda-window-side-device {
   cursor: grabbing;
 }
 
@@ -10216,7 +10216,7 @@
 /* DDA — modo Digivice minimizado custom                 */
 /* ===================================================== */
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed {
   width: 235px !important;
   height: 225px !important;
   min-width: 235px !important;
@@ -10228,20 +10228,20 @@
   overflow: visible !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame-glow,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-paper,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .window-resizable-handle {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame-glow,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-paper,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .window-resizable-handle {
   display: none !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .window-header {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .window-header {
   display: none !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .window-content,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-sheet,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-shell {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .window-content,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-sheet,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-shell {
   display: block !important;
   width: 235px !important;
   height: 225px !important;
@@ -10253,7 +10253,7 @@
   overflow: visible !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-side-device {
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-side-device {
   left: 0 !important;
   top: 0 !important;
   width: 220px !important;
@@ -10264,8 +10264,8 @@
 /* ===================================================== */
 
 /* Mata a faixa azul lateral antiga */
-.window-app.dda.sheet.actor.digimon .dda-digimon-sheet::after,
-.window-app.dda.sheet.actor.digimon .dda-digimon-window-sheet::after {
+:is(.window-app, .application).dda.sheet.actor.digimon .dda-digimon-sheet::after,
+:is(.window-app, .application).dda.sheet.actor.digimon .dda-digimon-window-sheet::after {
   content: none !important;
   display: none !important;
   width: 0 !important;
@@ -10965,8 +10965,8 @@
   overflow: visible !important;
 }
 
-.window-app:has(.dda-digimon-window-sheet),
-.window-app:has(.dda-digimon-window-sheet) .window-content,
+:is(.window-app, .application):has(.dda-digimon-window-sheet),
+:is(.window-app, .application):has(.dda-digimon-window-sheet) .window-content,
 .dda-digimon-window-sheet {
   overflow: visible !important;
 }
@@ -11982,19 +11982,19 @@
 /* DDA — Digimon Sheet: correção de abas vazando         */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .sheet-body > .tab {
+.dda-digimon-window-sheet .sheet-body > .tab {
   display: none !important;
 }
 
-form.dda-digimon-window-sheet .sheet-body > .tab.active {
+.dda-digimon-window-sheet .sheet-body > .tab.active {
   display: block !important;
 }
 
 /* Abas que precisam de flex só quando estiverem ativas */
-form.dda-digimon-window-sheet .sheet-body > .dda-digimon-combat-tab.active,
-form.dda-digimon-window-sheet .sheet-body > .dda-digimon-qualities-tab.active,
-form.dda-digimon-window-sheet .sheet-body > .dda-digimon-evolution-tab.active,
-form.dda-digimon-window-sheet .sheet-body > .dda-digimon-notes-tab.active {
+.dda-digimon-window-sheet .sheet-body > .dda-digimon-combat-tab.active,
+.dda-digimon-window-sheet .sheet-body > .dda-digimon-qualities-tab.active,
+.dda-digimon-window-sheet .sheet-body > .dda-digimon-evolution-tab.active,
+.dda-digimon-window-sheet .sheet-body > .dda-digimon-notes-tab.active {
   display: flex !important;
   flex-direction: column !important;
 }
@@ -12012,11 +12012,11 @@ form.dda-digimon-window-sheet .sheet-body > .dda-digimon-notes-tab.active {
 }
 
 /* Versão alternativa caso o form esteja usando a classe window-sheet */
-form.dda-digimon-window-sheet .sheet-body > .tab {
+.dda-digimon-window-sheet .sheet-body > .tab {
   display: none !important;
 }
 
-form.dda-digimon-window-sheet .sheet-body > .tab.active {
+.dda-digimon-window-sheet .sheet-body > .tab.active {
   display: block !important;
 }
 .dda-digimon-sheet .sheet-body > .dda-summary-tab.active,
@@ -12035,8 +12035,8 @@ form.dda-digimon-window-sheet .sheet-body > .tab.active {
 /* Esconde qualquer seção de aba que NÃO esteja ativa */
 .dda-digimon-sheet .sheet-body > section[data-tab]:not(.active),
 .dda-digimon-sheet .sheet-body > .tab[data-tab]:not(.active),
-form.dda-digimon-window-sheet .sheet-body > section[data-tab]:not(.active),
-form.dda-digimon-window-sheet .sheet-body > .tab[data-tab]:not(.active) {
+.dda-digimon-window-sheet .sheet-body > section[data-tab]:not(.active),
+.dda-digimon-window-sheet .sheet-body > .tab[data-tab]:not(.active) {
   display: none !important;
   visibility: hidden !important;
 
@@ -12054,8 +12054,8 @@ form.dda-digimon-window-sheet .sheet-body > .tab[data-tab]:not(.active) {
 /* Mostra só a aba ativa */
 .dda-digimon-sheet .sheet-body > section[data-tab].active,
 .dda-digimon-sheet .sheet-body > .tab[data-tab].active,
-form.dda-digimon-window-sheet .sheet-body > section[data-tab].active,
-form.dda-digimon-window-sheet .sheet-body > .tab[data-tab].active {
+.dda-digimon-window-sheet .sheet-body > section[data-tab].active,
+.dda-digimon-window-sheet .sheet-body > .tab[data-tab].active {
   display: block !important;
   visibility: visible !important;
 
@@ -12069,8 +12069,8 @@ form.dda-digimon-window-sheet .sheet-body > .tab[data-tab].active {
 /* Combate nunca aparece fora da aba Combate ativa */
 .dda-digimon-sheet .sheet-body > section[data-tab="combat"]:not(.active),
 .dda-digimon-sheet .sheet-body > .dda-combat-tab:not(.active),
-form.dda-digimon-window-sheet .sheet-body > section[data-tab="combat"]:not(.active),
-form.dda-digimon-window-sheet .sheet-body > .dda-combat-tab:not(.active) {
+.dda-digimon-window-sheet .sheet-body > section[data-tab="combat"]:not(.active),
+.dda-digimon-window-sheet .sheet-body > .dda-combat-tab:not(.active) {
   display: none !important;
   visibility: hidden !important;
 
@@ -12087,7 +12087,7 @@ form.dda-digimon-window-sheet .sheet-body > .dda-combat-tab:not(.active) {
 /* DDA — Digimon: Aba Resumo no estilo Digi-Escolhido    */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-summary-tab.active {
+.dda-digimon-window-sheet .dda-summary-tab.active {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.9rem !important;
@@ -12096,7 +12096,7 @@ form.dda-digimon-window-sheet .dda-summary-tab.active {
 }
 
 /* Remove visual antigo escuro do título caso ainda exista */
-form.dda-digimon-window-sheet .dda-summary-tab > h2 {
+.dda-digimon-window-sheet .dda-summary-tab > h2 {
   position: relative !important;
 
   margin: 0 0 0.35rem !important;
@@ -12116,7 +12116,7 @@ form.dda-digimon-window-sheet .dda-summary-tab > h2 {
   box-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab > h2::after {
+.dda-digimon-window-sheet .dda-summary-tab > h2::after {
   content: "";
   position: absolute !important;
 
@@ -12141,7 +12141,7 @@ form.dda-digimon-window-sheet .dda-summary-tab > h2::after {
     0 0 9px rgba(60, 170, 235, 0.35) !important;
 }
 /* Classificação: Tipo, Campo, Família */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row {
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 0.75rem !important;
@@ -12161,7 +12161,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row {
     0 1px 4px rgba(0, 0, 0, 0.10) !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .form-group {
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .form-group {
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
@@ -12171,7 +12171,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .
   padding: 0 !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row label {
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row label {
   margin: 0 !important;
 
   color: #1d2e3a !important;
@@ -12184,7 +12184,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row l
   text-align: center !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row select {
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row select {
   width: 100% !important;
   height: 31px !important;
   min-height: 31px !important;
@@ -12208,7 +12208,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row s
     inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
 }
 /* Subtítulos claros estilo ficha do Digi-Escolhido */
-form.dda-digimon-window-sheet .dda-summary-tab > h3 {
+.dda-digimon-window-sheet .dda-summary-tab > h3 {
   position: relative !important;
 
   margin: 0 !important;
@@ -12232,7 +12232,7 @@ form.dda-digimon-window-sheet .dda-summary-tab > h3 {
 }
 
 /* Dropzone do Digi-Escolhido */
-form.dda-digimon-window-sheet .dda-summary-tab .tamer-drop-zone {
+.dda-digimon-window-sheet .dda-summary-tab .tamer-drop-zone {
   min-height: 72px !important;
 
   display: flex !important;
@@ -12264,7 +12264,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .tamer-drop-zone {
     0 0 8px rgba(80, 190, 255, 0.16) !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .tamer-drop-zone strong {
+.dda-digimon-window-sheet .dda-summary-tab .tamer-drop-zone strong {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
@@ -12274,14 +12274,14 @@ form.dda-digimon-window-sheet .dda-summary-tab .tamer-drop-zone strong {
   text-transform: uppercase !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .tamer-drop-zone span {
+.dda-digimon-window-sheet .dda-summary-tab .tamer-drop-zone span {
   color: rgba(23, 49, 72, 0.72) !important;
 
   font-size: 0.78rem !important;
   text-align: center !important;
 }
 /* Botões Abrir / Desvincular */
-form.dda-digimon-window-sheet .dda-summary-tab .combat-actions {
+.dda-digimon-window-sheet .dda-summary-tab .combat-actions {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 0.65rem !important;
@@ -12300,7 +12300,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .combat-actions {
     0 1px 5px rgba(0, 0, 0, 0.10) !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .combat-actions button {
+.dda-digimon-window-sheet .dda-summary-tab .combat-actions button {
   height: 30px !important;
   min-height: 30px !important;
 
@@ -12332,11 +12332,11 @@ form.dda-digimon-window-sheet .dda-summary-tab .combat-actions button {
   cursor: pointer !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .combat-actions button:hover {
+.dda-digimon-window-sheet .dda-summary-tab .combat-actions button:hover {
   filter: brightness(1.12) !important;
 }
 /* Campo do Digi-Escolhido vinculado */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered {
+.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered {
   margin: 0 !important;
   padding: 0.65rem !important;
 
@@ -12351,7 +12351,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered {
     0 1px 4px rgba(0, 0, 0, 0.08) !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered .form-group {
+.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered .form-group {
   display: grid !important;
   grid-template-columns: 150px minmax(0, 1fr) !important;
   align-items: center !important;
@@ -12360,7 +12360,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered .form-gr
   margin: 0 !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered label {
+.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered label {
   margin: 0 !important;
 
   color: #1d2e3a !important;
@@ -12372,7 +12372,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered label {
   text-transform: uppercase !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered input {
+.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered input {
   height: 28px !important;
   min-height: 28px !important;
 
@@ -12389,7 +12389,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-tamer-link-centered input {
   border-radius: 6px !important;
 }
 /* Dados de Criação — painel técnico recolhível */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-panel {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-panel {
   margin: 0 !important;
   padding: 0 !important;
 
@@ -12406,7 +12406,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-panel {
   overflow: hidden !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-panel summary {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-panel summary {
   min-height: 32px !important;
 
   display: flex !important;
@@ -12431,17 +12431,17 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-panel summary 
   cursor: pointer !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-panel summary::marker {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-panel summary::marker {
   content: "" !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-arrow {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-arrow {
   display: inline-flex !important;
   width: 14px !important;
   justify-content: center !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid {
   display: grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: 0.6rem !important;
@@ -12454,7 +12454,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid {
   box-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid .resource-box {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid .resource-box {
   min-height: 68px !important;
 
   display: flex !important;
@@ -12476,7 +12476,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid .resource
     0 1px 4px rgba(0, 0, 0, 0.09) !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid .resource-box label {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid .resource-box label {
   margin: 0 !important;
 
   color: #1d2e3a !important;
@@ -12489,7 +12489,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid .resource
   text-align: center !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid .resource-box input {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid .resource-box input {
   width: 42px !important;
   height: 30px !important;
   min-height: 30px !important;
@@ -12515,7 +12515,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-grid .resource
     inset 0 0 0 1px rgba(255, 255, 255, 0.54) !important;
 }
 /* Linhas técnicas dentro dos Dados de Criação */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.45rem !important;
@@ -12523,7 +12523,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines {
   padding: 0 0.7rem 0.7rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) auto auto !important;
   align-items: center !important;
@@ -12538,9 +12538,9 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
   border-radius: 8px !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-title,
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-value,
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-title,
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-value,
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -12550,14 +12550,14 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
   text-transform: uppercase !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
   color: rgba(23, 49, 72, 0.68) !important;
 }
 /* ===================================================== */
 /* DDA — Digimon: Resumo — linhas de criação claras      */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.5rem !important;
@@ -12569,7 +12569,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines {
   box-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
   position: relative !important;
 
   display: grid !important;
@@ -12596,7 +12596,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
 }
 
 /* barrinha lateral azul */
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line::before {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-line::before {
   content: "";
   position: absolute !important;
 
@@ -12618,7 +12618,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line::before {
 }
 
 /* PD Negativo com barrinha roxa */
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line:nth-child(2)::before {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-line:nth-child(2)::before {
   background:
     linear-gradient(
       180deg,
@@ -12631,9 +12631,9 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line:nth-child(2):
 }
 
 /* textos */
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-title,
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-value,
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-title,
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-value,
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
@@ -12646,11 +12646,11 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
   text-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-title {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-title {
   text-align: left !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-value {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-value {
   min-width: 58px !important;
 
   display: inline-flex !important;
@@ -12672,13 +12672,13 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-value {
     inset 0 -4px 6px rgba(0, 0, 0, 0.20) !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
   color: rgba(23, 49, 72, 0.68) !important;
   text-align: right !important;
 }
 
 /* números dentro das linhas */
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line strong {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-line strong {
   color: inherit !important;
   font: inherit !important;
 }
@@ -12686,7 +12686,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line strong {
 /* DDA — Digimon: Resumo — ajuste das linhas técnicas    */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 72px 92px !important;
   align-items: center !important;
@@ -12697,7 +12697,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
 }
 
 /* Título legível à esquerda */
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-title {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-title {
   color: #173148 !important;
   text-align: left !important;
   opacity: 1 !important;
@@ -12707,7 +12707,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-title {
 }
 
 /* Pílula do valor */
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-value {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-value {
   width: 56px !important;
   min-width: 56px !important;
   max-width: 56px !important;
@@ -12721,7 +12721,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-value {
 }
 
 /* Texto "restante" separado */
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
   justify-self: end !important;
 
   width: 86px !important;
@@ -12735,23 +12735,23 @@ form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
 }
 
 /* Números dentro da pílula e do restante */
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-value strong,
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note strong {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-value strong,
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-note strong {
   color: inherit !important;
   font: inherit !important;
 }
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-line {
   grid-template-columns: minmax(0, 1fr) 72px !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
+.dda-digimon-window-sheet .dda-summary-tab .build-summary-note {
   display: none !important;
 }
 /* ===================================================== */
 /* DDA — Digimon: Dados de Criação — cards inferiores    */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 0.6rem !important;
@@ -12765,7 +12765,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines {
 }
 
 /* Cada linha vira card igual aos cards de cima */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line {
   position: relative !important;
 
   min-height: 68px !important;
@@ -12793,14 +12793,14 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-s
 }
 
 /* Remove barrinhas/bolinhas antigas */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line::before,
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line::after {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line::before,
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line::after {
   content: none !important;
   display: none !important;
 }
 
 /* Título do card */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-title {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-title {
   margin: 0 !important;
 
   color: #1d2e3a !important;
@@ -12818,7 +12818,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-s
 }
 
 /* Valor principal em orbe, igual aos de cima */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-value {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-value {
   width: 42px !important;
   height: 30px !important;
   min-width: 42px !important;
@@ -12856,12 +12856,12 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-s
 }
 
 /* Esconde o "restante", para ficar igual aos cards de cima */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-note {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-note {
   display: none !important;
 }
 
 /* Números dentro do valor */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-value strong {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-value strong {
   color: inherit !important;
   font: inherit !important;
   margin: 0 !important;
@@ -12871,7 +12871,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-s
 /* DDA — Digimon: cards inferiores do resumo sem fundo escuro */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(224, 238, 248, 0.92)) !important;
 
@@ -12882,23 +12882,23 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-s
 }
 
 /* Mata qualquer cor especial nos 3 cards */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line:nth-child(1),
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line:nth-child(2),
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line:nth-child(3) {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line:nth-child(1),
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line:nth-child(2),
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-line:nth-child(3) {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(224, 238, 248, 0.92)) !important;
 }
 
 /* Título legível */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-title {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-title {
   color: #1d2e3a !important;
   opacity: 1 !important;
   text-shadow: none !important;
 }
 
 /* Valor legível */
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-value,
-form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-value strong {
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-value,
+.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-summary-value strong {
   color: #0c2035 !important;
   text-shadow: none !important;
 }
@@ -12906,7 +12906,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-creation-data-lines .build-s
 /* DDA — Digimon: Aba Atributos estilo Digi-Escolhido    */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-stats-tab.active {
+.dda-digimon-window-sheet .dda-stats-tab.active {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.9rem !important;
@@ -12915,7 +12915,7 @@ form.dda-digimon-window-sheet .dda-stats-tab.active {
 }
 
 /* Títulos da aba */
-form.dda-digimon-window-sheet .dda-stats-tab > h2 {
+.dda-digimon-window-sheet .dda-stats-tab > h2 {
   position: relative !important;
 
   margin: 0 !important;
@@ -12943,7 +12943,7 @@ form.dda-digimon-window-sheet .dda-stats-tab > h2 {
 /* Atributos Principais                                  */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-stats-tab .stat-table {
+.dda-digimon-window-sheet .dda-stats-tab .stat-table {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.35rem !important;
@@ -12964,7 +12964,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .stat-table {
 }
 
 /* Cabeçalho */
-form.dda-digimon-window-sheet .dda-stats-tab .stat-heading {
+.dda-digimon-window-sheet .dda-stats-tab .stat-heading {
   min-height: 30px !important;
 
   display: grid !important;
@@ -12987,7 +12987,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .stat-heading {
     inset 0 -5px 8px rgba(0, 0, 0, 0.22) !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .stat-heading span {
+.dda-digimon-window-sheet .dda-stats-tab .stat-heading span {
   color: #eaf7ff !important;
 
   font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
@@ -12998,7 +12998,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .stat-heading span {
   text-align: center !important;
 }
 /* Linhas dos atributos */
-form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row:not(.stat-heading) {
+.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row:not(.stat-heading) {
   min-height: 42px !important;
 
   display: grid !important;
@@ -13020,7 +13020,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row:not(.stat-h
     0 1px 3px rgba(0, 0, 0, 0.06) !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row:not(.stat-heading):hover {
+.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row:not(.stat-heading):hover {
   border-color: rgba(80, 180, 235, 0.42) !important;
 
   box-shadow:
@@ -13029,7 +13029,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row:not(.stat-h
 }
 
 /* Nome do atributo */
-form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row label {
+.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row label {
   margin: 0 !important;
 
   color: #173148 !important;
@@ -13042,7 +13042,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row label {
 }
 
 /* Inputs */
-form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row input {
+.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row input {
   width: 100% !important;
   height: 28px !important;
   min-height: 28px !important;
@@ -13069,7 +13069,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row input {
 }
 
 /* Total em orbe */
-form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row input[readonly] {
+.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row input[readonly] {
   width: 38px !important;
   height: 30px !important;
 
@@ -13088,7 +13088,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row input[reado
     inset 0 0 0 1px rgba(255, 255, 255, 0.54) !important;
 }
 /* Botão Rolar */
-form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row button.roll-pool {
+.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row button.roll-pool {
   height: 28px !important;
   min-height: 28px !important;
 
@@ -13120,15 +13120,15 @@ form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row button.roll
   cursor: pointer !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row button.roll-pool:hover {
+.dda-digimon-window-sheet .dda-stats-tab .stat-row.main-stat-row button.roll-pool:hover {
   filter: brightness(1.12) !important;
 }
 /* ===================================================== */
 /* Atributos Derivados e Estatísticas Diversas           */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-stats-tab .dda-derived-stats-grid,
-form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid {
+.dda-digimon-window-sheet .dda-stats-tab .dda-derived-stats-grid,
+.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid {
   display: grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: 0.6rem !important;
@@ -13148,8 +13148,8 @@ form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid {
     0 1px 4px rgba(0, 0, 0, 0.10) !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .dda-derived-stats-grid .resource-box,
-form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .resource-box {
+.dda-digimon-window-sheet .dda-stats-tab .dda-derived-stats-grid .resource-box,
+.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .resource-box {
   min-height: 72px !important;
 
   display: flex !important;
@@ -13172,8 +13172,8 @@ form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .resource-box 
     0 1px 4px rgba(0, 0, 0, 0.09) !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .dda-derived-stats-grid .resource-box label,
-form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .resource-box label {
+.dda-digimon-window-sheet .dda-stats-tab .dda-derived-stats-grid .resource-box label,
+.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .resource-box label {
   margin: 0 !important;
 
   color: #1d2e3a !important;
@@ -13187,8 +13187,8 @@ form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .resource-box 
   text-align: center !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .dda-derived-stats-grid .resource-box input,
-form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .resource-box input {
+.dda-digimon-window-sheet .dda-stats-tab .dda-derived-stats-grid .resource-box input,
+.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .resource-box input {
   width: 42px !important;
   height: 30px !important;
   min-height: 30px !important;
@@ -13214,7 +13214,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .resource-box 
     inset 0 0 0 1px rgba(255, 255, 255, 0.54) !important;
 }
 /* Card de Movimento */
-form.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box select {
+.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box select {
   width: 100% !important;
   height: 28px !important;
   min-height: 28px !important;
@@ -13233,19 +13233,19 @@ form.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box select {
   border-radius: 6px !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box input {
+.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box input {
   margin-top: 0.15rem !important;
 }
 
 /* Saúde com dois valores */
-form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs {
+.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 0.28rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs span {
+.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs span {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -13253,7 +13253,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs
   font-weight: 900 !important;
 }
 /* Card de Movimento */
-form.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box select {
+.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box select {
   width: 100% !important;
   height: 28px !important;
   min-height: 28px !important;
@@ -13272,19 +13272,19 @@ form.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box select {
   border-radius: 6px !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box input {
+.dda-digimon-window-sheet .dda-stats-tab .movement-selector-box input {
   margin-top: 0.15rem !important;
 }
 
 /* Saúde com dois valores */
-form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs {
+.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 0.28rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs span {
+.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs span {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -13295,7 +13295,7 @@ form.dda-digimon-window-sheet .dda-stats-tab .dda-misc-stats-grid .inline-inputs
 /* DDA — Digimon: Aba Combate estilo Digi-Escolhido      */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-combat-tab.active {
+.dda-digimon-window-sheet .dda-combat-tab.active {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.9rem !important;
@@ -13304,8 +13304,8 @@ form.dda-digimon-window-sheet .dda-combat-tab.active {
 }
 
 /* Título principal */
-form.dda-digimon-window-sheet .dda-combat-tab > h2,
-form.dda-digimon-window-sheet .dda-combat-tab > h3 {
+.dda-digimon-window-sheet .dda-combat-tab > h2,
+.dda-digimon-window-sheet .dda-combat-tab > h3 {
   position: relative !important;
 
   margin: 0 !important;
@@ -13329,14 +13329,14 @@ form.dda-digimon-window-sheet .dda-combat-tab > h3 {
   box-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab > h2 {
+.dda-digimon-window-sheet .dda-combat-tab > h2 {
   font-size: 0.98rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab > h3 {
+.dda-digimon-window-sheet .dda-combat-tab > h3 {
   font-size: 0.9rem !important;
 }/* Botões principais da aba Combate */
-form.dda-digimon-window-sheet .dda-combat-tab > .combat-actions:first-of-type {
+.dda-digimon-window-sheet .dda-combat-tab > .combat-actions:first-of-type {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 0.65rem !important;
@@ -13355,7 +13355,7 @@ form.dda-digimon-window-sheet .dda-combat-tab > .combat-actions:first-of-type {
     0 1px 5px rgba(0, 0, 0, 0.10) !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .combat-actions button {
+.dda-digimon-window-sheet .dda-combat-tab .combat-actions button {
   height: 30px !important;
   min-height: 30px !important;
 
@@ -13387,11 +13387,11 @@ form.dda-digimon-window-sheet .dda-combat-tab .combat-actions button {
   cursor: pointer !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .combat-actions button:hover {
+.dda-digimon-window-sheet .dda-combat-tab .combat-actions button:hover {
   filter: brightness(1.12) !important;
 }
 /* Cards principais de combate */
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources {
   display: grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: 0.6rem !important;
@@ -13411,7 +13411,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources {
     0 1px 4px rgba(0, 0, 0, 0.10) !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .resource-box {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .resource-box {
   min-height: 76px !important;
 
   display: flex !important;
@@ -13434,7 +13434,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .resour
     0 1px 4px rgba(0, 0, 0, 0.09) !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .resource-box label {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .resource-box label {
   margin: 0 !important;
 
   color: #1d2e3a !important;
@@ -13448,8 +13448,8 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .resour
   text-align: center !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources input,
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources select {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources input,
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources select {
   height: 30px !important;
   min-height: 30px !important;
 
@@ -13472,7 +13472,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources select 
 }
 
 /* Inputs numéricos em orbe */
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources input[type="number"] {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources input[type="number"] {
   width: 42px !important;
 
   background:
@@ -13482,14 +13482,14 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources input[t
 }
 
 /* Saúde/Bateria com valor atual e máximo */
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .inline-inputs {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .inline-inputs {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 0.28rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .inline-inputs span {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .inline-inputs span {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -13497,7 +13497,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .inline
   font-weight: 900 !important;
 }
 /* Recursos de Qualidades */
-form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid {
+.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 0.6rem !important;
@@ -13512,7 +13512,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid {
   border-radius: 10px !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box {
+.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box {
   min-height: 72px !important;
 
   display: flex !important;
@@ -13531,7 +13531,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-
   border-radius: 8px !important;
 }
 /* Estado */
-form.dda-digimon-window-sheet .dda-combat-tab > .grid-2 {
+.dda-digimon-window-sheet .dda-combat-tab > .grid-2 {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 0.55rem !important;
@@ -13550,7 +13550,7 @@ form.dda-digimon-window-sheet .dda-combat-tab > .grid-2 {
     0 1px 4px rgba(0, 0, 0, 0.10) !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab > .grid-2 label {
+.dda-digimon-window-sheet .dda-combat-tab > .grid-2 label {
   min-height: 34px !important;
 
   display: flex !important;
@@ -13579,7 +13579,7 @@ form.dda-digimon-window-sheet .dda-combat-tab > .grid-2 label {
     0 1px 3px rgba(0, 0, 0, 0.06) !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab > .grid-2 input[type="checkbox"] {
+.dda-digimon-window-sheet .dda-combat-tab > .grid-2 input[type="checkbox"] {
   width: 16px !important;
   height: 16px !important;
   margin: 0 !important;
@@ -13587,7 +13587,7 @@ form.dda-digimon-window-sheet .dda-combat-tab > .grid-2 input[type="checkbox"] {
   accent-color: #1c75b8 !important;
 }
 /* Efeitos Ativos */
-form.dda-digimon-window-sheet .dda-combat-tab .active-effects-panel {
+.dda-digimon-window-sheet .dda-combat-tab .active-effects-panel {
   margin: 0 !important;
   padding: 0.75rem !important;
 
@@ -13602,13 +13602,13 @@ form.dda-digimon-window-sheet .dda-combat-tab .active-effects-panel {
     0 1px 4px rgba(0, 0, 0, 0.10) !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .active-effect-list {
+.dda-digimon-window-sheet .dda-combat-tab .active-effect-list {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.5rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .active-effect-row {
+.dda-digimon-window-sheet .dda-combat-tab .active-effect-row {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) minmax(150px, auto) auto !important;
   align-items: center !important;
@@ -13624,7 +13624,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .active-effect-row {
   border-radius: 8px !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .active-effect-main strong {
+.dda-digimon-window-sheet .dda-combat-tab .active-effect-main strong {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -13634,15 +13634,15 @@ form.dda-digimon-window-sheet .dda-combat-tab .active-effect-main strong {
   text-transform: uppercase !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .active-effect-main span,
-form.dda-digimon-window-sheet .dda-combat-tab .active-effect-meta span {
+.dda-digimon-window-sheet .dda-combat-tab .active-effect-main span,
+.dda-digimon-window-sheet .dda-combat-tab .active-effect-meta span {
   color: rgba(23, 49, 72, 0.72) !important;
 
   font-size: 0.76rem !important;
   line-height: 1.15 !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .remove-active-effect {
+.dda-digimon-window-sheet .dda-combat-tab .remove-active-effect {
   height: 24px !important;
   min-height: 24px !important;
 
@@ -13656,7 +13656,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .remove-active-effect {
   border-color: rgba(230, 130, 145, 0.35) !important;
 }
 /* Ataques dentro da aba Combate */
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.65rem !important;
@@ -13669,7 +13669,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks {
   box-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-header {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-header {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
@@ -13686,7 +13686,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-heade
   box-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-header h2 {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-header h2 {
   margin: 0 !important;
 
   color: #173148 !important;
@@ -13702,7 +13702,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-heade
   box-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-header .item-create {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-header .item-create {
   width: 110px !important;
   height: 28px !important;
   min-height: 28px !important;
@@ -13721,7 +13721,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-heade
 }
 
 /* Lista de ataques */
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-list {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-list {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.55rem !important;
@@ -13736,7 +13736,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-list {
   border-radius: 10px !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-row {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-row {
   display: grid !important;
   grid-template-columns: 38px minmax(0, 1fr) auto auto !important;
   align-items: center !important;
@@ -13754,7 +13754,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-row {
   border-radius: 8px !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-row img {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-row img {
   width: 32px !important;
   height: 32px !important;
 
@@ -13767,7 +13767,7 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-row img 
     radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.95), rgba(205, 226, 239, 0.9)) !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-name strong {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-name strong {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -13777,8 +13777,8 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-name str
   text-transform: uppercase !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-name span,
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-tags span {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-name span,
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-tags span {
   color: #eaf7ff !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -13794,12 +13794,12 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-tags spa
   padding: 0.15rem 0.45rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls {
   display: flex !important;
   gap: 0.3rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
   height: 24px !important;
   min-height: 24px !important;
 
@@ -13811,10 +13811,10 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls
 /* DDA — Digimon: Combate — botões dos ataques           */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button,
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.roll-attack,
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.item-edit,
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.item-delete {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button,
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.roll-attack,
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.item-edit,
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.item-delete {
   width: 64px !important;
   min-width: 64px !important;
   max-width: 64px !important;
@@ -13853,41 +13853,41 @@ form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.item-de
   cursor: pointer !important;
 }
 
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button:hover {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button:hover {
   filter: brightness(1.12) !important;
 }
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls {
   display: flex !important;
   align-items: center !important;
   justify-content: flex-end !important;
   gap: 0.35rem !important;
   flex-wrap: nowrap !important;
 }
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.roll-attack {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.roll-attack {
   background:
     linear-gradient(180deg, rgba(35, 105, 145, 0.98), rgba(8, 42, 68, 0.98)) !important;
 
   border-color: rgba(130, 215, 255, 0.48) !important;
 }
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
   width: 56px !important;
   min-width: 56px !important;
   max-width: 56px !important;
 }
-form.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
   width: 56px !important;
   min-width: 56px !important;
   max-width: 56px !important;
 }
 /* Botões do cabeçalho de Qualidades */
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions {
   display: flex !important;
   align-items: center !important;
   justify-content: flex-end !important;
   gap: 0.45rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions button {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions button {
   height: 28px !important;
   min-height: 28px !important;
 
@@ -13920,12 +13920,12 @@ form.dda-digimon-window-sheet .dda-qualities-tab .section-actions button {
   cursor: pointer !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions button:hover {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions button:hover {
   filter: brightness(1.12) !important;
 }
 
 /* Loja de Qualidades como botão principal */
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions .open-quality-browser {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions .open-quality-browser {
   min-width: 132px !important;
 
   background:
@@ -13935,21 +13935,21 @@ form.dda-digimon-window-sheet .dda-qualities-tab .section-actions .open-quality-
 }
 
 /* Restaurar Usos levemente roxo */
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions .restore-quality-uses {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions .restore-quality-uses {
   background:
     linear-gradient(180deg, rgba(92, 95, 175, 0.98), rgba(40, 42, 105, 0.98)) !important;
 
   border-color: rgba(175, 185, 255, 0.48) !important;
 }
 /* Botões do cabeçalho de Qualidades */
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions {
   display: flex !important;
   align-items: center !important;
   justify-content: flex-end !important;
   gap: 0.45rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions button {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions button {
   height: 28px !important;
   min-height: 28px !important;
 
@@ -13982,12 +13982,12 @@ form.dda-digimon-window-sheet .dda-qualities-tab .section-actions button {
   cursor: pointer !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions button:hover {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions button:hover {
   filter: brightness(1.12) !important;
 }
 
 /* Loja de Qualidades como botão principal */
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions .open-quality-browser {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions .open-quality-browser {
   min-width: 132px !important;
 
   background:
@@ -13997,14 +13997,14 @@ form.dda-digimon-window-sheet .dda-qualities-tab .section-actions .open-quality-
 }
 
 /* Restaurar Usos levemente roxo */
-form.dda-digimon-window-sheet .dda-qualities-tab .section-actions .restore-quality-uses {
+.dda-digimon-window-sheet .dda-qualities-tab .section-actions .restore-quality-uses {
   background:
     linear-gradient(180deg, rgba(92, 95, 175, 0.98), rgba(40, 42, 105, 0.98)) !important;
 
   border-color: rgba(175, 185, 255, 0.48) !important;
 }
 /* Lista de itens dentro do grupo */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-item-list {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-item-list {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 0.65rem !important;
@@ -14018,7 +14018,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-item-list {
 }
 
 /* Card da qualidade */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row {
   position: relative !important;
 
   display: grid !important;
@@ -14044,7 +14044,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row {
   overflow: hidden !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row::before {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row::before {
   content: "";
   position: absolute !important;
 
@@ -14065,7 +14065,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row::before {
     0 0 8px rgba(80, 190, 255, 0.32) !important;
 }
 /* Ícone */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row img {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row img {
   width: 30px !important;
   height: 30px !important;
 
@@ -14083,7 +14083,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row img {
 }
 
 /* Nome */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-name {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-name {
   min-width: 0 !important;
 
   display: flex !important;
@@ -14091,7 +14091,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-name {
   gap: 0.28rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-name > strong {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-name > strong {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
@@ -14112,13 +14112,13 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-name > stron
 }
 
 /* Tags */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tags {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tags {
   display: flex !important;
   flex-wrap: wrap !important;
   gap: 0.25rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag {
   min-height: 17px !important;
 
   display: inline-flex !important;
@@ -14147,47 +14147,47 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag {
     inset 0 -4px 6px rgba(0, 0, 0, 0.18) !important;
 }
 /* Tags especiais */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.cost {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.cost {
   background:
     linear-gradient(180deg, rgba(35, 105, 145, 0.95), rgba(8, 42, 68, 0.96)) !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.core {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.core {
   background:
     linear-gradient(180deg, rgba(65, 140, 90, 0.95), rgba(28, 75, 45, 0.96)) !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.free {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.free {
   background:
     linear-gradient(180deg, rgba(65, 140, 90, 0.95), rgba(28, 75, 45, 0.96)) !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.negative,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.warning {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.negative,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.warning {
   background:
     linear-gradient(180deg, rgba(150, 70, 90, 0.95), rgba(90, 30, 45, 0.96)) !important;
 
   border-color: rgba(235, 135, 155, 0.34) !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.rank,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.rank-limit {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.rank,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.rank-limit {
   background:
     linear-gradient(180deg, rgba(92, 95, 175, 0.95), rgba(40, 42, 105, 0.96)) !important;
 
   border-color: rgba(175, 185, 255, 0.34) !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.activation,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.active,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.uses {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.activation,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.active,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-tag.uses {
   background:
     linear-gradient(180deg, rgba(175, 120, 55, 0.95), rgba(90, 55, 22, 0.96)) !important;
 
   border-color: rgba(230, 170, 95, 0.34) !important;
 }
 /* Controles dos cards */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls {
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
@@ -14197,7 +14197,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls {
   min-width: 68px !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls button {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls button {
   width: 68px !important;
   min-width: 68px !important;
   max-width: 68px !important;
@@ -14235,19 +14235,19 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls but
   cursor: pointer !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls button:hover {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls button:hover {
   filter: brightness(1.12) !important;
 }
 
 /* Botão Ativar/Usar destacado */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls .quality-toggle-active {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls .quality-toggle-active {
   background:
     linear-gradient(180deg, rgba(35, 105, 145, 0.98), rgba(8, 42, 68, 0.98)) !important;
 
   border-color: rgba(130, 215, 255, 0.48) !important;
 }
 /* Escolhas */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-summary {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-summary {
   margin-top: 0.25rem !important;
   padding: 0.4rem 0.45rem !important;
 
@@ -14258,7 +14258,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-summary {
   border-radius: 7px !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-summary strong {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-summary strong {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -14267,14 +14267,14 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-summary strong 
   text-transform: uppercase !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-list {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-list {
   display: flex !important;
   flex-wrap: wrap !important;
   gap: 0.25rem !important;
   margin-top: 0.25rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-pill {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-pill {
   padding: 0.12rem 0.4rem !important;
 
   color: #eaf7ff !important;
@@ -14292,7 +14292,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-pill {
 }
 
 /* Aviso de requisito */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning {
   margin-top: 0.35rem !important;
   padding: 0.45rem 0.55rem !important;
 
@@ -14305,7 +14305,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning {
   border-radius: 7px !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning strong {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning strong {
   color: #612431 !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -14314,17 +14314,17 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning st
   text-transform: uppercase !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning ul {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning ul {
   margin: 0.25rem 0 0 1rem !important;
   padding: 0 !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning li {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-requirement-warning li {
   font-size: 0.76rem !important;
   line-height: 1.25 !important;
 }
 /* Estado vazio */
-form.dda-digimon-window-sheet .dda-qualities-tab > .muted {
+.dda-digimon-window-sheet .dda-qualities-tab > .muted {
   margin: 0 !important;
   padding: 0.75rem !important;
 
@@ -14336,12 +14336,12 @@ form.dda-digimon-window-sheet .dda-qualities-tab > .muted {
   border: 1px dashed rgba(45, 100, 135, 0.32) !important;
   border-radius: 10px !important;
 }
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row {
   grid-template-columns: 34px minmax(0, 1fr) 76px !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls button {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls button {
   width: 76px !important;
   min-width: 76px !important;
   max-width: 76px !important;
@@ -14350,7 +14350,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls but
 /* DDA — Digimon: Qualidades — clarear painel interno    */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group {
   background:
     linear-gradient(180deg, rgba(248, 252, 255, 0.96), rgba(224, 238, 248, 0.91)) !important;
 
@@ -14366,7 +14366,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-group {
 }
 
 /* Cabeçalho do grupo continua escuro, mas menor e mais limpo */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header {
   min-height: 42px !important;
 
   padding: 0.5rem 0.7rem !important;
@@ -14377,16 +14377,16 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header {
   border-bottom: 1px solid rgba(120, 200, 245, 0.24) !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header h3 {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header h3 {
   color: #eaf7ff !important;
   font-size: 0.82rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header p {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header p {
   color: rgba(234, 247, 255, 0.78) !important;
 }
 /* Área onde os cards ficam */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-item-list {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-item-list {
   background:
     linear-gradient(180deg, rgba(238, 248, 255, 0.94), rgba(220, 238, 248, 0.88)) !important;
 
@@ -14396,7 +14396,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-item-list {
   padding: 0.75rem !important;
 }
 /* Cards de Qualidade mais legíveis */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row {
   min-height: 86px !important;
 
   background:
@@ -14410,19 +14410,19 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row {
     0 1px 4px rgba(0, 0, 0, 0.08) !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-name > strong {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-name > strong {
   color: #173148 !important;
   text-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-summary {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-choice-summary {
   background:
     linear-gradient(180deg, rgba(240, 248, 255, 0.98), rgba(218, 234, 246, 0.94)) !important;
 
   border: 1px solid rgba(45, 100, 135, 0.22) !important;
 }
 /* Botões dos cards de qualidade mais suaves */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls button {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls button {
   background:
     linear-gradient(180deg, rgba(27, 78, 112, 0.98), rgba(8, 38, 62, 0.98)) !important;
 
@@ -14430,7 +14430,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls but
   border-radius: 999px !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls .item-delete {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls .item-delete {
   background:
     linear-gradient(180deg, rgba(110, 55, 70, 0.96), rgba(70, 25, 38, 0.96)) !important;
 
@@ -14443,11 +14443,11 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-row .item-controls .it
 /* ------------------------------------- */
 /* 1) Barra superior da aba Qualidades   */
 /* ------------------------------------- */
-form.dda-digimon-window-sheet .dda-qualities-tab .qualities-toolbar,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-toolbar,
-form.dda-digimon-window-sheet .dda-qualities-tab .dda-qualities-toolbar,
-form.dda-digimon-window-sheet .dda-qualities-tab > .tab-header,
-form.dda-digimon-window-sheet .dda-qualities-tab > header {
+.dda-digimon-window-sheet .dda-qualities-tab .qualities-toolbar,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-toolbar,
+.dda-digimon-window-sheet .dda-qualities-tab .dda-qualities-toolbar,
+.dda-digimon-window-sheet .dda-qualities-tab > .tab-header,
+.dda-digimon-window-sheet .dda-qualities-tab > header {
   background:
     linear-gradient(180deg, rgba(27, 78, 112, 0.96), rgba(8, 38, 62, 0.98)) !important;
 
@@ -14460,14 +14460,14 @@ form.dda-digimon-window-sheet .dda-qualities-tab > header {
     0 2px 6px rgba(0,0,0,0.14) !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .qualities-toolbar h2,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-toolbar h2,
-form.dda-digimon-window-sheet .dda-qualities-tab .dda-qualities-toolbar h2,
-form.dda-digimon-window-sheet .dda-qualities-tab > .tab-header h2,
-form.dda-digimon-window-sheet .dda-qualities-tab > header h2,
-form.dda-digimon-window-sheet .dda-qualities-tab .qualities-toolbar .section-title,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-toolbar .section-title,
-form.dda-digimon-window-sheet .dda-qualities-tab .dda-qualities-toolbar .section-title {
+.dda-digimon-window-sheet .dda-qualities-tab .qualities-toolbar h2,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-toolbar h2,
+.dda-digimon-window-sheet .dda-qualities-tab .dda-qualities-toolbar h2,
+.dda-digimon-window-sheet .dda-qualities-tab > .tab-header h2,
+.dda-digimon-window-sheet .dda-qualities-tab > header h2,
+.dda-digimon-window-sheet .dda-qualities-tab .qualities-toolbar .section-title,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-toolbar .section-title,
+.dda-digimon-window-sheet .dda-qualities-tab .dda-qualities-toolbar .section-title {
   color: #eef8ff !important;
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
   font-size: 1rem !important;
@@ -14480,7 +14480,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .dda-qualities-toolbar .section
 /* ------------------------------------- */
 /* 2) Header do grupo "Core"             */
 /* ------------------------------------- */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header {
   background:
     linear-gradient(180deg, rgba(25, 73, 105, 0.98), rgba(10, 45, 72, 0.98)) !important;
 
@@ -14491,8 +14491,8 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header {
     inset 0 -8px 14px rgba(0,0,0,0.10) !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header h3,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .group-title {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header h3,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .group-title {
   color: #f1fbff !important;
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
   font-size: 0.92rem !important;
@@ -14502,8 +14502,8 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .group-ti
   margin: 0 !important;
 }
 
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header p,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .group-description {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header p,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .group-description {
   color: rgba(232, 246, 255, 0.90) !important;
   font-size: 0.86rem !important;
   line-height: 1.25 !important;
@@ -14511,9 +14511,9 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .group-de
 }
 
 /* Bolinha com o número do grupo */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .quality-group-count,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .group-count,
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .count {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .quality-group-count,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .group-count,
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .count {
   min-width: 28px !important;
   height: 28px !important;
   padding: 0 8px !important;
@@ -14541,7 +14541,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-group-header .count {
 /* ------------------------------------- */
 /* 3) Caixa externa do grupo             */
 /* ------------------------------------- */
-form.dda-digimon-window-sheet .dda-qualities-tab .quality-group {
+.dda-digimon-window-sheet .dda-qualities-tab .quality-group {
   background:
     linear-gradient(180deg, rgba(244, 250, 255, 0.98), rgba(222, 238, 248, 0.93)) !important;
 
@@ -14559,7 +14559,7 @@ form.dda-digimon-window-sheet .dda-qualities-tab .quality-group {
 /* ===================================================== */
 
 /* Barra superior da aba Qualidades */
-form.dda-digimon-window-sheet.dda-digimon-sheet
+.dda-digimon-window-sheet.dda-digimon-sheet
   > .dda-window-shell
   .dda-window-paper
   .sheet-body
@@ -14588,7 +14588,7 @@ form.dda-digimon-window-sheet.dda-digimon-sheet
 }
 
 /* Título Qualidades */
-form.dda-digimon-window-sheet.dda-digimon-sheet
+.dda-digimon-window-sheet.dda-digimon-sheet
   .sheet-body
   > section.dda-qualities-tab[data-tab="qualities"]
   > .section-header
@@ -14615,7 +14615,7 @@ form.dda-digimon-window-sheet.dda-digimon-sheet
 /* DDA — Digimon: Qualidades — Core claro                */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet.dda-digimon-sheet
+.dda-digimon-window-sheet.dda-digimon-sheet
   .sheet-body
   > section.dda-qualities-tab[data-tab="qualities"]
   .quality-group
@@ -14641,7 +14641,7 @@ form.dda-digimon-window-sheet.dda-digimon-sheet
 }
 
 /* Remove qualquer fundo escuro no conteúdo interno do header */
-form.dda-digimon-window-sheet.dda-digimon-sheet
+.dda-digimon-window-sheet.dda-digimon-sheet
   .sheet-body
   > section.dda-qualities-tab[data-tab="qualities"]
   .quality-group-header
@@ -14652,7 +14652,7 @@ form.dda-digimon-window-sheet.dda-digimon-sheet
 }
 
 /* Nome do grupo: Core */
-form.dda-digimon-window-sheet.dda-digimon-sheet
+.dda-digimon-window-sheet.dda-digimon-sheet
   .sheet-body
   > section.dda-qualities-tab[data-tab="qualities"]
   .quality-group-header h3 {
@@ -14674,7 +14674,7 @@ form.dda-digimon-window-sheet.dda-digimon-sheet
 }
 
 /* Descrição do grupo */
-form.dda-digimon-window-sheet.dda-digimon-sheet
+.dda-digimon-window-sheet.dda-digimon-sheet
   .sheet-body
   > section.dda-qualities-tab[data-tab="qualities"]
   .quality-group-header p {
@@ -14694,7 +14694,7 @@ form.dda-digimon-window-sheet.dda-digimon-sheet
 }
 
 /* Contador do grupo */
-form.dda-digimon-window-sheet.dda-digimon-sheet
+.dda-digimon-window-sheet.dda-digimon-sheet
   .sheet-body
   > section.dda-qualities-tab[data-tab="qualities"]
   .quality-group-header
@@ -14727,7 +14727,7 @@ form.dda-digimon-window-sheet.dda-digimon-sheet
   text-shadow: none !important;
 }
 /* Caixa externa do grupo */
-form.dda-digimon-window-sheet.dda-digimon-sheet
+.dda-digimon-window-sheet.dda-digimon-sheet
   .sheet-body
   > section.dda-qualities-tab[data-tab="qualities"]
   .quality-group {
@@ -14748,7 +14748,7 @@ form.dda-digimon-window-sheet.dda-digimon-sheet
 /* DDA — Digimon: Aba Evolução estilo Digi-Escolhido     */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-evolution-tab.active {
+.dda-digimon-window-sheet .dda-evolution-tab.active {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.9rem !important;
@@ -14757,7 +14757,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab.active {
 }
 
 /* Título principal */
-form.dda-digimon-window-sheet .dda-evolution-tab > h2 {
+.dda-digimon-window-sheet .dda-evolution-tab > h2 {
   position: relative !important;
 
   margin: 0 !important;
@@ -14783,7 +14783,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab > h2 {
 }
 
 /* Texto explicativo */
-form.dda-digimon-window-sheet .dda-evolution-tab > .muted {
+.dda-digimon-window-sheet .dda-evolution-tab > .muted {
   margin: 0 !important;
   padding: 0.7rem 0.8rem !important;
 
@@ -14812,7 +14812,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab > .muted {
     0 1px 4px rgba(0, 0, 0, 0.08) !important;
 }
 /* Grade da linha evolutiva */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 0.75rem !important;
@@ -14832,7 +14832,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
     0 1px 4px rgba(0, 0, 0, 0.10) !important;
 }
 /* Card de estágio */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card {
   position: relative !important;
 
   display: flex !important;
@@ -14858,7 +14858,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card {
 }
 
 /* Barrinha lateral */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card::before {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card::before {
   content: "";
   position: absolute !important;
 
@@ -14880,7 +14880,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card::before {
 }
 
 /* Indicador no canto */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card::after {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card::after {
   content: "";
   position: absolute !important;
 
@@ -14899,7 +14899,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card::after {
 }
 
 /* Estado preenchido */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card.is-filled {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card.is-filled {
   border-color: rgba(45, 150, 195, 0.42) !important;
 
   box-shadow:
@@ -14908,7 +14908,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card.is-filled
     0 1px 4px rgba(0, 0, 0, 0.09) !important;
 }
 
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card.is-filled::after {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card.is-filled::after {
   background: rgba(95, 220, 135, 0.95) !important;
 
   box-shadow:
@@ -14916,7 +14916,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card.is-filled
     0 0 12px rgba(60, 190, 110, 0.35) !important;
 }
 /* Título do estágio */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card h3 {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card h3 {
   margin: 0 1.3rem 0.1rem 0 !important;
   padding: 0 0 0.35rem !important;
 
@@ -14935,7 +14935,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card h3 {
   box-shadow: none !important;
 }
 /* Zona de arrastar forma */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone {
   min-height: 74px !important;
 
   display: flex !important;
@@ -14967,7 +14967,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone {
     0 0 8px rgba(80, 190, 255, 0.12) !important;
 }
 
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone strong {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone strong {
   color: #173148 !important;
 
   font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
@@ -14978,7 +14978,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone strong {
   text-align: center !important;
 }
 
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone span {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone span {
   color: rgba(23, 49, 72, 0.72) !important;
 
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
@@ -14988,7 +14988,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone span {
 }
 
 /* Hover/drag */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone.drag-hover {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone.drag-hover {
   border-color: rgba(80, 190, 245, 0.85) !important;
 
   box-shadow:
@@ -14998,7 +14998,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-drop-zone.drag-hover
   filter: brightness(1.04) !important;
 }
 /* Inputs do estágio */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card input {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card input {
   width: 100% !important;
   height: 28px !important;
   min-height: 28px !important;
@@ -15025,11 +15025,11 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card input {
 }
 
 /* UUID: escondido visualmente, mas continua no HTML */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card input:nth-of-type(2) {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card input:nth-of-type(2) {
   display: none !important;
 }
 /* Botões dos estágios */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-actions {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-actions {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 0.45rem !important;
@@ -15042,7 +15042,7 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-a
   box-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-actions button {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-actions button {
   height: 26px !important;
   min-height: 26px !important;
 
@@ -15074,41 +15074,41 @@ form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-a
   cursor: pointer !important;
 }
 
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-actions button:hover {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-actions button:hover {
   filter: brightness(1.12) !important;
 }
 
 /* Limpar mais discreto/vermelho */
-form.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-actions .clear-evolution-form {
+.dda-digimon-window-sheet .dda-evolution-tab .evolution-stage-card .combat-actions .clear-evolution-form {
   background:
     linear-gradient(180deg, rgba(110, 55, 70, 0.96), rgba(70, 25, 38, 0.96)) !important;
 
   border-color: rgba(210, 120, 140, 0.36) !important;
 }
 @media (max-width: 920px) {
-  form.dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
+  .dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
 
 @media (max-width: 640px) {
-  form.dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
+  .dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
     grid-template-columns: 1fr !important;
   }
 }
 @media (max-width: 920px) {
-  form.dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
+  .dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
 
 @media (max-width: 640px) {
-  form.dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
+  .dda-digimon-window-sheet .dda-evolution-tab .evolution-line-grid {
     grid-template-columns: 1fr !important;
   }
 }
 /* Cards dos campos de Notas */
-form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked {
+.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked {
   position: relative !important;
 
   margin: 0 !important;
@@ -15129,7 +15129,7 @@ form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked {
 }
 
 /* Barrinha tecnológica superior */
-form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::before {
+.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::before {
   content: "";
   position: absolute !important;
 
@@ -15152,7 +15152,7 @@ form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::before {
 }
 
 /* Brilho lateral */
-form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::after {
+.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::after {
   content: "";
   position: absolute !important;
 
@@ -15175,7 +15175,7 @@ form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::after {
   pointer-events: none !important;
 }
 /* Labels dos campos */
-form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked label {
+.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked label {
   width: fit-content !important;
 
   display: inline-flex !important;
@@ -15206,7 +15206,7 @@ form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked label {
     0 1px 3px rgba(0, 0, 0, 0.14) !important;
 }
 /* Textareas */
-form.dda-digimon-window-sheet .dda-notes-tab textarea {
+.dda-digimon-window-sheet .dda-notes-tab textarea {
   width: 100% !important;
 
   min-height: 105px !important;
@@ -15238,7 +15238,7 @@ form.dda-digimon-window-sheet .dda-notes-tab textarea {
     inset 0 0 0 1px rgba(255, 255, 255, 0.52) !important;
 }
 
-form.dda-digimon-window-sheet .dda-notes-tab textarea:focus {
+.dda-digimon-window-sheet .dda-notes-tab textarea:focus {
   outline: none !important;
 
   border-color: rgba(80, 185, 240, 0.78) !important;
@@ -15249,16 +15249,16 @@ form.dda-digimon-window-sheet .dda-notes-tab textarea:focus {
     0 0 8px rgba(80, 190, 255, 0.32) !important;
 }
 /* Alturas específicas */
-form.dda-digimon-window-sheet .dda-notes-tab textarea[name="system.profile.appearance"],
-form.dda-digimon-window-sheet .dda-notes-tab textarea[name="system.profile.personality"] {
+.dda-digimon-window-sheet .dda-notes-tab textarea[name="system.profile.appearance"],
+.dda-digimon-window-sheet .dda-notes-tab textarea[name="system.profile.personality"] {
   min-height: 115px !important;
 }
 
-form.dda-digimon-window-sheet .dda-notes-tab textarea[name="system.notes"] {
+.dda-digimon-window-sheet .dda-notes-tab textarea[name="system.notes"] {
   min-height: 155px !important;
 }
 /* Aparência + Personalidade lado a lado */
-form.dda-digimon-window-sheet .dda-notes-tab .dda-digimon-notes-profile-grid {
+.dda-digimon-window-sheet .dda-notes-tab .dda-digimon-notes-profile-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 0.75rem !important;
@@ -15270,7 +15270,7 @@ form.dda-digimon-window-sheet .dda-notes-tab .dda-digimon-notes-profile-grid {
 /* ===================================================== */
 
 /* Aba */
-form.dda-digimon-window-sheet .dda-notes-tab.active {
+.dda-digimon-window-sheet .dda-notes-tab.active {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.75rem !important;
@@ -15279,7 +15279,7 @@ form.dda-digimon-window-sheet .dda-notes-tab.active {
 }
 
 /* Título NOTAS igual ao Digi-Escolhido */
-form.dda-digimon-window-sheet .dda-notes-tab > h2 {
+.dda-digimon-window-sheet .dda-notes-tab > h2 {
   position: relative !important;
 
   margin: 0 !important;
@@ -15300,7 +15300,7 @@ form.dda-digimon-window-sheet .dda-notes-tab > h2 {
   text-shadow: none !important;
 }
 
-form.dda-digimon-window-sheet .dda-notes-tab > h2::after {
+.dda-digimon-window-sheet .dda-notes-tab > h2::after {
   content: "";
   position: absolute !important;
 
@@ -15325,7 +15325,7 @@ form.dda-digimon-window-sheet .dda-notes-tab > h2::after {
     0 0 9px rgba(60, 170, 235, 0.35) !important;
 }
 /* Cards de notas — versão mais limpa */
-form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked {
+.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked {
   position: relative !important;
 
   margin: 0 !important;
@@ -15346,14 +15346,14 @@ form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked {
 }
 
 /* Remove barrinhas/painéis extras que deixavam diferente */
-form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::before,
-form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::after {
+.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::before,
+.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked::after {
   content: none !important;
   display: none !important;
 }
 
 /* Labels discretos, não em pílula */
-form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked label {
+.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked label {
   display: block !important;
 
   width: auto !important;
@@ -15377,7 +15377,7 @@ form.dda-digimon-window-sheet .dda-notes-tab .form-group.stacked label {
   text-shadow: none !important;
 }
 /* Textareas iguais aos do Digi-Escolhido */
-form.dda-digimon-window-sheet .dda-notes-tab textarea {
+.dda-digimon-window-sheet .dda-notes-tab textarea {
   width: 100% !important;
 
   min-height: 92px !important;
@@ -15402,7 +15402,7 @@ form.dda-digimon-window-sheet .dda-notes-tab textarea {
     inset 0 0 0 1px rgba(255, 255, 255, 0.52) !important;
 }
 
-form.dda-digimon-window-sheet .dda-notes-tab textarea:focus {
+.dda-digimon-window-sheet .dda-notes-tab textarea:focus {
   outline: none !important;
 
   border-color: rgba(80, 185, 240, 0.78) !important;
@@ -15413,7 +15413,7 @@ form.dda-digimon-window-sheet .dda-notes-tab textarea:focus {
     0 0 8px rgba(80, 190, 255, 0.32) !important;
 }
 /* Aparência + Personalidade lado a lado */
-form.dda-digimon-window-sheet .dda-notes-tab .dda-digimon-notes-profile-grid {
+.dda-digimon-window-sheet .dda-notes-tab .dda-digimon-notes-profile-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 0.75rem !important;
@@ -15422,7 +15422,7 @@ form.dda-digimon-window-sheet .dda-notes-tab .dda-digimon-notes-profile-grid {
 }
 
 /* Notas maior embaixo */
-form.dda-digimon-window-sheet .dda-notes-tab textarea[name="system.notes"] {
+.dda-digimon-window-sheet .dda-notes-tab textarea[name="system.notes"] {
   min-height: 145px !important;
 }
 /* ===================================================== */
@@ -15430,21 +15430,21 @@ form.dda-digimon-window-sheet .dda-notes-tab textarea[name="system.notes"] {
 /* ===================================================== */
 
 /* A janela não deve rolar inteira */
-.window-app.dda.sheet.actor.digimon .window-content,
+:is(.window-app, .application).dda.sheet.actor.digimon .window-content,
 .window-app.dda.sheet.actor.npc .window-content,
-form.dda-digimon-window-sheet {
+.dda-digimon-window-sheet {
   overflow: visible !important;
 }
 
 /* O shell e o frame precisam respeitar altura interna */
-form.dda-digimon-window-sheet .dda-window-shell,
-form.dda-digimon-window-sheet .dda-window-frame {
+.dda-digimon-window-sheet .dda-window-shell,
+.dda-digimon-window-sheet .dda-window-frame {
   min-height: 0 !important;
   overflow: visible !important;
 }
 
 /* O papel vira uma coluna fixa: header + tabs + corpo rolável */
-form.dda-digimon-window-sheet .dda-window-paper {
+.dda-digimon-window-sheet .dda-window-paper {
   display: flex !important;
   flex-direction: column !important;
 
@@ -15455,23 +15455,23 @@ form.dda-digimon-window-sheet .dda-window-paper {
 }
 
 /* Header fixo */
-form.dda-digimon-window-sheet .sheet-header,
-form.dda-digimon-window-sheet .dda-profile-header,
-form.dda-digimon-window-sheet .dda-digimon-header {
+.dda-digimon-window-sheet .sheet-header,
+.dda-digimon-window-sheet .dda-profile-header,
+.dda-digimon-window-sheet .dda-digimon-header {
   flex: 0 0 auto !important;
   position: relative !important;
   z-index: 20 !important;
 }
 
 /* Abas fixas */
-form.dda-digimon-window-sheet .sheet-tabs {
+.dda-digimon-window-sheet .sheet-tabs {
   flex: 0 0 auto !important;
   position: relative !important;
   z-index: 19 !important;
 }
 
 /* Só o corpo das abas rola */
-form.dda-digimon-window-sheet .sheet-body {
+.dda-digimon-window-sheet .sheet-body {
   flex: 1 1 auto !important;
   min-height: 0 !important;
 
@@ -15481,8 +15481,8 @@ form.dda-digimon-window-sheet .sheet-body {
   padding-right: 0.25rem !important;
 }
 /* Trava extra: impede que o frame vire o scroll principal */
-form.dda-digimon-window-sheet .dda-window-frame,
-form.dda-digimon-window-sheet .dda-window-paper {
+.dda-digimon-window-sheet .dda-window-frame,
+.dda-digimon-window-sheet .dda-window-paper {
   max-height: 100% !important;
 }
 
@@ -16058,7 +16058,7 @@ form.dda-digimon-window-sheet .dda-window-paper {
 /* Linha 2: Type      | Group                            */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row,
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row,
 .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row,
 .dda-digimon-sheet .dda-digimon-classification-row {
   display: flex !important;
@@ -16079,7 +16079,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row,
     0 3px 10px rgba(0, 0, 0, 0.12) !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .dda-classification-line,
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .dda-classification-line,
 .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row .dda-classification-line,
 .dda-digimon-sheet .dda-digimon-classification-row .dda-classification-line {
   display: grid !important;
@@ -16088,7 +16088,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .
   width: 100% !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .form-group,
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .form-group,
 .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row .form-group,
 .dda-digimon-sheet .dda-digimon-classification-row .form-group {
   display: flex !important;
@@ -16101,7 +16101,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .
   padding: 0 !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row label,
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row label,
 .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row label,
 .dda-digimon-sheet .dda-digimon-classification-row label {
   display: block !important;
@@ -16120,8 +16120,8 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row l
   white-space: nowrap !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row select,
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row input,
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row select,
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row input,
 .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row select,
 .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row input,
 .dda-digimon-sheet .dda-digimon-classification-row select,
@@ -16153,19 +16153,19 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row i
     inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row select,
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row select,
 .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row select,
 .dda-digimon-sheet .dda-digimon-classification-row select {
   padding: 0.15rem 1.65rem 0.15rem 0.45rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row input,
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row input,
 .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row input,
 .dda-digimon-sheet .dda-digimon-classification-row input {
   padding: 0.15rem 0.45rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row select option,
+.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row select option,
 .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row select option,
 .dda-digimon-sheet .dda-digimon-classification-row select option {
   text-align: center !important;
@@ -16173,7 +16173,7 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row s
 }
 
 @media (max-width: 640px) {
-  form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .dda-classification-line,
+  .dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row .dda-classification-line,
   .dda-digimon-sheet .dda-summary-tab .dda-digimon-classification-row .dda-classification-line,
   .dda-digimon-sheet .dda-digimon-classification-row .dda-classification-line {
     grid-template-columns: 1fr !important;
@@ -16183,14 +16183,14 @@ form.dda-digimon-window-sheet .dda-summary-tab .dda-digimon-classification-row s
 /* DDA — Digimon: equalizar campos de classificação      */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-line {
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-line {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 0.75rem !important;
   width: 100% !important;
 }
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row .form-group {
+.dda-digimon-window-sheet .dda-digimon-classification-row .form-group {
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
@@ -16202,7 +16202,7 @@ form.dda-digimon-window-sheet .dda-digimon-classification-row .form-group {
   padding: 0 !important;
 }
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row label {
+.dda-digimon-window-sheet .dda-digimon-classification-row label {
   display: block !important;
   width: 100% !important;
   min-width: 0 !important;
@@ -16219,12 +16219,12 @@ form.dda-digimon-window-sheet .dda-digimon-classification-row label {
   white-space: nowrap !important;
 }
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row select,
-form.dda-digimon-window-sheet .dda-digimon-classification-row input,
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-family select,
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-attribute select,
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-digimon-type select,
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-group input {
+.dda-digimon-window-sheet .dda-digimon-classification-row select,
+.dda-digimon-window-sheet .dda-digimon-classification-row input,
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-family select,
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-attribute select,
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-digimon-type select,
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-group input {
   display: block !important;
   width: 100% !important;
   min-width: 0 !important;
@@ -16254,15 +16254,15 @@ form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classificatio
     inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
 }
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row select {
+.dda-digimon-window-sheet .dda-digimon-classification-row select {
   padding: 0.15rem 1.65rem 0.15rem 0.45rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row input {
+.dda-digimon-window-sheet .dda-digimon-classification-row input {
   padding: 0.15rem 0.45rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row select option {
+.dda-digimon-window-sheet .dda-digimon-classification-row select option {
   color: #102f46 !important;
   background: #e8f2f8 !important;
   font-family: Arial, sans-serif !important;
@@ -16272,24 +16272,24 @@ form.dda-digimon-window-sheet .dda-digimon-classification-row select option {
 /* DDA — Digimon: correção final do campo Family         */
 /* ===================================================== */
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row {
+.dda-digimon-window-sheet .dda-digimon-classification-row {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.75rem !important;
 }
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-line {
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-line {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
   gap: 0.75rem !important;
   width: 100% !important;
 }
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row .form-group,
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-attribute,
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-dda-family,
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-digimon-type,
-form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-group {
+.dda-digimon-window-sheet .dda-digimon-classification-row .form-group,
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-attribute,
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-dda-family,
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-digimon-type,
+.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classification-group {
   width: 100% !important;
   max-width: none !important;
   min-width: 0 !important;
@@ -16303,9 +16303,9 @@ form.dda-digimon-window-sheet .dda-digimon-classification-row .dda-classificatio
   padding: 0 !important;
 }
 
-form.dda-digimon-window-sheet .dda-digimon-classification-row select,
-form.dda-digimon-window-sheet .dda-digimon-classification-row input,
-form.dda-digimon-window-sheet .dda-classification-dda-family select {
+.dda-digimon-window-sheet .dda-digimon-classification-row select,
+.dda-digimon-window-sheet .dda-digimon-classification-row input,
+.dda-digimon-window-sheet .dda-classification-dda-family select {
   display: block !important;
 
   width: 100% !important;
@@ -16806,7 +16806,7 @@ form.dda-digimon-window-sheet .dda-classification-dda-family select {
 /* FINAL OVERRIDE — keep this near the end of dda.css    */
 /* ===================================================== */
 
-.window-app.dda.sheet.actor.digimon,
+:is(.window-app, .application).dda.sheet.actor.digimon,
 .window-app.dda.sheet.actor.npc {
   background: transparent !important;
   border: none !important;
@@ -16814,7 +16814,7 @@ form.dda-digimon-window-sheet .dda-classification-dda-family select {
   overflow: visible !important;
 }
 
-.window-app.dda.sheet.actor.digimon .window-header,
+:is(.window-app, .application).dda.sheet.actor.digimon .window-header,
 .window-app.dda.sheet.actor.npc .window-header {
   height: 12px !important;
   min-height: 12px !important;
@@ -16829,14 +16829,14 @@ form.dda-digimon-window-sheet .dda-classification-dda-family select {
   cursor: move !important;
 }
 
-.window-app.dda.sheet.actor.digimon .window-title,
-.window-app.dda.sheet.actor.digimon .window-header a.header-button,
+:is(.window-app, .application).dda.sheet.actor.digimon .window-title,
+:is(.window-app, .application).dda.sheet.actor.digimon .window-header a.header-button,
 .window-app.dda.sheet.actor.npc .window-title,
 .window-app.dda.sheet.actor.npc .window-header a.header-button {
   display: none !important;
 }
 
-.window-app.dda.sheet.actor.digimon .window-content,
+:is(.window-app, .application).dda.sheet.actor.digimon .window-content,
 .window-app.dda.sheet.actor.npc .window-content {
   margin-top: -12px !important;
   padding: 0 !important;
@@ -16850,7 +16850,7 @@ form.dda-digimon-window-sheet .dda-classification-dda-family select {
   min-height: 0 !important;
 }
 
-form.dda-digimon-window-sheet,
+.dda-digimon-window-sheet,
 .dda-digimon-window-shell {
   position: relative !important;
   display: flex !important;
@@ -16908,7 +16908,7 @@ form.dda-digimon-window-sheet,
     drop-shadow(0 0 10px rgba(90, 180, 255, 0.30)) !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-dragging .dda-window-side-device,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-dragging .dda-window-side-device,
 .window-app.dda.sheet.actor.npc.dda-digivice-dragging .dda-window-side-device {
   cursor: grabbing !important;
 }
@@ -17032,7 +17032,7 @@ form.dda-digimon-window-sheet,
 }
 
 /* Modo minimizado idêntico em comportamento ao Tamer */
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed {
   width: 235px !important;
   height: 225px !important;
@@ -17044,10 +17044,10 @@ form.dda-digimon-window-sheet,
   overflow: visible !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame-glow,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-paper,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .window-resizable-handle,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-frame-glow,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-paper,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .window-resizable-handle,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed .dda-window-frame,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed .dda-window-frame-glow,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed .dda-window-paper,
@@ -17055,16 +17055,16 @@ form.dda-digimon-window-sheet,
   display: none !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .window-header,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .window-header,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed .window-header {
   display: none !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .window-content,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed form.dda-digimon-window-sheet,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-shell,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .window-content,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-sheet,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-digimon-window-shell,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed .window-content,
-.window-app.dda.sheet.actor.npc.dda-digivice-collapsed form.dda-digimon-window-sheet,
+.window-app.dda.sheet.actor.npc.dda-digivice-collapsed .dda-digimon-window-sheet,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed .dda-digimon-window-shell {
   display: block !important;
   width: 235px !important;
@@ -17077,7 +17077,7 @@ form.dda-digimon-window-sheet,
   overflow: visible !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-side-device,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-window-side-device,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed .dda-window-side-device {
   display: block !important;
   left: 0 !important;
@@ -17092,8 +17092,8 @@ form.dda-digimon-window-sheet,
   cursor: grab !important;
 }
 
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-device-portrait,
-.window-app.dda.sheet.actor.digimon.dda-digivice-collapsed .dda-device-button,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-device-portrait,
+:is(.window-app, .application).dda.sheet.actor.digimon.dda-digivice-collapsed .dda-device-button,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed .dda-device-portrait,
 .window-app.dda.sheet.actor.npc.dda-digivice-collapsed .dda-device-button {
   display: block !important;
@@ -17312,7 +17312,7 @@ video.dda-device-portrait {
 /* DDA — Digimon: Quality Resources / Resolve hotfix      */
 /* ===================================================== */
 
-html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid {
+html body .dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(180px, 220px)) !important;
   gap: 0.75rem !important;
@@ -17322,7 +17322,7 @@ html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid 
   padding: 0.75rem !important;
 }
 
-html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box {
+html body .dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box {
   display: grid !important;
   grid-template-rows: auto auto !important;
   align-items: center !important;
@@ -17335,7 +17335,7 @@ html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid 
   padding: 0.65rem 0.75rem !important;
 }
 
-html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box label {
+html body .dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box label {
   display: block !important;
   width: 100% !important;
   margin: 0 !important;
@@ -17353,7 +17353,7 @@ html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid 
   -webkit-text-fill-color: #e9f8ff !important;
 }
 
-html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box .inline-inputs {
+html body .dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box .inline-inputs {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
   align-items: center !important;
@@ -17364,7 +17364,7 @@ html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid 
   margin: 0 !important;
 }
 
-html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box .inline-inputs span {
+html body .dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box .inline-inputs span {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -17376,7 +17376,7 @@ html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid 
   opacity: 0.9 !important;
 }
 
-html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box input[type="number"] {
+html body .dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box input[type="number"] {
   width: 100% !important;
   min-width: 0 !important;
   height: 34px !important;
@@ -17396,7 +17396,7 @@ html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid 
 /* DDA — Digimon Sheet: Quality Resources polish          */
 /* ===================================================== */
 
-html body form.dda-digimon-window-sheet .quality-resources-grid,
+html body .dda-digimon-window-sheet .quality-resources-grid,
 html body .dda-digimon-sheet .quality-resources-grid {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(150px, 190px)) !important;
@@ -17408,7 +17408,7 @@ html body .dda-digimon-sheet .quality-resources-grid {
   margin: 0 !important;
 }
 
-html body form.dda-digimon-window-sheet .quality-resources-grid .resource-box,
+html body .dda-digimon-window-sheet .quality-resources-grid .resource-box,
 html body .dda-digimon-sheet .quality-resources-grid .resource-box {
   position: relative !important;
 
@@ -17434,7 +17434,7 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box {
     inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
 }
 
-html body form.dda-digimon-window-sheet .quality-resources-grid .resource-box::after,
+html body .dda-digimon-window-sheet .quality-resources-grid .resource-box::after,
 html body .dda-digimon-sheet .quality-resources-grid .resource-box::after {
   content: "" !important;
   position: absolute !important;
@@ -17449,7 +17449,7 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box::after {
   box-shadow: 0 0 8px rgba(126, 234, 255, 0.95) !important;
 }
 
-html body form.dda-digimon-window-sheet .quality-resources-grid .resource-box label,
+html body .dda-digimon-window-sheet .quality-resources-grid .resource-box label,
 html body .dda-digimon-sheet .quality-resources-grid .resource-box label {
   display: block !important;
   width: 100% !important;
@@ -17473,7 +17473,7 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box label {
     0 0 5px rgba(255, 255, 255, 0.8) !important;
 }
 
-html body form.dda-digimon-window-sheet .quality-resources-grid .resource-box .inline-inputs,
+html body .dda-digimon-window-sheet .quality-resources-grid .resource-box .inline-inputs,
 html body .dda-digimon-sheet .quality-resources-grid .resource-box .inline-inputs {
   display: grid !important;
   grid-template-columns: minmax(44px, 1fr) 14px minmax(44px, 1fr) !important;
@@ -17486,7 +17486,7 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box .inline-input
   padding: 0 !important;
 }
 
-html body form.dda-digimon-window-sheet .quality-resources-grid .resource-box .inline-inputs span,
+html body .dda-digimon-window-sheet .quality-resources-grid .resource-box .inline-inputs span,
 html body .dda-digimon-sheet .quality-resources-grid .resource-box .inline-inputs span {
   display: inline-flex !important;
   align-items: center !important;
@@ -17501,12 +17501,12 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box .inline-input
   opacity: 1 !important;
 }
 
-html body form.dda-digimon-window-sheet .quality-resources-grid .resource-box .inline-inputs span:empty::before,
+html body .dda-digimon-window-sheet .quality-resources-grid .resource-box .inline-inputs span:empty::before,
 html body .dda-digimon-sheet .quality-resources-grid .resource-box .inline-inputs span:empty::before {
   content: "/" !important;
 }
 
-html body form.dda-digimon-window-sheet .quality-resources-grid .resource-box input[type="number"],
+html body .dda-digimon-window-sheet .quality-resources-grid .resource-box input[type="number"],
 html body .dda-digimon-sheet .quality-resources-grid .resource-box input[type="number"] {
   display: block !important;
 
@@ -17535,7 +17535,7 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box input[type="n
     0 1px 0 rgba(255, 255, 255, 0.55) !important;
 }
 
-html body form.dda-digimon-window-sheet .quality-resources-grid .resource-box input[type="number"]:focus,
+html body .dda-digimon-window-sheet .quality-resources-grid .resource-box input[type="number"]:focus,
 html body .dda-digimon-sheet .quality-resources-grid .resource-box input[type="number"]:focus {
   outline: none !important;
   border-color: rgba(82, 213, 255, 0.8) !important;
@@ -17544,7 +17544,7 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box input[type="n
     inset 0 1px 4px rgba(0, 0, 0, 0.28) !important;
 }
 /* DDA — cor do título RESOLVE / Quality Resources */
-html body form.dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box label,
+html body .dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box label,
 html body .dda-digimon-sheet .dda-combat-tab .quality-resources-grid .resource-box label,
 html body .dda-digimon-sheet .quality-resources-grid .resource-box label {
   color: #24526b !important;
@@ -18070,8 +18070,8 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box label {
 /* ===================================================== */
 
 /* Remove qualquer pseudo-glow antigo nos botões do Digivice */
-.window-app.dda.sheet.actor.digimon .dda-window-side-device .dda-device-button::before,
-.window-app.dda.sheet.actor.digimon .dda-window-side-device .dda-device-button::after,
+:is(.window-app, .application).dda.sheet.actor.digimon .dda-window-side-device .dda-device-button::before,
+:is(.window-app, .application).dda.sheet.actor.digimon .dda-window-side-device .dda-device-button::after,
 .window-app.dda.sheet.actor.npc .dda-window-side-device .dda-device-button::before,
 .window-app.dda.sheet.actor.npc .dda-window-side-device .dda-device-button::after,
 .dda-digimon-window-shell .dda-window-side-device .dda-device-button::before,
@@ -18089,7 +18089,7 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box label {
 }
 
 /* Garante que o botão em si usa só o efeito novo */
-.window-app.dda.sheet.actor.digimon .dda-window-side-device .dda-device-button,
+:is(.window-app, .application).dda.sheet.actor.digimon .dda-window-side-device .dda-device-button,
 .window-app.dda.sheet.actor.npc .dda-window-side-device .dda-device-button,
 .dda-digimon-window-shell .dda-window-side-device .dda-device-button {
   background: rgba(255, 255, 255, 0.001) !important;
@@ -18103,7 +18103,7 @@ html body .dda-digimon-sheet .quality-resources-grid .resource-box label {
 }
 
 /* Hover novo: intensifica a cor real por baixo, sem glow azul antigo */
-.window-app.dda.sheet.actor.digimon .dda-window-side-device .dda-device-button:hover,
+:is(.window-app, .application).dda.sheet.actor.digimon .dda-window-side-device .dda-device-button:hover,
 .window-app.dda.sheet.actor.npc .dda-window-side-device .dda-device-button:hover,
 .dda-digimon-window-shell .dda-window-side-device .dda-device-button:hover {
   background: rgba(255, 255, 255, 0.025) !important;
@@ -18744,4 +18744,1410 @@ form.dda-ally-npc-sheet
   border-color: rgba(255, 202, 74, 0.75);
   background: linear-gradient(180deg, rgba(166, 93, 16, 0.96), rgba(89, 47, 9, 0.98));
   color: #fff4ce;
+}
+
+/* Digimon/NPC sheet: keep the exposed side gutter truly transparent. */
+:is(.window-app, .application).dda-digimon-sheet-window,
+:is(.window-app, .application).dda-digimon-sheet-window > .window-content {
+  --background-color: transparent !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
++
+
+/* ===================================================== */
+/* DDA — Evolution dialog suite                          */
+/* ===================================================== */
+
+:is(.window-app, .application):has(.dda-evolution-options-dialog) .window-content,
+:is(.window-app, .application):has(.dda-evolution-form-dialog) .window-content,
+.application.dda-evolution-cost-dialog .window-content,
+.application:has(.dda-evolution-confirm-dialog) .window-content {
+  color: #183a57;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(90, 205, 255, 0.26), transparent 32%),
+    linear-gradient(155deg, #f7fbff 0%, #deedf8 58%, #c5dceb 100%) !important;
+}
+
+:is(.window-app, .application):has(.dda-evolution-options-dialog) .window-content,
+:is(.window-app, .application):has(.dda-evolution-form-dialog) .window-content {
+  padding: 14px !important;
+}
+
+.dda-evolution-options-dialog,
+.dda-evolution-form-dialog,
+.dda-evolution-confirm-dialog {
+  --dda-evo-navy: #062c4d;
+  --dda-evo-blue: #0f6fa7;
+  --dda-evo-cyan: #55d8ff;
+  --dda-evo-line: rgba(25, 105, 150, 0.28);
+  --dda-evo-paper: rgba(250, 253, 255, 0.88);
+  color: #183a57;
+}
+
+/* Digivolution method selector */
+.dda-evolution-options-dialog {
+  padding: 0;
+}
+
+.dda-evolution-options-hero {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  overflow: hidden;
+  position: relative;
+  background:
+    linear-gradient(115deg, rgba(3, 39, 70, 0.98), rgba(9, 82, 128, 0.96));
+  border: 1px solid rgba(115, 218, 255, 0.55);
+  border-radius: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 5px 14px rgba(10, 45, 72, 0.18);
+}
+
+.dda-evolution-options-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -28px -50px auto;
+  width: 150px;
+  height: 150px;
+  border: 18px solid rgba(110, 220, 255, 0.08);
+  border-radius: 50%;
+}
+
+.dda-evolution-options-emblem {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: #eafaff;
+  font-size: 1.28rem;
+  background: linear-gradient(145deg, #168dcb, #06466f);
+  border: 1px solid rgba(175, 239, 255, 0.72);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 4px rgba(3, 31, 57, 0.42),
+    0 0 15px rgba(69, 207, 255, 0.4);
+}
+
+.dda-evolution-options-hero > div {
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.dda-evolution-options-kicker {
+  color: #75ddff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.dda-evolution-options-hero p {
+  margin: 3px 0 0;
+  color: #f2fbff;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 9px !important;
+  margin-top: 10px;
+  padding: 0 14px 14px !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(90, 205, 255, 0.26), transparent 32%),
+    linear-gradient(155deg, #f7fbff 0%, #deedf8 58%, #c5dceb 100%) !important;
+}
+
+.window-app:has(.dda-evolution-options-dialog.has-2-options) .dialog-buttons {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.window-app:has(.dda-evolution-options-dialog.has-3-options) .dialog-buttons {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button:not([data-button="cancel"]) {
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-height: 84px;
+  margin: 0 !important;
+  padding: 10px !important;
+  text-align: left;
+  white-space: normal;
+  background: linear-gradient(180deg, #104565, #092b42) !important;
+  border-color: rgba(107, 202, 239, 0.48) !important;
+  border-width: 1px 1px 3px !important;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button:not([data-button="cancel"]) > i {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin: 0 !important;
+  color: #fff;
+  font-size: 1rem;
+  background: rgba(83, 205, 255, 0.17);
+  border: 1px solid rgba(151, 230, 255, 0.35);
+  border-radius: 50%;
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button[data-button="normal"] {
+  border-bottom-color: #4ed8ff !important;
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button[data-button="normal"] > i {
+  color: #c9f7ff;
+  background: rgba(65, 199, 240, 0.16);
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button[data-button="forced"] {
+  border-color: rgba(240, 184, 83, 0.48) !important;
+  border-bottom-color: #ffbd4b !important;
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button[data-button="forced"] > i {
+  color: #ffe2a6;
+  background: rgba(240, 173, 57, 0.15);
+  border-color: rgba(255, 205, 115, 0.38);
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button[data-button="blast"] {
+  border-color: rgba(238, 104, 188, 0.5) !important;
+  border-bottom-color: #ff65bd !important;
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button[data-button="blast"] > i {
+  color: #ffd1ec;
+  background: rgba(237, 84, 179, 0.15);
+  border-color: rgba(255, 145, 214, 0.38);
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button:not([data-button="cancel"]):hover {
+  transform: translateY(-2px);
+  filter: brightness(1.12);
+}
+
+.dda-evolution-option-label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.dda-evolution-option-label strong {
+  color: #fff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.055em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.dda-evolution-option-label small {
+  color: rgba(236, 249, 255, 0.82);
+  font-family: "PixelOperator", Arial, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.18;
+  text-transform: none;
+}
+
+.window-app:has(.dda-evolution-options-dialog) .dialog-buttons button[data-button="cancel"] {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  margin: 0 !important;
+  background: linear-gradient(180deg, rgba(53, 75, 91, 0.94), rgba(27, 42, 53, 0.98)) !important;
+  border-color: rgba(140, 174, 194, 0.5) !important;
+}
+
+/* Normal form selector */
+.dda-evolution-form-dialog {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+}
+
+.dda-evolution-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr);
+  gap: 9px;
+  align-items: stretch;
+}
+
+.dda-evolution-route-node {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px;
+  position: relative;
+  background: var(--dda-evo-paper);
+  border: 1px solid var(--dda-evo-line);
+  border-radius: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 3px 9px rgba(16, 62, 91, 0.11);
+}
+
+.dda-evolution-route-node.is-current {
+  border-left: 4px solid #668aa1;
+}
+
+.dda-evolution-route-node.is-target {
+  padding-right: 66px;
+  border-left: 4px solid #18a6de;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(78, 211, 255, 0.22), transparent 38%),
+    var(--dda-evo-paper);
+}
+
+.dda-evolution-route-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  color: #eafdff;
+  background: linear-gradient(145deg, #117db5, #073b61);
+  border: 1px solid rgba(128, 218, 255, 0.65);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 3px rgba(4, 33, 57, 0.3);
+}
+
+.dda-evolution-route-node.is-current .dda-evolution-route-icon {
+  color: #dcebf3;
+  background: linear-gradient(145deg, #617f91, #304b5e);
+  border-color: rgba(176, 204, 220, 0.7);
+}
+
+.dda-evolution-route-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.dda-evolution-route-copy small {
+  color: #54748a;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.64rem;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.dda-evolution-route-copy strong {
+  overflow: hidden;
+  margin-top: 3px;
+  color: #0a3858;
+  font-family: "Reactor7", monospace;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-evolution-route-copy em {
+  color: #47738e;
+  font-family: "PixelOperator", Arial, sans-serif;
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.dda-evolution-route-axis {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  color: #147bab;
+  text-align: center;
+}
+
+.dda-evolution-route-axis span {
+  max-width: 82px;
+  color: #476d84;
+  font-family: "PixelOperator", Arial, sans-serif;
+  font-size: 0.72rem;
+  line-height: 1.05;
+}
+
+.dda-evolution-route-axis i {
+  font-size: 1.35rem;
+  filter: drop-shadow(0 0 5px rgba(55, 186, 232, 0.4));
+}
+
+.dda-evolution-route-cost {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  max-width: 58px;
+  padding: 3px 6px;
+  overflow: hidden;
+  color: #effcff;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.035em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: linear-gradient(180deg, #168dc4, #07547d);
+  border: 1px solid rgba(121, 220, 255, 0.66);
+  border-radius: 999px;
+}
+
+.dda-evolution-route-cost.is-blocked {
+  background: linear-gradient(180deg, #a14a4a, #642525);
+  border-color: rgba(255, 159, 159, 0.7);
+}
+
+.dda-evolution-form-selector {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(245, 251, 255, 0.76);
+  border: 1px solid var(--dda-evo-line);
+  border-radius: 9px;
+}
+
+.dda-evolution-form-selector label {
+  color: #164866;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+
+.dda-evolution-form-selector label i {
+  margin-right: 5px;
+  color: #1498ce;
+}
+
+.dda-evolution-form-dialog .dda-evolution-form-selector select {
+  min-width: 0;
+  margin: 0;
+}
+
+.dda-evolution-dialog-hint {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 8px 10px;
+  color: #315d77;
+  font-size: 0.8rem;
+  line-height: 1.28;
+  background: rgba(68, 170, 220, 0.1);
+  border-left: 3px solid #24a7da;
+  border-radius: 5px;
+}
+
+.dda-evolution-dialog-hint > i {
+  margin-top: 1px;
+  color: #168fbd;
+}
+
+:is(.window-app, .application):has(.dda-evolution-form-dialog) :is(.dialog-buttons, .form-footer) {
+  gap: 8px;
+  padding: 0 14px 14px !important;
+  background:
+    linear-gradient(155deg, #deedf8 0%, #c5dceb 100%) !important;
+}
+
+:is(.window-app, .application):has(.dda-evolution-form-dialog) :is(.dialog-buttons, .form-footer) button {
+  min-height: 38px !important;
+}
+
+/* Cost confirmation */
+.application.dda-evolution-cost-dialog .window-content,
+.application:has(.dda-evolution-confirm-dialog) .window-content {
+  padding: 14px !important;
+  overflow: auto;
+}
+
+.dda-evolution-confirm-dialog {
+  display: grid;
+  gap: 11px;
+  padding: 0;
+}
+
+.dda-evolution-confirm-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 94px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  padding: 11px;
+  background: linear-gradient(125deg, #082f50, #075b88);
+  border: 1px solid rgba(123, 222, 255, 0.58);
+  border-radius: 11px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 5px 15px rgba(12, 53, 81, 0.2);
+}
+
+.dda-evolution-confirm-form {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px;
+  background: rgba(4, 28, 49, 0.52);
+  border: 1px solid rgba(140, 219, 247, 0.25);
+  border-radius: 8px;
+}
+
+.dda-evolution-confirm-form.is-next {
+  background: rgba(10, 100, 141, 0.48);
+  border-color: rgba(124, 228, 255, 0.52);
+}
+
+.dda-evolution-confirm-form img {
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+  background: #dcecf6;
+  border: 2px solid rgba(166, 230, 251, 0.68);
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(51, 197, 243, 0.24);
+}
+
+.dda-evolution-confirm-form > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.dda-evolution-confirm-form small {
+  color: #83daf8;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.dda-evolution-confirm-form strong {
+  overflow: hidden;
+  color: #fff;
+  font-family: "Reactor7", monospace;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-evolution-confirm-arrow {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  color: #77e5ff;
+  text-align: center;
+}
+
+.dda-evolution-confirm-arrow span {
+  color: #d8f7ff;
+  font-family: "PixelOperator", Arial, sans-serif;
+  font-size: 0.72rem;
+  line-height: 1.05;
+}
+
+.dda-evolution-confirm-arrow i {
+  font-size: 1.45rem;
+  filter: drop-shadow(0 0 6px rgba(77, 218, 255, 0.58));
+}
+
+.dda-evolution-confirm-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dda-evolution-confirm-stats article {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 0 7px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 10px;
+  background: rgba(250, 253, 255, 0.8);
+  border: 1px solid var(--dda-evo-line);
+  border-radius: 8px;
+}
+
+.dda-evolution-confirm-stats i {
+  grid-row: 1 / 3;
+  color: #118bbd;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.dda-evolution-confirm-stats span {
+  color: #54758a;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.dda-evolution-confirm-stats strong {
+  overflow: hidden;
+  color: #0d3f5d;
+  font-family: "Reactor7", monospace;
+  font-size: 0.91rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-evolution-confirm-reason {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 8px 10px;
+  color: #31566d;
+  background: rgba(250, 253, 255, 0.72);
+  border: 1px solid rgba(49, 124, 163, 0.2);
+  border-left: 3px solid #258dbd;
+  border-radius: 6px;
+}
+
+.dda-evolution-confirm-reason > i {
+  margin-top: 2px;
+  color: #138dbd;
+}
+
+.dda-evolution-confirm-reason span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.dda-evolution-confirm-reason strong {
+  color: #164b69;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.dda-evolution-confirm-dialog > .warning {
+  margin: 0;
+  padding: 8px 10px;
+  color: #7c2d23;
+  background: rgba(255, 224, 207, 0.76);
+  border: 1px solid rgba(196, 83, 58, 0.35);
+  border-left: 3px solid #d26042;
+  border-radius: 6px;
+}
+
+.dda-evolution-payment-panel {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(73, 203, 250, 0.2), transparent 32%),
+    rgba(248, 252, 255, 0.88);
+  border: 1px solid rgba(24, 116, 161, 0.3);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.dda-evolution-payment-panel > header {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(28, 112, 153, 0.2);
+}
+
+.dda-evolution-payment-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: #effcff;
+  background: linear-gradient(145deg, #158fc5, #06496f);
+  border: 1px solid rgba(114, 217, 255, 0.68);
+  border-radius: 50%;
+}
+
+.dda-evolution-payment-panel > header > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.dda-evolution-payment-panel > header small {
+  color: #55788e;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.61rem;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.dda-evolution-payment-panel > header strong {
+  color: #0b4668;
+  font-family: "Reactor7", monospace;
+  font-size: 1rem;
+}
+
+.dda-evolution-resource-grid,
+.dda-evolution-spend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dda-evolution-resource-grid article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(217, 239, 252, 0.65);
+  border: 1px solid rgba(46, 133, 176, 0.22);
+  border-radius: 7px;
+}
+
+.dda-evolution-resource-grid span {
+  color: #315d77;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.64rem;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.dda-evolution-resource-grid strong {
+  color: #07557c;
+  font-family: "Reactor7", monospace;
+  font-size: 1.12rem;
+}
+
+.dda-evolution-resource-grid small {
+  grid-column: 1 / -1;
+  color: #557b91;
+  font-size: 0.7rem;
+}
+
+.dda-evolution-spend-grid label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 78px;
+  gap: 9px;
+  align-items: center;
+  padding: 8px 10px;
+  color: #174966;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  background: rgba(240, 249, 255, 0.9);
+  border: 1px solid rgba(41, 130, 173, 0.28);
+  border-radius: 7px;
+}
+
+.dda-evolution-confirm-dialog .dda-evolution-spend-grid input {
+  width: 78px;
+  min-height: 34px;
+  margin: 0;
+  padding: 3px 7px;
+  color: #0c4668 !important;
+  font-family: "Reactor7", monospace !important;
+  font-size: 0.98rem !important;
+  text-align: center;
+  background: #e9f6ff !important;
+  border: 1px solid #78b8da !important;
+  border-radius: 6px !important;
+}
+
+.application.dda-evolution-cost-dialog .form-footer,
+.application:has(.dda-evolution-confirm-dialog) .form-footer {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  padding-top: 3px;
+}
+
+.application.dda-evolution-cost-dialog .form-footer button,
+.application:has(.dda-evolution-confirm-dialog) .form-footer button {
+  min-height: 38px;
+  margin: 0;
+  color: #f3fbff !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 0.76rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #0d6798, #063856) !important;
+  border: 1px solid rgba(112, 216, 255, 0.58) !important;
+  border-radius: 7px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 2px 7px rgba(4, 45, 70, 0.18) !important;
+}
+
+.application.dda-evolution-cost-dialog .form-footer button:hover,
+.application:has(.dda-evolution-confirm-dialog) .form-footer button:hover {
+  filter: brightness(1.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 10px rgba(45, 181, 232, 0.3) !important;
+}
+
+@media (max-width: 570px) {
+  .dda-evolution-route,
+  .dda-evolution-confirm-route {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-evolution-route-axis,
+  .dda-evolution-confirm-arrow {
+    min-height: 34px;
+  }
+
+  .dda-evolution-route-axis i,
+  .dda-evolution-confirm-arrow i {
+    transform: rotate(90deg);
+  }
+
+  .dda-evolution-confirm-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-evolution-resource-grid,
+  .dda-evolution-spend-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dda-evolution-form-selector {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===================================================== */
+/* DDA — Partner Digimon header polish — 2026-08-15      */
+/* Final scoped override: keeps the Digivice/SV geometry  */
+/* while bringing the identity block closer to Tamer UI. */
+/* ===================================================== */
+
+.dda-digimon-window-sheet .dda-digimon-header {
+  min-height: 128px !important;
+  padding: 11px 14px 12px !important;
+  margin: 0 0 12px !important;
+  border: 1px solid rgba(63, 122, 157, 0.36) !important;
+  border-left: 4px solid rgba(23, 126, 178, 0.9) !important;
+  border-bottom: 2px solid rgba(20, 61, 83, 0.72) !important;
+  border-radius: 11px !important;
+  background:
+    linear-gradient(135deg, rgba(252, 254, 255, 0.98) 0%, rgba(235, 246, 252, 0.98) 58%, rgba(248, 247, 240, 0.98) 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 0 1px rgba(113, 196, 232, 0.08),
+    0 4px 11px rgba(17, 54, 75, 0.11) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 192px;
+  right: 72px;
+  height: 2px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    rgba(21, 126, 181, 0.72),
+    rgba(72, 192, 222, 0.34) 58%,
+    rgba(72, 192, 222, 0));
+}
+
+/* Keep all profile content clear of the external Digivice portrait. */
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-top-row,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-bottom-row {
+  width: calc(100% - 198px) !important;
+  margin-left: 190px !important;
+  column-gap: 12px !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-top-row {
+  grid-template-columns: minmax(250px, 1.25fr) minmax(205px, 0.85fr) !important;
+  align-items: center !important;
+  margin-top: 5px !important;
+  margin-bottom: 9px !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-bottom-row {
+  grid-template-columns: repeat(2, minmax(190px, 1fr)) !important;
+  align-items: start !important;
+  margin-top: 0 !important;
+}
+
+/* Name becomes a proper identity terminal instead of a bare underline. */
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name .dda-header-name-control {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 36px !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 42px !important;
+  padding: 4px 5px 4px 11px !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(67, 130, 163, 0.34) !important;
+  border-left: 3px solid #187bb0 !important;
+  border-radius: 8px !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(232, 244, 250, 0.88)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 8px 0 16px rgba(44, 156, 204, 0.035),
+    0 2px 5px rgba(13, 55, 79, 0.08) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name input.dda-header-name-display {
+  width: 100% !important;
+  max-width: none !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #15364a !important;
+  -webkit-text-fill-color: #15364a !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 1.72rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.055em !important;
+  text-overflow: ellipsis !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name button.dda-header-name-edit {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  border-radius: 7px !important;
+  color: #f5fcff !important;
+  border: 1px solid rgba(115, 211, 248, 0.42) !important;
+  background: linear-gradient(180deg, #155c87 0%, #083a60 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(219, 249, 255, 0.16),
+    inset 0 -7px 11px rgba(0, 19, 39, 0.18),
+    0 2px 5px rgba(4, 40, 62, 0.19) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name button.dda-header-name-edit:hover {
+  color: #ffffff !important;
+  border-color: rgba(156, 232, 255, 0.72) !important;
+  background: linear-gradient(180deg, #1b78aa 0%, #0a4d77 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(230, 252, 255, 0.24),
+    0 0 9px rgba(67, 187, 229, 0.24) !important;
+}
+
+/* Species, Size and Stage share one compact data-card language. */
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-species,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-size,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-stage {
+  display: grid !important;
+  grid-template-columns: 78px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 5px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 38px !important;
+  margin: 0 !important;
+  padding: 4px !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(72, 133, 163, 0.28) !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.68) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 2px 5px rgba(17, 62, 84, 0.065) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-species label,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-size label,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-stage label {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 78px !important;
+  min-width: 78px !important;
+  height: 29px !important;
+  min-height: 29px !important;
+  margin: 0 !important;
+  padding: 0 5px !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(97, 185, 224, 0.24) !important;
+  border-radius: 5px !important;
+  color: #effaff !important;
+  background: linear-gradient(180deg, #164c70, #0b3858) !important;
+  font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.24) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-species input,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-size select,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-stage select {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: 29px !important;
+  min-height: 29px !important;
+  max-height: 29px !important;
+  margin: 0 !important;
+  padding: 0 25px 0 8px !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(97, 157, 187, 0.25) !important;
+  border-radius: 5px !important;
+  color: #153b52 !important;
+  background: linear-gradient(180deg, rgba(246, 252, 255, 0.98), rgba(222, 239, 248, 0.96)) !important;
+  box-shadow: inset 0 1px 2px rgba(40, 90, 118, 0.065) !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.94rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.035em !important;
+  text-align: center !important;
+  text-align-last: center !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-species input {
+  padding-right: 8px !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #153b52 !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-size select:hover,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-stage select:hover {
+  border-color: rgba(32, 142, 190, 0.52) !important;
+  background: linear-gradient(180deg, #ffffff, #e7f5fb) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-size select:focus,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-stage select:focus {
+  outline: none !important;
+  border-color: rgba(35, 157, 207, 0.72) !important;
+  box-shadow: 0 0 0 2px rgba(55, 177, 219, 0.12) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-size-stage-warning,
+.dda-digimon-window-sheet .dda-digimon-header .dda-hybrid-form-badge {
+  grid-column: 1 / -1 !important;
+  margin: 3px 2px 0 !important;
+}
+
+/* Keep the holographic Stage Value readable above the cleaner panel. */
+.dda-digimon-window-shell > .dda-sv-orb {
+  z-index: 1001 !important;
+}
+
+/* ===================================================== */
+/* DDA — PARTNER HEADER OPTION 2: CLEAN / ELEGANT        */
+/* Compact, flat hierarchy with subtle separators        */
+/* ===================================================== */
+
+.dda-digimon-window-sheet .dda-digimon-header {
+  min-height: 90px !important;
+  height: auto !important;
+  margin: 0 0 10px !important;
+  padding: 9px 14px 10px 202px !important;
+  overflow: visible !important;
+  border: 1px solid rgba(35,69,91,0.24) !important;
+  border-bottom: 2px solid rgba(26,45,59,0.66) !important;
+  border-radius: 0 0 8px 8px !important;
+  background: linear-gradient(180deg, rgba(252,253,253,0.99), rgba(240,243,244,0.98)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.95),
+    0 3px 8px rgba(22,38,48,0.075) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 202px !important;
+  right: 16px !important;
+  top: 7px !important;
+  height: 1px !important;
+  background: linear-gradient(90deg, rgba(37,126,174,0.52), rgba(37,126,174,0.06)) !important;
+  pointer-events: none !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-top-row,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-bottom-row {
+  width: auto !important;
+  margin-left: 0 !important;
+  margin-top: 0 !important;
+  display: grid !important;
+  gap: 8px 18px !important;
+  align-items: center !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-top-row {
+  grid-template-columns: minmax(270px, 1.45fr) minmax(190px, 0.82fr) !important;
+  margin-bottom: 6px !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-bottom-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name {
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name .dda-header-name-control {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 30px !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 34px !important;
+  padding: 0 0 3px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(54,104,133,0.30) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name input.dda-header-name-display {
+  width: 100% !important;
+  max-width: none !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #233746 !important;
+  -webkit-text-fill-color: #233746 !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 1.55rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.065em !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name button.dda-header-name-edit {
+  width: 28px !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(54,102,132,0.32) !important;
+  color: #2c5871 !important;
+  background: rgba(248,251,252,0.88) !important;
+  box-shadow: none !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header h1.dda-header-name button.dda-header-name-edit:hover {
+  color: #144f71 !important;
+  background: #ffffff !important;
+  border-color: rgba(41,126,170,0.48) !important;
+  box-shadow: 0 2px 6px rgba(31,78,102,0.10) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-species,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-size,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-stage {
+  display: grid !important;
+  grid-template-columns: 62px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-species label,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-size label,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-stage label {
+  display: block !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: #587181 !important;
+  background: transparent !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.105em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  text-align: left !important;
+  text-shadow: none !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-species input,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-size select,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-stage select {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: 27px !important;
+  min-height: 27px !important;
+  max-height: 27px !important;
+  margin: 0 !important;
+  padding: 0 22px 0 8px !important;
+  border: 1px solid rgba(65,100,121,0.22) !important;
+  border-radius: 4px !important;
+  color: #304c5e !important;
+  background: rgba(250,252,253,0.72) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.86) !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.035em !important;
+  text-align: center !important;
+  text-align-last: center !important;
+  text-transform: uppercase !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-species input {
+  padding-right: 8px !important;
+  text-align: left !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #304c5e !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-size select:hover,
+.dda-digimon-window-sheet .dda-digimon-header .dda-header-stage select:hover {
+  border-color: rgba(45,122,160,0.40) !important;
+  background: rgba(255,255,255,0.92) !important;
+}
+
+.dda-digimon-window-sheet .dda-digimon-header .dda-size-stage-warning,
+.dda-digimon-window-sheet .dda-digimon-header .dda-hybrid-form-badge {
+  grid-column: 1 / -1 !important;
+  margin: 2px 0 0 !important;
+}
+
+.dda-digimon-window-shell > .dda-stage-orb,
+.dda-digimon-window-shell > .dda-sv-orb {
+  z-index: 1001 !important;
+}
+
+/* ===================================================== */
+/* DDA — Partner tabs: clear the Digivice (clean header) */
+/* ===================================================== */
+
+html body .dda-digimon-window-sheet nav.sheet-tabs.tabs[data-group="primary"] {
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+
+  /* Keep the tab rail itself exactly where it is, but reserve
+     the Digivice footprint so Summary can no longer sit under it. */
+  width: 100% !important;
+  margin: 0.45rem 0 0.65rem 0 !important;
+  padding: 0.30rem 0.42rem 0.30rem 168px !important;
+  gap: 0.28rem !important;
+}
+
+html body .dda-digimon-window-sheet nav.sheet-tabs.tabs[data-group="primary"] > a.item {
+  box-sizing: border-box !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 29px !important;
+  padding: 0.30rem 0.30rem !important;
+  margin: 0 !important;
+
+  font-size: 0.69rem !important;
+  letter-spacing: 0.025em !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 900px) {
+  html body .dda-digimon-window-sheet nav.sheet-tabs.tabs[data-group="primary"] {
+    padding-left: 156px !important;
+    gap: 0.22rem !important;
+  }
+
+  html body .dda-digimon-window-sheet nav.sheet-tabs.tabs[data-group="primary"] > a.item {
+    font-size: 0.64rem !important;
+    padding-inline: 0.20rem !important;
+  }
+}
+
+/* ===================================================== */
+/* DDA — Roll Dialog Readability / ApplicationV2 Fix     */
+/* ===================================================== */
+
+/*
+ * V13/V14 may render Dialogs under .application instead of .window-app.
+ * The older selector only themed the inner fields, leaving dark labels on a
+ * dark V2 window. Keep every DDA roll dialog on one high-contrast dark theme.
+ */
+html body :is(.window-app, .application):has(.dda-roll-dialog) .window-content {
+  color: #eaf8ff !important;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(61, 181, 239, 0.16), transparent 34%),
+    linear-gradient(180deg, #091827 0%, #0a1624 54%, #0b1420 100%) !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dda-roll-dialog {
+  padding: 10px 12px !important;
+  color: #eaf8ff !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dda-roll-dialog .form-group {
+  display: grid !important;
+  grid-template-columns: minmax(125px, 0.72fr) minmax(210px, 1.6fr) !important;
+  gap: 12px !important;
+  align-items: center !important;
+  margin: 0 0 10px !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dda-roll-dialog .form-group label {
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #bfeaff !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  text-shadow: none !important;
+  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
+  font-size: 0.78rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.055em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog)
+.dda-roll-dialog :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  width: 100% !important;
+  min-height: 38px !important;
+  padding: 7px 10px !important;
+  color: #f4fbff !important;
+  caret-color: #8de8ff !important;
+  background: linear-gradient(180deg, #0c3553 0%, #082942 100%) !important;
+  border: 1px solid rgba(102, 205, 255, 0.46) !important;
+  border-radius: 8px !important;
+  outline: none !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -8px 18px rgba(0, 0, 0, 0.12) !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog)
+.dda-roll-dialog :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus {
+  border-color: #72ddff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 2px rgba(80, 203, 255, 0.14),
+    0 0 12px rgba(61, 181, 239, 0.12) !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dda-roll-dialog input[readonly] {
+  color: #d9f4ff !important;
+  background: linear-gradient(180deg, #0f456b 0%, #0a3452 100%) !important;
+  border-color: rgba(108, 218, 255, 0.58) !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dda-roll-dialog select option {
+  color: #f3fbff !important;
+  background: #0a2237 !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dda-roll-dialog :is(p, small, .hint, .muted) {
+  color: #cde9f7 !important;
+  text-shadow: none !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dialog-buttons {
+  gap: 8px !important;
+  padding: 10px 12px 12px !important;
+  border-top: 1px solid rgba(106, 201, 244, 0.14) !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dialog-buttons button {
+  min-height: 40px !important;
+  color: #eaf8ff !important;
+  background: linear-gradient(180deg, #123b59 0%, #0b2a43 100%) !important;
+  border: 1px solid rgba(106, 201, 244, 0.42) !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  text-shadow: none !important;
+}
+
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dialog-buttons button:hover,
+html body :is(.window-app, .application):has(.dda-roll-dialog) .dialog-buttons button:focus {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, #17577f 0%, #0e3d60 100%) !important;
+  border-color: #73dfff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 2px rgba(80, 203, 255, 0.1) !important;
+}
+
+@media (max-width: 620px) {
+  html body :is(.window-app, .application):has(.dda-roll-dialog) .dda-roll-dialog .form-group {
+    grid-template-columns: 1fr !important;
+    gap: 5px !important;
+  }
 }
