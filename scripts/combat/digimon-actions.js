@@ -79,6 +79,95 @@ async function spendActions(actor, amount, options = {}) {
   );
 }
 
+
+async function getDigimonBolsterContext(actor) {
+  const tamer = await resolveTamerForPartner(actor);
+  const defaultRange = Number(
+    tamer?.system?.evolution?.defaultRange?.value
+  );
+
+  return {
+    tamer,
+    bonus: Number.isFinite(defaultRange) && defaultRange > 0
+      ? Math.max(0, defaultRange)
+      : Math.max(0, number(getActorSv(actor)))
+  };
+}
+
+async function chooseBolsterForDigimonAction(actor, actionLabel) {
+  const availableActions = Math.max(
+    0,
+    number(actor?.system?.combat?.actions?.value)
+  );
+
+  const context = await getDigimonBolsterContext(actor);
+
+  if (availableActions < 2) {
+    return {
+      ...context,
+      bolstered: false,
+      calculated: false,
+      actionCost: 1,
+      diceBonus: 0,
+      automaticSuccesses: 0
+    };
+  }
+
+  const bolster = Boolean(
+    await foundry.applications.api.DialogV2.confirm({
+      classes: ["dda", "dda-digimon-action-dialog"],
+      window: {
+        title: `${actionLabel} + ${text("Fortalecer", "Bolster")}`
+      },
+      content: `
+        <div class="dda-digimon-action-choice">
+          <p>${text(
+            `Gastar +1 Ação para Fortalecer esta Ação e adicionar +${context.bonus} dados?`,
+            `Spend +1 Action to Bolster this Action and add +${context.bonus} dice?`
+          )}</p>
+        </div>
+      `,
+      yes: {
+        label: text("Fortalecer", "Bolster")
+      },
+      no: {
+        label: text("Sem Fortalecer", "Do Not Bolster")
+      },
+      rejectClose: false,
+      modal: true
+    })
+  );
+
+  if (!bolster) {
+    return {
+      ...context,
+      bolstered: false,
+      calculated: false,
+      actionCost: 1,
+      diceBonus: 0,
+      automaticSuccesses: 0
+    };
+  }
+
+  const calculated = Boolean(
+    context.tamer &&
+    isCalculatedAvailable(context.tamer) &&
+    await promptCalculatedReplacement(
+      context.tamer,
+      `${actor.name} — ${actionLabel} + ${text("Fortalecer", "Bolster")}`
+    )
+  );
+
+  return {
+    ...context,
+    bolstered: true,
+    calculated,
+    actionCost: 2,
+    diceBonus: calculated ? 0 : context.bonus,
+    automaticSuccesses: calculated ? 1 : 0
+  };
+}
+
 function actorToken(actor) {
   return canvas?.tokens?.controlled?.find((token) => token.actor?.uuid === actor?.uuid)
     ?? canvas?.tokens?.placeables?.find((token) => token.actor?.uuid === actor?.uuid)
@@ -127,8 +216,9 @@ function isUnavailableTarget(token) {
   );
   if (combatant?.defeated) return true;
   const wounds = number(
-    actor.system?.resources?.woundBoxes?.value
-      ?? actor.system?.woundBoxes?.value,
+    actor.type === "character"
+      ? actor.system?.derived?.wounds?.value
+      : actor.system?.miscStats?.wounds?.value,
     NaN
   );
   return Number.isFinite(wounds) && wounds <= 0;
@@ -478,7 +568,8 @@ async function useResist(actor) {
 }
 
 async function useBolster(actor) {
-  const tamer = await resolveTamerForPartner(actor);
+  const bolsterContext = await getDigimonBolsterContext(actor);
+  const tamer = bolsterContext.tamer;
   const calculated = Boolean(
     tamer &&
     isCalculatedAvailable(tamer) &&
@@ -492,7 +583,7 @@ async function useBolster(actor) {
 
   const value = calculated
     ? 0
-    : Math.max(0, number(getActorSv(actor)));
+    : bolsterContext.bonus;
 
   await addPoolEffect(actor, {
     tag: "digimonBolster",
@@ -504,7 +595,8 @@ async function useBolster(actor) {
     poolStats: ["*"],
     sourceActorUuid: actor.uuid,
     sourceTamerUuid: tamer?.uuid ?? "",
-    calculated
+    calculated,
+    bolsterBonus: bolsterContext.bonus
   });
 
   if (calculated) {
@@ -526,18 +618,46 @@ async function useAid(actor) {
     ui.notifications.warn(text("Selecione exatamente um aliado dentro do Alcance.", "Select exactly one ally within Range."));
     return null;
   }
-  if (!(await spendActions(actor, 1))) return null;
-  const value = Math.max(0, number(getActorSv(actor)));
+
+  const bolster = await chooseBolsterForDigimonAction(
+    actor,
+    text("Ajudar", "Aid")
+  );
+
+  if (!(await spendActions(actor, bolster.actionCost))) return null;
+
+  const baseValue = Math.max(0, number(getActorSv(actor)));
+  const value = baseValue + bolster.diceBonus;
+
   await addPoolEffect(target, {
     tag: "digimonAid",
-    label: `${text("Ajudar", "Aid")} — ${actor.name}`,
+    label: `${text("Ajudar", "Aid")} — ${actor.name}${bolster.bolstered ? ` + ${text("Fortalecer", "Bolster")}` : ""}`,
     value,
+    automaticSuccesses: bolster.automaticSuccesses,
     poolStats: ["accuracy", "dodge"],
     sourceActorUuid: actor.uuid,
-    createdTurnSignature: turnSignature(actor)
+    sourceTamerUuid: bolster.tamer?.uuid ?? "",
+    createdTurnSignature: turnSignature(actor),
+    bolstered: bolster.bolstered,
+    calculated: bolster.calculated,
+    bolsterBonus: bolster.bonus
   });
-  await markUsedThisTurn(actor, "aid", { targetActorUuid: target.uuid });
-  return value;
+
+  if (bolster.calculated) {
+    await markCalculatedUsed(bolster.tamer, "digimonAid");
+  }
+
+  await markUsedThisTurn(actor, "aid", {
+    targetActorUuid: target.uuid,
+    bolstered: bolster.bolstered
+  });
+
+  return {
+    diceBonus: value,
+    automaticSuccesses: bolster.automaticSuccesses,
+    bolstered: bolster.bolstered,
+    calculated: bolster.calculated
+  };
 }
 
 async function useGuard(actor) {
@@ -545,17 +665,45 @@ async function useGuard(actor) {
     ui.notifications.warn(text("Guardar já foi usado nesta ativação.", "Guard was already used during this activation."));
     return null;
   }
-  if (!(await spendActions(actor, 1))) return null;
-  const value = Math.max(0, number(getActorSv(actor)));
+
+  const bolster = await chooseBolsterForDigimonAction(
+    actor,
+    text("Guardar", "Guard")
+  );
+
+  if (!(await spendActions(actor, bolster.actionCost))) return null;
+
+  const baseValue = Math.max(0, number(getActorSv(actor)));
+  const value = baseValue + bolster.diceBonus;
+
   await addPoolEffect(actor, {
     tag: "digimonGuard",
-    label: text("Guardar", "Guard"),
+    label: `${text("Guardar", "Guard")}${bolster.bolstered ? ` + ${text("Fortalecer", "Bolster")}` : ""}`,
     value,
+    automaticSuccesses: bolster.automaticSuccesses,
     poolStats: ["dodge"],
-    sourceActorUuid: actor.uuid
+    sourceActorUuid: actor.uuid,
+    sourceTamerUuid: bolster.tamer?.uuid ?? "",
+    bolstered: bolster.bolstered,
+    calculated: bolster.calculated,
+    bolsterBonus: bolster.bonus,
+    dodgePenaltyProtected: true
   });
-  await markUsedThisTurn(actor, "guard");
-  return value;
+
+  if (bolster.calculated) {
+    await markCalculatedUsed(bolster.tamer, "digimonGuard");
+  }
+
+  await markUsedThisTurn(actor, "guard", {
+    bolstered: bolster.bolstered
+  });
+
+  return {
+    diceBonus: value,
+    automaticSuccesses: bolster.automaticSuccesses,
+    bolstered: bolster.bolstered,
+    calculated: bolster.calculated
+  };
 }
 
 function coordinatedAssaultQuality(actor) {
@@ -834,8 +982,83 @@ async function useCalledShot(actor) {
 }
 
 async function useHoldBreath(actor) {
+  const combat = game?.combat;
+  const swim = actor?.system?.movementTypes?.swim ?? {};
+  const advancedSwim = actor?.system?.qualityFeatures?.advancedMobility?.swim ?? {};
+  const unlimited = Boolean(
+    swim.isExtraMovement ||
+    swim.indefiniteBreath ||
+    advancedSwim.indefiniteBreath
+  );
+
+  let consumesUse = false;
+  let holdState = foundry.utils.deepClone(
+    actor.system?.combat?.holdBreath ?? {}
+  );
+
+  if (combat?.started && !unlimited) {
+    const choice = await foundry.applications.api.DialogV2.wait({
+      classes: ["dda", "dda-digimon-action-dialog"],
+      window: { title: text("Prender a Respiração", "Hold Breath") },
+      content: `
+        <div class="dda-digimon-action-choice">
+          <p>${text(
+            "O Digimon ainda possui acesso a ar? O uso preventivo não consome um dos usos de CPU por Combate.",
+            "Does the Digimon still have access to air? A pre-emptive use does not consume one of its CPU uses per Combat."
+          )}</p>
+        </div>
+      `,
+      buttons: [
+        {
+          action: "air",
+          label: text("Sim — uso preventivo", "Yes — pre-emptive use"),
+          callback: () => "air"
+        },
+        {
+          action: "noAir",
+          label: text("Não — sem acesso a ar", "No — no access to air"),
+          default: true,
+          callback: () => "noAir"
+        }
+      ],
+      rejectClose: false,
+      close: () => null,
+      modal: true
+    });
+
+    if (!choice) return null;
+    consumesUse = choice === "noAir";
+
+    const combatId = String(combat.id ?? "");
+    if (String(holdState.combatId ?? "") !== combatId) {
+      holdState = {
+        combatId,
+        used: 0
+      };
+    }
+
+    if (consumesUse) {
+      const cpu = Math.max(
+        0,
+        number(actor.system?.derivedStats?.cpu?.value)
+      );
+      const used = Math.max(0, number(holdState.used));
+
+      if (used >= cpu) {
+        ui.notifications.warn(text(
+          `${actor.name} já usou Prender a Respiração ${used}/${cpu} vezes neste Combate.`,
+          `${actor.name} has already used Hold Breath ${used}/${cpu} times this Combat.`
+        ));
+        return null;
+      }
+    }
+  }
+
   if (!(await spendActions(actor, 1))) return null;
-  const effects = getEffectList(actor);
+
+  const effects = getEffectList(actor)
+    .filter((effect) => String(effect?.tag ?? "") !== "holdBreath");
+
   effects.push({
     id: foundry.utils.randomID(),
     tag: "holdBreath",
@@ -843,9 +1066,23 @@ async function useHoldBreath(actor) {
     value: 1,
     duration: 1,
     remaining: 1,
-    sourceActorUuid: actor.uuid
+    sourceActorUuid: actor.uuid,
+    preemptive: !consumesUse,
+    unlimited
   });
-  await actor.update({ "system.effects.active": effects });
+
+  const update = {
+    "system.effects.active": effects
+  };
+
+  if (combat?.started && consumesUse && !unlimited) {
+    update["system.combat.holdBreath"] = {
+      combatId: String(combat.id ?? ""),
+      used: Math.max(0, number(holdState.used)) + 1
+    };
+  }
+
+  await actor.update(update);
   return true;
 }
 
@@ -866,10 +1103,19 @@ export function prepareDigimonActionPoolOptions(actor, statKey, options = {}) {
     && ((effect.poolStats ?? []).includes("*") || (effect.poolStats ?? []).includes(statKey))
   );
   if (!matching.length) return { ...options };
+
+  const guardProtectedDice = statKey === "dodge"
+    ? matching
+      .filter((effect) => String(effect.tag ?? "") === "digimonGuard")
+      .reduce((total, effect) => total + Math.max(0, number(effect.value ?? effect.potency)), 0)
+    : 0;
+
   return {
     ...options,
     diceModifier: number(options.diceModifier) + matching.reduce((total, effect) => total + Math.max(0, number(effect.value ?? effect.potency)), 0),
     automaticSuccesses: number(options.automaticSuccesses) + matching.reduce((total, effect) => total + Math.max(0, number(effect.automaticSuccesses)), 0),
+    ddaDodgePenaltyProtectedDice:
+      Math.max(0, number(options.ddaDodgePenaltyProtectedDice)) + guardProtectedDice,
     externalLabel: [options.externalLabel, ...matching.map((effect) => effect.label)].filter(Boolean).join(" + "),
     modifierBreakdown: [
       ...(Array.isArray(options.modifierBreakdown) ? options.modifierBreakdown : []),

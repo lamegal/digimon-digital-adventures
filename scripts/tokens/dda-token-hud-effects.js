@@ -277,21 +277,72 @@ function actorWoundsTempPath(actor) {
   return actor?.type === "character" ? "system.derived.wounds.temp" : "system.miscStats.wounds.temp";
 }
 
-async function clearShield(actor) {
+function stripShieldSource(source = "") {
+  return String(source ?? "")
+    .split("+")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .filter((entry) => {
+      const normalized = entry
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      return !normalized.includes("shield") && !normalized.includes("escudo");
+    })
+    .join(" + ");
+}
+
+async function clearShield(actor, effect = null) {
   const path = actorWoundsTempPath(actor);
+  const temp = foundry.utils.getProperty(actor, path) ?? {};
+  const current = Math.max(0, number(temp.value, 0));
+  const contribution = Math.max(
+    0,
+    number(
+      effect?.tempWoundsRemaining ??
+      effect?.tempWounds ??
+      0,
+      0
+    )
+  );
+  const source = stripShieldSource(temp.source);
+  const next = Math.max(0, current - contribution);
+
   await actor.update({
-    [`${path}.value`]: 0,
-    [`${path}.source`]: "",
-    [`${path}.duration`]: ""
+    [`${path}.value`]: next,
+    [`${path}.source`]: source,
+    ...(
+      next <= 0 || !source
+        ? { [`${path}.duration`]: "" }
+        : {}
+    )
   });
 }
 
-async function applyShield(actor, amount, duration) {
+async function applyShield(actor, amount, duration, existingEffect = null) {
   const path = actorWoundsTempPath(actor);
+  const temp = foundry.utils.getProperty(actor, path) ?? {};
+  const current = Math.max(0, number(temp.value, 0));
+  const previousContribution = Math.max(
+    0,
+    number(
+      existingEffect?.tempWoundsRemaining ??
+      existingEffect?.tempWounds ??
+      0,
+      0
+    )
+  );
+  const shieldAmount = Math.max(0, number(amount, 2));
+  const base = Math.max(0, current - previousContribution);
+  const previousSource = stripShieldSource(temp.source);
+  const nextSource = [previousSource, ...(shieldAmount > 0 ? ["[SHIELD] — Token HUD"] : [])]
+    .filter(Boolean)
+    .join(" + ");
+
   await actor.update({
-    [`${path}.value`]: Math.max(0, number(amount, 2)),
-    [`${path}.source`]: "[SHIELD] — Token HUD",
-    [`${path}.duration`]: duration
+    [`${path}.value`]: base + shieldAmount,
+    [`${path}.source`]: nextSource,
+    [`${path}.duration`]: nextSource ? duration : ""
   });
 }
 
@@ -458,13 +509,13 @@ export async function adjustDdaTokenEffect(actor, tagValue, delta = 1, config = 
       if (next > 0 && !config?.remove) {
         effects[index] = { ...existing, remaining: next };
         await actor.update({ "system.effects.active": effects });
-        if (tag === "shield") await applyShield(actor, existing.tempWoundsRemaining ?? existing.tempWounds ?? existing.potency ?? 2, next);
+        if (tag === "shield") await applyShield(actor, existing.tempWoundsRemaining ?? existing.tempWounds ?? existing.potency ?? 2, next, existing);
         return { changed: true, removed: false, remaining: next };
       }
     }
     effects.splice(index, 1);
     await removeSpecialConsequences(actor, existing);
-    if (tag === "shield") await clearShield(actor);
+    if (tag === "shield") await clearShield(actor, existing);
     await actor.update({ "system.effects.active": effects });
     actor.sheet?.render(false);
     return { changed: true, removed: true, remaining: 0 };
@@ -477,7 +528,7 @@ export async function adjustDdaTokenEffect(actor, tagValue, delta = 1, config = 
     if (next === current) return { changed: false, reason: "maximum", remaining: current };
     effects[index] = { ...existing, duration: Math.max(number(existing.duration, 1), next), remaining: next, maxDuration: MAX_NORMAL_DURATION };
     await actor.update({ "system.effects.active": effects });
-    if (tag === "shield") await applyShield(actor, existing.tempWoundsRemaining ?? existing.tempWounds ?? existing.potency ?? 2, next);
+    if (tag === "shield") await applyShield(actor, existing.tempWoundsRemaining ?? existing.tempWounds ?? existing.potency ?? 2, next, existing);
     return { changed: true, removed: false, remaining: next };
   }
 
@@ -501,7 +552,7 @@ export async function adjustDdaTokenEffect(actor, tagValue, delta = 1, config = 
     const amount = Math.max(0, number(config?.potency, record.potency || 2));
     record.tempWounds = amount;
     record.tempWoundsRemaining = amount;
-    await applyShield(actor, amount, record.remaining);
+    await applyShield(actor, amount, record.remaining, existing);
   }
   await actor.update({ "system.effects.active": effects });
   actor.sheet?.render(false);

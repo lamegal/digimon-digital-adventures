@@ -1201,6 +1201,8 @@ const updates = [];
 
         "system.combat.hasAttackedThisRound": false,
         "system.combat.attacksMadeThisTurn": 0,
+        "system.combat.movementActionsThisTurn": 0,
+        "system.combat.nonMovementActionsThisTurn": 0,
         "system.combat.multiattackPenalty": 0,
         "system.combat.signatureMoveUsedThisTurn": false,
         "system.combat.energizeUsedThisTurn": false,
@@ -1535,7 +1537,7 @@ export async function processDDAStartOfTurnEffects(activeActor, combat = game.co
     if (!effects.length) continue;
 
     let changed = false;
-    let expiredShield = false;
+    let expiredShieldTemp = 0;
     const remainingEffects = [];
 
     for (const effect of effects) {
@@ -1596,20 +1598,48 @@ export async function processDDAStartOfTurnEffects(activeActor, combat = game.co
       changed = true;
 
       if (nextRemaining > 0) remainingEffects.push(effect);
-      else if (tag === "shield") expiredShield = true;
+      else if (tag === "shield") {
+        expiredShieldTemp = Math.max(
+          expiredShieldTemp,
+          number(
+            effect?.tempWoundsRemaining ??
+            effect?.tempWounds,
+            0
+          )
+        );
+      }
     }
 
     if (changed) {
       const updates = {
         "system.effects.active": remainingEffects.filter((effect) => !effect._ddaExpiredByDoom)
       };
-      if (expiredShield) {
+      if (expiredShieldTemp > 0) {
         const tempPath = target.type === "character"
           ? "system.derived.wounds.temp"
           : "system.miscStats.wounds.temp";
-        updates[`${tempPath}.value`] = 0;
-        updates[`${tempPath}.source`] = "";
-        updates[`${tempPath}.duration`] = "";
+        const temp = foundry.utils.getProperty(target, tempPath) ?? {};
+        const nextTemp = Math.max(
+          0,
+          number(temp.value, 0) - expiredShieldTemp
+        );
+        const nextSource = String(temp.source ?? "")
+          .split("+")
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+          .filter((entry) => {
+            const key = entry
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .toLowerCase();
+            return !key.includes("shield") && !key.includes("escudo");
+          })
+          .join(" + ");
+        updates[`${tempPath}.value`] = nextTemp;
+        updates[`${tempPath}.source`] = nextSource;
+        if (nextTemp <= 0 || !nextSource) {
+          updates[`${tempPath}.duration`] = "";
+        }
       }
       await target.update(updates);
       target.sheet?.render(false);
@@ -1846,12 +1876,10 @@ async function setActiveCombatant(combat, combatantId) {
     turn: turnIndex
   });
 
-  const activeCombatant =
-    combat.turns?.[turnIndex] ??
-    combat.combatant;
-
-  await processDDAUnitStart(combat, activeCombatant);
-
+  /*
+   * Start-of-turn processing is owned exclusively by the primary-GM
+   * updateCombat hook. Do not run it again here or REGEN/durations can race.
+   */
   return true;
 }
 
@@ -1875,11 +1903,6 @@ async function advanceToNextUnit(combat, sourceCombatant) {
       round: getCurrentCombatRound(combat) + 1,
       turn: sourceAnchorIndex
     });
-
-    await processDDAUnitStart(
-      combat,
-      turns[sourceAnchorIndex] ?? sourceCombatant
-    );
 
     return true;
   }
@@ -1909,11 +1932,6 @@ async function advanceToNextUnit(combat, sourceCombatant) {
   }
 
   await combat.update(updateData);
-
-  await processDDAUnitStart(
-    combat,
-    turns[nextTurnIndex]
-  );
 
   return true;
 }
@@ -1945,11 +1963,7 @@ async function advanceDDACombatTurnLocal(
     if (combat.combatant?.id === combatant.id) {
       await combat.nextTurn();
 
-      await expireStartOfTurnQualityEffects(
-        combat.combatant?.actor
-      );
-      await processDDAStartOfTurnEffects(combat.combatant?.actor, combat);
-
+      /* updateCombat is the single authoritative Start Turn clock. */
       return {
         advanced: true,
         mode: "foundry"

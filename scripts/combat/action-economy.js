@@ -131,7 +131,8 @@ export async function spendActorActions(
     notify = true,
     additionalUpdates = {},
     lightDigizoidAction = "",
-    actionKey = ""
+    actionKey = "",
+    actionKind = "nonMovement"
   } = {}
 ) {
   const payment = checkActorActionSpend(actor, amount, {
@@ -143,8 +144,24 @@ export async function spendActorActions(
 
   if (!payment) return null;
 
+  const trackingUpdates = {};
+  const normalizedActionKind = String(actionKind ?? "nonMovement").toLowerCase();
+
+  if (payment.cost > 0 && normalizedActionKind !== "none") {
+    if (normalizedActionKind === "movement") {
+      trackingUpdates["system.combat.movementActionsThisTurn"] =
+        Math.max(0, number(actor.system?.combat?.movementActionsThisTurn, 0)) +
+        payment.cost;
+    } else {
+      trackingUpdates["system.combat.nonMovementActionsThisTurn"] =
+        Math.max(0, number(actor.system?.combat?.nonMovementActionsThisTurn, 0)) +
+        payment.cost;
+    }
+  }
+
   await actor.update({
     ...additionalUpdates,
+    ...trackingUpdates,
     "system.combat.actions.value": payment.remaining
   });
 
@@ -175,6 +192,7 @@ export async function spendActorActions(
     normalActionsSpent: payment.normalActionsSpent,
     bullrushReserveSpent: payment.bullrushReserveSpent,
     strikeFastReserveSpent: payment.strikeFastReserveSpent,
-    lightReserveSpent: payment.lightReserveSpent
+    lightReserveSpent: payment.lightReserveSpent,
+    actionKind: normalizedActionKind
   };
 }
