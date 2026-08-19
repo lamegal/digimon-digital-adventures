@@ -417,9 +417,62 @@ export async function rollAttack(attacker, attackItem, options = {}) {
   const specialGainForceAttack = await tryExecuteSpecialGainForceAttack(attacker, attackItem, options);
   if (specialGainForceAttack.handled) return specialGainForceAttack.result;
 
+const pendingDodgeRequestId =
+  pendingAttackDodgeByAttacker.get(attacker.uuid);
+
+if (
+  pendingDodgeRequestId &&
+  !isAreaContinuation
+) {
+  const pendingDodgeRequest =
+    pendingAttackDodgeRequests.get(
+      pendingDodgeRequestId
+    );
+
+  const invalidReason =
+    attackDodgeInvalidReason(
+      pendingDodgeRequest
+    );
+
+  const hasActiveResolver =
+    Array.isArray(
+      pendingDodgeRequest
+        ?.authorizedUserIds
+    ) &&
+    pendingDodgeRequest
+      .authorizedUserIds
+      .some((userId) => {
+        return Boolean(
+          game.users?.get(userId)
+            ?.active
+        );
+      });
+
+  /*
+   * A disconnected/invalid Dodge request must never keep the attacker
+   * permanently locked. Clear it before evaluating a new Attack.
+   */
+  if (
+    invalidReason ||
+    !hasActiveResolver
+  ) {
+    await cancelPendingAttackDodgeRequest(
+      pendingDodgeRequestId,
+      {
+        reason:
+          invalidReason ||
+          "noActiveDodgeController",
+
+        updateMessage:
+          true
+      }
+    );
+  }
+}
+
 if (
   pendingAttackDodgeByAttacker.has(attacker.uuid) &&
-  !Boolean(options?.areaBatch?.active && options?.areaBatch?.secondary)
+  !isAreaContinuation
 ) {
   ui.notifications.warn(formatI18n("DDA.Warning.AttackAwaitingDodge", {
     actor: attacker.name
@@ -1316,7 +1369,12 @@ if (declaredAttackQualityEffects.preventAttack) {
           "system.combat.actions.value": Math.max(
             0,
             currentActions - attackerActionCost
-          )
+          ),
+          "system.combat.nonMovementActionsThisTurn":
+            Math.max(
+              0,
+              Number(attacker.system?.combat?.nonMovementActionsThisTurn ?? 0)
+            ) + attackerActionCost
         },
         {
           ddaChargeAttackAction:
@@ -3398,7 +3456,12 @@ const finalizeAttackUse = async ({ attackHit = hit } = {}) => {
           Math.max(
             0,
             currentActions - attackerActionCost
-          )
+          ),
+        "system.combat.nonMovementActionsThisTurn":
+          Math.max(
+            0,
+            Number(attacker.system?.combat?.nonMovementActionsThisTurn ?? 0)
+          ) + attackerActionCost
       },
       {
         ddaChargeAttackAction:
@@ -4678,6 +4741,12 @@ async function spendTamerTalentActionAndUse(
   await tamer.update({
     "system.combat.actions.value":
       currentActions - cost,
+
+    "system.combat.nonMovementActionsThisTurn":
+      Math.max(
+        0,
+        Number(tamer.system?.combat?.nonMovementActionsThisTurn ?? 0)
+      ) + cost,
 
     [`system.tamerTalentUses.${talentId}.value`]:
       currentUses - 1,
@@ -10605,11 +10674,23 @@ export async function bindAttackDodgeChatCard(
     button.dataset.ddaDodgeBound =
       "true";
 
+    /*
+     * Keep the pending Dodge visible to all clients. Only the target
+     * controller or an active GM can actually resolve it.
+     */
     button.hidden =
-      !canResolve;
+      false;
 
     button.disabled =
       !canResolve;
+
+    button.title =
+      canResolve
+        ? ""
+        : combatText(
+            "Aguardando o controlador do alvo ou um GM ativo.",
+            "Waiting for the target controller or an active GM."
+          );
 
     if (!canResolve) {
       continue;
@@ -11338,6 +11419,11 @@ function getAttackDodgeAuthorizedUserIds(defender) {
 
   return game.users
     .filter((user) => {
+      /*
+       * Offline users cannot answer the pending chat request. Counting them
+       * as resolvers can leave the attacker waiting until the timeout.
+       */
+      if (!user?.active) return false;
       if (user.isGM) return true;
 
       try {
@@ -12636,25 +12722,86 @@ async function getShieldTempData(defender, effect) {
   };
 }
 
-async function applyShieldTempWounds(defender, amount, shieldEffect) {
-  if (defender.type === "character") {
-    await defender.update({
-      "system.derived.wounds.temp.value": amount,
-      "system.derived.wounds.temp.source": shieldEffect.label ?? localize("DDA.Effect.Shield"),
-      "system.derived.wounds.temp.duration": shieldEffect.remaining ?? shieldEffect.duration ?? 3
-    });
-
-    return;
-  }
-
-  if (defender.type === "digimon" || defender.type === "npc") {
-    await defender.update({
-      "system.miscStats.wounds.temp.value": amount,
-      "system.miscStats.wounds.temp.source": shieldEffect.label ?? localize("DDA.Effect.Shield"),
-      "system.miscStats.wounds.temp.duration": shieldEffect.remaining ?? shieldEffect.duration ?? 3
-    });
-  }
+function stripShieldTempSource(source = "") {
+  return String(source ?? "")
+    .split("+")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .filter((entry) => {
+      const key = identityForMatching(entry);
+      return !key.includes("shield") && !key.includes("escudo");
+    })
+    .join(" + ");
 }
+
+async function applyShieldTempWounds(defender, amount, shieldEffect) {
+  const rootPath = defender.type === "character"
+    ? "system.derived.wounds.temp"
+    : ["digimon", "npc"].includes(defender.type)
+      ? "system.miscStats.wounds.temp"
+      : "";
+
+  if (!rootPath) return;
+
+  const temp = foundry.utils.getProperty(
+    defender,
+    rootPath
+  ) ?? {};
+
+  const current = Math.max(
+    0,
+    Number(temp.value ?? 0)
+  );
+
+  const previousShield = (
+    defender.system?.effects?.active ?? []
+  ).find((effect) => {
+    return getEffectTagKey(effect?.tag) === "shield";
+  });
+
+  const previousShieldRemaining = Math.max(
+    0,
+    Number(
+      previousShield?.tempWoundsRemaining ??
+      previousShield?.tempWounds ??
+      0
+    )
+  );
+
+  const nonShieldTemp = Math.max(
+    0,
+    current - previousShieldRemaining
+  );
+
+  const shieldAmount = Math.max(
+    0,
+    Number(amount ?? 0)
+  );
+
+  const cleanSource = stripShieldTempSource(
+    temp.source
+  );
+
+  const shieldLabel = String(
+    shieldEffect?.label ??
+    localize("DDA.Effect.Shield") ??
+    "[SHIELD]"
+  ).trim();
+
+  const nextSource = [
+    cleanSource,
+    ...(shieldAmount > 0 ? [shieldLabel] : [])
+  ].filter(Boolean).join(" + ");
+
+  await defender.update({
+    [`${rootPath}.value`]: nonShieldTemp + shieldAmount,
+    [`${rootPath}.source`]: nextSource,
+    [`${rootPath}.duration`]: nextSource
+      ? shieldEffect.remaining ?? shieldEffect.duration ?? 3
+      : ""
+  });
+}
+
 function getEffectTagKey(tag) {
   return String(tag ?? "")
     .trim()

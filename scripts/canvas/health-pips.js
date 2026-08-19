@@ -102,6 +102,11 @@ function canSeeHealthPips(token, actor) {
 }
 
 function getHealthPalette(token, actor) {
+  const temporary = {
+    temp: 0xffd54a,
+    tempBorder: 0xffef9a
+  };
+
   if (isEnemyToken(token, actor)) {
     return {
       filled: 0xc72a74,
@@ -109,7 +114,18 @@ function getHealthPalette(token, actor) {
       empty: 0x21111d,
       emptyBorder: 0x7b3158,
       background: 0x120912,
-      temp: 0xd879ff
+      ...temporary
+    };
+  }
+
+  if (actor?.type === "digimon" || actor?.type === "npc") {
+    return {
+      filled: 0x31c96b,
+      filledBorder: 0xb9ffd0,
+      empty: 0x0d2115,
+      emptyBorder: 0x37734d,
+      background: 0x07140c,
+      ...temporary
     };
   }
 
@@ -119,7 +135,7 @@ function getHealthPalette(token, actor) {
     empty: 0x0c1724,
     emptyBorder: 0x2e5f8b,
     background: 0x07111f,
-    temp: 0xa9f4ff
+    ...temporary
   };
 }
 
@@ -176,6 +192,7 @@ function drawHealthPips(token) {
   const max = wounds.max;
   const value = wounds.value;
   const temp = wounds.temp;
+  const totalPips = Math.max(1, max + temp);
 
   const centerX = width / 2;
   const centerY = height / 2;
@@ -183,7 +200,7 @@ function drawHealthPips(token) {
   const shortestSide = Math.min(width, height);
 
 const pipSize = clamp(
-  Math.floor(shortestSide / Math.max(max + 5, 10)),
+  Math.floor(shortestSide / Math.max(totalPips + 5, 10)),
   6,
   11
 );
@@ -224,15 +241,15 @@ const orbitRadius = Math.max(
 
   const startAngle = -Math.PI / 2;
 
-  for (let index = 0; index < max; index += 1) {
+  for (let index = 0; index < totalPips; index += 1) {
     const angle = startAngle +
-      ((Math.PI * 2) * (index / max));
+      ((Math.PI * 2) * (index / totalPips));
 
     const x = centerX + Math.cos(angle) * orbitRadius;
     const y = centerY + Math.sin(angle) * orbitRadius;
 
-    const isFilled = index < value;
-    const isTemp = !isFilled && index < value + temp;
+    const isTemp = index >= max;
+    const isFilled = !isTemp && index < value;
 
 if (isFilled || isTemp) {
   const glowColor = isTemp
@@ -268,9 +285,11 @@ if (isFilled || isTemp) {
 
 pip.lineStyle(
   1.8,
-  isFilled || isTemp
-    ? palette.filledBorder
-    : palette.emptyBorder,
+  isTemp
+    ? palette.tempBorder
+    : isFilled
+      ? palette.filledBorder
+      : palette.emptyBorder,
   isFilled || isTemp ? 1 : 0.58
 );
 

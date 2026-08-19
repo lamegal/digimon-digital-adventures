@@ -216,6 +216,24 @@ function centerPoint(document, source = {}) {
 }
 
 /** Return center-based world points for the final v13 movement path. */
+function measuredMovementSection(movement = {}) {
+  const pendingSpaces = number(
+    movement?.pending?.spaces,
+    NaN
+  );
+  const pendingWaypoints =
+    movement?.pending?.waypoints ?? [];
+
+  if (
+    (Number.isFinite(pendingSpaces) && pendingSpaces > 0) ||
+    pendingWaypoints.length > 0
+  ) {
+    return movement.pending;
+  }
+
+  return movement?.passed ?? {};
+}
+
 export function getMovementPathPoints(document, movement = {}, context = null) {
   const semantic = context ?? getDDAMovementContext({});
   const origin = centerPoint(document, movement?.origin ?? document);
@@ -223,20 +241,24 @@ export function getMovementPathPoints(document, movement = {}, context = null) {
 
   if (semantic.traversal === false) return [origin, destination];
 
+  const section = measuredMovementSection(movement);
+
   return [
     origin,
-    ...(movement?.passed?.waypoints ?? []).map((waypoint) => centerPoint(document, waypoint)),
+    ...(section?.waypoints ?? []).map((waypoint) => centerPoint(document, waypoint)),
     destination
   ];
 }
 
 export function buildDDAMovementTrace(document, movement = {}, operation = {}, { session = null } = {}) {
   const context = getDDAMovementContext(operation, { session, movement });
+  const section = measuredMovementSection(movement);
+
   return {
     version: 1,
     context,
     points: getMovementPathPoints(document, movement, context),
-    spaces: Math.max(0, number(movement?.passed?.spaces, 0))
+    spaces: Math.max(0, number(section?.spaces, 0))
   };
 }
 
@@ -334,6 +356,37 @@ export function pathCrossesPredicate(points = [], predicate, { traversal = true,
 }
 
 export function pathDistanceSpaces(points = []) {
+  if (!Array.isArray(points) || points.length < 2) return 0;
+
+  /*
+   * Foundry v13 owns grid geometry and diagonal measurement. DDA movement
+   * budgets are expressed in Spaces, so prefer the grid's public measurePath.
+   */
+  try {
+    const measurement = globalThis.canvas?.grid?.measurePath?.(
+      points.map((point) => ({
+        x: number(point?.x),
+        y: number(point?.y),
+        elevation: number(point?.elevation)
+      }))
+    );
+
+    const measuredSpaces = number(
+      measurement?.spaces,
+      NaN
+    );
+
+    if (Number.isFinite(measuredSpaces) && measuredSpaces > 0) {
+      return measuredSpaces;
+    }
+  } catch (error) {
+    console.warn(
+      "DDA | Could not measure movement path through Foundry grid.",
+      error
+    );
+  }
+
+  /* Gridless/legacy compatibility fallback. */
   const grid = Math.max(1, number(globalThis.canvas?.grid?.size, 100));
   let pixels = 0;
   for (let index = 1; index < points.length; index += 1) {

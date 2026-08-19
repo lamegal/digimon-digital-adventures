@@ -3946,6 +3946,11 @@ if (hasHeavyEffect) {
   }
 }
 
+  /* Extra Movement: Swimmer uses full Movement and may Hold Breath indefinitely. */
+  if (movementTypes.swim?.isExtraMovement) {
+    movementTypes.swim.indefiniteBreath = true;
+  }
+
   if (movementTypes.fly?.enabled && extraMovementTypes.has("fly")) {
     const woundsValue = Number(system.miscStats?.wounds?.value ?? 0);
     const woundsMax = Number(system.miscStats?.wounds?.max ?? 0);

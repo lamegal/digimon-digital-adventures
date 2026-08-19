@@ -1624,7 +1624,11 @@ if (intercedePending) {
 
 let fatesProtection = null;
 
-if (!intercedePending && effectiveDamage > 0) {
+if (
+  !intercedePending &&
+  effectiveDamage > 0 &&
+  !options.suppressFatesProtection
+) {
   fatesProtection = await maybeUseStandardFatesProtection(actor, options);
 
   if (fatesProtection?.used) {
@@ -1773,25 +1777,70 @@ if (bossTemplateCommit) {
   await setBossTemplateDefeatedState(actor, actorDefeated, bossTemplateContext.combat);
 }
 
+/*
+ * `absorbedByTemp` is the number of Temporary Wound Boxes that actually left
+ * the pool. Keep the legacy tempDamage field synchronized for downstream code
+ * and consume the source ledgers in the same order the system already used.
+ */
+result.tempDamage = Math.max(
+  0,
+  Number(
+    result.absorbedByTemp ??
+    result.tempDamage ??
+    0
+  )
+);
+
 const gloriousWorldConsumed =
   await consumeGloriousWorldTemporaryWounds(
     actor,
     result.tempDamage
   );
 
-await consumeChallengerTemporaryWounds(
-  actor,
-  Math.max(
-    0,
-    result.tempDamage -
-      gloriousWorldConsumed
-  )
+const challengerConsumed =
+  await consumeChallengerTemporaryWounds(
+    actor,
+    Math.max(
+      0,
+      result.tempDamage -
+        gloriousWorldConsumed
+    )
+  );
+
+const shieldConsumption =
+  await consumeShieldTemporaryWounds(
+    actor,
+    Math.max(
+      0,
+      result.tempDamage -
+        gloriousWorldConsumed -
+        challengerConsumed
+    )
+  );
+
+let shieldBroken = Boolean(
+  shieldConsumption.broken
 );
 
-let shieldBroken = false;
+if (
+  currentTemp > 0 &&
+  result.temp <= 0 &&
+  !shieldBroken
+) {
+  shieldBroken =
+    await removeShieldEffectIfTempDepleted(actor);
+}
 
 if (currentTemp > 0 && result.temp <= 0) {
-  shieldBroken = await removeShieldEffectIfTempDepleted(actor);
+  const tempRootPath = String(config.tempValuePath ?? "")
+    .replace(/\.value$/, "");
+
+  if (tempRootPath) {
+    await actor.update({
+      [`${tempRootPath}.source`]: "",
+      [`${tempRootPath}.duration`]: ""
+    });
+  }
 }
 
 const combatMonsterResolve = options.suppressCombatMonsterResolve
@@ -2419,6 +2468,85 @@ async function applyLifestealFromDamage({
     absorbedByDoom,
     totalHealed: alreadyHealed + actualHeal,
     cap
+  };
+}
+
+async function consumeShieldTemporaryWounds(actor, amount = 0) {
+  const requested = Math.max(
+    0,
+    Math.floor(Number(amount ?? 0))
+  );
+
+  if (requested <= 0) {
+    return {
+      consumed: 0,
+      remaining: null,
+      broken: false
+    };
+  }
+
+  const effects = foundry.utils.deepClone(
+    actor?.system?.effects?.active ?? []
+  );
+
+  const index = effects.findIndex((effect) => {
+    return getEffectTagKey(effect?.tag) === "shield";
+  });
+
+  if (index < 0) {
+    return {
+      consumed: 0,
+      remaining: null,
+      broken: false
+    };
+  }
+
+  const effect = effects[index];
+  const current = Math.max(
+    0,
+    Number(
+      effect?.tempWoundsRemaining ??
+      effect?.tempWounds ??
+      effect?.potency ??
+      0
+    )
+  );
+
+  const consumed = Math.min(
+    current,
+    requested
+  );
+
+  if (consumed <= 0) {
+    return {
+      consumed: 0,
+      remaining: current,
+      broken: false
+    };
+  }
+
+  const remaining = Math.max(
+    0,
+    current - consumed
+  );
+
+  if (remaining <= 0) {
+    effects.splice(index, 1);
+  } else {
+    effects[index] = {
+      ...effect,
+      tempWoundsRemaining: remaining
+    };
+  }
+
+  await actor.update({
+    "system.effects.active": effects
+  });
+
+  return {
+    consumed,
+    remaining,
+    broken: remaining <= 0
   };
 }
 

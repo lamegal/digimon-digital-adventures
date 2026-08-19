@@ -31,8 +31,9 @@ export function isTokenCombatReady(token) {
   );
   if (combatant?.defeated) return false;
   const wounds = number(
-    actor.system?.resources?.woundBoxes?.value
-      ?? actor.system?.woundBoxes?.value,
+    actor.type === "character"
+      ? actor.system?.derived?.wounds?.value
+      : actor.system?.miscStats?.wounds?.value,
     NaN
   );
   return !Number.isFinite(wounds) || wounds > 0;

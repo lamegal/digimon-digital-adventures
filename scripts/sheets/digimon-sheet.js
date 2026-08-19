@@ -1220,7 +1220,6 @@ _getEvolutionGraphData() {
     html.find('[data-action="select-movement-type"]').on("change", this._onSelectMovementType.bind(this));
 
     html.find('[data-action="digivice-sheet"]').on("click", this._onDigiviceSheet.bind(this));
-    html.find('[data-action="digivice-token"]').on("click", this._onDigivicePrototypeToken.bind(this));
     html.find('[data-action="digivice-close"]').on("click", this._onDigiviceClose.bind(this));
     html.find('[data-action="edit-digimon-name"]').on("click", this._onEditDigimonName.bind(this));
     html.find(".dda-window-side-device").on("dblclick", this._onDigiviceDoubleClick.bind(this));
@@ -3514,24 +3513,6 @@ if (DocumentSheetConfigClass) {
 }
 
   ui.notifications.warn(localize("DDA.Warning.CouldNotOpenSheetConfig"));
-}
-
-_onDigivicePrototypeToken(event) {
-  event.preventDefault();
-
-  try {
-    const prototypeToken = this.actor.prototypeToken;
-
-    if (!prototypeToken) {
-      ui.notifications.warn(localize("DDA.Warning.PrototypeTokenNotFound"));
-      return;
-    }
-
-    prototypeToken.sheet?.render({ force: true });
-  } catch (error) {
-    console.error("DDA | Erro ao abrir Protótipo de Token:", error);
-    ui.notifications.error(localize("DDA.Error.OpenPrototypeTokenSeeConsole"));
-  }
 }
 
 _onDigiviceClose(event) {

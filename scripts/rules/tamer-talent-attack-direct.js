@@ -812,28 +812,32 @@ async function mutateNextOrder(tamer, selection = {}) {
     allowCalculated: true
   });
   const partner = await resolveTamerTalentPartner(tamer);
-  const aimAssist = Boolean(
+  const aimAssistEligible = Boolean(
     partner &&
     targets.some((target) => actorsMatch(target, partner)) &&
     config.statKey === "accuracy" &&
     config.mode === "highest" &&
     hasUnlockedOfficialTamerTalent(tamer, "aimAssist")
   );
-  const directDice = config.diceBonus + (aimAssist ? 2 : 0);
+
+  const grantedBonuses = [];
 
   for (const target of targets) {
     const targetIsPartner = Boolean(partner && actorsMatch(target, partner));
+    const targetAimAssist = Boolean(aimAssistEligible && targetIsPartner);
+    const targetDice = config.diceBonus + (targetAimAssist ? 2 : 0);
+
     await addEffect(target, buildDirectEffect(tamer, {
       tag: NEXT_ORDER_DIRECT_TAG,
       label: "WE CAN DO THIS, TOGETHER",
       statKey: config.statKey,
-      dice: directDice,
+      dice: targetDice,
       automaticSuccesses: config.automaticSuccesses,
       actionCost: config.actionCost,
       extra: {
         nextOrder: true,
         targetIsPartner,
-        aimAssist,
+        aimAssist: targetAimAssist,
         fakeout: Boolean(
           targetIsPartner &&
           config.statKey === "accuracy" &&
@@ -842,6 +846,13 @@ async function mutateNextOrder(tamer, selection = {}) {
         )
       }
     }));
+
+    grantedBonuses.push({
+      targetUuid: target.uuid,
+      targetName: target.name,
+      diceBonus: targetDice,
+      aimAssist: targetAimAssist
+    });
   }
 
   await tamer.update({
@@ -859,10 +870,13 @@ async function mutateNextOrder(tamer, selection = {}) {
     targetUuids: targets.map((target) => target.uuid),
     targetNames: targets.map((target) => target.name),
     statKey: config.statKey,
-    diceBonus: directDice,
+    diceBonus: config.diceBonus,
+    grantedBonuses,
     actionCost: config.actionCost,
-    aimAssist,
-    message: `${targets.map((target) => target.name).join(" + ")}: +${directDice} ${config.statKey}${aimAssist ? " (Aim Assist)" : ""}.`,
+    aimAssist: aimAssistEligible,
+    message: grantedBonuses
+      .map((entry) => `${entry.targetName}: +${entry.diceBonus} ${config.statKey}${entry.aimAssist ? " (Aim Assist)" : ""}`)
+      .join(" · "),
     details: text("O Direcionar normal ainda pode ser usado neste turno, mas não nos mesmos alvos.", "Normal Direct may still be used this turn, but not on either of these targets.")
   };
 }

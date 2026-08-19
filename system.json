@@ -51,7 +51,8 @@
     "styles/dda-mode-evoker.css",
     "styles/dda-token-hud-effects.css",
     "styles/dda-token-hud.css",
-    "styles/dda-core-ui-v4.css"
+    "styles/dda-core-ui-v4.css",
+    "styles/dda-roll-dialogs.css"
   ],
   "languages": [
     {

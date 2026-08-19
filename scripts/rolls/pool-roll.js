@@ -220,6 +220,16 @@ const dodgePenalty =
     dialogData.dodgePenalty ?? 0
   );
 
+const dodgePenaltyProtectedDice =
+  statKey === "dodge"
+    ? Math.max(
+        0,
+        Number(
+          options.ddaDodgePenaltyProtectedDice ?? 0
+        )
+      )
+    : 0;
+
 const evasiveManeuversDice =
   Math.max(
     0,
@@ -262,18 +272,24 @@ const qualityAutomaticSuccessesHtml = buildQualityAutomaticSuccessesHtml({
   qualityAutomaticSuccessesAbsorbed
 });
 
-const diceBeforeFinalMultiplier = Math.max(
-  0,
+const unprotectedExternalDiceModifier =
+  externalDiceModifier -
+  dodgePenaltyProtectedDice;
 
-  baseDice -
-  qualityBaseDicePenalty +
-  manualDiceModifier +
-  externalDiceModifier +
-  stanceDiceModifier +
-  evasiveManeuversDice +
-  guidingDice -
-  dodgePenalty
-);
+const diceBeforeFinalMultiplier =
+  Math.max(
+    0,
+
+    baseDice -
+    qualityBaseDicePenalty +
+    manualDiceModifier +
+    unprotectedExternalDiceModifier +
+    stanceDiceModifier +
+    evasiveManeuversDice +
+    guidingDice -
+    dodgePenalty
+  ) +
+  dodgePenaltyProtectedDice;
 
 const finalDiceMultiplier = Math.max(
   0,
@@ -917,7 +933,7 @@ const guidingDiceControl = guidingDiceCurrent > 0
   : `<input type="hidden" name="guidingDice" value="0" />`;
 
 const content = `
-  <form class="dda-roll-dialog">
+  <div class="dda-roll-dialog" data-dda-roll-kind="${statKey}">
     <div class="form-group">
       <label>${localize("DDA.Pool.Stat")}</label>
       <input type="text" value="${statLabel}" readonly />
@@ -1013,7 +1029,7 @@ ${
         `
         : `<input type="hidden" name="coverBonus" value="0" />`
     }
-  </form>
+  </div>
 `;
 
   return await foundry.applications.api.DialogV2.wait({
@@ -1067,14 +1083,13 @@ ${
             stanceDiceModifier
           };
         }
-      },
-      {
-        action: "cancel",
-        label: localize("DDA.Button.Cancel"),
-        icon: "fa-solid fa-xmark",
-        callback: () => null
       }
     ],
+    /*
+     * DialogV2 already owns the outer form. Closing through the native X must
+     * dismiss the dialog without submitting/rolling.
+     */
+    close: () => null,
     rejectClose: false,
     modal: true
   });
