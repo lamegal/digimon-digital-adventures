@@ -8,14 +8,17 @@ import {
   pathDistanceSpaces
 } from "./movement-context.js";
 import {
+  combatantEndedThisRound,
   getActiveDDAUnitContext,
   getCombatantUnitId
 } from "../combat/initiative.js";
 import { spendActorActions } from "../combat/action-economy.js";
 import {
-  reduceEnemyUnalterableDamageWithShiningArmor,
   refundLightDigizoidActionReserve
 } from "../combat/digizoid-gain-force.js";
+import {
+  applyBurnMovementEffectDamage
+} from "../combat/effect-damage.js";
 import {
   getNaturalExplorerFollowerEffect,
   refundBullrushActionReserve,
@@ -263,7 +266,9 @@ function activeMovementData(actor) {
       label: i18n("Terrestre", "Land"),
       enabled: true,
       total: applyCurrentTurnMovementMultiplier(actor, Math.max(0, num(fallbackTotal))),
-      layer: "surface"
+      layer: "surface",
+      costMultiplier: 1,
+      isExtraMovement: false
     };
   }
 
@@ -275,18 +280,47 @@ function activeMovementData(actor) {
       actor,
       Math.max(0, num(selected.total ?? selected.value), key === "land" ? num(fallbackTotal) : 0)
     ),
-    layer: movementLayerForType(key)
+    layer: movementLayerForType(key),
+    costMultiplier: Math.max(1, num(selected.costMultiplier, 1)),
+    isExtraMovement: Boolean(selected.isExtraMovement)
   };
 }
 
-function moveSpaces(movement) {
-  const spaces = num(movement?.passed?.spaces, NaN);
+function moveSpaces(movement, document = null) {
+  /*
+   * Foundry v13 preMoveToken exposes the not-yet-travelled portion in
+   * `pending`. Reading only `passed` made direct drags fall through to the
+   * waypoint count, which commonly evaluates to exactly 1.
+   */
+  const pendingSpaces = num(
+    movement?.pending?.spaces,
+    NaN
+  );
 
-  if (Number.isFinite(spaces) && spaces > 0) {
-    return spaces;
+  if (Number.isFinite(pendingSpaces) && pendingSpaces > 0) {
+    return pendingSpaces;
   }
 
-  return (movement?.passed?.waypoints ?? []).length;
+  const passedSpaces = num(
+    movement?.passed?.spaces,
+    NaN
+  );
+
+  if (Number.isFinite(passedSpaces) && passedSpaces > 0) {
+    return passedSpaces;
+  }
+
+  if (document) {
+    const context = getDDAMovementContext({}, { movement });
+    return Math.max(
+      0,
+      pathDistanceSpaces(
+        getMovementPathPoints(document, movement, context)
+      )
+    );
+  }
+
+  return 0;
 }
 
 function clearTracker(token) {
@@ -695,62 +729,16 @@ function directionalEffectPenalty(actor, movement) {
 }
 
 async function applyBurnMovementDamage(actor, spaces, { unwilling = false } = {}) {
-  const effects = actor?.system?.effects?.active ?? [];
-  const burnEffect = effects.find((effect) => String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase() === "burn");
-  if (!burnEffect) {
-    return 0;
-  }
-
-  const damageEffectCount = effects.filter((effect) => {
-    return ["burn", "freeze", "poison", "ruin"].includes(
-      String(effect?.tag ?? "").replace(/^\[|\]$/g, "").toLowerCase()
-    );
-  }).length;
-  const reduction = Math.max(0, damageEffectCount - 1) + Math.max(
-    0,
-    num(actor.system?.qualityFeatures?.naturewalk?.damageReduction?.burn)
+  const result = await applyBurnMovementEffectDamage(
+    actor,
+    spaces,
+    { unwilling }
   );
-  const rawDamage = unwilling ? Math.floor(num(spaces) / 2) : Math.floor(num(spaces));
-  let damage = Math.max(0, rawDamage - reduction);
-  if (damage <= 0) return 0;
 
-  const roundKey = `${game.combat?.id ?? "no-combat"}:${num(game.combat?.round)}`;
-  const previousKey = String(actor.system?.combat?.effectDamageRoundKey ?? "");
-  const previousDamage = previousKey === roundKey
-    ? Math.max(0, num(actor.system?.combat?.effectDamageTakenThisRound))
-    : 0;
-  const cap = Math.max(0, num(actor.system?.stageValue) * 2);
-  damage = Math.min(damage, Math.max(0, cap - previousDamage));
-  if (damage <= 0) return 0;
-
-  let burnSource = null;
-  if (burnEffect.sourceActorUuid) {
-    try {
-      const document = await fromUuid(burnEffect.sourceActorUuid);
-      burnSource = document?.documentName === "Token" ? document.actor : document;
-    } catch (_error) {
-      burnSource = null;
-    }
-  }
-  const shining = await reduceEnemyUnalterableDamageWithShiningArmor(actor, damage, {
-    unalterable: true,
-    attacker: burnSource
-  });
-  damage = shining.damage;
-  if (damage <= 0) return 0;
-
-  const woundsPath = actor.type === "character"
-    ? "system.derived.wounds.value"
-    : "system.miscStats.wounds.value";
-  const currentWounds = Math.max(0, num(foundry.utils.getProperty(actor, woundsPath)));
-
-  await actor.update({
-    [woundsPath]: Math.max(0, currentWounds - damage),
-    "system.combat.effectDamageRoundKey": roundKey,
-    "system.combat.effectDamageTakenThisRound": previousDamage + damage
-  });
-
-  return damage;
+  return Math.max(
+    0,
+    num(result?.amount, 0)
+  );
 }
 
 
@@ -1127,12 +1115,37 @@ function buildSegment(document, movement, spaces, context = null, session = null
     ? directionalEffectPenalty(document?.actor, movement)
     : 0;
 
+  /*
+   * DDA 3.02c uses the Movement Type's canonical cost multiplier. Base Jump
+   * and Swim are 2:1; Extra Movement upgrades them to 1:1 in actor-document.
+   * This same budget also makes Reposition cost 2 Successes per Space only
+   * when the Digimon lacks the corresponding Extra Movement.
+   */
+  const movementData = activeMovementData(document?.actor);
+  const movementCostMultiplier = usesMovementCosts
+    ? Math.max(1, num(movementData.costMultiplier, 1))
+    : 1;
+
+  const baseMovementCost = usesMovementCosts
+    ? spaces * movementCostMultiplier
+    : spaces;
+
+  const measuredWaypoints =
+    (
+      Number(movement?.pending?.spaces ?? 0) > 0 ||
+      (movement?.pending?.waypoints?.length ?? 0) > 0
+    )
+      ? movement?.pending?.waypoints ?? []
+      : movement?.passed?.waypoints ?? [];
+
   return {
     from: point(movement?.origin ?? document),
     to: point(movement?.destination ?? document),
-    waypoints: (movement?.passed?.waypoints ?? []).map((waypoint) => point(waypoint)),
+    waypoints: measuredWaypoints.map((waypoint) => point(waypoint)),
     spaces,
-    cost: usesMovementCosts ? spaces + directionalPenalty : spaces,
+    cost: baseMovementCost + directionalPenalty,
+    baseMovementCost,
+    movementCostMultiplier,
     directionalPenalty,
 
     // Kept as explicit diagnostics instead of increasing Movement cost. Under
@@ -1176,7 +1189,7 @@ function queueAutomaticMove(document, movement) {
     return false;
   }
 
-  const spaces = moveSpaces(movement);
+  const spaces = moveSpaces(movement, document);
 
   if (spaces <= 0) {
     return true;
@@ -1324,7 +1337,7 @@ function isGrantedMovementSession(session, combat) {
 }
 
 function queueGrantedMove(document, movement, session) {
-  const spaces = moveSpaces(movement);
+  const spaces = moveSpaces(movement, document);
 
   if (spaces <= 0) return true;
 
@@ -1726,9 +1739,7 @@ async function beginActionMovement(actor, options = {}) {
     requireActiveUnit: !evokerCommandedMinion,
     lightDigizoidAction: actionKey,
     actionKey,
-    additionalUpdates: {
-      "system.combat.movementActionsThisTurn": previousMovementActions + 1
-    }
+    actionKind: "movement"
   });
   if (!payment) return false;
 
@@ -2144,12 +2155,34 @@ async function clearMovementSession(document) {
   }
 
   pendingMoves.delete(document.id);
+  runtimeSessions.delete(String(document.id ?? ""));
 
-  await unsetSession(document);
-
-  clearTracker(
-    tokenObject(document)
+  /*
+   * Every client clears its local movement state when an activation ends.
+   * Only a GM/owner also removes the persisted Token flag.
+   */
+  const canPersist = Boolean(
+    game.user?.isGM ||
+    document.isOwner ||
+    document.actor?.isOwner
   );
+
+  if (canPersist) {
+    try {
+      await document.unsetFlag(
+        scope(),
+        DDA_MOVEMENT_FLAG
+      );
+    } catch (error) {
+      console.warn(
+        "DDA | Could not clear persisted movement session.",
+        error
+      );
+    }
+  }
+
+  clearTracker(tokenObject(document));
+  refreshTokenHud(document);
 
   return true;
 }
@@ -2177,7 +2210,7 @@ async function resetMovementSession(document) {
     const movementActions = Math.max(0, num(actor.system?.combat?.movementActionsThisTurn));
     await actor.update({
       "system.combat.actions.value": Math.min(maximum, current + refund),
-      "system.combat.movementActionsThisTurn": Math.max(0, movementActions - 1)
+      "system.combat.movementActionsThisTurn": Math.max(0, movementActions - refund)
     }, {
       ddaMovementAutoStart: true
     });
@@ -2206,6 +2239,26 @@ async function resetMovementSession(document) {
   return clearMovementSession(document);
 }
 
+async function clearEndedCombatantMovement(
+  combatant,
+  combat = combatant?.combat ?? game.combat
+) {
+  if (
+    !combatant ||
+    !combatantEndedThisRound(
+      combatant,
+      combat
+    )
+  ) {
+    return;
+  }
+
+  for (const document of canvas.scene?.tokens ?? []) {
+    if (!sameActor(document.actor, combatant.actor)) continue;
+    await clearMovementSession(document);
+  }
+}
+
 async function closeForeignMoves(combat) {
   if (!combat?.started) return;
 
@@ -2215,23 +2268,35 @@ async function closeForeignMoves(combat) {
   for (const document of canvas.scene?.tokens ?? []) {
     const session = getSession(document);
 
-    if (
-      session?.state !== "active" ||
-      session.combatId !== combat.id
-    ) {
+    if (!session || session.combatId !== combat.id) {
       continue;
     }
 
     const combatant = getCombatant(combat, document);
-
     const combatantUnitId = getCombatantUnitId(combatant);
     const belongsToActiveUnit = activeUnitId
       ? combatantUnitId === activeUnitId
       : combatant?.id === activeCombatantId;
 
     if (!belongsToActiveUnit) {
-      await finishMove(document);
+      /*
+       * Movement is activation-scoped state. Once this unit is no longer
+       * active, discard the session completely so the next activation starts
+       * at 0. This never refunds the Action or rewinds the Token.
+       */
+      await clearMovementSession(document);
     }
+  }
+}
+
+async function clearCombatMovementSessions(combat = null) {
+  const combatId = String(combat?.id ?? "");
+
+  for (const document of canvas.scene?.tokens ?? []) {
+    const session = getSession(document);
+    if (!session) continue;
+    if (combatId && session.combatId && String(session.combatId) !== combatId) continue;
+    await clearMovementSession(document);
   }
 }
 
@@ -2493,6 +2558,21 @@ export function registerMovementTracker() {
     if ("turn" in changed || "round" in changed) {
       void closeForeignMoves(combat);
     }
+  });
+
+  Hooks.on("updateCombatant", (combatant) => {
+    void clearEndedCombatantMovement(
+      combatant,
+      combatant?.combat ?? game.combat
+    );
+  });
+
+  Hooks.on("combatEnd", (combat) => {
+    void clearCombatMovementSessions(combat);
+  });
+
+  Hooks.on("deleteCombat", (combat) => {
+    void clearCombatMovementSessions(combat);
   });
 
   Hooks.on(

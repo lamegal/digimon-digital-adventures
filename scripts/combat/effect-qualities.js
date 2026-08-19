@@ -505,7 +505,14 @@ export async function useEffectResistanceAction(actor, effectId, {
   if (!result) return { handled: true, used: false };
 
   if (actionCost) {
-    await actor.update({ "system.combat.actions.value": actions - actionCost });
+    await actor.update({
+      "system.combat.actions.value": actions - actionCost,
+      "system.combat.nonMovementActionsThisTurn":
+        Math.max(
+          0,
+          number(actor.system?.combat?.nonMovementActionsThisTurn, 0)
+        ) + actionCost
+    });
   }
   await setEffectResistanceUse(actor, effectId, mode);
 

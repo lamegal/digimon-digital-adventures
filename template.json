@@ -17,6 +17,8 @@
             "value": 2,
             "max": 2
           },
+          "movementActionsThisTurn": 0,
+          "nonMovementActionsThisTurn": 0,
           "initiative": {
             "value": 0,
             "side": "players"
@@ -779,6 +781,8 @@
           "value": 2,
           "max": 2
         },
+        "movementActionsThisTurn": 0,
+        "nonMovementActionsThisTurn": 0,
         "initiative": {
           "value": 0,
           "side": "players"
