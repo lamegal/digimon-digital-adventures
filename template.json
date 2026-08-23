@@ -33,7 +33,20 @@
             "actionDebt": 0,
             "pending": false
           },
-          "dangerousTerrainStartTurnTick": ""
+          "dangerousTerrainStartTurnTick": "",
+          "temporaryWounds": {
+            "nonStacking": {
+              "active": false,
+              "sourceId": "",
+              "label": "",
+              "duration": "",
+              "effectId": "",
+              "granted": 0,
+              "remaining": 0,
+              "combatId": ""
+            }
+          },
+          "drowningStartTurnTick": ""
         },
         "effects": {
           "active": []
@@ -622,6 +635,17 @@
           },
           "masteredForms": []
         }
+      },
+      "status": {
+        "sight": "unobscured",
+        "obscuredElement": "",
+        "hidden": false,
+        "submerged": false,
+        "submergedElement": "",
+        "drowning": false,
+        "cover": "none",
+        "hiddenCheckTotal": 0,
+        "hiddenRevealedTo": []
       }
     },
     "digimon": {
@@ -826,7 +850,11 @@
           "combatId": "",
           "previousBatteryMax": 0,
           "reducedBatteryMax": 0
-        }
+        },
+        "obscuredElement": "",
+        "submergedElement": "",
+        "hiddenCheckTotal": 0,
+        "hiddenRevealedTo": []
       },
       "effects": {
         "active": []
@@ -1241,7 +1269,11 @@
           "combatId": "",
           "previousBatteryMax": 0,
           "reducedBatteryMax": 0
-        }
+        },
+        "obscuredElement": "",
+        "submergedElement": "",
+        "hiddenCheckTotal": 0,
+        "hiddenRevealedTo": []
       },
       "effects": {
         "active": []

@@ -2800,10 +2800,13 @@ export async function runAreaAttackWorkflow({
   )];
   if (!normalizedTags.length) return { handled: false };
 
-  const mode = await promptAreaMode({
-    attackItem,
-    areaTags: normalizedTags
-  });
+  const forcedTag = normalizeAreaTag(attackOptions?.areaAttackForcedTag ?? "");
+  const mode = forcedTag
+    ? { mode: "area", tag: forcedTag }
+    : await promptAreaMode({
+        attackItem,
+        areaTags: normalizedTags
+      });
 
   if (mode === null) return { handled: true, result: null };
 
@@ -2817,12 +2820,17 @@ export async function runAreaAttackWorkflow({
   if (mode?.mode !== "area") return { handled: false };
 
   const tag = normalizeAreaTag(mode.tag);
-  const bounds = getAreaSizeBounds({
+  let bounds = getAreaSizeBounds({
     attacker,
     attackItem,
     tag,
     qualityAttackModifier
   });
+
+  const fixedSize = Math.max(0, Math.floor(Number(attackOptions?.areaAttackFixedSize ?? 0)));
+  if (bounds && fixedSize > 0) {
+    bounds = { ...bounds, base: fixedSize, maximum: fixedSize };
+  }
 
   if (!bounds) {
     ui.notifications.warn(text(

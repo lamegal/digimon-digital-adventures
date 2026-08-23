@@ -9,6 +9,7 @@ import {
   normalizeKey,
   rollDerivedCheck
 } from "../rules/quality-automation.js";
+import { grantNonStackingTemporaryWounds } from "./temporary-wounds.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const STATE_PATH = "system.combat.freeNegativeQualities";
@@ -172,12 +173,22 @@ async function thresholdChanged(actor, changed) {
     notes.push(text("Investida Vingativa concede 3 Bateria.", "Vengeful Charge grants 3 Battery."));
   }
   if (hasQuality(actor, "sealedWeapon")) notes.push(text("Arma Selada foi liberada até o fim do Combate.", "Sealed Weapon is unlocked until Combat ends."));
+  let awakenedInstinctTemporaryWounds = 0;
   if (hasQuality(actor, "awakenedInstinct")) {
-    const amount = getQualityRank(findQuality(actor, "instinct")) * 2;
-    updates[hp.tempPath] = hp.temp + amount;
-    notes.push(text(`Instinto Desperto concede ${amount} Caixas Temporárias.`, `Awakened Instinct grants ${amount} Temporary Wound Boxes.`));
+    awakenedInstinctTemporaryWounds = getQualityRank(findQuality(actor, "instinct")) * 2;
+    notes.push(text(
+      `Instinto Desperto oferece ${awakenedInstinctTemporaryWounds} Caixas Temporárias (fontes comuns não acumulam; vale a maior).`,
+      `Awakened Instinct offers ${awakenedInstinctTemporaryWounds} Temporary Wound Boxes (normal sources do not stack; the higher source applies).`
+    ));
   }
   await actor.update(updates);
+  if (awakenedInstinctTemporaryWounds > 0) {
+    await grantNonStackingTemporaryWounds(actor, awakenedInstinctTemporaryWounds, {
+      sourceId: "awakenedInstinct",
+      label: findQuality(actor, "awakenedInstinct")?.name ?? "Awakened Instinct",
+      metadata: { triggeredCombatId: getCombatId() }
+    });
+  }
   await post(actor, text("Limite de Ferimentos atingido", "Wound threshold reached"), notes);
 }
 

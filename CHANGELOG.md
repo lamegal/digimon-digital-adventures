@@ -1,3 +1,21 @@
+Digimon Digital Adventures V2 — v2.0.22-beta.11
+
+PUSH/PULL forced movement and Combat pill label hotfix
+
+Fixed PUSH and PULL Attack Effects so forced Token movement is committed through the primary active GM when the user resolving the Attack does not have permission to update the target Token. The destination is still calculated by the DDA forced-movement resolver, validated for direction and maximum distance, and movement remains marked as forced so it does not spend the target's Actions or Movement budget. Local Token updates now fall back to the GM route if Foundry rejects the direct update.
+
+Preserved exact source/target Token routing for linked and unlinked Tokens, Clash handling, occupied-space fallback, PULL stopping before the caster, and BURN movement damage. PUSH/PULL are only reported as successfully applied when the Token movement actually commits.
+
+Fixed Combat-tab linked Effect pills displaying raw localization identifiers such as [DDA.EFFECT.TAG.PUSH]. Pills now resolve localization at render time and safely fall back to the canonical tag, producing labels such as [PUSH], [PULL] and [CLEANSE] instead of implementation keys.
+
+Digimon Digital Adventures V2 — v2.0.22-beta.10
+
+Combat tab attack badges and CSS cleanup
+
+Added compact pills to each Attack in the Digimon Combat tab, showing linked Effect Tags and Attack Qualities from the purchased Quality binding. The display uses the same conservative id/name recovery semantics introduced by the beta.9 Effect binding hotfix, so progression/evolution snapshot rebuilds remain visible and accurate.
+
+Consolidated the Digimon Combat tab CSS by removing obsolete duplicated resource-grid overrides and replacing the conflicting combat skin with one canonical layout. Main combat resources now use five aligned columns at normal sheet width, status controls are arranged consistently, attack rows have stable metadata/control columns, and linked Effects/Qualities have distinct visual treatment.
+
 Cumulative Foundry VTT v13 beta release covering every system change from v2.0.8-beta through v2.0.20-beta.
 
 Release cycle overview

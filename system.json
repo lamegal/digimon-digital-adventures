@@ -2,7 +2,7 @@
   "id": "digimon-digital-adventures",
   "title": "Digimon Digital Adventures V2",
   "description": "Sistema não oficial para jogar Digimon Digital Adventures 2ª Edição no Foundry Virtual Tabletop. Inclui fichas para Digi-Escolhidos, Digimon parceiros e NPCs, com suporte a Aspectos, PI, PE, Tormentos, Marcos, PD, Qualidades, Ataques, Estágios Evolutivos, Posturas, Ações de Combate e rolagens de Testes e Reservas.",
-  "version": "2.0.22-beta",
+  "version": "2.0.22-beta.11",
   "compatibility": {
     "minimum": "13",
     "verified": "13"
@@ -20,7 +20,10 @@
     "scripts/data/option-cards.js",
     "scripts/data/expendable-items.js",
     "scripts/data/equipment-items.js",
-    "scripts/ui/dda-core-ui.js"
+    "scripts/ui/dda-core-ui.js",
+    "scripts/runtime/initiative-tracker-runtime-v10.js",
+    "scripts/runtime/scene-combatants-control-v9.js",
+    "scripts/runtime/target-visibility-v8.js"
   ],
   "styles": [
     "styles/wizard.css",
@@ -52,7 +55,8 @@
     "styles/dda-token-hud-effects.css",
     "styles/dda-token-hud.css",
     "styles/dda-core-ui-v4.css",
-    "styles/dda-roll-dialogs.css"
+    "styles/dda-roll-dialogs.css",
+    "styles/dda-combat-tracker-affiliation-v10.css"
   ],
   "languages": [
     {
@@ -174,8 +178,8 @@
   "secondaryTokenAttribute": "combat.actions",
   "url": "https://github.com/lamegal/digimon-digital-adventures",
   "manifest": "https://raw.githubusercontent.com/lamegal/digimon-digital-adventures/main/system.json",
-  "download": "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.22-beta/digimon-digital-adventures-v2.0.22-beta.zip",
+  "download": "https://github.com/lamegal/digimon-digital-adventures/releases/download/v2.0.22-beta.11/digimon-digital-adventures-v2.0.22-beta.11.zip",
   "bugs": "https://github.com/lamegal/digimon-digital-adventures/issues",
-  "changelog": "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.22-beta",
+  "changelog": "https://github.com/lamegal/digimon-digital-adventures/releases/tag/v2.0.22-beta.11",
   "license": "LICENSE"
 }

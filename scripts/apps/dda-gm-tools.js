@@ -1,4 +1,4 @@
-import { applyDamage } from "../rolls/damage-application.js";
+import { applyCrashDamage, applyDamage } from "../rolls/damage-application.js";
 import {
   endDdaSession,
   getDdaSessionState,
@@ -444,7 +444,11 @@ export class DDAGmTools extends HandlebarsApplicationMixin(ApplicationV2) {
       for (const { actor, token } of targets) {
         const before = getActorWoundState(actor);
 
-        const result = await applyDamage(actor, rawDamage, {
+        const damageApplier = localizedDamageConfig.damageType === "crash"
+          ? applyCrashDamage
+          : applyDamage;
+
+        const result = await damageApplier(actor, rawDamage, {
           ...localizedDamageConfig,
           createChat
         });

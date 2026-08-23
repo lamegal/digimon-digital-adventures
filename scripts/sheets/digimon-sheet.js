@@ -63,6 +63,7 @@ import {
   shouldTreatStoredPortraitAsManual
 } from "../helpers/digimon-portrait-resolver.js";
 import { DDAEvolutionChoiceBrowser } from "../apps/evolution-choice-browser.js";
+import { buildAttackLinkedBadges } from "../helpers/attack-linked-badges.js";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 const {
@@ -469,10 +470,26 @@ export class DDADigimonSheet extends DDADigimonSheetBase {
       closeOnSubmit: false,
       submitOnChange: true
     },
+    actions: {
+      endTurn: this._onEndTurnAction
+    },
     window: {
       resizable: true
     }
   };
+
+  /**
+   * ApplicationV2 native action handler for the sheet End Turn button.
+   *
+   * @this {DDADigimonSheet}
+   * @param {PointerEvent} event
+   * @param {HTMLElement} _target
+   */
+  static async _onEndTurnAction(event, _target) {
+    event.preventDefault();
+    event.stopPropagation();
+    return endDigimonTurn(this.actor);
+  }
 
   static PARTS = {
     form: {
@@ -769,6 +786,14 @@ context.hybridForm = {
   partnerAvailability: hybridState.partnerAvailability || "unchanged",
   partnerAvailabilityLabel: getHybridPartnerAvailabilityLabelForSheet(hybridState.partnerAvailability || "unchanged")
 };
+
+  context.combatAttacks = (context.itemsByType.attack ?? []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    img: item.img,
+    system: item.system,
+    combatBadges: buildAttackLinkedBadges(this.actor, item)
+  }));
 
   context.qualityGroups = this._getQualityGroups(context.itemsByType.quality);
   context.evolutionStages = this._getEvolutionStages();
@@ -1142,7 +1167,6 @@ _getEvolutionGraphData() {
     html.find(".roll-pool").on("click", this.#onRollPool.bind(this));
     html.find('[data-action="roll-derived-stat"]').on("click", this._onRollDerivedStat.bind(this));
     html.find(".roll-attack").on("click", this.#onRollAttack.bind(this));
-    html.find(".end-turn").on("click", this.#onEndTurn.bind(this));
     html.find(".open-digimon-actions").on("click", this.#onOpenDigimonActions.bind(this));
     html.find(".roll-recovery").on("click", this.#onRollRecovery.bind(this));
     html.find(".dda-clash-stat-card").on("click", this._onInitiateClash.bind(this));

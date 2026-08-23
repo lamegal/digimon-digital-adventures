@@ -24,6 +24,10 @@ import {
   checkActorActionSpend
 } from "../combat/action-economy.js";
 
+import {
+  expireNonStackingTemporaryWounds
+} from "../combat/temporary-wounds.js";
+
 const SYSTEM_ID = "digimon-digital-adventures";
 const VANISH_TAG = "vanishBlind";
 const REALIZATION_TAG = "exploit";
@@ -791,12 +795,10 @@ async function removeEffectWithCleanup(actor, effectId) {
   }
 
   if (tag === "shield") {
-    const tempRoot = actor.type === "character"
-      ? "system.derived.wounds.temp"
-      : "system.miscStats.wounds.temp";
-    updates[`${tempRoot}.value`] = 0;
-    updates[`${tempRoot}.source`] = "";
-    updates[`${tempRoot}.duration`] = "";
+    await expireNonStackingTemporaryWounds(actor, {
+      sourceId: "shield",
+      effectId: String(effect.id ?? "")
+    });
   }
 
   await actor.update(updates);

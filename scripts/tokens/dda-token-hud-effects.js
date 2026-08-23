@@ -1,4 +1,8 @@
 import { EFFECT_TAGS, getActorDerivedStat } from "../rules/quality-automation.js";
+import {
+  expireNonStackingTemporaryWounds,
+  grantNonStackingTemporaryWounds
+} from "../combat/temporary-wounds.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const SUPPORTED_ACTOR_TYPES = new Set(["digimon", "npc"]);
@@ -277,72 +281,19 @@ function actorWoundsTempPath(actor) {
   return actor?.type === "character" ? "system.derived.wounds.temp" : "system.miscStats.wounds.temp";
 }
 
-function stripShieldSource(source = "") {
-  return String(source ?? "")
-    .split("+")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .filter((entry) => {
-      const normalized = entry
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-      return !normalized.includes("shield") && !normalized.includes("escudo");
-    })
-    .join(" + ");
-}
-
 async function clearShield(actor, effect = null) {
-  const path = actorWoundsTempPath(actor);
-  const temp = foundry.utils.getProperty(actor, path) ?? {};
-  const current = Math.max(0, number(temp.value, 0));
-  const contribution = Math.max(
-    0,
-    number(
-      effect?.tempWoundsRemaining ??
-      effect?.tempWounds ??
-      0,
-      0
-    )
-  );
-  const source = stripShieldSource(temp.source);
-  const next = Math.max(0, current - contribution);
-
-  await actor.update({
-    [`${path}.value`]: next,
-    [`${path}.source`]: source,
-    ...(
-      next <= 0 || !source
-        ? { [`${path}.duration`]: "" }
-        : {}
-    )
+  return expireNonStackingTemporaryWounds(actor, {
+    sourceId: "shield",
+    effectId: String(effect?.id ?? "")
   });
 }
 
 async function applyShield(actor, amount, duration, existingEffect = null) {
-  const path = actorWoundsTempPath(actor);
-  const temp = foundry.utils.getProperty(actor, path) ?? {};
-  const current = Math.max(0, number(temp.value, 0));
-  const previousContribution = Math.max(
-    0,
-    number(
-      existingEffect?.tempWoundsRemaining ??
-      existingEffect?.tempWounds ??
-      0,
-      0
-    )
-  );
-  const shieldAmount = Math.max(0, number(amount, 2));
-  const base = Math.max(0, current - previousContribution);
-  const previousSource = stripShieldSource(temp.source);
-  const nextSource = [previousSource, ...(shieldAmount > 0 ? ["[SHIELD] — Token HUD"] : [])]
-    .filter(Boolean)
-    .join(" + ");
-
-  await actor.update({
-    [`${path}.value`]: base + shieldAmount,
-    [`${path}.source`]: nextSource,
-    [`${path}.duration`]: nextSource ? duration : ""
+  return grantNonStackingTemporaryWounds(actor, amount, {
+    sourceId: "shield",
+    label: "[SHIELD] — Token HUD",
+    duration: String(duration ?? ""),
+    effectId: String(existingEffect?.id ?? "")
   });
 }
 
@@ -552,7 +503,7 @@ export async function adjustDdaTokenEffect(actor, tagValue, delta = 1, config = 
     const amount = Math.max(0, number(config?.potency, record.potency || 2));
     record.tempWounds = amount;
     record.tempWoundsRemaining = amount;
-    await applyShield(actor, amount, record.remaining, existing);
+    await applyShield(actor, amount, record.remaining, existing ?? record);
   }
   await actor.update({ "system.effects.active": effects });
   actor.sheet?.render(false);

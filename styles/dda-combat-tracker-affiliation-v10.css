@@ -1,0 +1,309 @@
+/* ----------------------------------------- */
+/* DDA | Combat Tracker — Solo affiliation   */
+/* ----------------------------------------- */
+/*
+ * Loaded last by system.json; v10 runtime also applies the faction palette inline as a defensive fallback.
+ * This file only themes unpaired Digimon/NPC rows; paired Tamer + Partner
+ * cards intentionally keep the standard DDA blue treatment.
+ */
+
+#combat li.combatant.dda-solo-digimon,
+.combat-tracker li.combatant.dda-solo-digimon {
+  --dda-solo-accent: rgba(111, 155, 187, 0.78);
+  --dda-solo-accent-soft: rgba(111, 155, 187, 0.16);
+  --dda-solo-accent-strong: rgba(111, 155, 187, 0.94);
+  --dda-solo-initiative-top: rgba(53, 92, 122, 0.98);
+  --dda-solo-initiative-bottom: rgba(28, 52, 72, 0.98);
+  --dda-solo-bg-a: rgba(12, 24, 35, 0.98);
+  --dda-solo-bg-b: rgba(17, 36, 51, 0.97);
+
+  display: grid !important;
+  grid-template-columns: 42px 42px minmax(0, 1fr);
+  grid-template-rows: minmax(68px, auto);
+  align-items: center;
+  min-height: 68px;
+  padding: 0 !important;
+  border-color: var(--dda-solo-accent) !important;
+  background:
+    linear-gradient(
+      135deg,
+      var(--dda-solo-bg-a),
+      var(--dda-solo-bg-b)
+    ) !important;
+  box-shadow:
+    inset 3px 0 0 var(--dda-solo-accent-strong),
+    0 2px 8px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045) !important;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    filter 140ms ease;
+}
+
+/* Enemy: restrained crimson rather than saturated warning-red. */
+#combat li.combatant.dda-solo-digimon-enemy,
+.combat-tracker li.combatant.dda-solo-digimon-enemy {
+  --dda-solo-accent: rgba(211, 91, 96, 0.82);
+  --dda-solo-accent-soft: rgba(211, 91, 96, 0.18);
+  --dda-solo-accent-strong: rgba(231, 112, 112, 0.96);
+  --dda-solo-initiative-top: rgba(132, 48, 55, 0.99);
+  --dda-solo-initiative-bottom: rgba(73, 27, 34, 0.99);
+  --dda-solo-bg-a: rgba(55, 23, 31, 0.985);
+  --dda-solo-bg-b: rgba(32, 27, 39, 0.985);
+}
+
+/* Ally without Partner: dark desaturated emerald, readable on Foundry dark UI. */
+#combat li.combatant.dda-solo-digimon-ally,
+.combat-tracker li.combatant.dda-solo-digimon-ally {
+  --dda-solo-accent: rgba(78, 184, 127, 0.82);
+  --dda-solo-accent-soft: rgba(78, 184, 127, 0.18);
+  --dda-solo-accent-strong: rgba(105, 211, 154, 0.96);
+  --dda-solo-initiative-top: rgba(35, 111, 76, 0.99);
+  --dda-solo-initiative-bottom: rgba(21, 67, 49, 0.99);
+  --dda-solo-bg-a: rgba(17, 47, 36, 0.985);
+  --dda-solo-bg-b: rgba(23, 39, 42, 0.985);
+}
+
+#combat li.combatant.dda-solo-digimon > .token-initiative,
+.combat-tracker li.combatant.dda-solo-digimon > .token-initiative {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  margin: 0 !important;
+  padding: 6px 3px;
+  border-right: 1px solid color-mix(in srgb, var(--dda-solo-accent) 55%, transparent);
+  color: #f7fbfd;
+  background:
+    linear-gradient(
+      180deg,
+      var(--dda-solo-initiative-top),
+      var(--dda-solo-initiative-bottom)
+    ) !important;
+  font-size: 1.2rem;
+  font-weight: 850;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.78);
+}
+
+#combat li.combatant.dda-solo-digimon > .token-initiative > span,
+.combat-tracker li.combatant.dda-solo-digimon > .token-initiative > span {
+  color: inherit;
+  font: inherit;
+}
+
+#combat li.combatant.dda-solo-digimon > .token-image,
+.combat-tracker li.combatant.dda-solo-digimon > .token-image {
+  grid-column: 2;
+  grid-row: 1;
+  width: 36px !important;
+  height: 36px !important;
+  margin: 0 3px;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--dda-solo-accent) 62%, rgba(220, 235, 244, 0.35));
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.30);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+#combat li.combatant.dda-solo-digimon > .token-name,
+.combat-tracker li.combatant.dda-solo-digimon > .token-name {
+  display: flex;
+  grid-column: 3;
+  grid-row: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 7px 8px 7px 5px;
+}
+
+#combat li.combatant.dda-solo-digimon > .token-name .name,
+.combat-tracker li.combatant.dda-solo-digimon > .token-name .name {
+  display: block;
+  overflow: hidden;
+  max-width: 100%;
+  color: #f5f9fb;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.54);
+  white-space: nowrap;
+}
+
+/* Match the vertical rhythm of the member half of a Tamer/Partner card. */
+#combat li.combatant.dda-solo-digimon > .token-name .combatant-controls,
+.combat-tracker li.combatant.dda-solo-digimon > .token-name .combatant-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 14px;
+  margin: 0 !important;
+  line-height: 1;
+}
+
+#combat li.combatant.dda-solo-digimon > .token-name .combatant-controls a,
+.combat-tracker li.combatant.dda-solo-digimon > .token-name .combatant-controls a {
+  line-height: 1;
+}
+
+#combat li.combatant.dda-solo-digimon .dda-solo-combat-meta,
+.combat-tracker li.combatant.dda-solo-digimon .dda-solo-combat-meta {
+  margin-top: 0;
+  line-height: 1.05;
+}
+
+#combat li.combatant.dda-solo-digimon > .token-resource,
+.combat-tracker li.combatant.dda-solo-digimon > .token-resource {
+  display: none;
+}
+
+.dda-solo-affiliation-badge,
+.dda-solo-affiliation-badge-v8,
+.dda-solo-affiliation-badge-v9,
+.dda-solo-affiliation-badge-v10 {
+  display: none !important;
+}
+
+/* Active state keeps affiliation while gaining an unmistakable turn glow. */
+#combat li.combatant.dda-solo-digimon.active,
+.combat-tracker li.combatant.dda-solo-digimon.active {
+  border-color: var(--dda-solo-accent-strong) !important;
+  box-shadow:
+    inset 3px 0 0 var(--dda-solo-accent-strong),
+    0 0 0 1px color-mix(in srgb, var(--dda-solo-accent) 50%, transparent),
+    0 0 14px color-mix(in srgb, var(--dda-solo-accent) 30%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.075) !important;
+  filter: brightness(1.07);
+}
+
+#combat li.combatant.dda-solo-digimon:hover,
+.combat-tracker li.combatant.dda-solo-digimon:hover {
+  filter: brightness(1.08);
+}
+
+/* Foundry may mark defeated combatants with reduced opacity; preserve faction cue. */
+#combat li.combatant.dda-solo-digimon.defeated,
+.combat-tracker li.combatant.dda-solo-digimon.defeated {
+  filter: saturate(0.55) brightness(0.78);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #combat li.combatant.dda-solo-digimon,
+  .combat-tracker li.combatant.dda-solo-digimon {
+    transition: none;
+  }
+}
+
+
+/* ----------------------------------------- */
+/* DDA | Affiliation cascade hardening       */
+/* ----------------------------------------- */
+/*
+ * The tracker base stylesheet also themes .dda-solo-combatant with
+ * !important. These data-attribute selectors intentionally have greater
+ * specificity so faction colours remain authoritative even when Foundry or a
+ * tracker module reorders stylesheets during a rerender.
+ */
+#combat [data-combatant-id].dda-solo-digimon[data-dda-affiliation="enemy"],
+.combat-tracker [data-combatant-id].dda-solo-digimon[data-dda-affiliation="enemy"] {
+  border-color: var(--dda-solo-accent) !important;
+  background: linear-gradient(135deg, var(--dda-solo-bg-a), var(--dda-solo-bg-b)) !important;
+  box-shadow:
+    inset 3px 0 0 var(--dda-solo-accent-strong),
+    0 2px 8px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045) !important;
+}
+
+#combat [data-combatant-id].dda-solo-digimon[data-dda-affiliation="ally"],
+.combat-tracker [data-combatant-id].dda-solo-digimon[data-dda-affiliation="ally"] {
+  border-color: var(--dda-solo-accent) !important;
+  background: linear-gradient(135deg, var(--dda-solo-bg-a), var(--dda-solo-bg-b)) !important;
+  box-shadow:
+    inset 3px 0 0 var(--dda-solo-accent-strong),
+    0 2px 8px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045) !important;
+}
+
+#combat [data-combatant-id].dda-solo-digimon[data-dda-affiliation] > .token-initiative,
+.combat-tracker [data-combatant-id].dda-solo-digimon[data-dda-affiliation] > .token-initiative {
+  background: linear-gradient(
+    180deg,
+    var(--dda-solo-initiative-top),
+    var(--dda-solo-initiative-bottom)
+  ) !important;
+  border-right-color: var(--dda-solo-accent) !important;
+}
+
+#combat [data-combatant-id].dda-solo-digimon[data-dda-affiliation] > .token-image,
+.combat-tracker [data-combatant-id].dda-solo-digimon[data-dda-affiliation] > .token-image {
+  border-color: var(--dda-solo-accent) !important;
+}
+
+
+/* Active turn uses the same faction hue rather than the old generic red. */
+#combat [data-combatant-id].dda-solo-digimon[data-dda-affiliation].active,
+.combat-tracker [data-combatant-id].dda-solo-digimon[data-dda-affiliation].active {
+  border-color: var(--dda-solo-accent-strong) !important;
+  box-shadow:
+    inset 3px 0 0 var(--dda-solo-accent-strong),
+    0 0 0 1px color-mix(in srgb, var(--dda-solo-accent) 54%, transparent),
+    0 0 15px color-mix(in srgb, var(--dda-solo-accent) 31%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.075) !important;
+}
+
+
+
+/* ----------------------------------------- */
+/* DDA | Combatant add controls — v9         */
+/* ----------------------------------------- */
+.dda-combatant-add-controls-v9 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.dda-combatant-add-controls-v9 .dda-add-combatants-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 30px;
+  margin: 0;
+  padding: 4px 7px;
+  border: 1px solid rgba(130, 173, 205, 0.46);
+  border-radius: 5px;
+  color: rgba(235, 246, 252, 0.95);
+  background: linear-gradient(180deg, rgba(31, 62, 84, 0.96), rgba(20, 42, 60, 0.96));
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.dda-combatant-add-controls-v9 .dda-add-combatants-button:hover {
+  border-color: rgba(126, 198, 239, 0.75);
+  filter: brightness(1.13);
+}
+
+.dda-combatant-add-controls-v9 .dda-add-combatants-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 1px solid rgba(152, 209, 240, 0.42);
+  border-radius: 999px;
+  color: #f5fbff;
+  background: rgba(4, 16, 25, 0.52);
+  font-size: 0.62rem;
+  font-weight: 850;
+}

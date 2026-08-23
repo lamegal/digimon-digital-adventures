@@ -5218,339 +5218,6 @@
     0 0 9px rgba(80,190,255,0.12);
 }
 /* ===================================================== */
-/* DDA — Digimon: recursos principais de combate         */
-/* ===================================================== */
-
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type {
-  display: grid !important;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  gap: 0.55rem !important;
-}
-
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type .resource-box {
-  min-width: 0 !important;
-  min-height: 72px !important;
-  padding: 0.45rem 0.5rem !important;
-}
-
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type .resource-box label {
-  font-size: 0.72rem !important;
-  line-height: 1.1 !important;
-}
-
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type .inline-inputs {
-  display: grid !important;
-  grid-template-columns: 1fr auto 1fr !important;
-  gap: 0.3rem !important;
-  align-items: center !important;
-}
-/* ===================================================== */
-/* DDA — Digimon: recursos principais de combate         */
-/* ===================================================== */
-
-/* Primeira grade da aba Combate: Ações, Bateria, Saúde, Esquiva, Postura */
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type {
-  display: grid !important;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  gap: 0.45rem !important;
-  align-items: stretch !important;
-}
-
-/* Cards mais compactos */
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type > .resource-box {
-  min-width: 0 !important;
-  min-height: 68px !important;
-  padding: 0.42rem 0.48rem !important;
-}
-
-/* Labels menores para caber em uma linha */
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type > .resource-box > label {
-  margin-bottom: 0.28rem !important;
-
-  font-size: 0.68rem !important;
-  line-height: 1.05 !important;
-  letter-spacing: 0.05em !important;
-  white-space: nowrap !important;
-}
-
-/* Inputs mais compactos */
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type input,
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type select {
-  height: 30px !important;
-  min-height: 30px !important;
-  padding: 0 0.35rem !important;
-
-  font-size: 0.86rem !important;
-  line-height: 30px !important;
-}
-
-/* Inputs duplos: 2 / 2, 3 / 3, 1 / 7 */
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type .inline-inputs {
-  display: grid !important;
-  grid-template-columns: 1fr 10px 1fr !important;
-  gap: 0.25rem !important;
-  align-items: center !important;
-}
-
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type .inline-inputs span {
-  color: #dcefff !important;
-  font-family: "Chronotype", "Arial Black", Impact, sans-serif !important;
-  font-size: 0.9rem !important;
-  font-weight: 900 !important;
-  text-align: center !important;
-}
-
-/* Postura: ocupa uma célula normal, sem quebrar para baixo */
-.dda-digimon-sheet .dda-combat-tab > .resource-grid:first-of-type select[name="system.combat.currentStance"] {
-  font-size: 0.72rem !important;
-  text-align: center !important;
-}
-/* ===================================================== */
-/* DDA — Digimon: card de Saúde em combate          */
-/* ===================================================== */
-
-.dda-digimon-sheet .dda-combat-tab .wounds-box {
-  background:
-    radial-gradient(circle at top right, rgba(255, 120, 140, 0.18), transparent 38%),
-    linear-gradient(180deg, rgba(82, 25, 38, 0.96), rgba(38, 10, 22, 0.96)) !important;
-
-  border-color: rgba(255, 145, 165, 0.48) !important;
-
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 -10px 16px rgba(255, 70, 100, 0.10),
-    0 2px 7px rgba(0, 0, 0, 0.18) !important;
-}
-
-.dda-digimon-sheet .dda-combat-tab .wounds-box::after {
-  background: rgba(255, 150, 165, 0.85) !important;
-  box-shadow: 0 0 7px rgba(255, 100, 130, 0.65) !important;
-}
-
-.dda-digimon-sheet .dda-combat-tab .wounds-box label {
-  color: #ffe9ee !important;
-}
-
-.dda-digimon-sheet .dda-combat-tab .wounds-box input {
-  color: #ffffff !important;
-
-  background: rgba(35, 0, 12, 0.30) !important;
-  border-color: rgba(255, 170, 185, 0.30) !important;
-}
-
-.dda-digimon-sheet .dda-combat-tab .wounds-box .inline-inputs span {
-  color: #ffe9ee !important;
-}
-/* ===================================================== */
-/* DDA — Digimon: combate em 5 colunas forçado           */
-/* ===================================================== */
-
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type {
-  display: grid !important;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  gap: 0.32rem !important;
-  width: 100% !important;
-}
-
-/* Permite os cards realmente encolherem */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type > .resource-box {
-  min-width: 0 !important;
-  width: auto !important;
-  max-width: none !important;
-
-  min-height: 62px !important;
-  padding: 0.35rem 0.36rem !important;
-}
-
-/* Labels compactas */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type > .resource-box > label {
-  font-size: 0.62rem !important;
-  line-height: 1 !important;
-  letter-spacing: 0.04em !important;
-  white-space: nowrap !important;
-}
-
-/* Inputs e select podem encolher */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type input,
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type select {
-  min-width: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 0.25rem !important;
-
-  font-size: 0.78rem !important;
-  line-height: 28px !important;
-}
-
-/* Campos duplos tipo 2 / 2 */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type .inline-inputs {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr) !important;
-  gap: 0.18rem !important;
-  min-width: 0 !important;
-}
-
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type .inline-inputs span {
-  font-size: 0.78rem !important;
-  line-height: 28px !important;
-  text-align: center !important;
-}
-
-/* Postura mais compacta */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab select[name="system.combat.currentStance"] {
-  font-size: 0.62rem !important;
-  letter-spacing: 0.02em !important;
-  padding-left: 0.2rem !important;
-  padding-right: 0.2rem !important;
-}
-/* ===================================================== */
-/* DDA — Digimon: combate em 5 colunas forçado           */
-/* ===================================================== */
-
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type {
-  display: grid !important;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  gap: 0.32rem !important;
-  width: 100% !important;
-}
-
-/* Permite os cards realmente encolherem */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type > .resource-box {
-  min-width: 0 !important;
-  width: auto !important;
-  max-width: none !important;
-
-  min-height: 62px !important;
-  padding: 0.35rem 0.36rem !important;
-}
-
-/* Labels compactas */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type > .resource-box > label {
-  font-size: 0.62rem !important;
-  line-height: 1 !important;
-  letter-spacing: 0.04em !important;
-  white-space: nowrap !important;
-}
-
-/* Inputs e select podem encolher */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type input,
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type select {
-  min-width: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 0.25rem !important;
-
-  font-size: 0.78rem !important;
-  line-height: 28px !important;
-}
-
-/* Campos duplos tipo 2 / 2 */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type .inline-inputs {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr) !important;
-  gap: 0.18rem !important;
-  min-width: 0 !important;
-}
-
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab > .resource-grid:first-of-type .inline-inputs span {
-  font-size: 0.78rem !important;
-  line-height: 28px !important;
-  text-align: center !important;
-}
-
-/* Postura mais compacta */
-.dda-digimon-sheet section[data-tab="combat"].dda-combat-tab select[name="system.combat.currentStance"] {
-  font-size: 0.62rem !important;
-  letter-spacing: 0.02em !important;
-  padding-left: 0.2rem !important;
-  padding-right: 0.2rem !important;
-}
-/* ===================================================== */
-/* DDA — Digimon: linha principal de combate compacta    */
-/* ===================================================== */
-
-.dda-digimon-sheet .combat-main-resources {
-  display: grid !important;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  gap: 0.32rem !important;
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-/* Cards realmente compactos */
-.dda-digimon-sheet .combat-main-resources > .resource-box {
-  box-sizing: border-box !important;
-
-  min-width: 0 !important;
-  width: auto !important;
-  max-width: none !important;
-
-  min-height: 60px !important;
-  padding: 0.35rem 0.35rem !important;
-}
-
-/* Labels menores */
-.dda-digimon-sheet .combat-main-resources > .resource-box > label {
-  margin-bottom: 0.25rem !important;
-
-  font-size: 0.6rem !important;
-  line-height: 1 !important;
-  letter-spacing: 0.035em !important;
-  white-space: nowrap !important;
-}
-
-/* Inputs e select sem largura mínima herdada */
-.dda-digimon-sheet .combat-main-resources input,
-.dda-digimon-sheet .combat-main-resources select {
-  box-sizing: border-box !important;
-
-  min-width: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 0.25rem !important;
-
-  font-size: 0.76rem !important;
-  line-height: 28px !important;
-}
-
-/* Campos duplos: 2 / 2, 3 / 3, 1 / 7 */
-.dda-digimon-sheet .combat-main-resources .inline-inputs {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr) !important;
-  gap: 0.16rem !important;
-  min-width: 0 !important;
-  width: 100% !important;
-}
-
-.dda-digimon-sheet .combat-main-resources .inline-inputs input {
-  min-width: 0 !important;
-  width: 100% !important;
-}
-
-.dda-digimon-sheet .combat-main-resources .inline-inputs span {
-  font-size: 0.76rem !important;
-  line-height: 28px !important;
-  text-align: center !important;
-}
-
-/* Postura mais enxuta */
-.dda-digimon-sheet .combat-main-resources select[name="system.combat.currentStance"] {
-  font-size: 0.58rem !important;
-  letter-spacing: 0.01em !important;
-  padding-left: 0.15rem !important;
-  padding-right: 0.15rem !important;
-  text-align: center !important;
-}
-/* ===================================================== */
 /* DDA — Ficha de Ataque                                 */
 /* ===================================================== */
 
@@ -13292,380 +12959,317 @@
   font-weight: 900 !important;
 }
 /* ===================================================== */
-/* DDA — Digimon: Aba Combate estilo Digi-Escolhido      */
+/* DDA — Digimon: Aba Combate (layout canônico)          */
 /* ===================================================== */
 
 .dda-digimon-window-sheet .dda-combat-tab.active {
   display: flex !important;
   flex-direction: column !important;
-  gap: 0.9rem !important;
-
-  padding: 0.15rem 0.15rem 0.85rem !important;
+  gap: 0.72rem !important;
+  padding: 0.1rem 0.12rem 0.8rem !important;
 }
 
-/* Título principal */
 .dda-digimon-window-sheet .dda-combat-tab > h2,
 .dda-digimon-window-sheet .dda-combat-tab > h3 {
-  position: relative !important;
-
   margin: 0 !important;
-  padding: 0.45rem 0.65rem !important;
-
+  padding: 0.42rem 0.62rem !important;
   color: #173148 !important;
-
   font-family: "PixelOperatorBold", "Reactor7", Arial, sans-serif !important;
   font-weight: 900 !important;
   line-height: 1.1 !important;
-  letter-spacing: 0.08em !important;
+  letter-spacing: 0.075em !important;
   text-transform: uppercase !important;
-
-  background:
-    linear-gradient(90deg, rgba(220, 238, 250, 0.95), rgba(245, 250, 255, 0.76)) !important;
-
-  border: none !important;
+  background: linear-gradient(90deg, rgba(220, 238, 250, 0.95), rgba(245, 250, 255, 0.78)) !important;
+  border: 0 !important;
   border-left: 5px solid rgba(35, 135, 195, 0.85) !important;
   border-bottom: 1px solid rgba(45, 100, 135, 0.18) !important;
-
   box-shadow: none !important;
 }
 
-.dda-digimon-window-sheet .dda-combat-tab > h2 {
-  font-size: 0.98rem !important;
-}
+.dda-digimon-window-sheet .dda-combat-tab > h2 { font-size: 0.98rem !important; }
+.dda-digimon-window-sheet .dda-combat-tab > h3 { font-size: 0.84rem !important; }
 
-.dda-digimon-window-sheet .dda-combat-tab > h3 {
-  font-size: 0.9rem !important;
-}/* Botões principais da aba Combate */
+/* Ações principais: distribuem 3 ou 4 botões sem deformar a linha. */
 .dda-digimon-window-sheet .dda-combat-tab > .combat-actions:first-of-type {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: 0.65rem !important;
-
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)) !important;
+  gap: 0.48rem !important;
   margin: 0 !important;
-  padding: 0.65rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(235, 246, 252, 0.92), rgba(214, 232, 243, 0.86)) !important;
-
+  padding: 0.55rem !important;
+  background: linear-gradient(180deg, rgba(235, 246, 252, 0.92), rgba(214, 232, 243, 0.86)) !important;
   border: 1px solid rgba(45, 100, 135, 0.24) !important;
-  border-radius: 10px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
-    0 1px 5px rgba(0, 0, 0, 0.10) !important;
+  border-radius: 9px !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 1px 4px rgba(0, 0, 0, 0.08) !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .combat-actions button {
-  height: 30px !important;
-  min-height: 30px !important;
-
+  min-width: 0 !important;
+  width: 100% !important;
+  height: 31px !important;
+  min-height: 31px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-
-  padding: 0 12px !important;
-
+  gap: 0.32rem !important;
+  margin: 0 !important;
+  padding: 0 0.65rem !important;
   color: #eaf7ff !important;
-
   font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
-  font-size: 0.76rem !important;
+  font-size: 0.73rem !important;
   font-weight: 900 !important;
-  letter-spacing: 0.055em !important;
+  line-height: 1 !important;
+  letter-spacing: 0.045em !important;
   text-transform: uppercase !important;
-
-  background:
-    linear-gradient(180deg, rgba(27, 78, 112, 0.98), rgba(8, 38, 62, 0.98)) !important;
-
+  white-space: nowrap !important;
+  background: linear-gradient(180deg, rgba(27, 78, 112, 0.98), rgba(8, 38, 62, 0.98)) !important;
   border: 1px solid rgba(120, 200, 245, 0.36) !important;
   border-radius: 999px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
-    inset 0 -5px 8px rgba(0, 0, 0, 0.22),
-    0 1px 3px rgba(0, 0, 0, 0.18) !important;
-
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), inset 0 -5px 8px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.16) !important;
   cursor: pointer !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .combat-actions button:hover {
   filter: brightness(1.12) !important;
 }
-/* Cards principais de combate */
+
+/* Cinco recursos, cinco colunas. Esta é a única regra de colunas da linha. */
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources {
   display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  gap: 0.6rem !important;
-
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+  gap: 0.46rem !important;
+  width: 100% !important;
   margin: 0 !important;
-  padding: 0.75rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(248, 252, 255, 0.96), rgba(224, 238, 248, 0.91)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.28) !important;
-  border-radius: 10px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
-    inset 0 -8px 16px rgba(0, 90, 150, 0.04),
-    0 1px 4px rgba(0, 0, 0, 0.10) !important;
+  padding: 0.58rem !important;
+  background: linear-gradient(180deg, rgba(241, 249, 253, 0.96), rgba(218, 234, 244, 0.91)) !important;
+  border: 1px solid rgba(45, 100, 135, 0.25) !important;
+  border-radius: 9px !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.54), 0 1px 4px rgba(0, 0, 0, 0.08) !important;
 }
 
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .resource-box {
-  min-height: 76px !important;
-
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources > .resource-box {
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  min-height: 66px !important;
   display: flex !important;
   flex-direction: column !important;
-  align-items: center !important;
+  align-items: stretch !important;
   justify-content: center !important;
-  gap: 0.35rem !important;
-
+  gap: 0.28rem !important;
   margin: 0 !important;
-  padding: 0.5rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(224, 238, 248, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.28) !important;
-  border-radius: 8px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
-    0 1px 4px rgba(0, 0, 0, 0.09) !important;
+  padding: 0.42rem !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(228, 240, 247, 0.94)) !important;
+  border: 1px solid rgba(45, 100, 135, 0.24) !important;
+  border-radius: 7px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62), 0 1px 3px rgba(0, 0, 0, 0.07) !important;
 }
 
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .resource-box label {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources > .resource-box > label {
   margin: 0 !important;
-
+  overflow: hidden !important;
   color: #1d2e3a !important;
-
   font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
-  font-size: 0.66rem !important;
+  font-size: 0.61rem !important;
   font-weight: 900 !important;
   line-height: 1.05 !important;
-  letter-spacing: 0.045em !important;
-  text-transform: uppercase !important;
+  letter-spacing: 0.025em !important;
   text-align: center !important;
+  text-overflow: ellipsis !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources input,
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources select {
-  height: 30px !important;
-  min-height: 30px !important;
-
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 29px !important;
+  min-height: 29px !important;
+  margin: 0 !important;
+  padding: 0 0.22rem !important;
   color: #0c2035 !important;
-
   font-family: "PixelOperatorBold", "Reactor7", Arial, sans-serif !important;
-  font-size: 0.92rem !important;
+  font-size: 0.8rem !important;
   font-weight: 900 !important;
+  line-height: 29px !important;
   text-align: center !important;
-
-  background:
-    linear-gradient(180deg, rgba(250, 253, 255, 0.96), rgba(222, 238, 248, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.30) !important;
-  border-radius: 6px !important;
-
-  box-shadow:
-    inset 0 0 6px rgba(0, 0, 0, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
+  background: rgba(249, 253, 255, 0.9) !important;
+  border: 1px solid rgba(45, 100, 135, 0.3) !important;
+  border-radius: 5px !important;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.07) !important;
 }
 
-/* Inputs numéricos em orbe */
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources input[type="number"] {
-  width: 42px !important;
-
-  background:
-    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.95), rgba(210, 232, 244, 0.95)) !important;
-
-  border-radius: 999px !important;
-}
-
-/* Saúde/Bateria com valor atual e máximo */
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .inline-inputs {
-  display: flex !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr) !important;
   align-items: center !important;
-  justify-content: center !important;
-  gap: 0.28rem !important;
+  gap: 0.16rem !important;
+  min-width: 0 !important;
+  width: 100% !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .inline-inputs span {
   color: #173148 !important;
-
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 0.9rem !important;
+  font-size: 0.76rem !important;
   font-weight: 900 !important;
+  text-align: center !important;
 }
-/* Recursos de Qualidades */
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources select[name="system.combat.currentStance"] {
+  font-size: 0.65rem !important;
+  letter-spacing: 0 !important;
+}
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .wounds-box {
+  background: linear-gradient(180deg, rgba(255, 245, 247, 0.98), rgba(242, 218, 223, 0.94)) !important;
+  border-color: rgba(153, 64, 80, 0.3) !important;
+}
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources .wounds-box > label {
+  color: #6d2634 !important;
+}
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources > .resource-box:nth-child(4) {
+  background: linear-gradient(180deg, rgba(251, 247, 255, 0.98), rgba(231, 222, 243, 0.94)) !important;
+  border-color: rgba(102, 78, 142, 0.28) !important;
+}
+
+/* Recursos especiais */
 .dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 0.6rem !important;
-
+  gap: 0.48rem !important;
   margin: 0 !important;
-  padding: 0.75rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(248, 252, 255, 0.96), rgba(224, 238, 248, 0.91)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.28) !important;
-  border-radius: 10px !important;
+  padding: 0.58rem !important;
+  background: linear-gradient(180deg, rgba(241, 249, 253, 0.96), rgba(218, 234, 244, 0.91)) !important;
+  border: 1px solid rgba(45, 100, 135, 0.25) !important;
+  border-radius: 9px !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .quality-resources-grid .resource-box {
-  min-height: 72px !important;
-
+  min-height: 62px !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 0.35rem !important;
-
+  gap: 0.28rem !important;
   margin: 0 !important;
-  padding: 0.5rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(224, 238, 248, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.28) !important;
-  border-radius: 8px !important;
+  padding: 0.42rem !important;
+  background: rgba(250, 253, 255, 0.92) !important;
+  border: 1px solid rgba(45, 100, 135, 0.22) !important;
+  border-radius: 7px !important;
 }
+
 /* Estado */
 .dda-digimon-window-sheet .dda-combat-tab > .grid-2 {
   display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 0.55rem !important;
-
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.42rem !important;
   margin: 0 !important;
-  padding: 0.75rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(248, 252, 255, 0.96), rgba(224, 238, 248, 0.91)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.28) !important;
-  border-radius: 10px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
-    0 1px 4px rgba(0, 0, 0, 0.10) !important;
+  padding: 0.58rem !important;
+  background: linear-gradient(180deg, rgba(241, 249, 253, 0.96), rgba(218, 234, 244, 0.91)) !important;
+  border: 1px solid rgba(45, 100, 135, 0.25) !important;
+  border-radius: 9px !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.52), 0 1px 4px rgba(0, 0, 0, 0.07) !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab > .grid-2 label {
-  min-height: 34px !important;
-
+  min-width: 0 !important;
+  min-height: 32px !important;
   display: flex !important;
   align-items: center !important;
-  gap: 0.45rem !important;
-
+  gap: 0.38rem !important;
   margin: 0 !important;
-  padding: 0.45rem 0.55rem !important;
-
+  padding: 0.38rem 0.46rem !important;
   color: #173148 !important;
-
   font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
-  font-size: 0.76rem !important;
+  font-size: 0.68rem !important;
   font-weight: 900 !important;
-  letter-spacing: 0.04em !important;
+  letter-spacing: 0.025em !important;
   text-transform: uppercase !important;
-
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(230, 242, 249, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.20) !important;
-  border-radius: 8px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.44),
-    0 1px 3px rgba(0, 0, 0, 0.06) !important;
+  background: rgba(252, 254, 255, 0.88) !important;
+  border: 1px solid rgba(45, 100, 135, 0.18) !important;
+  border-radius: 6px !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab > .grid-2 input[type="checkbox"] {
-  width: 16px !important;
-  height: 16px !important;
+  flex: 0 0 auto !important;
+  width: 15px !important;
+  height: 15px !important;
   margin: 0 !important;
-
   accent-color: #1c75b8 !important;
 }
-/* Efeitos Ativos */
+
+/* Efeitos ativos */
 .dda-digimon-window-sheet .dda-combat-tab .active-effects-panel {
   margin: 0 !important;
-  padding: 0.75rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(248, 252, 255, 0.96), rgba(224, 238, 248, 0.91)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.28) !important;
-  border-radius: 10px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
-    0 1px 4px rgba(0, 0, 0, 0.10) !important;
+  padding: 0.58rem !important;
+  background: linear-gradient(180deg, rgba(241, 249, 253, 0.96), rgba(218, 234, 244, 0.91)) !important;
+  border: 1px solid rgba(45, 100, 135, 0.25) !important;
+  border-radius: 9px !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.52), 0 1px 4px rgba(0, 0, 0, 0.07) !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .active-effect-list {
   display: flex !important;
   flex-direction: column !important;
-  gap: 0.5rem !important;
+  gap: 0.42rem !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .active-effect-row {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) minmax(150px, auto) auto !important;
   align-items: center !important;
-  gap: 0.6rem !important;
-
+  gap: 0.5rem !important;
   margin: 0 !important;
-  padding: 0.55rem 0.65rem !important;
+  padding: 0.46rem 0.55rem !important;
+  background: rgba(252, 254, 255, 0.9) !important;
+  border: 1px solid rgba(45, 100, 135, 0.2) !important;
+  border-radius: 7px !important;
+}
 
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(230, 242, 249, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.22) !important;
-  border-radius: 8px !important;
+.dda-digimon-window-sheet .dda-combat-tab .active-effect-main,
+.dda-digimon-window-sheet .dda-combat-tab .active-effect-meta {
+  min-width: 0 !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .active-effect-main strong {
   color: #173148 !important;
-
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 0.86rem !important;
+  font-size: 0.82rem !important;
   font-weight: 900 !important;
-  letter-spacing: 0.045em !important;
+  letter-spacing: 0.035em !important;
   text-transform: uppercase !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .active-effect-main span,
 .dda-digimon-window-sheet .dda-combat-tab .active-effect-meta span {
-  color: rgba(23, 49, 72, 0.72) !important;
-
-  font-size: 0.76rem !important;
+  color: rgba(23, 49, 72, 0.74) !important;
+  font-size: 0.72rem !important;
   line-height: 1.15 !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .remove-active-effect {
   height: 24px !important;
   min-height: 24px !important;
-
   padding: 0 8px !important;
-
-  font-size: 0.66rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(135, 55, 65, 0.96), rgba(80, 25, 35, 0.96)) !important;
-
+  font-size: 0.64rem !important;
+  background: linear-gradient(180deg, rgba(135, 55, 65, 0.96), rgba(80, 25, 35, 0.96)) !important;
   border-color: rgba(230, 130, 145, 0.35) !important;
 }
-/* Ataques dentro da aba Combate */
+
+/* Ataques */
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks {
   display: flex !important;
   flex-direction: column !important;
-  gap: 0.65rem !important;
-
+  gap: 0.5rem !important;
   margin: 0 !important;
   padding: 0 !important;
-
   background: transparent !important;
-  border: none !important;
+  border: 0 !important;
   box-shadow: none !important;
 }
 
@@ -13673,14 +13277,11 @@
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-
+  gap: 0.5rem !important;
   margin: 0 !important;
-  padding: 0.45rem 0.65rem !important;
-
-  background:
-    linear-gradient(90deg, rgba(220, 238, 250, 0.95), rgba(245, 250, 255, 0.76)) !important;
-
-  border: none !important;
+  padding: 0.42rem 0.62rem !important;
+  background: linear-gradient(90deg, rgba(220, 238, 250, 0.95), rgba(245, 250, 255, 0.78)) !important;
+  border: 0 !important;
   border-left: 5px solid rgba(35, 135, 195, 0.85) !important;
   border-bottom: 1px solid rgba(45, 100, 135, 0.18) !important;
   box-shadow: none !important;
@@ -13688,197 +13289,199 @@
 
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-header h2 {
   margin: 0 !important;
-
+  padding: 0 !important;
   color: #173148 !important;
-
   font-family: "PixelOperatorBold", "Reactor7", Arial, sans-serif !important;
-  font-size: 0.9rem !important;
+  font-size: 0.86rem !important;
   font-weight: 900 !important;
-  letter-spacing: 0.08em !important;
+  letter-spacing: 0.075em !important;
   text-transform: uppercase !important;
-
   background: transparent !important;
-  border: none !important;
+  border: 0 !important;
   box-shadow: none !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .section-header .item-create {
-  width: 110px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 96px !important;
+  height: 27px !important;
+  min-height: 27px !important;
+  margin: 0 !important;
+  padding: 0 0.68rem !important;
   color: #eaf7ff !important;
-
   font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 0.72rem !important;
+  font-size: 0.68rem !important;
   font-weight: 900 !important;
-
-  background:
-    linear-gradient(180deg, rgba(27, 78, 112, 0.98), rgba(8, 38, 62, 0.98)) !important;
-
+  background: linear-gradient(180deg, rgba(27, 78, 112, 0.98), rgba(8, 38, 62, 0.98)) !important;
   border: 1px solid rgba(120, 200, 245, 0.36) !important;
   border-radius: 999px !important;
 }
 
-/* Lista de ataques */
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-list {
   display: flex !important;
   flex-direction: column !important;
-  gap: 0.55rem !important;
-
+  gap: 0.45rem !important;
   margin: 0 !important;
-  padding: 0.75rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(248, 252, 255, 0.96), rgba(224, 238, 248, 0.91)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.28) !important;
-  border-radius: 10px !important;
+  padding: 0.58rem !important;
+  background: linear-gradient(180deg, rgba(241, 249, 253, 0.96), rgba(218, 234, 244, 0.91)) !important;
+  border: 1px solid rgba(45, 100, 135, 0.25) !important;
+  border-radius: 9px !important;
 }
 
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-row {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .dda-combat-attack-row {
   display: grid !important;
-  grid-template-columns: 38px minmax(0, 1fr) auto auto !important;
+  grid-template-columns: 38px minmax(0, 1fr) auto 174px !important;
   align-items: center !important;
-  gap: 0.6rem !important;
-
+  gap: 0.52rem !important;
   min-height: 58px !important;
-
   margin: 0 !important;
-  padding: 0.5rem 0.6rem !important;
-
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(230, 242, 249, 0.92)) !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.22) !important;
-  border-radius: 8px !important;
-}
-
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-row img {
-  width: 32px !important;
-  height: 32px !important;
-
-  object-fit: cover !important;
-
-  border: 1px solid rgba(45, 100, 135, 0.35) !important;
+  padding: 0.5rem 0.55rem !important;
+  background: rgba(252, 254, 255, 0.92) !important;
+  border: 1px solid rgba(45, 100, 135, 0.2) !important;
   border-radius: 7px !important;
-
-  background:
-    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.95), rgba(205, 226, 239, 0.9)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58), 0 1px 3px rgba(0, 0, 0, 0.06) !important;
 }
 
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-name strong {
-  color: #173148 !important;
-
-  font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 0.86rem !important;
-  font-weight: 900 !important;
-  letter-spacing: 0.045em !important;
-  text-transform: uppercase !important;
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .dda-combat-attack-row:hover {
+  border-color: rgba(35, 135, 195, 0.38) !important;
+  background: rgba(255, 255, 255, 0.97) !important;
 }
 
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-name span,
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-tags span {
-  color: #eaf7ff !important;
-
-  font-family: "PixelOperatorBold", Arial, sans-serif !important;
-  font-size: 0.62rem !important;
-  font-weight: 900 !important;
-
-  background:
-    linear-gradient(180deg, rgba(27, 78, 112, 0.92), rgba(8, 38, 62, 0.92)) !important;
-
-  border: 1px solid rgba(120, 200, 245, 0.28) !important;
-  border-radius: 999px !important;
-
-  padding: 0.15rem 0.45rem !important;
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .dda-combat-attack-row > img {
+  width: 34px !important;
+  height: 34px !important;
+  object-fit: cover !important;
+  border: 1px solid rgba(45, 100, 135, 0.32) !important;
+  border-radius: 6px !important;
+  background: rgba(215, 233, 244, 0.9) !important;
 }
 
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls {
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attack-info {
+  min-width: 0 !important;
   display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
   gap: 0.3rem !important;
 }
 
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
-  height: 24px !important;
-  min-height: 24px !important;
-
-  padding: 0 8px !important;
-
-  font-size: 0.66rem !important;
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attack-info > strong {
+  max-width: 100% !important;
+  overflow: hidden !important;
+  color: #173148 !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.84rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.035em !important;
+  text-overflow: ellipsis !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
 }
-/* ===================================================== */
-/* DDA — Digimon: Combate — botões dos ataques           */
-/* ===================================================== */
 
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button,
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.roll-attack,
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.item-edit,
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.item-delete {
-  width: 64px !important;
-  min-width: 64px !important;
-  max-width: 64px !important;
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attack-badges,
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attack-core-tags {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.28rem !important;
+  flex-wrap: wrap !important;
+  min-width: 0 !important;
+}
 
-  height: 26px !important;
-  min-height: 26px !important;
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attack-badges > span,
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attack-core-tags > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 20px !important;
+  margin: 0 !important;
+  padding: 0.12rem 0.38rem !important;
+  font-family: "PixelOperatorBold", Arial, sans-serif !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.025em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  border-radius: 999px !important;
+}
 
+.dda-digimon-window-sheet .dda-combat-tab .dda-attack-kind-pill,
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attack-core-tags > span {
+  color: #eaf7ff !important;
+  background: linear-gradient(180deg, rgba(27, 78, 112, 0.94), rgba(8, 38, 62, 0.94)) !important;
+  border: 1px solid rgba(120, 200, 245, 0.28) !important;
+}
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-attack-linked-pill--effect {
+  color: #f4efff !important;
+  background: linear-gradient(180deg, rgba(93, 62, 137, 0.98), rgba(49, 30, 78, 0.98)) !important;
+  border: 1px solid rgba(196, 164, 255, 0.46) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 7px rgba(125, 80, 190, 0.12) !important;
+}
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-attack-linked-pill--quality {
+  color: #ecfbff !important;
+  background: linear-gradient(180deg, rgba(16, 111, 126, 0.98), rgba(6, 62, 75, 0.98)) !important;
+  border: 1px solid rgba(116, 221, 228, 0.42) !important;
+}
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls {
+  display: grid !important;
+  grid-template-columns: repeat(3, 54px) !important;
+  align-items: center !important;
+  justify-content: end !important;
+  gap: 0.28rem !important;
+  min-width: 0 !important;
+}
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
+  box-sizing: border-box !important;
+  width: 54px !important;
+  min-width: 54px !important;
+  max-width: 54px !important;
+  height: 25px !important;
+  min-height: 25px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-
   margin: 0 !important;
   padding: 0 !important;
-
   color: #eaf7ff !important;
-
   font-family: "PixelOperatorBold", "Trebuchet MS", Arial, sans-serif !important;
-  font-size: 0.66rem !important;
+  font-size: 0.61rem !important;
   font-weight: 900 !important;
   line-height: 1 !important;
-  letter-spacing: 0.045em !important;
+  letter-spacing: 0.025em !important;
   text-transform: uppercase !important;
-  text-align: center !important;
-
-  background:
-    linear-gradient(180deg, rgba(27, 78, 112, 0.98), rgba(8, 38, 62, 0.98)) !important;
-
-  border: 1px solid rgba(120, 200, 245, 0.36) !important;
+  background: linear-gradient(180deg, rgba(27, 78, 112, 0.98), rgba(8, 38, 62, 0.98)) !important;
+  border: 1px solid rgba(120, 200, 245, 0.34) !important;
   border-radius: 999px !important;
-
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
-    inset 0 -5px 8px rgba(0, 0, 0, 0.22),
-    0 1px 3px rgba(0, 0, 0, 0.18) !important;
-
   cursor: pointer !important;
+}
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.roll-attack {
+  background: linear-gradient(180deg, rgba(35, 105, 145, 0.98), rgba(8, 42, 68, 0.98)) !important;
+  border-color: rgba(130, 215, 255, 0.46) !important;
+}
+
+.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.item-delete {
+  background: linear-gradient(180deg, rgba(124, 57, 67, 0.96), rgba(72, 27, 36, 0.96)) !important;
+  border-color: rgba(224, 132, 145, 0.32) !important;
 }
 
 .dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button:hover {
   filter: brightness(1.12) !important;
 }
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  gap: 0.35rem !important;
-  flex-wrap: nowrap !important;
-}
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks button.roll-attack {
-  background:
-    linear-gradient(180deg, rgba(35, 105, 145, 0.98), rgba(8, 42, 68, 0.98)) !important;
 
-  border-color: rgba(130, 215, 255, 0.48) !important;
+@media (max-width: 920px) {
+  .dda-digimon-window-sheet .dda-combat-tab .dda-combat-main-resources {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .dda-digimon-window-sheet .dda-combat-tab > .grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
-  width: 56px !important;
-  min-width: 56px !important;
-  max-width: 56px !important;
-}
-.dda-digimon-window-sheet .dda-combat-tab .dda-combat-attacks .item-controls button {
-  width: 56px !important;
-  min-width: 56px !important;
-  max-width: 56px !important;
-}
+
 /* Botões do cabeçalho de Qualidades */
 .dda-digimon-window-sheet .dda-qualities-tab .section-actions {
   display: flex !important;

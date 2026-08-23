@@ -25,6 +25,10 @@ import {
   getDDAMovementContext
 } from "../canvas/movement-context.js";
 
+import {
+  getTokenGridDistance as getNativeTokenGridDistance
+} from "./positioning.js";
+
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const OFFENSIVE_STATE_PATH = "system.combat.offensiveQualities";
@@ -58,32 +62,8 @@ function tokenForActor(actor) {
     ?? null;
 }
 
-function tokenBounds(token) {
-  const grid = Math.max(1, number(canvas?.grid?.size, 100));
-  const document = token?.document ?? token ?? {};
-  const x = number(document.x);
-  const y = number(document.y);
-  const width = Math.max(1, number(document.width, 1)) * grid;
-  const height = Math.max(1, number(document.height, 1)) * grid;
-  return { left: x, right: x + width, top: y, bottom: y + height };
-}
-
 export function getTokenDistanceSpaces(leftToken, rightToken) {
-  if (!leftToken || !rightToken) return Number.POSITIVE_INFINITY;
-  const grid = Math.max(1, number(canvas?.grid?.size, 100));
-  const left = tokenBounds(leftToken);
-  const right = tokenBounds(rightToken);
-  const dx = left.right < right.left
-    ? right.left - left.right
-    : right.right < left.left
-      ? left.left - right.right
-      : 0;
-  const dy = left.bottom < right.top
-    ? right.top - left.bottom
-    : right.bottom < left.top
-      ? left.top - right.bottom
-      : 0;
-  return Math.max(dx, dy) / grid;
+  return getNativeTokenGridDistance(leftToken, rightToken);
 }
 
 function uniqueActorsFromCanvas() {

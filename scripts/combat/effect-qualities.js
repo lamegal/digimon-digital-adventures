@@ -77,9 +77,48 @@ function getChoiceAttackId(choice = {}) {
   ).trim();
 }
 
+function normalizeAttackNameKey(value = "") {
+  return String(value ?? "")
+    .split(/\s+[—–-]\s+\[/u)[0]
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function choiceMatchesAttack(choice = {}, attackItem = null) {
+  if (!attackItem) return false;
+
+  const attackKeys = getAttackIdentityKeys(attackItem);
+  const attackId = getChoiceAttackId(choice);
+
+  if (attackId && attackKeys.has(String(attackId))) {
+    return true;
+  }
+
+  const attackNameKey = normalizeAttackNameKey(attackItem?.name ?? "");
+  const choiceNameKey = normalizeAttackNameKey(
+    choice?.attackName ??
+    choice?.originalLabel ??
+    choice?.label ??
+    ""
+  );
+
+  if (!attackNameKey || !choiceNameKey || attackNameKey !== choiceNameKey) {
+    return false;
+  }
+
+  const siblings = Array.from(attackItem?.parent?.items ?? []).filter((item) => {
+    return item?.type === "attack" &&
+      normalizeAttackNameKey(item?.name ?? "") === attackNameKey;
+  });
+
+  return siblings.length <= 1;
+}
+
 function qualityIsBoundToAttack(quality, attackItem, expectedTag = "") {
   if (!quality || !attackItem) return false;
-  const attackKeys = getAttackIdentityKeys(attackItem);
   const tag = normalizeEffectTag(expectedTag);
   const choices = [
     ...(Array.isArray(quality.system?.choices?.selectedRanks)
@@ -94,12 +133,14 @@ function qualityIsBoundToAttack(quality, attackItem, expectedTag = "") {
     const choice = rawChoice && typeof rawChoice === "object"
       ? rawChoice
       : { key: rawChoice };
-    const attackId = getChoiceAttackId(choice);
-    if (!attackId || !attackKeys.has(String(attackId))) return false;
+
+    if (!choiceMatchesAttack(choice, attackItem)) return false;
     if (!tag) return true;
+
     const choiceTag = normalizeEffectTag(
       choice.effectTag ?? choice.attackTag ?? String(choice.key ?? "").split(":").at(-1)
     );
+
     return !choiceTag || choiceTag === tag;
   });
 }

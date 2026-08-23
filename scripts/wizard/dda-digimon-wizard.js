@@ -7926,6 +7926,35 @@ _buildQualityLimitsFromFormBuild(build = null, stageData = {}) {
 _resolveSnapshotQualityAttackChoices(items = []) {
   const snapshotItems = foundry.utils.deepClone(items ?? []);
   const attackByWizardKey = new Map();
+  const attackByNameKey = new Map();
+
+  const normalizeTag = (value = "") => {
+    return String(value ?? "")
+      .trim()
+      .replace(/^\[|\]$/g, "")
+      .toLowerCase();
+  };
+
+  const normalizeAttackName = (value = "") => {
+    return normalizeWizardQualityIdentity(
+      String(value ?? "")
+        .split(/\s+[—–-]\s+\[/u)[0]
+        .trim()
+    );
+  };
+
+  const registerAttackName = (attack) => {
+    const nameKey = normalizeAttackName(attack?.name ?? "");
+    if (!nameKey) return;
+
+    if (!attackByNameKey.has(nameKey)) {
+      attackByNameKey.set(nameKey, attack);
+      return;
+    }
+
+    // Duplicate names are ambiguous; never use name fallback for them.
+    attackByNameKey.set(nameKey, null);
+  };
 
   for (const item of snapshotItems) {
     if (item?.type !== "attack") continue;
@@ -7937,14 +7966,26 @@ _resolveSnapshotQualityAttackChoices(items = []) {
       ""
     ).trim();
 
-    if (wizardAttackKey) {
-      attackByWizardKey.set(wizardAttackKey, item);
+    const directIds = [
+      wizardAttackKey,
+      item._id,
+      item.id
+    ]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean);
+
+    for (const directId of directIds) {
+      attackByWizardKey.set(directId, item);
     }
 
-    if (item.name) {
-      attackByWizardKey.set(String(item.name).trim(), item);
-    }
+    registerAttackName(item);
   }
+
+  const configuredEffectTags = new Set(
+    Object.keys(CONFIG.DDA?.effectTags ?? {})
+      .map(normalizeTag)
+      .filter(Boolean)
+  );
 
   for (const item of snapshotItems) {
     if (item?.type !== "quality") continue;
@@ -7957,22 +7998,64 @@ _resolveSnapshotQualityAttackChoices(items = []) {
 
     let changed = false;
 
-    const nextChoices = selectedRanks.map((choice) => {
-      const provisionalAttackId = String(choice.attackId ?? "").trim();
-      const keyAttackPart = String(choice.key ?? "").split(":")[0] ?? "";
-      const lookupKey = provisionalAttackId || keyAttackPart;
+    const nextChoices = selectedRanks.map((rawChoice) => {
+      const choice = rawChoice && typeof rawChoice === "object"
+        ? rawChoice
+        : { key: rawChoice };
 
-      const attack = attackByWizardKey.get(lookupKey);
+      const provisionalAttackId = String(
+        choice.attackId ??
+        choice.attackItemId ??
+        choice.itemId ??
+        choice.attackKey ??
+        ""
+      ).trim();
 
-      if (!attack || attack.type !== "attack") return choice;
+      const keyText = String(choice.key ?? "").trim();
+      const separatorIndex = keyText.indexOf(":");
+      const keyAttackPart = separatorIndex > 0
+        ? keyText.slice(0, separatorIndex).trim()
+        : keyText;
+      const keyTag = separatorIndex > 0
+        ? keyText.slice(separatorIndex + 1).trim()
+        : "";
+
+      let attack = null;
+
+      for (const lookupKey of [provisionalAttackId, keyAttackPart].filter(Boolean)) {
+        attack = attackByWizardKey.get(lookupKey) ?? null;
+        if (attack) break;
+      }
+
+      if (!attack) {
+        const choiceAttackName = String(
+          choice.attackName ??
+          choice.originalLabel ??
+          choice.label ??
+          ""
+        );
+        const nameKey = normalizeAttackName(choiceAttackName);
+        attack = nameKey ? (attackByNameKey.get(nameKey) ?? null) : null;
+      }
+
+      if (!attack || attack.type !== "attack") return rawChoice;
 
       const wizardAttackKey = String(
         attack.flags?.[DDA_SYSTEM_ID]?.wizardAttackKey ||
         attack.system?.wizard?.attackKey ||
-        lookupKey
+        attack.system?.wizard?.attackId ||
+        attack._id ||
+        attack.id ||
+        attack.name ||
+        ""
       ).trim();
 
-      const attackTag = String(choice.attackTag ?? "").trim().toLowerCase();
+      const attackTag = normalizeTag(
+        choice.effectTag ??
+        choice.attackTag ??
+        keyTag
+      );
+      const isEffectTag = configuredEffectTags.has(attackTag);
 
       if (attackTag) {
         attack.system ??= {};
@@ -7981,7 +8064,9 @@ _resolveSnapshotQualityAttackChoices(items = []) {
           ? foundry.utils.deepClone(attack.system.qualityTags)
           : [];
 
-        const normalizedTags = currentTags.map((tag) => String(tag).toLowerCase());
+        const normalizedTags = currentTags.map((tag) => normalizeTag(
+          tag?.tag ?? tag?.key ?? tag?.value ?? tag
+        ));
 
         if (!normalizedTags.includes(attackTag)) {
           currentTags.push(attackTag);
@@ -8000,6 +8085,10 @@ _resolveSnapshotQualityAttackChoices(items = []) {
         originalLabel: attack.name,
         attackId: wizardAttackKey,
         attackName: attack.name,
+        attackTag,
+        effectTag: isEffectTag
+          ? attackTag
+          : String(choice.effectTag ?? "").trim(),
         pendingAttackChoice: false,
         pendingAttackSlot: null
       };
@@ -9269,6 +9358,17 @@ async _resolveWizardQualityAttackChoices(
   const attackByWizardKey =
     new Map();
 
+  const attackByNameKey =
+    new Map();
+
+  const normalizeAttackName = (value = "") => {
+    return normalizeWizardQualityIdentity(
+      String(value ?? "")
+        .split(/\s+[—–-]\s+\[/u)[0]
+        .trim()
+    );
+  };
+
   const allAttacks =
     Array.from(actor.items)
       .filter((item) => {
@@ -9294,6 +9394,24 @@ async _resolveWizardQualityAttackChoices(
         wizardAttackKey,
         attack
       );
+    }
+
+    if (attack.id) {
+      attackByWizardKey.set(
+        String(attack.id),
+        attack
+      );
+    }
+
+    const attackNameKey =
+      normalizeAttackName(attack.name);
+
+    if (attackNameKey) {
+      if (!attackByNameKey.has(attackNameKey)) {
+        attackByNameKey.set(attackNameKey, attack);
+      } else {
+        attackByNameKey.set(attackNameKey, null);
+      }
     }
   }
 
@@ -9387,6 +9505,22 @@ async _resolveWizardQualityAttackChoices(
         }
       }
 
+      if (!attack) {
+        const choiceAttackName = String(
+          choice.attackName ??
+          choice.originalLabel ??
+          choice.label ??
+          ""
+        );
+
+        const choiceAttackNameKey =
+          normalizeAttackName(choiceAttackName);
+
+        attack = choiceAttackNameKey
+          ? attackByNameKey.get(choiceAttackNameKey) ?? null
+          : null;
+      }
+
       if (
         !attack ||
         attack.type !== "attack"
@@ -9413,9 +9547,14 @@ async _resolveWizardQualityAttackChoices(
             : [];
 
         const normalizedTags =
-          currentTags.map(
-            normalizeTag
-          );
+          currentTags.map((entry) => {
+            return normalizeTag(
+              entry?.tag ??
+              entry?.key ??
+              entry?.value ??
+              entry
+            );
+          });
 
         if (
           !normalizedTags.includes(

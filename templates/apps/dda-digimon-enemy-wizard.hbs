@@ -604,6 +604,18 @@
         <input type="number" min="10" max="100" step="5" value="{{enemyBuild.boss.options.bigScary.dpIncreasePercent}}" data-boss-number="bigScaryPercent" />
         <b>%</b>
       </label>
+      <label class="dda-boss-health-focus-toggle">
+        <input type="checkbox" data-boss-option="bigScaryHealthFocus" {{#if enemyBuild.boss.options.bigScary.healthFocusEnabled}}checked{{/if}} />
+        <span>{{labels.bossHealthFocus}}</span>
+      </label>
+      {{#if enemyBuild.boss.options.bigScary.healthFocusEnabled}}
+      <label class="dda-boss-inline-field">
+        <span>{{labels.bossHealthFocusPercent}}</span>
+        <input type="number" min="0" max="100" step="5" value="{{enemyBuild.boss.options.bigScary.healthFocusPercent}}" data-boss-number="bigScaryHealthFocusPercent" />
+        <b>%</b>
+      </label>
+      <small class="dda-boss-health-focus-preview">{{enemyBuild.boss.healthFocusDp}} PD → Health</small>
+      {{/if}}
       {{/if}}
     </article>
 
@@ -630,9 +642,10 @@
       </label>
       <p>{{labels.bossOptionTagTeamHint}}</p>
       {{#if enemyBuild.boss.options.tagTeam.enabled}}
-      <div class="dda-boss-single-metric">
-        <small>{{labels.bossEnemyCount}}</small>
-        <strong>{{enemyBuild.boss.tagTeamEnemyCount}}</strong>
+      <div class="dda-boss-metric-row dda-boss-tag-team-metrics">
+        <span><small>{{labels.bossEnemyCount}}</small><b>{{enemyBuild.boss.tagTeamEnemyCount}}</b></span>
+        <span><small>{{labels.bossDpPerEnemy}}</small><b>{{enemyBuild.boss.tagTeamDpPerEnemy}}</b></span>
+        <span><small>{{labels.bossTagTeamTotalDp}}</small><b>{{enemyBuild.boss.tagTeamTotalDp}}</b></span>
       </div>
       {{/if}}
     </article>
@@ -646,6 +659,7 @@
       <p>{{labels.bossOptionRaidHint}}</p>
       {{#if enemyBuild.boss.options.raidBoss.enabled}}
       <div class="dda-boss-raid-config">
+        <p class="dda-boss-rule-advice"><i class="fas fa-shield-virus"></i> {{labels.bossRaidResistanceAdvice}}</p>
         <div class="dda-boss-single-metric">
           <small>{{labels.bossRaidTn}}</small>
           <strong>{{enemyBuild.boss.raidTn}}</strong>

@@ -107,10 +107,28 @@ export class DDACharacterSheet extends DDACharacterSheetBase {
       closeOnSubmit: false,
       submitOnChange: true
     },
+    actions: {
+      endTurn: this._onEndTurnAction
+    },
     window: {
       resizable: true
     }
   };
+
+  /**
+   * ApplicationV2 native action handler for the sheet End Turn button.
+   * Keeping this in DEFAULT_OPTIONS.actions avoids stale/manual listeners
+   * after HandlebarsApplicationMixin replaces sheet HTML on re-render.
+   *
+   * @this {DDACharacterSheet}
+   * @param {PointerEvent} event
+   * @param {HTMLElement} _target
+   */
+  static async _onEndTurnAction(event, _target) {
+    event.preventDefault();
+    event.stopPropagation();
+    return endTamerTurn(this.actor);
+  }
 
   static PARTS = {
     form: {
@@ -345,7 +363,6 @@ return context;
     html.find(".roll-torment").on("click", this._onRollTorment.bind(this));
     html.find(".take-rest").on("click", this._onTakeRest.bind(this));
     html.find(".roll-recovery").on("click", this._onRollRecovery.bind(this));
-    html.find(".end-turn-tamer").on("click", this._onEndTurn.bind(this));
     html.find(".recovery-menu").on("click", this._onRecoveryMenu.bind(this));
     html.find(".take-break").on("click", this._onTakeBreak.bind(this));
     html.find(".forced-evolution-partner").on("click", this._onForcedEvolutionPartner.bind(this));
@@ -456,7 +473,7 @@ html.find(".dda-device-button").on("dblclick", (event) => {
   if (combatActions.find(".end-turn-tamer").length) return;
 
   combatActions.prepend(
-    `<button type="button" class="end-turn-tamer"><i class="fa-solid fa-forward-step"></i> ${game.i18n.localize("DDA.EndTurn.Title")}</button>`
+    `<button type="button" class="end-turn-tamer" data-action="endTurn"><i class="fa-solid fa-forward-step"></i> ${game.i18n.localize("DDA.EndTurn.Title")}</button>`
   );
 }
 

@@ -389,3 +389,56 @@
   grid-column: 4;
   border-right: 0;
 }
+
+
+/* DDA | Compact combat state metadata */
+.dda-pair-member-meta,
+#combat .dda-solo-combat-meta,
+.combat-tracker .dda-solo-combat-meta {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  color: rgba(199, 218, 230, 0.72);
+  font-size: 0.59rem;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-pair-member.is-active .dda-pair-member-meta {
+  color: rgba(225, 242, 251, 0.88);
+}
+
+#combat li.combatant.dda-solo-digimon-enemy .dda-solo-combat-meta,
+.combat-tracker li.combatant.dda-solo-digimon-enemy .dda-solo-combat-meta {
+  color: rgba(241, 202, 199, 0.82);
+}
+
+#combat li.combatant.dda-solo-digimon-ally .dda-solo-combat-meta,
+.combat-tracker li.combatant.dda-solo-digimon-ally .dda-solo-combat-meta {
+  color: rgba(196, 232, 216, 0.82);
+}
+
+
+#combat li.combatant.dda-raid-action-combatant,
+.combat-tracker li.combatant.dda-raid-action-combatant {
+  border: 1px solid rgba(205, 159, 73, 0.5);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(42, 28, 16, 0.94), rgba(64, 39, 18, 0.9));
+  box-shadow: inset 0 1px 0 rgba(255, 226, 166, 0.06);
+}
+
+#combat .dda-raid-action-clock,
+.combat-tracker .dda-raid-action-clock {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  color: rgba(244, 211, 145, 0.88);
+  font-size: 0.61rem;
+  font-weight: 750;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

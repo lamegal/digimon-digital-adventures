@@ -25,7 +25,7 @@ import {
   refundStrikeFastActionReserve
 } from "../rules/tamer-talent-runtime.js";
 import { hasUnlockedOfficialTamerTalent } from "../rules/tamer-resources.js";
-import { applyDamage } from "../rolls/damage-application.js";
+import { applyCrashDamage, applyDamage } from "../rolls/damage-application.js";
 
 const DDA_MOVEMENT_FLAG = "movementTracker";
 const MOBILE_ARTILLERY_TERRAIN_FLAG = "mobileArtilleryTerrain";
@@ -266,22 +266,31 @@ function activeMovementData(actor) {
       label: i18n("Terrestre", "Land"),
       enabled: true,
       total: applyCurrentTurnMovementMultiplier(actor, Math.max(0, num(fallbackTotal))),
+      budgetTotal: applyCurrentTurnMovementMultiplier(actor, Math.max(0, num(fallbackTotal))),
       layer: "surface",
       costMultiplier: 1,
       isExtraMovement: false
     };
   }
 
+  const total = applyCurrentTurnMovementMultiplier(
+    actor,
+    Math.max(0, num(selected.total ?? selected.value), key === "land" ? num(fallbackTotal) : 0)
+  );
+  const costMultiplier = Math.max(1, num(selected.costMultiplier, 1));
+
   return {
     key,
     label: String(selected.displayLabel ?? selected.label ?? fallbackLabel),
     enabled: selected.enabled !== false,
-    total: applyCurrentTurnMovementMultiplier(
-      actor,
-      Math.max(0, num(selected.total ?? selected.value), key === "land" ? num(fallbackTotal) : 0)
-    ),
+    // `total` is the physical distance shown to the user. Movement sessions
+    // track a budget instead, because base Jump/Swim spend 2 budget points per
+    // travelled Space. Keeping the conversion here prevents a second accidental
+    // halving in the tracker.
+    total,
+    budgetTotal: total * costMultiplier,
     layer: movementLayerForType(key),
-    costMultiplier: Math.max(1, num(selected.costMultiplier, 1)),
+    costMultiplier,
     isExtraMovement: Boolean(selected.isExtraMovement)
   };
 }
@@ -680,7 +689,7 @@ function createAutomaticSession(
     actionReservationKey: actorKey(document.actor),
 
     start: point(document),
-    max: data.total,
+    max: data.budgetTotal ?? data.total,
     spent: 0,
 
     startType: data.key ?? "land",
@@ -1387,12 +1396,16 @@ function queueGrantedMove(document, movement, session) {
   );
 
   if (
-    next.source === "charge" &&
+    (next.source === "charge" || next.requiresStraightLine) &&
     !isStraightLineSession(next)
   ) {
     warn(i18n(
-      "O Movimento de [CHARGE] deve seguir em linha reta, sem retornar pelo trajeto.",
-      "[CHARGE] Movement must follow a straight line without backtracking."
+      next.longJump
+        ? "O Salto Longo deve permanecer em uma única linha reta."
+        : "O Movimento de [CHARGE] deve seguir em linha reta, sem retornar pelo trajeto.",
+      next.longJump
+        ? "Long Jump must remain on one straight line."
+        : "[CHARGE] Movement must follow a straight line without backtracking."
     ));
 
     return false;
@@ -1524,6 +1537,8 @@ async function grantMovement(actor, spaces, options = {}) {
     sourceActorName: String(options.sourceActorName ?? ""),
     difficultTerrain: Boolean(options.difficultTerrain),
     unrestricted: Boolean(options.unrestricted),
+    requiresStraightLine: Boolean(options.requiresStraightLine),
+    longJump: Boolean(options.longJump),
 
     attackItemUuid: String(options.attackItemUuid ?? ""),
     targetTokenId: String(options.targetTokenId ?? ""),
@@ -1581,7 +1596,7 @@ function getChargeMovementCapacity(actor, bonusSpaces = 0, multiplier = 1) {
 
   return Math.max(
     0,
-    (num(movement.total) + Math.max(0, num(bonusSpaces))) *
+    (num(movement.budgetTotal ?? movement.total) + Math.max(0, num(bonusSpaces))) *
       Math.max(1, num(multiplier, 1))
   );
 }
@@ -1691,11 +1706,14 @@ async function beginActionMovement(actor, options = {}) {
 
   const document = findTokenDocumentForActor(actor);
   const combat = game.combat;
+  const movementData = activeMovementData(actor);
   const actionCost = Math.max(1, Math.floor(num(options.actionCost, 1)));
-  const maximum = Math.max(0, num(options.maximum, activeMovementData(actor).total));
+  const maximum = Math.max(0, num(
+    options.maximum,
+    movementData.budgetTotal ?? movementData.total
+  ));
 
   if (!document || maximum <= 0) {
-    const movementData = activeMovementData(actor);
     warn(i18n(
       `Este token não possui ${movementData.label} disponível.`,
       `This token has no ${movementData.label} available.`
@@ -1750,7 +1768,9 @@ async function beginActionMovement(actor, options = {}) {
     source: options.source ?? "digimonActionMove",
     sourceActorUuid: actor.uuid,
     sourceActorName: actor.name,
-    difficultTerrain: Boolean(options.difficultTerrain)
+    difficultTerrain: Boolean(options.difficultTerrain),
+    requiresStraightLine: Boolean(options.requiresStraightLine),
+    longJump: Boolean(options.longJump)
   });
 
   if (!granted) {
@@ -1772,6 +1792,27 @@ async function beginActionMovement(actor, options = {}) {
 
   refreshTokenHud(document);
   return true;
+}
+
+async function beginLongJump(actor) {
+  const movement = activeMovementData(actor);
+  if (movement.key !== "jump" || !movement.enabled || movement.total <= 0) {
+    warn(i18n(
+      "Selecione Movimento de Salto antes de iniciar um Salto Longo.",
+      "Select Jump Movement before starting a Long Jump."
+    ));
+    return false;
+  }
+
+  return beginActionMovement(actor, {
+    actionCost: 2,
+    actionKey: "longJump",
+    maximum: Math.max(0, num(movement.budgetTotal ?? movement.total)) * 2,
+    label: i18n("Salto Longo", "Long Jump"),
+    source: "longJump",
+    requiresStraightLine: true,
+    longJump: true
+  });
 }
 
 function isChargeApproachReady(actor, {
@@ -2139,6 +2180,28 @@ async function finishMove(document) {
 
   await setSession(document, complete);
   refreshTracker(document);
+
+  if (String(complete.kind ?? "") === "clash-throw") {
+    const maximum = Math.max(0, num(complete.max));
+    const travelled = Math.max(0, Math.min(maximum, num(complete.spent)));
+    const minimumCrashTravel = Math.ceil(maximum / 2);
+    const crashDamage = travelled >= minimumCrashTravel && travelled < maximum
+      ? Math.max(0, maximum - travelled)
+      : 0;
+
+    if (crashDamage > 0 && document.actor) {
+      await applyCrashDamage(document.actor, crashDamage, {
+        damageSourceKind: "clashThrowCollision",
+        damageLabel: i18n(
+          `Colisão após Arremesso (${travelled}/${maximum} Espaços)`,
+          `Throw Collision (${travelled}/${maximum} Spaces)`
+        ),
+        suppressFatesProtection: false,
+        fall: false,
+        sourceActorUuid: String(complete.sourceActorUuid ?? "")
+      });
+    }
+  }
 
   return true;
 }
@@ -2620,6 +2683,8 @@ export function registerMovementTracker() {
     grantUnrestrictedMovement,
     clearForActor: clearMovementForActor,
     beginActionMovement,
+    beginLongJump,
+    getActiveMovementData: (actor) => ({ ...activeMovementData(actor) }),
     grantChargeMovement,
     getChargeMovementCapacity,
     hasActiveMovementSession,
