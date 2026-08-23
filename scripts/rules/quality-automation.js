@@ -993,19 +993,6 @@ export function areActorsAllies(actorA, actorB) {
   );
   const combatantA = combatantFor(actorA);
   const combatantB = combatantFor(actorB);
-  const sideA = String(
-    combatantA?.getFlag?.(game.system.id, "initiative.side")
-      ?? combatantA?.flags?.[game.system.id]?.initiative?.side
-      ?? actorA.system?.combat?.initiative?.side
-      ?? ""
-  );
-  const sideB = String(
-    combatantB?.getFlag?.(game.system.id, "initiative.side")
-      ?? combatantB?.flags?.[game.system.id]?.initiative?.side
-      ?? actorB.system?.combat?.initiative?.side
-      ?? ""
-  );
-  if (sideA && sideB) return sideA === sideB;
 
   const tokenDisposition = (actor, combatant) => Number(
     combatant?.token?.disposition
@@ -1015,9 +1002,36 @@ export function areActorsAllies(actorA, actorB) {
       ?? actor.token?.disposition
       ?? 0
   );
-  const dispositionA = tokenDisposition(actorA, combatantA);
-  const dispositionB = tokenDisposition(actorB, combatantB);
-  return dispositionA !== 0 && dispositionA === dispositionB;
+
+  const effectiveSide = (actor, combatant) => {
+    const disposition = tokenDisposition(actor, combatant);
+    // Scene disposition is authoritative when explicitly Friendly/Hostile.
+    if (disposition === 1) return "players";
+    if (disposition === -1) return "enemies";
+
+    const combatSide = String(
+      combatant?.getFlag?.(game.system.id, "initiative.side")
+        ?? combatant?.flags?.[game.system.id]?.initiative?.side
+        ?? ""
+    ).trim();
+    if (combatSide === "players" || combatSide === "enemies") return combatSide;
+
+    const actorSide = String(actor?.system?.combat?.initiative?.side ?? "").trim().toLowerCase();
+    if (["players", "player", "allies", "ally", "friendly"].includes(actorSide)) return "players";
+    if (["enemies", "enemy", "hostile"].includes(actorSide)) return "enemies";
+
+    const enemyCreatorAlignment = String(
+      actor?.system?.enemy?.alignment ??
+      actor?.flags?.[game.system.id]?.enemyNpc?.alignment ??
+      ""
+    ).trim().toLowerCase();
+    if (["ally", "allies", "friendly", "player", "players"].includes(enemyCreatorAlignment)) return "players";
+    if (["enemy", "enemies", "hostile"].includes(enemyCreatorAlignment)) return "enemies";
+
+    return ["npc", "group"].includes(actor?.type) ? "enemies" : "players";
+  };
+
+  return effectiveSide(actorA, combatantA) === effectiveSide(actorB, combatantB);
 }
 
 /**

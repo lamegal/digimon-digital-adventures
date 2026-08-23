@@ -19,12 +19,18 @@ import {
 import {
   applyLuckyNumberReward
 } from "../rolls/lucky-number.js";
+import {
+  expireCombatBoundNonStackingTemporaryWounds,
+  expireNonStackingTemporaryWounds
+} from "./temporary-wounds.js";
 
 import {
   ensureBossEncounterRuntime,
   getBossEncounterActorForCombatant,
   getRaidActionCombatants,
+  getRaidBossRuntimeState,
   healActiveBossTemplatePool,
+  getBossTemplateRuntimeState,
   isBossTemplateActivationCombatant,
   isRaidActionCombatant,
   processRaidActionTurn
@@ -33,6 +39,134 @@ import {
 const SYSTEM_ID = "digimon-digital-adventures";
 const FLAG = "initiative";
 const SOCKET_END_PARTICIPANT = "ddaEndParticipantTurn";
+const TRACKER_AFFILIATION_STYLESHEET_ID = "dda-combat-tracker-affiliation-styles";
+const TRACKER_AFFILIATION_STYLESHEET = `systems/${SYSTEM_ID}/styles/dda-combat-tracker-affiliation-v10.css`;
+
+function getChangedNumericValue(changes, path) {
+  if (!changes || typeof changes !== "object") return null;
+  if (Object.prototype.hasOwnProperty.call(changes, path)) {
+    const value = Number(changes[path]);
+    return Number.isFinite(value) ? value : null;
+  }
+  const nested = foundry.utils.getProperty(changes, path);
+  if (nested === undefined || nested === null) return null;
+  const value = Number(nested);
+  return Number.isFinite(value) ? value : null;
+}
+
+function effectTagKeyBeta8(tag = "") {
+  return String(tag ?? "")
+    .trim()
+    .replace(/^\[/, "")
+    .replace(/\]$/, "")
+    .toLowerCase();
+}
+
+function registerHasteActionConsumptionBeta8() {
+  const registry = globalThis.__ddaBeta8Runtime ??= {};
+  if (registry.hasteActionConsumptionHook) return;
+  registry.hasteActionConsumptionHook = true;
+
+  Hooks.on("preUpdateActor", (actor, changes) => {
+    const nextActions = getChangedNumericValue(
+      changes,
+      "system.combat.actions.value"
+    );
+    if (nextActions === null) return;
+
+    const currentActions = Math.max(
+      0,
+      Number(actor?.system?.combat?.actions?.value ?? 0)
+    );
+    if (nextActions >= currentActions) return;
+
+    /*
+     * Action loss (for example [STUN]) is not an expenditure. Real action
+     * payments in DDA update one of the per-turn action counters alongside the
+     * action pool, so only those updates may consume the Action granted by
+     * [HASTE].
+     */
+    const currentMovement = Math.max(
+      0,
+      Number(actor?.system?.combat?.movementActionsThisTurn ?? 0)
+    );
+    const currentNonMovement = Math.max(
+      0,
+      Number(actor?.system?.combat?.nonMovementActionsThisTurn ?? 0)
+    );
+    const nextMovement = getChangedNumericValue(
+      changes,
+      "system.combat.movementActionsThisTurn"
+    );
+    const nextNonMovement = getChangedNumericValue(
+      changes,
+      "system.combat.nonMovementActionsThisTurn"
+    );
+    const trackedSpend =
+      Math.max(0, (nextMovement ?? currentMovement) - currentMovement) +
+      Math.max(0, (nextNonMovement ?? currentNonMovement) - currentNonMovement);
+    if (trackedSpend <= 0) return;
+
+    const updatedEffects = Object.prototype.hasOwnProperty.call(
+      changes,
+      "system.effects.active"
+    )
+      ? changes["system.effects.active"]
+      : foundry.utils.getProperty(changes, "system.effects.active");
+    const effects = foundry.utils.deepClone(
+      Array.isArray(updatedEffects)
+        ? updatedEffects
+        : actor?.system?.effects?.active ?? []
+    );
+    const hasteIndex = effects.findIndex((effect) => {
+      return effectTagKeyBeta8(effect?.tag) === "haste" &&
+        Number(effect?.actionGranted ?? 1) > 0;
+    });
+    if (hasteIndex < 0) return;
+
+    const hasteGrant = Math.max(
+      0,
+      Number(effects[hasteIndex]?.actionGranted ?? 1)
+    );
+    const ordinaryActionsAvailable = Math.max(
+      0,
+      currentActions - hasteGrant
+    );
+    const actionsSpent = Math.max(0, currentActions - nextActions);
+
+    // Ordinary Actions are spent first. HASTE ends only when its granted Action
+    // is actually needed to complete the payment.
+    if (actionsSpent <= ordinaryActionsAvailable) return;
+
+    effects.splice(hasteIndex, 1);
+    changes["system.effects.active"] = effects;
+  });
+}
+
+registerHasteActionConsumptionBeta8();
+
+function ensureDdaCombatTrackerAffiliationStyles() {
+  if (typeof document === "undefined") return;
+
+  const route = foundry.utils.getRoute(TRACKER_AFFILIATION_STYLESHEET);
+  const cacheBusted = foundry.utils.getCacheBustURL?.(route);
+  const href = typeof cacheBusted === "string" ? cacheBusted : route;
+
+  const existing = document.getElementById(TRACKER_AFFILIATION_STYLESHEET_ID)
+    ?? document.querySelector(`link[href*="dda-combat-tracker-affiliation-v10.css"]`);
+  if (existing) {
+    existing.id = TRACKER_AFFILIATION_STYLESHEET_ID;
+    if (!String(existing.href ?? "").includes("dda-combat-tracker-affiliation-v10.css")) existing.href = href;
+    return;
+  }
+
+  const link = document.createElement("link");
+  link.id = TRACKER_AFFILIATION_STYLESHEET_ID;
+  link.rel = "stylesheet";
+  link.href = href;
+  link.dataset.ddaCombatTrackerAffiliation = "true";
+  document.head.append(link);
+}
 
 /**
  * Combat document used by DDA.
@@ -179,7 +313,58 @@ function matchesReference(actor, reference = "") {
   return Boolean(value && actorKeys(actor).has(value));
 }
 
+async function resetCombatStancesToNeutral(combat) {
+  if (!combat || !isPrimaryActiveGM()) return false;
+  const actors = new Map();
+  for (const combatant of combat.combatants?.contents ?? combat.combatants ?? []) {
+    const actor = combatant?.actor;
+    if (!actor || !["digimon", "npc"].includes(actor.type)) continue;
+    actors.set(String(actor.uuid ?? actor.id), actor);
+  }
+
+  let changed = false;
+  for (const actor of actors.values()) {
+    if (String(actor.system?.combat?.currentStance ?? "neutral") === "neutral") continue;
+    await actor.update({ "system.combat.currentStance": "neutral" });
+    changed = true;
+  }
+  return changed;
+}
+
+function normalizeInitiativeSide(value, fallback = "") {
+  const side = String(value ?? "").trim().toLowerCase();
+  if (["enemies", "enemy", "hostile", "opponent", "opponents"].includes(side)) return "enemies";
+  if (["players", "player", "ally", "allies", "friendly", "friend"].includes(side)) return "players";
+  return fallback;
+}
+
 function sideOf(combatant) {
+  /*
+   * Token disposition is the scene-level declaration of allegiance. This MUST
+   * take precedence over the Actor template default: ordinary Digimon Actors
+   * are born with initiative.side="players", but GMs routinely drag one to
+   * the Scene and mark its Token Hostile to use it as an enemy.
+   */
+  const tokenDisposition = Number(
+    combatant?.token?.disposition ??
+    combatant?.token?.document?.disposition ??
+    canvas?.tokens?.placeables?.find((token) => token?.document?.id === combatant?.tokenId)?.document?.disposition ??
+    combatant?.actor?.prototypeToken?.disposition
+  );
+
+  if (tokenDisposition === CONST.TOKEN_DISPOSITIONS?.HOSTILE || tokenDisposition === -1) return "enemies";
+  if (tokenDisposition === CONST.TOKEN_DISPOSITIONS?.FRIENDLY || tokenDisposition === 1) return "players";
+
+  // Enemy-Wizard metadata is more explicit than an old Actor default.
+  const actorIsEnemy = Boolean(
+    combatant?.actor?.system?.enemy?.isEnemy === true ||
+    combatant?.actor?.getFlag?.(SYSTEM_ID, "enemyNpc")?.isEnemy === true
+  );
+  if (actorIsEnemy) return "enemies";
+
+  // Neutral Tokens may use an explicitly configured DDA side. NPC templates
+  // default to enemies and Digimon templates to players, so this preserves
+  // explicit ally-NPC overrides without letting a hostile placed Token lose.
   const configured = String(
     combatant?.actor?.system?.combat?.initiative?.side ?? ""
   ).trim();
@@ -188,17 +373,7 @@ function sideOf(combatant) {
     return configured;
   }
 
-  const tokenDisposition = Number(
-    combatant?.token?.disposition ??
-    combatant?.token?.document?.disposition ??
-    combatant?.actor?.prototypeToken?.disposition
-  );
-
-  // Hostile no Foundry é -1.
-  if (tokenDisposition === -1) {
-    return "enemies";
-  }
-
+  // Final document fallback for legacy Actors with no side configured.
   return ["npc", "group"].includes(combatant?.actor?.type)
     ? "enemies"
     : "players";
@@ -651,28 +826,6 @@ function compareUnits(left, right) {
   return unitName(left).localeCompare(unitName(right));
 }
 
-function splitIntoChunks(items, chunks) {
-  const result = [];
-  const safeChunks = Math.max(
-    1,
-    Math.min(chunks, items.length)
-  );
-
-  const minimum = Math.floor(items.length / safeChunks);
-  const extras = items.length % safeChunks;
-
-  let offset = 0;
-
-  for (let index = 0; index < safeChunks; index += 1) {
-    const size = minimum + (index < extras ? 1 : 0);
-
-    result.push(items.slice(offset, offset + size));
-    offset += size;
-  }
-
-  return result;
-}
-
 function orderUnits(units) {
   const players = units
     .filter((unit) => unit.side === "players")
@@ -686,95 +839,40 @@ function orderUnits(units) {
     return [...players, ...enemies];
   }
 
+  /*
+   * DDA alternates initiative sides for as long as both sides still have
+   * available units. Once one side runs out, every remaining unit from the
+   * outnumbering side is appended to the end of the round in its own rolled
+   * initiative order.
+   *
+   * The side with the highest leading Initiative acts first. Ties are already
+   * resolved by compareUnits (RAM, then Players).
+   */
   const firstSide =
     compareUnits(players[0], enemies[0]) <= 0
       ? "players"
       : "enemies";
 
-  if (players.length === enemies.length) {
-    const first =
-      firstSide === "players"
-        ? players
-        : enemies;
-
-    const second =
-      firstSide === "players"
-        ? enemies
-        : players;
-
-    return first.flatMap((unit, index) => {
-      return second[index]
-        ? [unit, second[index]]
-        : [unit];
-    });
-  }
-
-  /*
-   * The Outnumbered Initiative example distributes extra Player units between
-   * Enemy activations. The reverse case is intentionally not symmetrical:
-   * when Enemies outnumber Players, alternate one unit from each side for as
-   * long as possible, then append the remaining Enemy units at the end.
-   *
-   * This prevents an Enemy chunk from appearing before every Player unit has
-   * received its available alternating position.
-   */
-  if (enemies.length > players.length) {
-    const result = [];
-
-    let playerIndex = 0;
-    let enemyIndex = 0;
-
-    while (
-      playerIndex < players.length &&
-      enemyIndex < enemies.length
-    ) {
-      if (firstSide === "players") {
-        result.push(
-          players[playerIndex],
-          enemies[enemyIndex]
-        );
-      } else {
-        result.push(
-          enemies[enemyIndex],
-          players[playerIndex]
-        );
-      }
-
-      playerIndex += 1;
-      enemyIndex += 1;
-    }
-
-    result.push(
-      ...enemies.slice(enemyIndex)
-    );
-
-    return result;
-  }
-
-  /*
-   * When Players outnumber Enemies, preserve the official proportional
-   * distribution by dividing Player units as evenly as possible between Enemy
-   * activations.
-   */
-  const playerChunks = splitIntoChunks(
-    players,
-    enemies.length
-  );
+  const first = firstSide === "players" ? players : enemies;
+  const second = firstSide === "players" ? enemies : players;
 
   const result = [];
+  const pairedCount = Math.min(first.length, second.length);
 
-  for (let index = 0; index < enemies.length; index += 1) {
-    if (firstSide === "players") {
-      result.push(
-        ...playerChunks[index],
-        enemies[index]
-      );
-    } else {
-      result.push(
-        enemies[index],
-        ...playerChunks[index]
-      );
-    }
+  for (let index = 0; index < pairedCount; index += 1) {
+    result.push(first[index], second[index]);
+  }
+
+  /*
+   * Only one side can have leftovers. Do not distribute those extras between
+   * opposing activations: Outnumbered units stack at the end of the order.
+   */
+  if (first.length > pairedCount) {
+    result.push(...first.slice(pairedCount));
+  }
+
+  if (second.length > pairedCount) {
+    result.push(...second.slice(pairedCount));
   }
 
   return result;
@@ -1037,6 +1135,7 @@ export async function rollDDACombatInitiative(
     ]);
 
 if (!combat.started) {
+  await resetCombatStancesToNeutral(combat);
   await combat.startCombat();
 }
 
@@ -1537,7 +1636,7 @@ export async function processDDAStartOfTurnEffects(activeActor, combat = game.co
     if (!effects.length) continue;
 
     let changed = false;
-    let expiredShieldTemp = 0;
+    const expiredShieldEffects = [];
     const remainingEffects = [];
 
     for (const effect of effects) {
@@ -1550,7 +1649,13 @@ export async function processDDAStartOfTurnEffects(activeActor, combat = game.co
         const wounds = foundry.utils.getProperty(target, woundsPath) ?? {};
         const current = Math.max(0, number(wounds.value, 0));
         const maximum = Math.max(current, number(wounds.max, current));
-        let healing = Math.max(1, number(effect.potency ?? effect.value, 1));
+        const requestedHealing = Math.max(1, number(effect.potency ?? effect.value, 1));
+        const bossTemplateState = target.type === "npc"
+          ? getBossTemplateRuntimeState(target, combat)
+          : null;
+        let healing = bossTemplateState
+          ? requestedHealing
+          : Math.min(requestedHealing, Math.max(0, maximum - current));
         const doom = effects.find((candidate) => effectTagKey(candidate.tag) === "doom");
         if (doom) {
           const doomValue = Math.max(0, number(doom.value ?? doom.potency, 0));
@@ -1560,7 +1665,7 @@ export async function processDDAStartOfTurnEffects(activeActor, combat = game.co
           if (doom.value <= 0) doom._ddaExpiredByDoom = true;
         }
         if (healing > 0) {
-          const bossTemplateHealing = target.type === "npc"
+          const bossTemplateHealing = bossTemplateState
             ? await healActiveBossTemplatePool(target, healing, combat)
             : null;
           if (!bossTemplateHealing && current < maximum) {
@@ -1599,14 +1704,7 @@ export async function processDDAStartOfTurnEffects(activeActor, combat = game.co
 
       if (nextRemaining > 0) remainingEffects.push(effect);
       else if (tag === "shield") {
-        expiredShieldTemp = Math.max(
-          expiredShieldTemp,
-          number(
-            effect?.tempWoundsRemaining ??
-            effect?.tempWounds,
-            0
-          )
-        );
+        expiredShieldEffects.push(effect);
       }
     }
 
@@ -1614,34 +1712,13 @@ export async function processDDAStartOfTurnEffects(activeActor, combat = game.co
       const updates = {
         "system.effects.active": remainingEffects.filter((effect) => !effect._ddaExpiredByDoom)
       };
-      if (expiredShieldTemp > 0) {
-        const tempPath = target.type === "character"
-          ? "system.derived.wounds.temp"
-          : "system.miscStats.wounds.temp";
-        const temp = foundry.utils.getProperty(target, tempPath) ?? {};
-        const nextTemp = Math.max(
-          0,
-          number(temp.value, 0) - expiredShieldTemp
-        );
-        const nextSource = String(temp.source ?? "")
-          .split("+")
-          .map((entry) => entry.trim())
-          .filter(Boolean)
-          .filter((entry) => {
-            const key = entry
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .toLowerCase();
-            return !key.includes("shield") && !key.includes("escudo");
-          })
-          .join(" + ");
-        updates[`${tempPath}.value`] = nextTemp;
-        updates[`${tempPath}.source`] = nextSource;
-        if (nextTemp <= 0 || !nextSource) {
-          updates[`${tempPath}.duration`] = "";
-        }
-      }
       await target.update(updates);
+      for (const shieldEffect of expiredShieldEffects) {
+        await expireNonStackingTemporaryWounds(target, {
+          sourceId: "shield",
+          effectId: String(shieldEffect?.id ?? "")
+        });
+      }
       target.sheet?.render(false);
     }
   }
@@ -2184,6 +2261,43 @@ function getDdaMemberState(combatant, combat) {
   };
 }
 
+function getDdaCombatMeta(actor) {
+  if (!actor) return "";
+
+  const currentActions = Math.max(0, number(actor.system?.combat?.actions?.value, 0));
+  const maximumActions = Math.max(
+    currentActions,
+    number(actor.system?.combat?.actions?.max, currentActions)
+  );
+  const parts = [`${currentActions}/${maximumActions}A`];
+
+  if (["digimon", "npc"].includes(actor.type)) {
+    const stance = String(actor.system?.combat?.currentStance ?? "neutral").toLowerCase();
+    const stanceLabels = {
+      neutral: label("Neutral", "Neutral"),
+      offensive: label("Ofensiva", "Offensive"),
+      defensive: label("Defensiva", "Defensive"),
+      brave: label("Brava", "Brave"),
+      fierce: label("Feroz", "Fierce"),
+      sentry: label("Sentinela", "Sentry"),
+      martial: label("Marcial", "Martial"),
+      anticipate: label("Antecipação", "Anticipate")
+    };
+    parts.push(stanceLabels[stance] ?? stance);
+  }
+
+  const clash = actor.system?.combat?.clash ?? actor.system?.clash?.state ?? {};
+  if (clash?.active) {
+    const controller = String(clash.controllerUuid ?? "") === String(actor.uuid ?? "");
+    if (!controller && clash.pinned) parts.push(label("Clash: Preso", "Clash: Pinned"));
+    else parts.push(controller
+      ? label("Clash: Controle", "Clash: Controller")
+      : label("Clash: Oponente", "Clash: Opponent"));
+  }
+
+  return parts.filter(Boolean).join(" · ");
+}
+
 function getDdaRoleLabel(role) {
   return role === "digimon"
     ? label("Digimon", "Digimon")
@@ -2243,6 +2357,9 @@ function buildDdaPairMemberMarkup(combatant, role, combat) {
             ${state.icon}
         </span>
         ${html(state.label)}
+        </span>
+        <span class="dda-pair-member-meta">
+          ${html(getDdaCombatMeta(combatant?.actor))}
         </span>
       </span>
     </button>
@@ -2331,6 +2448,109 @@ function decorateDdaPairRows(combat, root) {
   }
 }
 
+function applyDdaSoloAffiliationInlineTheme(row, side) {
+  if (!row) return;
+
+  const enemy = side === "enemies";
+  const ally = side === "players";
+  if (!enemy && !ally) return;
+
+  const theme = enemy
+    ? {
+        accent: "rgba(211, 91, 96, 0.86)",
+        accentStrong: "rgba(231, 112, 112, 0.98)",
+        rowA: "rgba(55, 23, 31, 0.985)",
+        rowB: "rgba(32, 27, 39, 0.985)",
+        initiativeA: "rgba(132, 48, 55, 0.99)",
+        initiativeB: "rgba(73, 27, 34, 0.99)"
+      }
+    : {
+        accent: "rgba(78, 184, 127, 0.86)",
+        accentStrong: "rgba(105, 211, 154, 0.98)",
+        rowA: "rgba(17, 47, 36, 0.985)",
+        rowB: "rgba(23, 39, 42, 0.985)",
+        initiativeA: "rgba(35, 111, 76, 0.99)",
+        initiativeB: "rgba(21, 67, 49, 0.99)"
+      };
+
+  // Inline !important is intentional here. Foundry's tracker and some tracker
+  // modules use their own !important backgrounds on active combatants; this
+  // keeps allegiance visible regardless of stylesheet order.
+  row.style.setProperty("border-color", theme.accent, "important");
+  row.style.setProperty(
+    "background",
+    `linear-gradient(135deg, ${theme.rowA}, ${theme.rowB})`,
+    "important"
+  );
+  row.style.setProperty(
+    "box-shadow",
+    `inset 3px 0 0 ${theme.accentStrong}, 0 2px 8px rgba(0,0,0,.34)`,
+    "important"
+  );
+
+  const initiative = row.querySelector(".token-initiative");
+  initiative?.style?.setProperty(
+    "background",
+    `linear-gradient(180deg, ${theme.initiativeA}, ${theme.initiativeB})`,
+    "important"
+  );
+  initiative?.style?.setProperty("border-right-color", theme.accent, "important");
+
+  const image = row.querySelector(".token-image");
+  image?.style?.setProperty("border-color", theme.accent, "important");
+}
+
+function reorderDdaTrackerRows(combat, root) {
+  const storedOrder = combat?.getFlag?.(SYSTEM_ID, `${FLAG}.order`);
+  if (!Array.isArray(storedOrder) || !storedOrder.length) return false;
+
+  const rows = Array.from(root.querySelectorAll("[data-combatant-id]"));
+  if (!rows.length) return false;
+
+  const parent = rows[0]?.parentElement;
+  if (!parent || !rows.every((row) => row.parentElement === parent)) return false;
+
+  const rowById = new Map(rows.map((row) => [String(row.dataset.combatantId ?? ""), row]));
+  const appended = new Set();
+
+  for (const entry of storedOrder) {
+    const unitId = String(entry?.id ?? "").trim();
+    if (!unitId) continue;
+
+    const members = getUnitCombatants(combat, unitId);
+    if (!members.length && unitId.startsWith("raid:")) {
+      const combatantId = unitId.slice(5);
+      const row = rowById.get(combatantId);
+      if (row) {
+        parent.append(row);
+        appended.add(row);
+      }
+      continue;
+    }
+
+    // Anchor first, then hidden Tamer/suspended rows. This keeps native DOM
+    // grouping coherent while the visible list follows the DDA unit order.
+    const orderedMembers = [...members].sort((left, right) => {
+      return getDDACombatantRoleRank(left) - getDDACombatantRoleRank(right);
+    });
+
+    for (const member of orderedMembers) {
+      const row = rowById.get(String(member.id));
+      if (!row) continue;
+      parent.append(row);
+      appended.add(row);
+    }
+  }
+
+  // Preserve any technical or module-added rows which are not part of DDA's
+  // stored order rather than deleting them.
+  for (const row of rows) {
+    if (!appended.has(row)) parent.append(row);
+  }
+
+  return true;
+}
+
 function decorateDdaSoloRows(combat, root) {
   for (const row of root.querySelectorAll("[data-combatant-id]")) {
     const combatant =
@@ -2338,46 +2558,80 @@ function decorateDdaSoloRows(combat, root) {
       game.combat?.combatants?.get(row.dataset.combatantId);
 
     if (!combatant) continue;
+    if (row.classList.contains("dda-pair-combatant") || isRaidActionCombatant(combatant)) continue;
 
     const unitId = getCombatantUnitId(combatant);
+    const role = String(getInitiativeFlag(combatant, "role", "solo"));
+    const pairedUnit = unitId.startsWith("pair:") || unitId.startsWith("jogress:");
+    if (pairedUnit || ["digimon", "tamer", "suspended"].includes(role) && unitId && !unitId.startsWith("solo:")) {
+      continue;
+    }
 
-    if (!unitId.startsWith("solo:")) continue;
-
+    const actor = combatant.actor;
+    const isSoloDigimon = ["digimon", "npc"].includes(actor?.type);
     const raw = getDdaRawInitiative(combatant);
+
+    // Keep the standard DDA solo layout once an Initiative exists. Affiliation
+    // itself is decorated even before Initiative is rolled so the tracker never
+    // loses its friend/enemy cue during rerenders.
+    if (raw !== null || isSoloDigimon) row.classList.add("dda-solo-combatant");
+
+    const unitSide = normalizeInitiativeSide(
+      getInitiativeFlag(combatant, "side", ""),
+      sideOf(combatant)
+    );
+    const isEnemyDigimon = isSoloDigimon && unitSide === "enemies";
+    const isAlliedDigimon = isSoloDigimon && unitSide === "players";
+
+    row.classList.toggle("dda-solo-digimon", isSoloDigimon);
+    row.classList.toggle("dda-solo-digimon-enemy", isEnemyDigimon);
+    row.classList.toggle("dda-solo-digimon-ally", isAlliedDigimon);
+
+    if (isSoloDigimon) {
+      row.dataset.ddaAffiliation = isEnemyDigimon
+        ? "enemy"
+        : isAlliedDigimon
+          ? "ally"
+          : "neutral";
+
+      applyDdaSoloAffiliationInlineTheme(row, unitSide);
+
+      // Affiliation is already conveyed by the native row text plus the
+      // red/green faction palette. The former badge was redundant, increased
+      // solo-row height, and could expose stale language text after a locale
+      // change. Remove both old and current hotfix badges on every render.
+      row.querySelectorAll(".dda-solo-affiliation-badge, .dda-solo-affiliation-badge-v8, .dda-solo-affiliation-badge-v9, .dda-solo-affiliation-badge-v10")
+        .forEach((badge) => badge.remove());
+    }
+    else {
+      delete row.dataset.ddaAffiliation;
+      row.querySelectorAll(".dda-solo-affiliation-badge, .dda-solo-affiliation-badge-v8, .dda-solo-affiliation-badge-v9, .dda-solo-affiliation-badge-v10").forEach((badge) => badge.remove());
+    }
+
+    const tokenNameForMeta = row.querySelector(".token-name") ?? row.querySelector(".combatant-name");
+    if (tokenNameForMeta) {
+      let meta = tokenNameForMeta.querySelector(".dda-solo-combat-meta");
+      if (!meta) {
+        meta = document.createElement("span");
+        meta.className = "dda-solo-combat-meta";
+        tokenNameForMeta.append(meta);
+      }
+      meta.textContent = getDdaCombatMeta(actor);
+    }
 
     if (raw === null) continue;
 
-const isEnemyDigimon =
-  unitId.startsWith("solo:") &&
-  ["digimon", "npc"].includes(combatant.actor?.type);
+    const initiativeValue = row.querySelector(".token-initiative > span");
+    if (initiativeValue) {
+      initiativeValue.textContent = formatDdaInitiative(raw);
+      initiativeValue.parentElement.title = label("Rolar Iniciativa", "Roll Initiative");
+      continue;
+    }
 
-row.classList.add("dda-solo-combatant");
-
-row.classList.toggle(
-  "dda-solo-digimon-enemy",
-  isEnemyDigimon
-);
-
-const initiativeValue = row.querySelector(
-  ".token-initiative > span"
-);
-
-if (initiativeValue) {
-  initiativeValue.textContent = formatDdaInitiative(raw);
-
-  initiativeValue.parentElement.title = label(
-    "Rolar Iniciativa",
-    "Roll Initiative"
-  );
-
-  continue;
-}
-
-    let badge = row.querySelector(".dda-solo-initiative");
-
-    if (!badge) {
-      badge = document.createElement("span");
-      badge.className = "dda-solo-initiative";
+    let initiativeBadge = row.querySelector(".dda-solo-initiative");
+    if (!initiativeBadge) {
+      initiativeBadge = document.createElement("span");
+      initiativeBadge.className = "dda-solo-initiative";
 
       const target =
         row.querySelector(".token-name") ??
@@ -2385,10 +2639,10 @@ if (initiativeValue) {
         row.querySelector("h4") ??
         row;
 
-      target.append(badge);
+      target.append(initiativeBadge);
     }
 
-    badge.textContent = formatDdaInitiative(raw);
+    initiativeBadge.textContent = formatDdaInitiative(raw);
   }
 }
 
@@ -2398,6 +2652,28 @@ function decorateDdaRaidRows(combat, root) {
     if (!combatant || !isRaidActionCombatant(combatant)) continue;
 
     row.classList.add("dda-raid-action-combatant");
+
+    const bossActor = getBossEncounterActorForCombatant(combatant, combat) ?? combatant.actor;
+    const raidState = getRaidBossRuntimeState(bossActor, combat);
+    const pending = Array.isArray(raidState?.pendingActions)
+      ? raidState.pendingActions.filter(Boolean)
+      : raidState?.pendingAction ? [raidState.pendingAction] : [];
+    const tokenName = row.querySelector(".token-name");
+    if (tokenName) {
+      let clock = tokenName.querySelector(".dda-raid-action-clock");
+      if (!clock) {
+        clock = document.createElement("span");
+        clock.className = "dda-raid-action-clock";
+        tokenName.append(clock);
+      }
+      clock.textContent = pending.length
+        ? pending.map((action) => {
+            const resolves = Math.max(1, number(action?.resolvesRound, number(combat?.round, 1) + 1));
+            return `${String(action?.name ?? label("Raid Action", "Raid Action"))} · ${label("resolve R", "resolves R")}${resolves}`;
+          }).join(" / ")
+        : label("Preparar nova Raid Action", "Prepare next Raid Action");
+    }
+
     const initiativeValue = row.querySelector(".token-initiative > span");
     if (initiativeValue) {
       initiativeValue.textContent = "RAID";
@@ -2508,6 +2784,13 @@ export function refreshDDAUnitVisuals(combat = game.combat) {
 }
 
 export function registerDDACombatInitiativeHooks() {
+  ensureDdaCombatTrackerAffiliationStyles();
+  Hooks.on("combatStart", (combat) => {
+    void resetCombatStancesToNeutral(combat).catch((error) => {
+      console.error("DDA | Could not reset Stances to Neutral at combat start.", error);
+    });
+  });
+
   Hooks.on("updateCombat", async (combat, changed, options = {}) => {
     refreshDDAUnitVisuals(combat);
     if (options?.ddaJogressSync) return;
@@ -2608,6 +2891,9 @@ export function registerDDACombatInitiativeHooks() {
   const handleCombatFinished = async (combat) => {
     if (!isPrimaryActiveGM()) return;
     await clearCombatBoundEffects(combat);
+    for (const actor of effectBearingActors()) {
+      await expireCombatBoundNonStackingTemporaryWounds(actor, String(combat?.id ?? ""));
+    }
     await resetTamerBreakAvailability(combat);
     await resetPreInitiativeEvolutionDebt(combat);
     await clearIntercedeTurnCredits(combat);
@@ -2617,6 +2903,7 @@ export function registerDDACombatInitiativeHooks() {
   Hooks.on("deleteCombat", (combat) => void handleCombatFinished(combat));
 
   Hooks.on("renderCombatTracker", (app, htmlData) => {
+    ensureDdaCombatTrackerAffiliationStyles();
     const root = elementFrom(htmlData);
 
     if (!root) return;
@@ -2634,6 +2921,7 @@ export function registerDDACombatInitiativeHooks() {
     decorateDdaPairRows(combat, root);
     decorateDdaSoloRows(combat, root);
     decorateDdaRaidRows(combat, root);
+    reorderDdaTrackerRows(combat, root);
     refreshDDAUnitVisuals(combat);
 });
 

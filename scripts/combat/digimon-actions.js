@@ -21,6 +21,9 @@ import {
   isTokenVisibleToBossObserver
 } from "./boss-qualities.js";
 import {
+  getTokenGridDistance
+} from "./positioning.js";
+import {
   getBullrushDifficultMoveActionCost,
   getNaturalExplorerFollowerEffect,
   isCalculatedAvailable,
@@ -77,6 +80,12 @@ async function spendActions(actor, amount, options = {}) {
   return Boolean(
     await spendActorActions(actor, amount, options)
   );
+}
+
+async function revealHiddenFromCreatureInteraction(actor, reason = "interaction") {
+  if (!actor?.system?.status?.hidden) return false;
+  const environment = await import("./environment.js");
+  return environment.revealActorFromInteraction(actor, reason);
 }
 
 
@@ -182,7 +191,7 @@ function selectedTarget() {
 function targetWithinRange(actor, targetToken) {
   const sourceToken = actorToken(actor);
   if (!sourceToken || !targetToken) return false;
-  const distance = tokenGridDistance(sourceToken, targetToken);
+  const distance = getTokenGridDistance(sourceToken, targetToken);
   const range = Math.max(0, number(
     actor.system?.miscStats?.range?.total
       ?? actor.system?.miscStats?.range?.value
@@ -191,22 +200,6 @@ function targetWithinRange(actor, targetToken) {
   return distance <= range;
 }
 
-function tokenGridDistance(tokenA, tokenB) {
-  const gridSize = Math.max(1, number(canvas?.grid?.size, 100));
-  const bounds = (token) => {
-    const document = token?.document ?? token ?? {};
-    const x = Math.round(number(document.x) / gridSize);
-    const y = Math.round(number(document.y) / gridSize);
-    const width = Math.max(1, Math.round(number(document.width, 1)));
-    const height = Math.max(1, Math.round(number(document.height, 1)));
-    return { left: x, right: x + width - 1, top: y, bottom: y + height - 1 };
-  };
-  const a = bounds(tokenA);
-  const b = bounds(tokenB);
-  const gapX = a.right < b.left ? b.left - a.right : b.right < a.left ? a.left - b.right : 0;
-  const gapY = a.bottom < b.top ? b.top - a.bottom : b.bottom < a.top ? a.top - b.bottom : 0;
-  return Math.max(gapX, gapY);
-}
 
 function isUnavailableTarget(token) {
   const actor = token?.actor;
@@ -625,6 +618,7 @@ async function useAid(actor) {
   );
 
   if (!(await spendActions(actor, bolster.actionCost))) return null;
+  await revealHiddenFromCreatureInteraction(actor, "aid");
 
   const baseValue = Math.max(0, number(getActorSv(actor)));
   const value = baseValue + bolster.diceBonus;
@@ -772,6 +766,7 @@ async function useCoordinatedAssault(actor) {
     return null;
   }
   if (!(await spendActions(actor, 1))) return null;
+  await revealHiddenFromCreatureInteraction(actor, "coordinatedAssault");
   const { result } = await rollCoordinatedAssault(actor, targetToken);
   if (!result) return null;
   if (result.outcome === "criticalFailure") {
@@ -1219,6 +1214,24 @@ const DIGIMON_ACTION_MENU_ENTRIES = [
     titleKey: "DDA.DigimonAction.HoldBreath.Title",
     summaryKey: "DDA.DigimonAction.HoldBreath.Summary",
     cost: "1A"
+  },
+  {
+    key: "hide",
+    title: text("Ocultar-se", "Hide"),
+    summary: text("Teste de Furtividade TN 10; exige estar fora de linha de visão, salvo se estiver Obscured.", "Stealth Check TN 10; requires being out of line of sight unless Obscured."),
+    cost: "2A"
+  },
+  {
+    key: "detectHidden",
+    title: text("Detectar Oculto", "Detect Hidden"),
+    summary: text("Teste de Awareness contra o resultado de Furtividade do alvo Oculto.", "Awareness Check against the Hidden target's Stealth result."),
+    cost: "2A"
+  },
+  {
+    key: "environment",
+    title: text("Ambiente de Combate", "Combat Environment"),
+    summary: text("Configure Obscured, Hidden, Submerged, Drowning e Cover.", "Configure Obscured, Hidden, Submerged, Drowning, and Cover."),
+    cost: "—"
   }
 ];
 
@@ -1273,6 +1286,21 @@ export async function getDigimonActionMenuDefinition(actor) {
       : { ...entry }
   ));
 
+  const movementTracker = game?.dda?.movementTracker;
+  const activeMovement = movementTracker?.getActiveMovementData?.(actor) ?? null;
+  if (!evokerMinion && activeMovement?.key === "jump" && activeMovement?.enabled !== false) {
+    const moveIndex = menuEntries.findIndex((entry) => entry.key === "move");
+    menuEntries.splice(Math.max(0, moveIndex + 1), 0, {
+      key: "longJump",
+      title: text("Salto Longo", "Long Jump"),
+      summary: text(
+        "Combine 2 Ações de Movimento em um único Salto contínuo em linha reta.",
+        "Combine 2 Move Actions into one continuous straight-line Jump."
+      ),
+      cost: "2A"
+    });
+  }
+
   if (!evokerMinion) {
     for (const entry of evokerAutomation.getEvokerActionMenuEntries(actor)) menuEntries.push(entry);
     const gainForceAutomation = await import("./digizoid-gain-force.js");
@@ -1325,6 +1353,7 @@ export async function getDigimonActionMenuDefinition(actor) {
 
   const handlers = {
     move: () => useMove(actor),
+    longJump: () => game?.dda?.movementTracker?.beginLongJump?.(actor),
     attack: (options = {}) => useAttack(actor, false, options),
     difficultMove: () => useMove(actor, true),
     holdBack: (options = {}) => useAttack(actor, true, options),
@@ -1343,6 +1372,9 @@ export async function getDigimonActionMenuDefinition(actor) {
     coordinatedAssault: () => useCoordinatedAssault(actor),
     calledShot: () => useCalledShot(actor),
     holdBreath: () => useHoldBreath(actor),
+    hide: async () => (await import("./environment.js")).attemptHide(actor),
+    detectHidden: async () => (await import("./environment.js")).attemptDetectHidden(actor),
+    environment: async () => (await import("./environment.js")).openCombatEnvironmentDialog(actor),
     evolution: () => useEvolution(actor),
     fastball: async () => (await import("./clash-qualities.js")).executeClashQualityMenuAction(actor, "fastball"),
     giantHijacker: async () => (await import("./clash-qualities.js")).executeClashQualityMenuAction(actor, "giantHijacker"),

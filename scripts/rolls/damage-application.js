@@ -1,4 +1,5 @@
 import {
+  areActorsAllies,
   getCombatId,
   getActorSv
 } from "../rules/quality-automation.js";
@@ -24,6 +25,9 @@ import {
 import {
   reduceEnemyUnalterableDamageWithShiningArmor
 } from "../combat/digizoid-gain-force.js";
+import {
+  reconcileNonStackingTemporaryWoundsAfterDamage
+} from "../combat/temporary-wounds.js";
 
 import {
   commitBossTemplatePoolResult,
@@ -963,8 +967,16 @@ export async function applyDamage(actor, damage, options = {}) {
 
 export async function applyCrashDamage(actor, damage, options = {}) {
   const negatedByTumbler = shouldNegateFallCrashDamage(actor, options);
-  return applyDamage(actor, negatedByTumbler ? 0 : damage, {
+  const rawCrashDamage = Math.max(0, Number(damage ?? 0));
+  // 9.09f: a Human takes half the Crash Damage a Digimon would take, then
+  // applies its flat 1-point Crash reduction in getDamageReductionData.
+  const scaledCrashDamage = actor?.type === "character"
+    ? Math.ceil(rawCrashDamage / 2)
+    : rawCrashDamage;
+  return applyDamage(actor, negatedByTumbler ? 0 : scaledCrashDamage, {
     ...options,
+    crashOriginalDamage: rawCrashDamage,
+    crashTamerHalved: actor?.type === "character",
     negatedByTumbler,
     damageType: "crash",
     damageLabel: options.damageLabel ?? localizeWithFallback(
@@ -1807,39 +1819,46 @@ const challengerConsumed =
     )
   );
 
-const shieldConsumption =
-  await consumeShieldTemporaryWounds(
-    actor,
-    Math.max(
-      0,
-      result.tempDamage -
-        gloriousWorldConsumed -
-        challengerConsumed
-    )
-  );
-
-let shieldBroken = Boolean(
-  shieldConsumption.broken
+const ordinaryTempDamage = Math.max(
+  0,
+  result.tempDamage -
+    gloriousWorldConsumed -
+    challengerConsumed
 );
 
-if (
-  currentTemp > 0 &&
-  result.temp <= 0 &&
-  !shieldBroken
-) {
-  shieldBroken =
-    await removeShieldEffectIfTempDepleted(actor);
-}
+let shieldBroken = false;
+let ordinaryTempReconciliation = null;
 
-if (currentTemp > 0 && result.temp <= 0) {
-  const tempRootPath = String(config.tempValuePath ?? "")
-    .replace(/\.value$/, "");
+if (ordinaryTempDamage > 0 || (currentTemp > 0 && result.temp <= 0)) {
+  ordinaryTempReconciliation =
+    await reconcileNonStackingTemporaryWoundsAfterDamage(actor);
 
-  if (tempRootPath) {
-    await actor.update({
-      [`${tempRootPath}.source`]: "",
-      [`${tempRootPath}.duration`]: ""
+  const sourceId = String(ordinaryTempReconciliation?.sourceId ?? "");
+  const effectId = String(ordinaryTempReconciliation?.effectId ?? "");
+  const remainingOrdinary = Math.max(
+    0,
+    Number(ordinaryTempReconciliation?.state?.remaining ?? 0)
+  );
+
+  if (sourceId === "shield" || effectId) {
+    const effects = foundry.utils.deepClone(actor.system?.effects?.active ?? []);
+    const effectIndex = effects.findIndex((effect) => {
+      if (effectId && String(effect?.id ?? "") === effectId) return true;
+      return sourceId === "shield" && getEffectTagKey(effect?.tag) === "shield";
     });
+
+    if (effectIndex >= 0) {
+      if (ordinaryTempReconciliation?.depleted) {
+        shieldBroken = sourceId === "shield";
+        effects.splice(effectIndex, 1);
+      } else if (sourceId === "shield") {
+        effects[effectIndex] = {
+          ...effects[effectIndex],
+          tempWoundsRemaining: remainingOrdinary
+        };
+      }
+      await actor.update({ "system.effects.active": effects });
+    }
   }
 }
 
@@ -2260,27 +2279,46 @@ function getDamageReductionData(actor, damageType = "") {
     };
   }
 
-  // Crash Damage é especial porque Tumbler/Acrobata usa RAM
-  // e Naturewalk Wind/Thunder já é somado em crashDamageReduction.
+  // 9.09f Crash Damage has a universal base reduction: Digimon use CPU;
+  // Humans use 1. Tumbler adds RAM through crashDamageReduction, producing
+  // CPU + RAM. Other explicit Crash reductions (e.g. Naturewalk grants) remain
+  // additive because Qualities may override or extend the base rule.
   if (normalizedDamageType === "crash") {
     const crashReduction = actor.system?.utilityBonuses?.crashDamageReduction ?? {};
-    const value = Math.max(0, Number(crashReduction.total ?? crashReduction.value ?? 0));
+    const qualityReduction = Math.max(0, Number(crashReduction.total ?? crashReduction.value ?? 0));
+    const baseReduction = actor?.type === "character"
+      ? 1
+      : ["digimon", "npc"].includes(actor?.type)
+        ? Math.max(0, Number(
+            actor.system?.derivedStats?.cpu?.value
+              ?? actor.system?.derivedStats?.cpu?.total
+              ?? actor.system?.derivedStats?.cpu?.base
+              ?? 0
+          ))
+        : 0;
+    const value = baseReduction + qualityReduction;
 
     if (value <= 0) {
-      return {
-        value: 0,
-        tooltip: ""
-      };
+      return { value: 0, tooltip: "" };
     }
 
     const fallbackLabel = localizeWithFallback(
       DAMAGE_REDUCTION_LABEL_KEYS.crash,
       "Redução de Colisão"
     );
+    const parts = [];
+    if (baseReduction > 0) {
+      parts.push(actor?.type === "character"
+        ? `${fallbackLabel}: 1`
+        : `CPU: ${baseReduction}`);
+    }
+    if (qualityReduction > 0) {
+      parts.push(crashReduction.tooltip || crashReduction.label || `${fallbackLabel}: ${qualityReduction}`);
+    }
 
     return {
       value,
-      tooltip: crashReduction.tooltip || crashReduction.label || fallbackLabel
+      tooltip: parts.join("\n") || fallbackLabel
     };
   }
 
@@ -2471,103 +2509,6 @@ async function applyLifestealFromDamage({
   };
 }
 
-async function consumeShieldTemporaryWounds(actor, amount = 0) {
-  const requested = Math.max(
-    0,
-    Math.floor(Number(amount ?? 0))
-  );
-
-  if (requested <= 0) {
-    return {
-      consumed: 0,
-      remaining: null,
-      broken: false
-    };
-  }
-
-  const effects = foundry.utils.deepClone(
-    actor?.system?.effects?.active ?? []
-  );
-
-  const index = effects.findIndex((effect) => {
-    return getEffectTagKey(effect?.tag) === "shield";
-  });
-
-  if (index < 0) {
-    return {
-      consumed: 0,
-      remaining: null,
-      broken: false
-    };
-  }
-
-  const effect = effects[index];
-  const current = Math.max(
-    0,
-    Number(
-      effect?.tempWoundsRemaining ??
-      effect?.tempWounds ??
-      effect?.potency ??
-      0
-    )
-  );
-
-  const consumed = Math.min(
-    current,
-    requested
-  );
-
-  if (consumed <= 0) {
-    return {
-      consumed: 0,
-      remaining: current,
-      broken: false
-    };
-  }
-
-  const remaining = Math.max(
-    0,
-    current - consumed
-  );
-
-  if (remaining <= 0) {
-    effects.splice(index, 1);
-  } else {
-    effects[index] = {
-      ...effect,
-      tempWoundsRemaining: remaining
-    };
-  }
-
-  await actor.update({
-    "system.effects.active": effects
-  });
-
-  return {
-    consumed,
-    remaining,
-    broken: remaining <= 0
-  };
-}
-
-async function removeShieldEffectIfTempDepleted(actor) {
-  const currentEffects = foundry.utils.deepClone(actor.system.effects?.active ?? []);
-
-  if (!currentEffects.length) return false;
-
-  const updatedEffects = currentEffects.filter((effect) => {
-    return getEffectTagKey(effect.tag) !== "shield";
-  });
-
-  if (updatedEffects.length === currentEffects.length) return false;
-
-  await actor.update({
-    "system.effects.active": updatedEffects
-  });
-
-  return true;
-}
-
 function getEffectTagKey(tag) {
   return String(tag ?? "")
     .trim()
@@ -2604,20 +2545,7 @@ function findCombatMonsterQuality(actor) {
 }
 
 function areDamageActorsAllies(attacker, defender) {
-  if (!attacker || !defender) return false;
-
-  const attackerSide = attacker.system?.combat?.initiative?.side ?? "";
-  const defenderSide = defender.system?.combat?.initiative?.side ?? "";
-
-  if (attackerSide && defenderSide) {
-    return attackerSide === defenderSide;
-  }
-
-  if (attacker.type === "character" || defender.type === "character") {
-    return true;
-  }
-
-  return false;
+  return areActorsAllies(attacker, defender);
 }
 
 function warnLocalized(key, fallback) {

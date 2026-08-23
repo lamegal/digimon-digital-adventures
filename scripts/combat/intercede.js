@@ -11,7 +11,11 @@ import {
 import { withDDAMovementContext } from "../canvas/movement-context.js";
 import { spendActorActions } from "./action-economy.js";
 import { payPartnerInterruptAction } from "./tamer-actions.js";
-import { getTokenGridDistance, isTokenCombatReady } from "./positioning.js";
+import {
+  getTokenGridDistance,
+  isTokenCombatReady,
+  measureGridPointDistanceSpaces
+} from "./positioning.js";
 
 const pendingRequests = new Map();
 const pendingAreaRequests = new Map();
@@ -184,6 +188,34 @@ async function markReactionMessageClosed(message, flagKey, request, title, reaso
     content: closedIntercedeCard(title, reason),
     [`flags.${game.system.id}.${flagKey}`]: next
   });
+}
+
+function resolvePendingStandardIntercede(response = {}) {
+  const requestId = String(response?.requestId ?? "");
+  if (!requestId) return false;
+
+  const pending = pendingRequests.get(requestId);
+  if (!pending) return false;
+
+  const candidate = response?.candidate ?? null;
+  const resolverUserId = String(response?.resolverUserId ?? "");
+  const resolver = game?.users?.get?.(resolverUserId) ?? null;
+  const authorized = candidate
+    ? Boolean(
+        candidate.authorizedUserIds?.includes?.(resolverUserId) ||
+        resolver?.isGM
+      )
+    : Boolean(
+        resolver?.isGM ||
+        resolverUserId === String(pending.requesterUserId ?? "")
+      );
+
+  if (!authorized) return false;
+
+  if (pending.timeoutId) globalThis.clearTimeout(pending.timeoutId);
+  pendingRequests.delete(requestId);
+  pending.resolve(candidate);
+  return true;
 }
 
 async function closeStandardIntercedeRequest(requestId, { reason = "cancelled", updateMessage = true } = {}) {
@@ -511,7 +543,7 @@ async function payIntercedeAction(actor, candidate, request) {
   return payment;
 }
 
-async function eligibleInterceders(attacker, targetToken) {
+async function eligibleInterceders(attacker, targetToken, { fatal = false } = {}) {
   const target = targetToken?.actor;
   if (!target) return [];
   const seen = new Set();
@@ -520,6 +552,13 @@ async function eligibleInterceders(attacker, targetToken) {
     if (!actor || token === targetToken || actor.uuid === attacker?.uuid || actor.uuid === target.uuid) return [];
     if (seen.has(actor.uuid) || !areActorsAlliesForQualities(actor, target) || !isTokenCombatReady(token)) return [];
     if (!["character", "digimon", "npc"].includes(actor.type)) return [];
+    if (isActorInClash(actor)) return [];
+    if (
+      !fatal &&
+      ["digimon", "npc"].includes(actor.type) &&
+      ["digimon", "npc"].includes(target.type) &&
+      isActorInClash(target)
+    ) return [];
     const actions = Math.max(0, number(actor.system?.combat?.actions?.value));
     const movement = movementOf(actor);
     const distance = getTokenGridDistance(token, targetToken);
@@ -590,14 +629,21 @@ async function eligibleInterceders(attacker, targetToken) {
 }
 
 function requestCard(request) {
+  const fatal = Boolean(request?.fatal);
   return `
-    <div class="dda-chat-card dda-intercede-card">
-      <h2>${text("Janela de Interceder", "Intercede Window")}</h2>
+    <div class="dda-chat-card dda-intercede-card ${fatal ? "is-fatal" : ""}">
+      <h2>${fatal ? text("Interceder — Dano Fatal", "Intercede — Fatal Damage") : text("Janela de Interceder", "Intercede Window")}</h2>
       <p>${text(
-        `<strong>${escape(request.attackerName)}</strong> declarou <strong>${escape(request.attackName)}</strong> contra <strong>${escape(request.defenderName)}</strong>.`,
-        `<strong>${escape(request.attackerName)}</strong> declared <strong>${escape(request.attackName)}</strong> against <strong>${escape(request.defenderName)}</strong>.`
+        fatal
+          ? `<strong>${escape(request.attackerName)}</strong> acertou <strong>${escape(request.defenderName)}</strong> e o Dano seria fatal.`
+          : `<strong>${escape(request.attackerName)}</strong> declarou <strong>${escape(request.attackName)}</strong> contra <strong>${escape(request.defenderName)}</strong>.`,
+        fatal
+          ? `<strong>${escape(request.attackerName)}</strong> hit <strong>${escape(request.defenderName)}</strong> and the Damage would be fatal.`
+          : `<strong>${escape(request.attackerName)}</strong> declared <strong>${escape(request.attackName)}</strong> against <strong>${escape(request.defenderName)}</strong>.`
       )}</p>
-      <p>${text("Um aliado elegível pode pagar o custo indicado, mover-se até o alvo e receber o ataque sem rolar Esquiva.", "An eligible ally may pay the listed cost, move to the target, and take the attack without rolling Dodge.")}</p>
+      <p>${fatal
+        ? text("Pela exceção de Dano fatal, um aliado elegível ainda pode Interceder agora e receber o Ataque sem rolar Esquiva.", "Under the fatal-Damage exception, an eligible ally may still Intercede now and take the Attack without rolling Dodge.")
+        : text("Um aliado elegível pode pagar o custo indicado, mover-se até o alvo e receber o ataque sem rolar Esquiva.", "An eligible ally may pay the listed cost, move to the target, and take the attack without rolling Dodge.")}</p>
       <div class="dda-intercede-options">
         ${request.candidates.map((candidate) => `
           <button type="button" data-action="dda-intercede" data-candidate-id="${candidate.id}">
@@ -630,6 +676,10 @@ function requestCard(request) {
 async function moveAdjacent(candidate, targetToken, { templateId = "", preferInside = false } = {}) {
   const token = canvas?.tokens?.get(candidate.tokenId);
   if (!token || !targetToken) return;
+  if (token.actor?.system?.status?.hidden) {
+    const environment = await import("./environment.js");
+    await environment.revealActorFromInteraction(token.actor, "intercede");
+  }
   const currentDistance = getTokenGridDistance(token, targetToken);
   const currentTemplate = templateId ? canvas?.templates?.get?.(templateId) ?? null : null;
   const currentCenter = token.center ?? {
@@ -819,18 +869,26 @@ async function resolveChoice(message, candidateId = "", mode = "normal") {
     return false;
   }
 
+  const responsePayload = {
+    requestId: request.requestId,
+    resolverUserId: game.user.id,
+    declined: declining,
+    candidate: candidate ? { ...candidate, blastEvolution } : null
+  };
+
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: actor ?? undefined }),
     content: candidate
       ? `<div class="dda-chat-card dda-intercede-card is-resolved"><h2>${text("Interceder", "Intercede")}</h2><p><strong>${escape(candidate.actorName)}</strong> ${text("recebe o ataque no lugar do alvo original e não rola Esquiva.", "takes the attack instead of the original target and does not roll Dodge.")}</p>${candidate.sprintRequired ? `<p><strong>${text("Arrancada", "Sprint")}:</strong> ${text("Movimento dobrado para alcançar o aliado.", "Movement doubled to reach the ally.")}</p>` : ""}${candidate.intercedeArmorBonus > 0 ? `<p><strong>${text("Guardião Verdadeiro", "True Guardian")}:</strong> +${candidate.intercedeArmorBonus} ${text("Armadura neste ataque", "Armor for this attack")}.</p>` : ""}</div>`
       : `<div class="dda-chat-card dda-intercede-card is-declined"><p>${text("Ninguém Intercedeu. O ataque prossegue.", "Nobody Interceded. The attack continues.")}</p></div>`,
-    flags: { [game.system.id]: { intercedeResponse: {
-      requestId: request.requestId,
-      resolverUserId: game.user.id,
-      declined: declining,
-      candidate: candidate ? { ...candidate, blastEvolution } : null
-    } } }
+    flags: { [game.system.id]: { intercedeResponse: responsePayload } }
   });
+
+  // Do not rely exclusively on the createChatMessage hook to wake the
+  // originating attack. On the same client (the common GM/Enemy case),
+  // resolve the pending Promise immediately. The hook remains as the
+  // cross-client fallback when another authorized user answers the card.
+  resolvePendingStandardIntercede(responsePayload);
   return true;
 }
 
@@ -900,6 +958,33 @@ export async function requestStandardIntercede({ attacker, targetToken, attackIt
         reason: "timeout",
         updateMessage: true
       });
+    }, Math.max(1, Number(request.expiresAt ?? Date.now() + REQUEST_TIMEOUT_MS) - Date.now()));
+    pendingRequests.set(request.requestId, { ...request, messageId: message.id, timeoutId, resolve });
+  });
+}
+
+
+export async function requestFatalIntercede({ attacker, targetToken, attackItem, damage = 0 } = {}) {
+  const candidates = await eligibleInterceders(attacker, targetToken, { fatal: true });
+  if (!candidates.length) return null;
+  const request = {
+    requestId: foundry.utils.randomID(), status: "pending", fatal: true,
+    prospectiveDamage: Math.max(0, Number(damage ?? 0)),
+    ...reactionWindowMetadata(),
+    requesterUserId: game.user.id,
+    attackerUuid: attacker.uuid, attackerName: attacker.name,
+    defenderUuid: targetToken.actor.uuid, defenderName: targetToken.actor.name,
+    targetTokenId: targetToken.id, attackItemId: attackItem.id, attackName: attackItem.name,
+    candidates
+  };
+  const message = await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: attacker }),
+    content: requestCard(request),
+    flags: { [game.system.id]: { intercedeRequest: request } }
+  });
+  return new Promise((resolve) => {
+    const timeoutId = globalThis.setTimeout(() => {
+      void closeStandardIntercedeRequest(request.requestId, { reason: "timeout", updateMessage: true });
     }, Math.max(1, Number(request.expiresAt ?? Date.now() + REQUEST_TIMEOUT_MS) - Date.now()));
     pendingRequests.set(request.requestId, { ...request, messageId: message.id, timeoutId, resolve });
   });
@@ -1468,17 +1553,21 @@ async function confirmAreaIntercedeThrow(message) {
 
   const actor = await fromUuid(request.protectedActorUuid);
   const token = canvas?.tokens?.get(request.protectedTokenId) ?? null;
-  const grid = Math.max(1, number(canvas?.grid?.size, 100));
   const trackedMovement = request.movementGranted
     ? Number(game.dda?.movementTracker?.getCurrentMovementSpent?.(actor) ?? NaN)
     : NaN;
   const movedSpaces = Number.isFinite(trackedMovement)
     ? Math.max(0, trackedMovement)
     : token
-      ? Math.hypot(
-          Number(token.document?.x ?? token.x ?? 0) - Number(request.throwStartX ?? 0),
-          Number(token.document?.y ?? token.y ?? 0) - Number(request.throwStartY ?? 0)
-        ) / grid
+      ? (() => {
+          const offsetX = Number(token.center?.x ?? 0) - Number(token.document?.x ?? token.x ?? 0);
+          const offsetY = Number(token.center?.y ?? 0) - Number(token.document?.y ?? token.y ?? 0);
+          const startCenter = {
+            x: Number(request.throwStartX ?? 0) + offsetX,
+            y: Number(request.throwStartY ?? 0) + offsetY
+          };
+          return measureGridPointDistanceSpaces(startCenter, token.center);
+        })()
       : 0;
   if (movedSpaces > Math.max(0, Number(request.throwDistance ?? 0)) + 0.25) {
     ui.notifications.warn(text(
@@ -1641,21 +1730,7 @@ export function registerIntercede() {
   });
   Hooks.on("createChatMessage", (message) => {
     const response = message?.getFlag?.(game.system.id, "intercedeResponse");
-    if (response) {
-      const pending = pendingRequests.get(response.requestId);
-      if (pending) {
-        const candidate = response.candidate ?? null;
-        if (
-          !candidate ||
-          candidate.authorizedUserIds.includes(response.resolverUserId) ||
-          game.users.get(response.resolverUserId)?.isGM
-        ) {
-          globalThis.clearTimeout(pending.timeoutId);
-          pendingRequests.delete(response.requestId);
-          pending.resolve(candidate);
-        }
-      }
-    }
+    if (response) resolvePendingStandardIntercede(response);
 
     const areaResponse = message?.getFlag?.(game.system.id, "areaIntercedeResponse");
     if (!areaResponse) return;

@@ -66,6 +66,7 @@ import { registerFreeNegativeQualities } from "./combat/free-negative-qualities.
 import { registerBossQualities } from "./combat/boss-qualities.js";
 import { bindRaidActionChatCard, registerBossEncounterHooks } from "./combat/boss-encounters.js";
 import { registerIntercede } from "./combat/intercede.js";
+import { registerCombatEnvironment } from "./combat/environment.js";
 import { registerDdaHealthPips } from "./canvas/health-pips.js";
 import { registerDdaTokenHudEffects } from "./tokens/dda-token-hud-effects.js";
 import { registerDdaTokenActionTracker } from "./tokens/dda-token-action-tracker.js";
@@ -564,6 +565,7 @@ Hooks.once("ready", () => {
   registerDigizoidGainForce();
   registerFreeNegativeQualities();
   registerIntercede();
+  registerCombatEnvironment();
   registerDdaHealthPips();
   registerDdaTokenActionTracker();
   registerDdaDefaultTokenDispositions();

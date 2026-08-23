@@ -2366,3 +2366,48 @@ span {
     grid-column: 1 / -1;
   }
 }
+
+
+.dda-boss-health-focus-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  color: rgba(226, 237, 244, 0.9);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.dda-boss-health-focus-toggle input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.dda-boss-health-focus-preview {
+  display: block;
+  margin-top: 0.25rem;
+  color: rgba(157, 220, 193, 0.88);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+/* Boss Builder — dense encounter metrics without turning the option cards into dashboards. */
+.dda-boss-tag-team-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dda-boss-rule-advice {
+  margin: 0.35rem 0 0.55rem;
+  padding: 0.48rem 0.58rem;
+  border: 1px solid rgba(170, 190, 206, 0.22);
+  border-radius: 7px;
+  background: rgba(12, 24, 36, 0.44);
+  color: rgba(226, 238, 246, 0.82);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.dda-boss-rule-advice i {
+  margin-right: 0.35rem;
+  color: rgba(151, 207, 190, 0.9);
+}

@@ -13,6 +13,9 @@ import {
   getReachModeData,
   getTokenDistanceSpaces
 } from "./offensive-qualities.js";
+import {
+  getTokenDocumentGridDistance
+} from "./positioning.js";
 import { getActiveDDAUnitContext } from "./initiative.js";
 import { spendActorActions } from "./action-economy.js";
 import {
@@ -1922,6 +1925,13 @@ export async function initiateDigimonClash(actor) {
   const intent = await promptClashIntent(actor);
   if (!intent) return null;
 
+  try {
+    const environment = await import("./environment.js");
+    await environment.revealActorFromInteraction?.(actor, "clash");
+  } catch (error) {
+    console.warn("DDA | Could not end Hidden after Clash initiation.", error);
+  }
+
   const substituteEscape = await requestSubstitute({
     attacker: actor,
     defender: targetActor,
@@ -2825,7 +2835,7 @@ async function executeClashMoveAction(controller, opponent, state) {
   return { moved: true, drag, maximum, check };
 }
 
-function makeThrowAttack(controller, opponent) {
+function makeThrowAttack(controller, opponent, { area = false } = {}) {
   const powerThrowBonus = hasPowerThrow(controller) ? getCpuTotal(controller) : 0;
   return {
     id: `clash-throw-${foundry.utils.randomID()}`,
@@ -2838,8 +2848,8 @@ function makeThrowAttack(controller, opponent) {
       accuracy: { baseFormula: "" },
       damage: { enabled: true, baseFormula: "", bonus: powerThrowBonus, unalterable: 0 },
       effectTag: { enabled: false, tag: "" },
-      qualityTags: [],
-      tags: [],
+      qualityTags: area ? ["t:blast"] : [],
+      tags: area ? ["t:blast"] : [],
       isSignature: false
     }
   };
@@ -2857,8 +2867,11 @@ async function chooseThrowTarget(controller, opponent, distance) {
     position: { width: 560, height: "auto" },
     modal: true,
     content: `<form class="dda-clash-quality-form">
-      <header class="dda-clash-quality-hero"><span>${escapeHtml(localize("DDA.Clash.Action.Primary.Throw"))}</span><h2>${escapeHtml(opponent.name)}</h2><p>${formatI18n("DDA.Clash.Throw.Prompt", { spaces: distance })}</p></header>
-      <div class="form-group"><label>${escapeHtml(localize("DDA.Clash.Throw.Target"))}</label><select name="targetId"><option value="">${escapeHtml(localize("DDA.Clash.Throw.NoAttack"))}</option>${candidates.map((token) => `<option value="${escapeHtml(token.id)}">${escapeHtml(token.name)}</option>`).join("")}</select></div>
+      <header class="dda-clash-quality-hero"><span>${escapeHtml(localize("DDA.Clash.Action.Primary.Throw"))}</span><h2>${escapeHtml(opponent.name)}</h2><p>${formatI18n("DDA.Clash.Throw.Prompt", { spaces: distance })}</p><p class="hint">${escapeHtml(text(
+        `Crash: se o arremesso colidir após percorrer pelo menos ${Math.ceil(distance / 2)} Espaços e antes de completar ${distance}, o Dano bruto é igual aos Espaços que faltaram.`,
+        `Crash: if the throw collides after travelling at least ${Math.ceil(distance / 2)} Spaces but before completing ${distance}, raw Damage equals the untravelled Spaces.`
+      ))}</p></header>
+      <div class="form-group"><label>${escapeHtml(localize("DDA.Clash.Throw.Target"))}</label><select name="targetId"><option value="">${escapeHtml(localize("DDA.Clash.Throw.NoAttack"))}</option><option value="__AREA__">${escapeHtml(text("Grupo de inimigos — Ataque em Área", "Group of enemies — Area Attack"))}</option>${candidates.map((token) => `<option value="${escapeHtml(token.id)}">${escapeHtml(token.name)}</option>`).join("")}</select></div>
     </form>`,
     buttons: [
       { action: "confirm", label: localize("DDA.Button.Confirm"), default: true, callback: (_event, button) => String(button.form?.elements?.targetId?.value ?? "") },
@@ -2900,13 +2913,31 @@ async function executeClashThrowAction(controller, opponent, state, { alreadySpe
   thrownToken?.control?.({ releaseOthers: true });
 
   let attackResult = null;
-  const targetToken = targetId ? canvas?.tokens?.get(targetId) : null;
-  if (targetToken) {
-    attackResult = await rollAttack(controller, makeThrowAttack(controller, opponent), {
-      targetToken,
+  const areaThrow = targetId === "__AREA__";
+  const targetToken = !areaThrow && targetId ? canvas?.tokens?.get(targetId) : null;
+  const thrownSizeKey = String(opponent?.system?.size ?? "medium").trim().toLowerCase();
+  const thrownSize = ({
+    small: 1,
+    medium: 1,
+    large: 2,
+    huge: 3,
+    gigantic: 4,
+    colossal: 5
+  })[thrownSizeKey] ?? Math.max(
+    1,
+    Math.round(Number(thrownToken?.document?.width ?? 1)),
+    Math.round(Number(thrownToken?.document?.height ?? 1))
+  );
+
+  if (targetToken || areaThrow) {
+    attackResult = await rollAttack(controller, makeThrowAttack(controller, opponent, { area: areaThrow }), {
+      ...(targetToken ? { targetToken } : {}),
       actionCostOverride: 0,
       allowOutOfTurn: isOutOfTurnClashParticipant(controller, state),
-      areaAttackActive: false,
+      areaAttackActive: areaThrow ? undefined : false,
+      areaAttackForcedTag: areaThrow ? "t:blast" : "",
+      areaAttackFixedSize: areaThrow ? thrownSize : 0,
+      rangeOverride: distance,
       accuracyDiceModifier: getCpuTotal(controller),
       ignoreTargetingValidation: true,
       allowAttackWhileClashing: true,
@@ -2923,6 +2954,7 @@ async function executeClashThrowAction(controller, opponent, state, { alreadySpe
       lines: [
         formatI18n("DDA.Clash.ActionResult.Throw", { controller: escapeHtml(controller.name), opponent: escapeHtml(opponent.name), distance }),
         formatI18n("DDA.Clash.Throw.AccuracyBonus", { bonus: getCpuTotal(controller) }),
+        ...(areaThrow ? [text(`O Digimon arremessado gera um Ataque [RANGE] em Área de tamanho ${thrownSize}.`, `The thrown Digimon creates a [RANGE] Area Attack of Size ${thrownSize}.`)] : []),
         hasPowerThrow(controller)
           ? formatI18n("DDA.Clash.PowerThrow.Active", { bonus: getCpuTotal(controller) })
           : localize("DDA.Clash.Throw.CrashAssisted")
@@ -3292,20 +3324,10 @@ function getTokenDocumentForActor(actor) {
 }
 
 function getDocumentDistanceSpaces(leftDocument, leftChange = {}, rightDocument, rightChange = {}) {
-  if (!leftDocument || !rightDocument) return Number.POSITIVE_INFINITY;
-  const grid = Math.max(1, Number(canvas?.grid?.size ?? 100));
-  const rect = (document, change) => {
-    const x = Number(change.x ?? document.x ?? 0) / grid;
-    const y = Number(change.y ?? document.y ?? 0) / grid;
-    const width = Math.max(1, Number(document.width ?? 1));
-    const height = Math.max(1, Number(document.height ?? 1));
-    return { left: x, right: x + width, top: y, bottom: y + height };
-  };
-  const a = rect(leftDocument, leftChange);
-  const b = rect(rightDocument, rightChange);
-  const gapX = a.right < b.left ? b.left - a.right : b.right < a.left ? a.left - b.right : 0;
-  const gapY = a.bottom < b.top ? b.top - a.bottom : b.bottom < a.top ? a.top - b.bottom : 0;
-  return Math.max(gapX, gapY);
+  return getTokenDocumentGridDistance(leftDocument, rightDocument, {
+    leftChange,
+    rightChange
+  });
 }
 
 async function followClashMove(document, changed, options = {}) {

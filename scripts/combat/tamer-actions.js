@@ -22,7 +22,8 @@ import {
   leadNaturalExplorerAllies,
   markBestLaidPlansSurprise,
   markCalculatedUsed,
-  postBusyHandsPlantCard
+  postBusyHandsPlantCard,
+  promptCalculatedReplacement
 } from "../rules/tamer-talent-runtime.js";
 
 import {
@@ -62,6 +63,10 @@ import {
   spendActorActions
 } from "./action-economy.js";
 import { openCompactActionMenu } from "./compact-action-menu.js";
+import {
+  expireNonStackingTemporaryWounds,
+  grantNonStackingTemporaryWounds
+} from "./temporary-wounds.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const ACTION_USE_PATH = "system.combat.tamerActionUses";
@@ -96,6 +101,12 @@ function escapeHtml(value = "") {
 function number(value, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+async function revealHiddenFromCreatureInteraction(actor, reason = "interaction") {
+  if (!actor?.system?.status?.hidden) return false;
+  const environment = await import("./environment.js");
+  return environment.revealActorFromInteraction(actor, reason);
 }
 
 function getActorReferenceKeys(actor) {
@@ -1277,6 +1288,7 @@ async function useDirect(tamer) {
 
   if (!result) return null;
   if (!(await spendActions(tamer, result.actionCost))) return null;
+  await revealHiddenFromCreatureInteraction(tamer, "direct");
 
   const effect = buildSourceTurnEffect(tamer, {
     tag: EFFECT_TAG_DIRECT,
@@ -1287,6 +1299,8 @@ async function useDirect(tamer) {
     poolStat: result.statKey,
     consumeOn: "matchingPool",
     expiresOn: "consumed",
+    endsAtCombatEnd: true,
+    appliedCombatId: String(game?.combat?.id ?? ""),
     duration: null,
     remaining: null,
     targetIsPartner: partner,
@@ -1409,6 +1423,7 @@ async function useReposition(tamer) {
   const rollResult = await rollAttributePool(tamer, "reposition", options);
 
   if (!(await spendActions(tamer, options.actionCost))) return null;
+  await revealHiddenFromCreatureInteraction(tamer, "reposition");
 
   await markUsedThisTurn(tamer, "reposition", {
     targetUuid: partner.uuid,
@@ -1467,22 +1482,6 @@ async function useReposition(tamer) {
   };
 }
 
-function getTemporaryWoundPath(actor) {
-  if (actor?.type === "character") {
-    return "system.derived.wounds.temp.value";
-  }
-
-  return "system.miscStats.wounds.temp.value";
-}
-
-function getTemporaryWounds(actor) {
-  if (actor?.type === "character") {
-    return Math.max(0, number(actor?.system?.derived?.wounds?.temp?.value, 0));
-  }
-
-  return Math.max(0, number(actor?.system?.miscStats?.wounds?.temp?.value, 0));
-}
-
 async function useReinforce(tamer) {
   if (wasUsedThisTurn(tamer, "reinforce")) {
     ui.notifications.warn(
@@ -1512,6 +1511,7 @@ async function useReinforce(tamer) {
   const rollResult = await rollAttributePool(tamer, "reinforce", options);
 
   if (!(await spendActions(tamer, options.actionCost))) return null;
+  await revealHiddenFromCreatureInteraction(tamer, "reinforce");
 
   await markUsedThisTurn(tamer, "reinforce", {
     targetUuid: partner.uuid,
@@ -1523,23 +1523,28 @@ async function useReinforce(tamer) {
   }
 
   if (rollResult.totalSuccesses > 0) {
-    const currentTemp = getTemporaryWounds(partner);
-
-    await partner.update({
-      [getTemporaryWoundPath(partner)]: currentTemp + rollResult.totalSuccesses
+    const reinforceEffect = buildSourceTurnEffect(tamer, {
+      tag: EFFECT_TAG_REINFORCE,
+      label: localize("DDA.TamerAction.Reinforce.Effect", "Reforçado"),
+      value: rollResult.totalSuccesses,
+      potency: rollResult.totalSuccesses,
+      grantedTemporaryWounds: rollResult.totalSuccesses,
+      consumeOn: "expiration"
     });
 
-    await addActiveEffect(
-      partner,
-      buildSourceTurnEffect(tamer, {
-        tag: EFFECT_TAG_REINFORCE,
-        label: localize("DDA.TamerAction.Reinforce.Effect", "Reforçado"),
-        value: rollResult.totalSuccesses,
-        potency: rollResult.totalSuccesses,
-        grantedTemporaryWounds: rollResult.totalSuccesses,
-        consumeOn: "expiration"
-      })
-    );
+    const grant = await grantNonStackingTemporaryWounds(partner, rollResult.totalSuccesses, {
+      sourceId: `reinforce:${String(tamer.uuid ?? "")}`,
+      label: reinforceEffect.label,
+      duration: "sourceTurnStart",
+      effectId: reinforceEffect.id,
+      metadata: {
+        sourceActorUuid: String(tamer.uuid ?? "")
+      }
+    });
+
+    if (grant.applied) {
+      await addActiveEffect(partner, reinforceEffect);
+    }
   }
 
   await postActionCard(
@@ -2383,6 +2388,7 @@ async function useHold(tamer) {
   ))) {
     return null;
   }
+  await revealHiddenFromCreatureInteraction(tamer, "holdAction");
 
   const poolStat =
     options.responseAction === "dodge"
@@ -2640,6 +2646,57 @@ export function getTamerHoldAttackWindow(
   ) ?? null;
 }
 
+function getHoldBolsterBonus(tamer, partner) {
+  const defaultRange = Number(tamer?.system?.evolution?.defaultRange?.value);
+  return Number.isFinite(defaultRange) && defaultRange > 0
+    ? Math.max(0, defaultRange)
+    : Math.max(0, Number(getActorSv(partner) ?? 0));
+}
+
+async function resolveHoldBolster(tamer, partner, effect) {
+  const actions = Math.max(0, Number(partner?.system?.combat?.actions?.value ?? 0));
+  if (!partner || actions < 1) {
+    return { bolstered: false, diceBonus: 0, automaticSuccesses: 0 };
+  }
+
+  const bonus = getHoldBolsterBonus(tamer, partner);
+  const use = Boolean(await foundry.applications.api.DialogV2.confirm({
+    classes: ["dda", "dda-tamer-action-dialog"],
+    window: { title: localize("DDA.TamerAction.Bolster", "Fortalecer") },
+    content: `<div class="dda-roll-dialog"><p>${String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en")
+      ? `<strong>${escapeHtml(partner.name)}</strong> may spend 1 additional Interrupt Action to Bolster this held ${effect?.responseAction === "dodge" ? "Dodge" : "Attack"} Pool by +${bonus}.`
+      : `<strong>${escapeHtml(partner.name)}</strong> pode gastar 1 Ação de Interrupção adicional para Fortalecer esta Pool de ${effect?.responseAction === "dodge" ? "Esquiva" : "Ataque"} preparada em +${bonus}.`}</p></div>`,
+    yes: { label: localize("DDA.TamerAction.Bolster", "Fortalecer") },
+    no: { label: localize("DDA.Button.No", "Não"), default: true },
+    rejectClose: false,
+    modal: true
+  }));
+  if (!use) return { bolstered: false, diceBonus: 0, automaticSuccesses: 0 };
+
+  const calculated = Boolean(
+    tamer &&
+    isCalculatedAvailable(tamer) &&
+    await promptCalculatedReplacement(tamer, `${partner.name} — Hold + Bolster`)
+  );
+
+  const paid = await spendActorActions(partner, 1, {
+    requireActiveUnit: false,
+    notify: true
+  });
+  if (!paid) return { bolstered: false, diceBonus: 0, automaticSuccesses: 0 };
+
+  if (calculated) await markCalculatedUsed(tamer, "holdBolster");
+
+  return {
+    bolstered: true,
+    calculated,
+    diceBonus: calculated ? 0 : bonus,
+    automaticSuccesses: calculated ? 1 : 0,
+    actionCost: 1,
+    defaultRangeBonus: bonus
+  };
+}
+
 async function activateHoldFromMessage(
   message,
   flagData
@@ -2696,6 +2753,11 @@ async function activateHoldFromMessage(
     return effect;
   }
 
+  const sourceTamer = await resolveActorUuid(flagData?.sourceTamerUuid);
+  const bolster = await resolveHoldBolster(sourceTamer, partner, effect);
+  const baseValue = Math.max(0, Number(effect.value ?? effect.potency ?? 0));
+  const baseAutomaticSuccesses = Math.max(0, Number(effect.automaticSuccesses ?? 0));
+
   const updated =
     await updateActorActiveEffect(
       partner,
@@ -2703,7 +2765,16 @@ async function activateHoldFromMessage(
       {
         state: "active",
         activatedAt:
-          new Date().toISOString()
+          new Date().toISOString(),
+        value: baseValue + Math.max(0, Number(bolster.diceBonus ?? 0)),
+        potency: baseValue + Math.max(0, Number(bolster.diceBonus ?? 0)),
+        automaticSuccesses: baseAutomaticSuccesses + Math.max(0, Number(bolster.automaticSuccesses ?? 0)),
+        holdBolstered: Boolean(bolster.bolstered),
+        holdBolsterCalculated: Boolean(bolster.calculated),
+        holdBolsterDiceBonus: Math.max(0, Number(bolster.diceBonus ?? 0)),
+        holdBolsterAutomaticSuccesses: Math.max(0, Number(bolster.automaticSuccesses ?? 0)),
+        holdBolsterActionCost: Math.max(0, Number(bolster.actionCost ?? 0)),
+        holdBolsterDefaultRangeBonus: Math.max(0, Number(bolster.defaultRangeBonus ?? 0))
       }
     );
 
@@ -2717,7 +2788,11 @@ async function activateHoldFromMessage(
       {
         ...flagData,
         activated: true,
-        cancelled: false
+        cancelled: false,
+        bolstered: Boolean(bolster.bolstered),
+        bolsterCalculated: Boolean(bolster.calculated),
+        bolsterDiceBonus: Math.max(0, Number(bolster.diceBonus ?? 0)),
+        bolsterAutomaticSuccesses: Math.max(0, Number(bolster.automaticSuccesses ?? 0))
       }
     );
   }
@@ -4973,6 +5048,7 @@ async function useTamerAttack(tamer, options = {}) {
 
   const payment = await spendActorActions(tamer, 1);
   if (!payment) return null;
+  await revealHiddenFromCreatureInteraction(tamer, "attack");
 
   await revealOverlookedToEnemy(
     tamer,
@@ -5369,6 +5445,24 @@ const TAMER_ACTION_MENU_ENTRIES = [
     titleKey: "DDA.TamerAction.Teamwork.Title",
     summaryKey: "DDA.TamerAction.Teamwork.Summary",
     cost: "—"
+  },
+  {
+    key: "hide",
+    title: String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "Hide" : "Ocultar-se",
+    summary: String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "Stealth Check TN 10 to become Hidden." : "Teste de Furtividade TN 10 para ficar Oculto.",
+    cost: "1A"
+  },
+  {
+    key: "detectHidden",
+    title: String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "Detect Hidden" : "Detectar Oculto",
+    summary: String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "Awareness Check against the Hidden target's Stealth result." : "Teste de Awareness contra o resultado de Furtividade do alvo Oculto.",
+    cost: "1A"
+  },
+  {
+    key: "environment",
+    title: String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "Combat Environment" : "Ambiente de Combate",
+    summary: String(game?.i18n?.lang ?? "").toLowerCase().startsWith("en") ? "Configure sight, Hidden, Submerged, Drowning, and Cover." : "Configure visão, Hidden, Submerged, Drowning e Cover.",
+    cost: "—"
   }
 ];
 
@@ -5517,6 +5611,9 @@ export async function getTamerActionMenuDefinition(tamer) {
     hold: () => useHold(tamer),
     evolution: () => useTamerEvolution(tamer),
     teamwork: () => useTeamwork(tamer),
+    hide: async () => (await import("./environment.js")).attemptHide(tamer),
+    detectHidden: async () => (await import("./environment.js")).attemptDetectHidden(tamer),
+    environment: async () => (await import("./environment.js")).openCombatEnvironmentDialog(tamer),
     beTheWinners: () => useBeTheWinners(tamer),
     busyHandsPlant: () => postBusyHandsPlantCard(tamer),
     naturalExplorerLead: () => leadNaturalExplorerAllies(tamer),
@@ -5807,9 +5904,14 @@ async function removeExpiredSourceTurnEffects(actor, sourceTamerUuid, currentSig
   if (!expired.length) return false;
 
   const remaining = effects.filter((effect) => !expired.some((entry) => entry.id === effect.id));
-  const reinforceAmount = expired
-    .filter((effect) => String(effect.tag ?? "") === EFFECT_TAG_REINFORCE)
-    .reduce((total, effect) => total + Math.max(0, number(effect.grantedTemporaryWounds, 0)), 0);
+
+  for (const effect of expired) {
+    if (String(effect.tag ?? "") !== EFFECT_TAG_REINFORCE) continue;
+    await expireNonStackingTemporaryWounds(actor, {
+      sourceId: `reinforce:${String(effect.sourceActorUuid ?? "")}`,
+      effectId: String(effect.id ?? "")
+    });
+  }
 
   const restoredStunActions = expired
     .filter((effect) => String(effect.tag ?? "").toLowerCase() === "stun")
@@ -5827,13 +5929,6 @@ async function removeExpiredSourceTurnEffects(actor, sourceTamerUuid, currentSig
   const update = {
     "system.effects.active": remaining
   };
-
-  if (reinforceAmount > 0) {
-    update[getTemporaryWoundPath(actor)] = Math.max(
-      0,
-      getTemporaryWounds(actor) - reinforceAmount
-    );
-  }
 
   if (restoredStunActions > 0) {
     const currentActions = Math.max(

@@ -19,6 +19,7 @@ import {
 
 import { spendActorActions } from "./action-economy.js";
 import { getTokenDistanceSpaces } from "./offensive-qualities.js";
+import { measureGridPointDistanceSpaces } from "./positioning.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const STATE_PATH = "system.combat.stanceQualities";
@@ -289,8 +290,7 @@ async function pickCanvasPoint({ title, maximumDistance, origin } = {}) {
     const onPointer = (event) => {
       const point = event.data?.getLocalPosition?.(canvas.stage) ?? event.getLocalPosition?.(canvas.stage);
       if (!point) return;
-      const grid = Math.max(1, number(canvas?.grid?.size, 100));
-      const distance = Math.hypot(point.x - origin.x, point.y - origin.y) / grid;
+      const distance = measureGridPointDistanceSpaces(origin, point);
       if (distance > maximumDistance) {
         ui.notifications.warn(text(`O ponto precisa estar dentro de ${maximumDistance} Espaços.`, `The point must be within ${maximumDistance} Spaces.`));
         return;

@@ -16,6 +16,9 @@ import {
 import {
   spendActorActions
 } from "./action-economy.js";
+import {
+  grantNonStackingTemporaryWounds
+} from "./temporary-wounds.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const STATE_PATH = "system.combat.defensiveQualities";
@@ -88,21 +91,23 @@ async function addTemporaryWoundsRespectingDoom(actor, amount, sourceName = "") 
     else effects[doomIndex] = { ...doom, value: nextDoom, potency: nextDoom };
   }
 
-  const wounds = getWoundState(actor);
-  const updates = {};
-  if (remaining > 0) {
-    updates[wounds.paths.temp] = wounds.temp + remaining;
-    const sourcePath = wounds.paths.temp.replace(/\.value$/, ".source");
-    const durationPath = wounds.paths.temp.replace(/\.value$/, ".duration");
-    updates[sourcePath] = sourceName;
-    updates[durationPath] = "combat";
+  if (doomIndex >= 0) {
+    await actor.update({ "system.effects.active": effects });
   }
-  if (doomIndex >= 0) updates["system.effects.active"] = effects;
-  if (Object.keys(updates).length) await actor.update(updates);
+
+  const grant = remaining > 0
+    ? await grantNonStackingTemporaryWounds(actor, remaining, {
+        sourceId: "savagery",
+        label: sourceName || "Savagery",
+        duration: "combat"
+      })
+    : { gained: 0, applied: false };
 
   return {
     requested: Math.max(0, number(amount)),
-    gained: remaining,
+    gained: Math.max(0, number(grant.gained, 0)),
+    effective: Math.max(0, number(grant.effectiveNonStacking, 0)),
+    replacedSource: grant.replacedSource ?? null,
     doomAbsorbed
   };
 }

@@ -19,6 +19,8 @@ import {
   spendActorActions
 } from "../combat/action-economy.js";
 
+import { getTokenGridDistance } from "../combat/positioning.js";
+
 import {
   applyLuckyNumberReward
 } from "../rolls/lucky-number.js";
@@ -430,10 +432,11 @@ async function applyReflectedForcedMovement({
   const gridSize = Math.max(1, number(canvas?.grid?.size, 100));
   const sign = direction === "pull" ? -1 : 1;
   const requested = Math.max(0, Math.floor(number(spaces, 0)));
+  const currentDistance = getTokenGridDistance(reflectorToken, sourceToken);
   const movedSpaces = direction === "pull"
     ? Math.min(
         requested,
-        Math.max(0, Math.ceil(length / gridSize) - 1)
+        Math.max(0, Math.ceil(currentDistance) - 1)
       )
     : requested;
 

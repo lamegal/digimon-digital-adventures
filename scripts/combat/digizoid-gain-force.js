@@ -12,6 +12,7 @@ import {
   hasQuality,
   normalizeKey
 } from "../rules/quality-automation.js";
+import { getTokenGridDistance } from "./positioning.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const STATE_PATH = "system.combat.digizoidGainForce";
@@ -111,20 +112,7 @@ function tokenForActor(actor) {
 }
 
 function tokenDistance(left, right) {
-  const grid = Math.max(1, number(canvas?.grid?.size, 100));
-  const bounds = (token) => {
-    const document = token?.document ?? token ?? {};
-    const x = Math.round(number(document.x) / grid);
-    const y = Math.round(number(document.y) / grid);
-    const width = Math.max(1, Math.round(number(document.width, 1)));
-    const height = Math.max(1, Math.round(number(document.height, 1)));
-    return { left: x, right: x + width - 1, top: y, bottom: y + height - 1 };
-  };
-  const a = bounds(left);
-  const b = bounds(right);
-  const gapX = a.right < b.left ? b.left - a.right : b.right < a.left ? a.left - b.right : 0;
-  const gapY = a.bottom < b.top ? b.top - a.bottom : b.bottom < a.top ? a.top - b.bottom : 0;
-  return Math.max(gapX, gapY);
+  return getTokenGridDistance(left, right);
 }
 
 function primaryActiveGM() {

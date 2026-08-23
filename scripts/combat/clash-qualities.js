@@ -753,8 +753,9 @@ export async function useDistantForce(actor) {
     const length = Math.max(1, Math.hypot(dx, dy));
     const sign = choice.direction === "pull" ? -1 : 1;
     const grid = Math.max(1, number(canvas.grid?.size, 100));
+    const currentDistance = getTokenDistanceSpaces(actorToken, targetToken);
     const allowed = choice.direction === "pull"
-      ? Math.min(movementDistance, Math.max(0, Math.ceil(length / grid) - 1))
+      ? Math.min(movementDistance, Math.max(0, Math.ceil(currentDistance) - 1))
       : movementDistance;
     const destination = {
       x: number(targetToken.document.x) + (dx / length) * grid * allowed * sign,

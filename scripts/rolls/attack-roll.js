@@ -9,11 +9,20 @@ import {
   getCombatantForActor
 } from "../combat/initiative.js";
 
-import { getFlankContext } from "../combat/positioning.js";
+import { getFlankContext, getTokenGridDistance } from "../combat/positioning.js";
 import {
+  requestFatalIntercede,
   requestStandardIntercede
 } from "../combat/intercede.js";
+import {
+  expireNonStackingTemporaryWounds,
+  grantNonStackingTemporaryWounds
+} from "../combat/temporary-wounds.js";
 import { requestEvokerProtectorIntercede } from "../combat/evoker-qualities.js";
+import {
+  revealActorFromInteraction,
+  validateAttackEnvironmentTargeting
+} from "../combat/environment.js";
 import {
   getCoordinatedAssaultBonus,
   incrementCoordinatedAssaultMarks
@@ -125,9 +134,11 @@ import {
   consumeDenyForIncomingEffects,
   consumeProtectingShieldUse,
   getIncomingEffectDurationPenalty,
-  resolveInspiringGuidanceAfterAttack,
-  validateEffectAttackDeclaration
+  resolveInspiringGuidanceAfterAttack
 } from "../combat/effect-qualities.js";
+import {
+  validateEffectAttackDeclaration
+} from "../combat/effect-qualities-beta8.js";
 import { calculateEffectDurationRounds } from "../combat/effect-duration.js";
 
 function identityForMatching(value = "") {
@@ -170,6 +181,55 @@ import {
   applyHackersMemoryDerivedStatModifier
 } from "../rules/tamer-talent-transversal.js";
 
+
+
+function getRangedAttackBaseDistance(attacker, attackItem, key = "range") {
+  const actorStat = attacker?.system?.miscStats?.[key] ?? {};
+  const itemStat = attackItem?.system?.[key] ?? {};
+
+  const actorValues = [
+    actorStat.total,
+    actorStat.value,
+    actorStat.base
+  ]
+    .map((value) => Number(value))
+    .filter(Number.isFinite);
+
+  const actorValue = actorValues[0] ?? 0;
+  const actorBase = Number(actorStat.base);
+
+  const itemValues = [
+    itemStat.total,
+    itemStat.value,
+    itemStat.base
+  ]
+    .map((value) => Number(value))
+    .filter(Number.isFinite);
+
+  const itemValue = itemValues.find((value) => value > 0) ?? 0;
+
+  /*
+   * A prepared Digimon normally owns the authoritative derived Range /
+   * Effective Limit. Only fall back to the Attack when the Actor still looks
+   * unprepared (all-zero/missing source data). If the Actor has a real base
+   * and a rule such as a Stance intentionally reduced the total to 0, keep 0.
+   */
+  if (actorValue > 0) return actorValue;
+  if (Number.isFinite(actorBase) && actorBase > 0) return Math.max(0, actorValue);
+  if (Number(actorStat.stancePenalty ?? 0) > 0) return Math.max(0, actorValue);
+  if (itemValue > 0) return itemValue;
+  return 0;
+}
+
+function getExplicitRangeOverride(attackOptions = {}) {
+  const raw = attackOptions?.rangeOverride;
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  const value = Number(raw);
+  return Number.isFinite(value)
+    ? Math.max(0, value)
+    : null;
+}
 
 const pendingAttackDodgeRequests =
   new Map();
@@ -242,6 +302,203 @@ const combatText = (pt, en) => String(game.i18n?.lang ?? "")
   .startsWith("en")
   ? en
   : pt;
+
+const ATTACK_FORCED_MOVEMENT_SOCKET_ACTION = "attackEffectForcedMovement";
+const ATTACK_FORCED_MOVEMENT_SOCKET_TIMEOUT_MS = 8000;
+
+function getPrimaryActiveGMForAttackEffects() {
+  return Array.from(game?.users ?? [])
+    .filter((user) => user?.isGM && user?.active)
+    .sort((left, right) => String(left.id).localeCompare(String(right.id)))[0] ?? null;
+}
+
+function isPrimaryActiveGMForAttackEffects() {
+  return Boolean(
+    game?.user?.isGM &&
+    getPrimaryActiveGMForAttackEffects()?.id === game.user.id
+  );
+}
+
+function canCurrentUserUpdateDocument(document) {
+  if (!document) return false;
+  if (game?.user?.isGM) return true;
+  return Boolean(document.canUserModify?.(game.user, "update"));
+}
+
+function getTokenDocumentCenterForForcedMovement(document, gridSize = 100, position = {}) {
+  return {
+    x: Number(position.x ?? document?.x ?? 0) + (Math.max(0.01, Number(document?.width ?? 1)) * gridSize / 2),
+    y: Number(position.y ?? document?.y ?? 0) + (Math.max(0.01, Number(document?.height ?? 1)) * gridSize / 2)
+  };
+}
+
+function validateForcedMovementSocketDestination({
+  scene,
+  sourceDocument,
+  targetDocument,
+  destination = {},
+  direction = "push",
+  spaces = 0
+} = {}) {
+  if (!scene || !sourceDocument || !targetDocument) return false;
+  if (!new Set(["push", "pull"]).has(String(direction))) return false;
+
+  const requestedSpaces = Math.max(0, Math.floor(Number(spaces ?? 0)));
+  if (requestedSpaces <= 0 || requestedSpaces > 100) return false;
+
+  const x = Number(destination?.x);
+  const y = Number(destination?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+
+  const gridSize = Math.max(1, Number(scene?.grid?.size ?? canvas?.grid?.size ?? 100));
+  const dx = x - Number(targetDocument.x ?? 0);
+  const dy = y - Number(targetDocument.y ?? 0);
+  const movedPixels = Math.hypot(dx, dy);
+
+  // The originating client only asks the GM to commit the destination already
+  // calculated by the DDA forced-movement resolver. Never accept a larger
+  // displacement than the Effect could have produced.
+  if (movedPixels > (requestedSpaces * gridSize) + 2) return false;
+
+  const sourceCenter = getTokenDocumentCenterForForcedMovement(sourceDocument, gridSize);
+  const beforeCenter = getTokenDocumentCenterForForcedMovement(targetDocument, gridSize);
+  const afterCenter = getTokenDocumentCenterForForcedMovement(targetDocument, gridSize, { x, y });
+  const beforeDistance = Math.hypot(
+    beforeCenter.x - sourceCenter.x,
+    beforeCenter.y - sourceCenter.y
+  );
+  const afterDistance = Math.hypot(
+    afterCenter.x - sourceCenter.x,
+    afterCenter.y - sourceCenter.y
+  );
+
+  if (direction === "push" && afterDistance <= beforeDistance) return false;
+  if (direction === "pull" && afterDistance >= beforeDistance) return false;
+
+  return true;
+}
+
+async function requestGMForcedMovementUpdate({
+  sourceToken,
+  targetToken,
+  destination,
+  direction,
+  spaces
+} = {}) {
+  const primaryGM = getPrimaryActiveGMForAttackEffects();
+  if (!primaryGM || !game?.socket || !sourceToken?.document || !targetToken?.document) {
+    ui.notifications.warn(combatText(
+      "PUSH/PULL precisa de um Mestre ativo para mover um Token que o jogador não pode editar.",
+      "PUSH/PULL requires an active GM to move a Token the player cannot edit."
+    ));
+    return false;
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      globalThis.clearTimeout(timer);
+      resolve(Boolean(value));
+    };
+
+    const timer = globalThis.setTimeout(() => {
+      ui.notifications.warn(combatText(
+        "O Mestre não confirmou o movimento de PUSH/PULL a tempo.",
+        "The GM did not confirm the PUSH/PULL movement in time."
+      ));
+      finish(false);
+    }, ATTACK_FORCED_MOVEMENT_SOCKET_TIMEOUT_MS);
+
+    game.socket.emit(`system.${game.system.id}`, {
+      systemId: game.system.id,
+      action: ATTACK_FORCED_MOVEMENT_SOCKET_ACTION,
+      requestUserId: game.user?.id ?? "",
+      sceneId: targetToken.document.parent?.id ?? canvas?.scene?.id ?? "",
+      sourceTokenId: sourceToken.document.id,
+      targetTokenId: targetToken.document.id,
+      direction: String(direction ?? "push"),
+      spaces: Math.max(0, Math.floor(Number(spaces ?? 0))),
+      destination: {
+        x: Math.round(Number(destination?.x ?? targetToken.document.x ?? 0)),
+        y: Math.round(Number(destination?.y ?? targetToken.document.y ?? 0))
+      },
+      movedSpaces: Math.max(0, Number(destination?.movedSpaces ?? spaces ?? 0))
+    }, (response = {}) => {
+      if (!response?.ok) {
+        if (response?.error) console.warn("DDA | GM PUSH/PULL update rejected.", response.error);
+        finish(false);
+        return;
+      }
+      finish(Boolean(response?.moved));
+    });
+  });
+}
+
+Hooks.once("ready", () => {
+  game.socket?.on(`system.${game.system.id}`, async (payload = {}, respond) => {
+    if (payload?.systemId !== game.system.id) return;
+    if (payload?.action !== ATTACK_FORCED_MOVEMENT_SOCKET_ACTION) return;
+    if (!isPrimaryActiveGMForAttackEffects()) return;
+
+    try {
+      const scene = game.scenes?.get(String(payload.sceneId ?? ""));
+      const sourceDocument = scene?.tokens?.get(String(payload.sourceTokenId ?? ""));
+      const targetDocument = scene?.tokens?.get(String(payload.targetTokenId ?? ""));
+      if (!scene || !sourceDocument || !targetDocument) {
+        throw new Error("Forced-movement source/target Token was not found in the requested Scene.");
+      }
+
+      const requester = game.users?.get(String(payload.requestUserId ?? ""));
+      const sourceActor = sourceDocument.actor;
+      const requesterOwnsSource = Boolean(
+        requester?.isGM ||
+        sourceActor?.testUserPermission?.(requester, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER)
+      );
+      if (!requester || !requesterOwnsSource) {
+        throw new Error("Requester is not allowed to move a target from this source Token.");
+      }
+
+      const destination = payload.destination ?? {};
+      const direction = String(payload.direction ?? "push").toLowerCase();
+      const spaces = Math.max(0, Math.floor(Number(payload.spaces ?? 0)));
+
+      if (!validateForcedMovementSocketDestination({
+        scene,
+        sourceDocument,
+        targetDocument,
+        destination,
+        direction,
+        spaces
+      })) {
+        throw new Error("Forced-movement destination failed validation.");
+      }
+
+      await targetDocument.update({
+        x: Math.round(Number(destination.x)),
+        y: Math.round(Number(destination.y))
+      }, withDDAMovementContext({
+        ddaForcedMovement: true
+      }, {
+        mode: "forced", movementBudget: "none", voluntary: false, reactions: true,
+        traversal: true, source: "attackEffect", unwilling: true, suppressBurn: true
+      }));
+
+      await applyForcedMovementBurnDamage(
+        targetDocument.actor,
+        Math.max(0, Number(payload.movedSpaces ?? spaces))
+      );
+
+      if (typeof respond === "function") respond({ ok: true, moved: true });
+    } catch (error) {
+      console.error("DDA | GM PUSH/PULL movement failed.", error, payload);
+      if (typeof respond === "function") {
+        respond({ ok: false, moved: false, error: String(error?.message ?? error) });
+      }
+    }
+  });
+});
 
 function escapeHtml(
   value = ""
@@ -380,6 +637,16 @@ async function finishCommittedBlastIntercede(intercedeDeclaration, defender = nu
   } catch (error) {
     console.error("DDA | Could not finish committed Blast Intercede.", error);
   }
+}
+
+function wouldAttackDamageBeFatal(actor, damage = 0) {
+  if (!actor || Number(damage ?? 0) <= 0) return false;
+  const wounds = actor.type === "character"
+    ? actor.system?.derived?.wounds
+    : actor.system?.miscStats?.wounds;
+  const current = Math.max(0, Number(wounds?.value ?? 0));
+  const temporary = Math.max(0, Number(wounds?.temp?.value ?? 0));
+  return current > 0 && Number(damage ?? 0) >= current + temporary;
 }
 
 export async function rollAttack(attacker, attackItem, options = {}) {
@@ -648,22 +915,23 @@ if (!attackOptions.__ddaAreaChild) {
     }
   );
 
-  const provisionalRange = Math.max(
-    0,
-    Math.floor(
-      (
-        Number(
-          attacker.system?.miscStats?.range?.total ??
-          attacker.system?.miscStats?.range?.value ??
-          attacker.system?.miscStats?.range?.base ??
-          attackItem.system?.range?.total ??
-          0
-        ) +
-        Number(provisionalQualityModifier.rangeBonus ?? 0)
-      ) *
-      Number(provisionalQualityModifier.rangeMultiplier ?? 1)
-    )
-  );
+  const explicitRangeOverride = getExplicitRangeOverride(attackOptions);
+  const provisionalRange = explicitRangeOverride !== null
+    ? Math.max(0, Math.floor(explicitRangeOverride))
+    : Math.max(
+        0,
+        Math.floor(
+          (
+            getRangedAttackBaseDistance(
+              attacker,
+              attackItem,
+              "range"
+            ) +
+            Number(provisionalQualityModifier.rangeBonus ?? 0)
+          ) *
+          Number(provisionalQualityModifier.rangeMultiplier ?? 1)
+        )
+      );
 
   /*
    * Area tags can exist in two valid places:
@@ -913,23 +1181,21 @@ const qualityExtraActionCost = Number(qualityAttackModifier.extraActionCost ?? 0
 const areaBatchExtraActionCost = Number(attackOptions?.areaBatch?.extraActionCost ?? 0);
 let totalQualityExtraActionCost = qualityExtraActionCost + areaBatchExtraActionCost;
 
-const rawAttackRangeTotal =
-  Number(
-    attacker.system?.miscStats?.range?.total ??
-    attacker.system?.miscStats?.range?.value ??
-    attacker.system?.miscStats?.range?.base ??
-    attackItem.system?.range?.total ??
-    0
-  ) +
-  Number(qualityAttackModifier.rangeBonus ?? 0);
+const explicitAttackRangeOverride = getExplicitRangeOverride(attackOptions);
+const rawAttackRangeTotal = explicitAttackRangeOverride !== null
+  ? explicitAttackRangeOverride
+  : getRangedAttackBaseDistance(
+      attacker,
+      attackItem,
+      "range"
+    ) +
+    Number(qualityAttackModifier.rangeBonus ?? 0);
 
 const rawAttackEffectiveLimitTotal =
-  Number(
-    attacker.system?.miscStats?.effectiveLimit?.total ??
-    attacker.system?.miscStats?.effectiveLimit?.value ??
-    attacker.system?.miscStats?.effectiveLimit?.base ??
-    attackItem.system?.effectiveLimit?.total ??
-    0
+  getRangedAttackBaseDistance(
+    attacker,
+    attackItem,
+    "effectiveLimit"
   ) +
   Number(qualityAttackModifier.effectiveLimitBonus ?? 0);
 
@@ -937,7 +1203,9 @@ const attackRangeTotal = Math.max(
   0,
   Math.floor(
     rawAttackRangeTotal *
-    Number(qualityAttackModifier.rangeMultiplier ?? 1)
+    (explicitAttackRangeOverride !== null
+      ? 1
+      : Number(qualityAttackModifier.rangeMultiplier ?? 1))
   )
 );
 
@@ -1068,6 +1336,15 @@ const areaAttackDeclaration = await getAreaAttackDeclaration(
 
 if (areaAttackDeclaration === null) return;
 
+const environmentValidation = await validateAttackEnvironmentTargeting(attacker, defender, {
+  areaAttack: Boolean(areaAttackDeclaration?.active || areaBatch?.active),
+  ignoreHiddenTarget: Boolean(attackOptions.ignoreHiddenTarget)
+});
+if (!environmentValidation?.allowed) return;
+const attackEnvironmentContext = environmentValidation.context ?? { automaticDodgeSuccesses: 0 };
+
+await revealActorFromInteraction(attacker, "attack");
+
 let intercedeDeclaration = null;
 
 const isInterruptAttack =
@@ -1173,10 +1450,29 @@ if (currentActions < attackerActionCost) {
   return;
 }
 
+/*
+ * Resolve the Attack function once, before any branch that needs it.
+ * Previously this value was declared only after the Accuracy roll, while the
+ * willing-target Effect path already referenced it. That caused a Temporal
+ * Dead Zone ReferenceError for Support attacks before they could resolve.
+ */
+const attackFunctionType = String(
+  areaBatch?.functionTypeOverride ??
+  attackItem.system?.baseTags?.functionType ??
+  "damage"
+).trim().toLowerCase();
+
+const preIntercedeTargetIsAlly = areActorsAllies(attacker, defender);
+const willingAlliedSupportBeforeIntercede = Boolean(
+  attackFunctionType === "support" &&
+  preIntercedeTargetIsAlly
+);
+
 if (
   game.combat?.started &&
   !areaAttackDeclaration?.active &&
   !isClashAttackContext(clashContext) &&
+  !willingAlliedSupportBeforeIntercede &&
   !qualityAttackModifier.sneakSuppressInterrupts &&
   !attackOptions.suppressTargetInterrupts
 ) {
@@ -1226,17 +1522,87 @@ const attackEffectTag = attackItem.system.effectTag?.enabled
   ? attackItem.system.effectTag?.tag ?? ""
   : "";
 
+/*
+ * Effect Qualities are also materialized in system.qualityTags. Keep that
+ * selected tag as a safe runtime source for legacy Enemy/Ally attacks whose
+ * Quality choice still points at the Builder key instead of the final embedded
+ * Item ID. This does not make arbitrary Quality Tags into Effects: only tags
+ * that exist in CONFIG.DDA.effectTags are accepted.
+ */
+const configuredAttackEffectTags = new Set(
+  Object.keys(CONFIG.DDA?.effectTags ?? {}).map((tag) => {
+    return normalizeAttackTag(tag);
+  })
+);
+
+const materializedEffectTags = [
+  ...getAttackQualityTags(attackItem)
+].filter((tag) => {
+  return configuredAttackEffectTags.has(
+    normalizeAttackTag(tag)
+  );
+});
+
+/*
+ * The Progression/Form Wizard can recreate embedded Attack Items while the
+ * purchased Effect Quality still references the previous embedded id. Resolve
+ * the Quality binding itself as a first-class source of truth. The tag stored
+ * on the Attack remains a compatibility fallback for older actors that do not
+ * retain a selected Quality choice.
+ */
+const purchasedEffectTags = getPurchasedEffectTagsForAttack(
+  attacker,
+  attackItem
+);
+
+const explicitRuntimeEffectTags = [
+  attackEffectTag,
+  ...grantedEffectTags,
+  ...purchasedEffectTags
+]
+  .map((tag) => normalizeAttackTag(tag))
+  .filter(Boolean);
+
+const fallbackMaterializedEffectTags = explicitRuntimeEffectTags.length
+  ? []
+  : materializedEffectTags;
+
 const activeEffectTags = areaBatch?.suppressEffectTags
   ? []
   : [
       ...new Set([
-        attackEffectTag,
-        ...grantedEffectTags
-      ].filter(Boolean))
+        ...explicitRuntimeEffectTags,
+        ...fallbackMaterializedEffectTags
+      ])
     ];
 
-const targetIsAlly =
+let targetIsAlly =
   areActorsAllies(attacker, defender);
+
+const requiresAreaSupportSideDeclaration = Boolean(
+  areaAttackDeclaration?.active &&
+  String(attackFunctionType ?? "").trim().toLowerCase() === "support" &&
+  activeEffectTags.some((tag) => {
+    return new Set(["cleanse", "push", "pull"]).has(
+      normalizeAttackTag(tag)
+    );
+  })
+);
+
+if (requiresAreaSupportSideDeclaration) {
+  const declaredSide = String(
+    areaAttackDeclaration?.targetMode ?? ""
+  ).trim().toLowerCase();
+
+  if (!new Set(["allies", "enemies"]).has(declaredSide)) {
+    ui.notifications.warn(combatText(
+      "Uma Área [SUPPORT] com [CLEANSE], [PUSH] ou [PULL] precisa declarar se afeta Allies ou Enemies.",
+      "A [SUPPORT] Area with [CLEANSE], [PUSH], or [PULL] must declare whether it affects Allies or Enemies."
+    ));
+    await finishCommittedBlastIntercede(intercedeDeclaration, defender);
+    return;
+  }
+}
 
 const effectAttackValidation = validateEffectAttackDeclaration({
   attacker,
@@ -1553,11 +1919,6 @@ const accuracyResult = sharedAccuracyResult ?? (
     });
   }
 
-const attackFunctionType = String(
-  areaBatch?.functionTypeOverride ??
-  attackItem.system.baseTags?.functionType ??
-  "damage"
-).trim().toLowerCase();
 const weakAttackSupportAccuracyPenalty = isClashWeakAttack && attackFunctionType === "support" ? 1 : 0;
 const weakAttackHalvesDodge = isClashWeakAttack && !clashDefenderHasReach;
 const cleanseAccuracyPenalty =
@@ -1768,6 +2129,10 @@ dodgeResult = await requestAttackDodgeResult({
   ),
   suppressTargetInterrupts: Boolean(
     qualityAttackModifier.sneakSuppressInterrupts
+  ),
+  environmentAutomaticDodgeSuccesses: Math.max(
+    0,
+    Number(attackEnvironmentContext?.automaticDodgeSuccesses ?? 0)
   ),
   fakeoutEligible: Boolean(
     (accuracyResult.ddaTamerDirectEffects ?? []).some((effect) => effect?.fakeout)
@@ -2308,6 +2673,40 @@ if (volatileElementImmune) {
   finalDamage = 0;
 }
 
+if (
+  hit &&
+  !areaAttackDeclaration?.active &&
+  !areaBatch?.active &&
+  !intercedeDeclaration &&
+  !attackDivertedBySubstitute &&
+  finalDamage > 0 &&
+  wouldAttackDamageBeFatal(defender, finalDamage)
+) {
+  const fatalIntercede = await requestFatalIntercede({
+    attacker,
+    targetToken,
+    attackItem,
+    damage: finalDamage
+  });
+
+  if (fatalIntercede) {
+    const fatalToken = canvas?.tokens?.get(fatalIntercede.tokenId);
+    const fatalDefender = getCombatActorFromTargetToken(fatalToken);
+    if (fatalToken && fatalDefender) {
+      intercedeDeclaration = {
+        ...fatalIntercede,
+        fatal: true,
+        transferredResolvedDamage: true,
+        originalDefenderUuid: defender.uuid,
+        originalDefenderName: defender.name
+      };
+      targetToken = fatalToken;
+      defender = fatalDefender;
+      targetIsAlly = areActorsAllies(attacker, defender);
+    }
+  }
+}
+
 const gritDamageOnMiss = Boolean(
   gritDefenseDealsDamage &&
   !hit
@@ -2356,6 +2755,8 @@ let effectApplication = getAttackEffectApplication({
     targetHealthPoolResult
       ?.totalSuccesses ?? 0
   ),
+  sourceToken: attackCombatContext.token,
+  targetToken,
   confuseAffectedStat,
 
   accuracySuccesses,
@@ -4601,78 +5002,6 @@ async function spendQualityUse(actor, qualityId) {
   });
 }
 
-function getTokenGridDistance(tokenA, tokenB) {
-  const gridSize = Number(canvas?.grid?.size ?? 100) || 100;
-
-  const getBounds = (token) => {
-    const document = token?.document ?? token ?? {};
-    const x = Math.round(Number(document.x ?? 0) / gridSize);
-    const y = Math.round(Number(document.y ?? 0) / gridSize);
-    const width = Math.max(1, Math.round(Number(document.width ?? 1)));
-    const height = Math.max(1, Math.round(Number(document.height ?? 1)));
-
-    return {
-      left: x,
-      right: x + width - 1,
-      top: y,
-      bottom: y + height - 1
-    };
-  };
-
-  const a = getBounds(tokenA);
-  const b = getBounds(tokenB);
-
-  const gapX = a.right < b.left
-    ? b.left - a.right
-    : b.right < a.left
-      ? a.left - b.right
-      : 0;
-
-  const gapY = a.bottom < b.top
-    ? b.top - a.bottom
-    : b.bottom < a.top
-      ? a.top - b.bottom
-      : 0;
-
-  return Math.max(gapX, gapY);
-}
-
-async function spendHugePowerUse(actor, qualityId) {
-  const quality = actor?.items?.get?.(qualityId);
-
-  if (!actor || !quality) return;
-
-  const uses = quality.system?.uses ?? {};
-
-  const currentValue = Number(uses.value ?? uses.max ?? 0);
-  const currentSpent = Number(uses.spent ?? 0);
-
-  const nextValue = Math.max(0, currentValue - 1);
-  const nextSpent = currentSpent + 1;
-
-  await actor.updateEmbeddedDocuments("Item", [{
-    _id: qualityId,
-    "system.uses.value": nextValue,
-    "system.uses.spent": nextSpent,
-    "system.uses.lastUsedCombatId": game.combat?.id ?? "",
-    "system.uses.lastUsedRound": Number(game.combat?.round ?? 0),
-    "system.uses.lastUsedTurn": Number(game.combat?.turn ?? -1)
-  }]);
-
-  const qualityAttackUses = foundry.utils.deepClone(actor.system?.combat?.qualityAttackUses ?? {});
-  qualityAttackUses.hugePower ??= {};
-  qualityAttackUses.hugePower[qualityId] = {
-    used: true,
-    combatId: game.combat?.id ?? "",
-    round: Number(game.combat?.round ?? 0),
-    turn: Number(game.combat?.turn ?? -1)
-  };
-
-  await actor.update({
-    "system.combat.qualityAttackUses": qualityAttackUses
-  });
-}
-
 function getOfficialTamerTalentUseValue(
   tamer,
   talentId,
@@ -5772,16 +6101,20 @@ async function increaseEscalatingTn(actor, quality, bucket, amount = 3) {
 
 async function healActorWounds(actor, amount) {
   if (!actor) return;
-  const doom = absorbGainWithDoom(actor, amount);
+  const path = actor.type === "character" ? "system.derived.wounds.value" : "system.miscStats.wounds.value";
+  const maxPath = actor.type === "character" ? "system.derived.wounds.max" : "system.miscStats.wounds.max";
+  const current = Number(foundry.utils.getProperty(actor, path) ?? 0);
+  const max = Number(foundry.utils.getProperty(actor, maxPath) ?? current);
+  const possibleGain = Math.max(0, Math.min(
+    Math.max(0, Number(amount ?? 0)),
+    Math.max(0, max - current)
+  ));
+  const doom = absorbGainWithDoom(actor, possibleGain);
   const heal = doom.remaining;
   if (heal <= 0) {
     if (doom.changed) await actor.update({ "system.effects.active": doom.effects });
     return;
   }
-  const path = actor.type === "character" ? "system.derived.wounds.value" : "system.miscStats.wounds.value";
-  const maxPath = actor.type === "character" ? "system.derived.wounds.max" : "system.miscStats.wounds.max";
-  const current = Number(foundry.utils.getProperty(actor, path) ?? 0);
-  const max = Number(foundry.utils.getProperty(actor, maxPath) ?? current);
   await actor.update({
     [path]: Math.min(max, current + heal),
     ...(doom.changed ? { "system.effects.active": doom.effects } : {})
@@ -7284,63 +7617,132 @@ if (modifierTotal.longArmsAccuracyPenalty > 0) {
   return modifierTotal;
 }
 
+function getQualitySelectedAttackChoices(quality) {
+  const choices = [
+    ...(Array.isArray(quality?.system?.choices?.selectedRanks)
+      ? quality.system.choices.selectedRanks
+      : []),
+    ...(Array.isArray(quality?.system?.choices?.selected)
+      ? quality.system.choices.selected
+      : [])
+  ];
+
+  const seen = new Set();
+
+  return choices.filter((choice, index) => {
+    const normalizedChoice = choice && typeof choice === "object"
+      ? choice
+      : { key: choice };
+
+    const identity = [
+      normalizedChoice.key,
+      normalizedChoice.attackId,
+      normalizedChoice.attackItemId,
+      normalizedChoice.itemId,
+      normalizedChoice.attackKey,
+      normalizedChoice.attackName,
+      normalizedChoice.attackTag,
+      normalizedChoice.effectTag
+    ]
+      .map((value) => String(value ?? "").trim())
+      .join("|");
+
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
+function getAttackChoiceName(choice = {}) {
+  return String(
+    choice?.attackName ??
+    choice?.originalLabel ??
+    choice?.label ??
+    ""
+  )
+    .split(/\s+[—–-]\s+\[/u)[0]
+    .trim();
+}
+
+function attackChoiceMatchesAttack(choice = {}, attackItem = null) {
+  if (!attackItem) return false;
+
+  const attackIdentityKeys = getAttackIdentityKeys(attackItem);
+  const choiceData = getAttackChoiceIdentity(choice);
+
+  if (
+    choiceData.attackId &&
+    attackIdentityKeys.has(choiceData.attackId)
+  ) {
+    return true;
+  }
+
+  /*
+   * Evolution snapshots and progression rebuilds recreate embedded Attack
+   * Items, so the selected Effect/Area Quality can legitimately retain an old
+   * embedded Item id while still carrying the Attack name chosen in the
+   * Wizard. Use that name only as a conservative fallback. This mirrors the
+   * existing Enemy Builder compatibility behavior and keeps the purchased
+   * Effect bound to the intended Attack instead of making a [SUPPORT] Attack
+   * appear to have no Effect Tag at runtime.
+   */
+  const attackNameKey = normalizeQualityChoiceKeyForAttack(
+    attackItem?.name ?? ""
+  );
+  const choiceAttackNameKey = normalizeQualityChoiceKeyForAttack(
+    getAttackChoiceName(choice)
+  );
+
+  if (
+    !attackNameKey ||
+    !choiceAttackNameKey ||
+    attackNameKey !== choiceAttackNameKey
+  ) {
+    return false;
+  }
+
+  const siblingAttacks = Array.from(
+    attackItem?.parent?.items ?? []
+  ).filter((item) => {
+    return (
+      item?.type === "attack" &&
+      normalizeQualityChoiceKeyForAttack(item?.name ?? "") === attackNameKey
+    );
+  });
+
+  // Name fallback is intentionally disabled when two embedded Attacks share
+  // the same name; in that case only an id/wizard key is unambiguous.
+  return siblingAttacks.length <= 1;
+}
+
 function getSelectedAttackAreaTagsForQuality(
   quality,
   attackItem
 ) {
-  const attackIdentityKeys =
-    getAttackIdentityKeys(
-      attackItem
-    );
-
-  if (!attackIdentityKeys.size) {
-    return [];
-  }
-
-  const selectedChoices =
-    Array.isArray(
-      quality?.system
-        ?.choices
-        ?.selectedRanks
-    )
-      ? quality.system
-          .choices
-          .selectedRanks
-      : [];
-
+  const selectedChoices = getQualitySelectedAttackChoices(quality);
   const tags = [];
 
-  for (const choice of selectedChoices) {
-    const choiceData =
-      getAttackChoiceIdentity(
-        choice
-      );
+  for (const rawChoice of selectedChoices) {
+    const choice = rawChoice && typeof rawChoice === "object"
+      ? rawChoice
+      : { key: rawChoice };
 
-    if (
-      !choiceData.attackId ||
-      !attackIdentityKeys.has(
-        choiceData.attackId
-      )
-    ) {
+    if (!attackChoiceMatchesAttack(choice, attackItem)) {
       continue;
     }
 
-    const tag =
-      normalizeAttackTag(
-        choice.attackTag ||
-        choiceData.tag
-      );
+    const choiceData = getAttackChoiceIdentity(choice);
+    const tag = normalizeAttackTag(
+      choice.attackTag ||
+      choiceData.tag
+    );
 
-    if (
-      tag.startsWith("t:")
-    ) {
+    if (tag.startsWith("t:")) {
       tags.push(tag);
     }
   }
 
-  return [
-    ...new Set(tags)
-  ];
+  return [...new Set(tags)];
 }
 
 function getAttackIdentityKeys(
@@ -7440,15 +7842,7 @@ function getSelectedAttackEffectChoicesForQuality(
   }
 
   const selectedChoices =
-    Array.isArray(
-      quality?.system
-        ?.choices
-        ?.selectedRanks
-    )
-      ? quality.system
-          .choices
-          .selectedRanks
-      : [];
+    getQualitySelectedAttackChoices(quality);
 
   const effectOptions =
     Array.isArray(
@@ -7485,27 +7879,21 @@ function getSelectedAttackEffectChoicesForQuality(
 
   const results = [];
 
-  for (const choice of selectedChoices) {
-    const choiceData =
-      getAttackChoiceIdentity(
-        choice
-      );
+  for (const rawChoice of selectedChoices) {
+    const choice = rawChoice && typeof rawChoice === "object"
+      ? rawChoice
+      : { key: rawChoice };
 
-    if (
-      !choiceData.attackId ||
-      !attackIdentityKeys.has(
-        choiceData.attackId
-      )
-    ) {
+    if (!attackChoiceMatchesAttack(choice, attackItem)) {
       continue;
     }
 
-    const tag =
-      normalizeAttackTag(
-        choice.effectTag ||
-        choice.attackTag ||
-        choiceData.tag
-      );
+    const choiceData = getAttackChoiceIdentity(choice);
+    const tag = normalizeAttackTag(
+      choice.effectTag ||
+      choice.attackTag ||
+      choiceData.tag
+    );
 
     if (
       !tag ||
@@ -7571,6 +7959,26 @@ function getSelectedAttackEffectChoicesForQuality(
       ) === index;
     }
   );
+}
+
+function getPurchasedEffectTagsForAttack(attacker, attackItem) {
+  if (!attacker?.items || !attackItem) return [];
+
+  const tags = [];
+
+  for (const quality of attacker.items) {
+    if (quality?.type !== "quality") continue;
+
+    for (const choice of getSelectedAttackEffectChoicesForQuality(
+      quality,
+      attackItem
+    )) {
+      const tag = normalizeAttackTag(choice?.tag);
+      if (tag) tags.push(tag);
+    }
+  }
+
+  return [...new Set(tags)];
 }
 
 function getZonerQualityDataForActor(actor) {
@@ -8092,47 +8500,14 @@ function qualityModifierAppliesToAttack(quality, modifier, attackItem, context) 
   const appliesTo = String(modifier.appliesTo ?? "").trim();
   const grantsTags = context.grantsTags ?? [];
   const attackQualityTags = context.attackQualityTags ?? new Set();
-  const selectedChoices = Array.isArray(quality.system?.choices?.selectedRanks)
-    ? quality.system.choices.selectedRanks
-    : [];
-const selectedAttackIds = selectedChoices
-  .flatMap((choice) => {
-    const directId = String(
-      choice.attackId
-      ?? choice.attackItemId
-      ?? choice.itemId
-      ?? choice.attackKey
-      ?? choice.id
-      ?? ""
-    ).trim();
+  const selectedChoices = getQualitySelectedAttackChoices(quality);
 
-    const keyText = String(
-      choice.key ?? ""
-    ).trim();
+  const attackMatchesExplicitSelection = selectedChoices.some((rawChoice) => {
+    const choice = rawChoice && typeof rawChoice === "object"
+      ? rawChoice
+      : { key: rawChoice };
 
-    const keyAttackId = keyText.includes(":")
-      ? keyText.split(":")[0]
-      : keyText;
-
-    return [
-      directId,
-      keyAttackId
-    ].filter(Boolean);
-  })
-  .filter(Boolean);
-
-const attackIdentityKeys =
-  getAttackIdentityKeys(
-    attackItem
-  );
-
-const hasExplicitAttackSelection =
-  selectedAttackIds.length > 0;
-
-const attackMatchesExplicitSelection =
-  hasExplicitAttackSelection &&
-  selectedAttackIds.some((attackId) => {
-    return attackIdentityKeys.has(attackId);
+    return attackChoiceMatchesAttack(choice, attackItem);
   });
 
 const hasGrantedTagOnAttack = grantsTags.some(
@@ -8635,6 +9010,8 @@ function getAttackEffectApplication({
   positiveTargetHealthSuccesses = 0,
   cleanseTargetHealthSuccesses = 0,
   forcedMovementTargetHealthSuccesses = 0,
+  sourceToken = null,
+  targetToken = null,
   confuseAffectedStat = "",
   accuracySuccesses = 0,
   qualityAttackModifier = {},
@@ -8869,11 +9246,28 @@ const effectData = {
   sourceActorName:
     attacker.name,
 
+  // Preserve the exact canvas Tokens involved in the Attack. Actor UUIDs are
+  // not sufficient for unlinked prototype tokens because multiple synthetic
+  // Actors may share the same base Actor id. PUSH/PULL must use the actual
+  // caster position that produced the Effect.
+  sourceTokenUuid:
+    sourceToken?.document?.uuid ?? sourceToken?.uuid ?? "",
+  sourceTokenId:
+    sourceToken?.document?.id ?? sourceToken?.id ?? "",
+
   targetActorUuid:
     defender.uuid,
 
   targetActorName:
     defender.name,
+  targetTokenUuid:
+    targetToken?.document?.uuid ?? targetToken?.uuid ?? "",
+  targetTokenId:
+    targetToken?.document?.id ?? targetToken?.id ?? "",
+  sourceSceneId:
+    sourceToken?.document?.parent?.id ?? sourceToken?.parent?.id ?? canvas?.scene?.id ?? "",
+  targetSceneId:
+    targetToken?.document?.parent?.id ?? targetToken?.parent?.id ?? canvas?.scene?.id ?? "",
 
   appliedCombatId: game.combat?.id ?? "",
   appliedCombatRound: Number(game.combat?.round ?? 0),
@@ -9673,9 +10067,217 @@ async function applyThereIsNoEscapeMovementPenalty({
   return true;
 }
 
+function getForcedMovementTokenRect(tokenDocument, x = tokenDocument?.x, y = tokenDocument?.y) {
+  if (!tokenDocument) return null;
+
+  const fallbackGridSize = Math.max(1, Number(canvas?.grid?.size ?? 100));
+  const size = tokenDocument.getSize?.({
+    width: Math.max(0.01, Number(tokenDocument.width ?? 1)),
+    height: Math.max(0.01, Number(tokenDocument.height ?? 1))
+  }) ?? {
+    width: Math.max(1, Number(tokenDocument.width ?? 1)) * fallbackGridSize,
+    height: Math.max(1, Number(tokenDocument.height ?? 1)) * fallbackGridSize
+  };
+
+  const left = Number(x ?? 0);
+  const top = Number(y ?? 0);
+
+  return {
+    left,
+    top,
+    right: left + Math.max(1, Number(size.width ?? fallbackGridSize)),
+    bottom: top + Math.max(1, Number(size.height ?? fallbackGridSize))
+  };
+}
+
+function forcedMovementRectsOverlap(left, right) {
+  if (!left || !right) return false;
+  return !(
+    left.right <= right.left ||
+    left.left >= right.right ||
+    left.bottom <= right.top ||
+    left.top >= right.bottom
+  );
+}
+
+async function resolveForcedMovementToken({
+  actor = null,
+  tokenUuid = "",
+  tokenId = "",
+  sceneId = ""
+} = {}) {
+  const currentSceneId = String(canvas?.scene?.id ?? "");
+  const expectedSceneId = String(sceneId ?? "");
+  const id = String(tokenId ?? "");
+
+  if (
+    id &&
+    (!expectedSceneId || expectedSceneId === currentSceneId)
+  ) {
+    const liveToken = canvas?.tokens?.get?.(id);
+    if (liveToken) return liveToken;
+  }
+
+  const uuid = String(tokenUuid ?? "").trim();
+  if (uuid) {
+    try {
+      const document = await fromUuid(uuid);
+      if (document?.documentName === "Token") {
+        if (!currentSceneId || String(document.parent?.id ?? "") === currentSceneId) {
+          return document.object ?? canvas?.tokens?.get?.(document.id) ?? null;
+        }
+      }
+    } catch (error) {
+      console.warn("DDA | Could not resolve forced-movement Token UUID.", uuid, error);
+    }
+  }
+
+  return findSceneTokenForActor(actor);
+}
+
+function isLegalForcedMovementPosition(targetToken, { x, y } = {}) {
+  const targetDocument = targetToken?.document;
+  if (!targetDocument) return false;
+
+  const rectangle = getForcedMovementTokenRect(targetDocument, x, y);
+  if (!rectangle) return false;
+
+  const sceneWidth = Math.max(0, Number(canvas?.scene?.width ?? 0));
+  const sceneHeight = Math.max(0, Number(canvas?.scene?.height ?? 0));
+
+  if (rectangle.left < 0 || rectangle.top < 0) return false;
+  if (sceneWidth > 0 && rectangle.right > sceneWidth) return false;
+  if (sceneHeight > 0 && rectangle.bottom > sceneHeight) return false;
+
+  for (const otherToken of canvas?.tokens?.placeables ?? []) {
+    const otherDocument = otherToken?.document;
+    if (!otherDocument || otherDocument.id === targetDocument.id) continue;
+
+    const otherRectangle = getForcedMovementTokenRect(otherDocument);
+    if (forcedMovementRectsOverlap(rectangle, otherRectangle)) return false;
+  }
+
+  return true;
+}
+
+function getForcedMovementDestination({
+  sourceToken,
+  targetToken,
+  spaces = 0,
+  direction = "push"
+} = {}) {
+  if (!sourceToken?.document || !targetToken?.document) return null;
+
+  const requestedSpaces = Math.max(0, Math.floor(Number(spaces ?? 0)));
+  if (requestedSpaces <= 0) return null;
+
+  const sourceCenter = sourceToken.center;
+  const targetCenter = targetToken.center;
+  const dx = Number(targetCenter?.x ?? 0) - Number(sourceCenter?.x ?? 0);
+  const dy = Number(targetCenter?.y ?? 0) - Number(sourceCenter?.y ?? 0);
+  const length = Math.hypot(dx, dy);
+  if (length <= 0) return null;
+
+  const sign = direction === "pull" ? -1 : 1;
+  const gridSize = Math.max(1, Number(canvas?.grid?.size ?? 100));
+  const currentDistance = Math.max(0, Number(getTokenGridDistance(sourceToken, targetToken) ?? 0));
+  const maximumSpaces = direction === "pull"
+    ? Math.min(requestedSpaces, Math.max(0, Math.ceil(currentDistance) - 1))
+    : requestedSpaces;
+
+  if (maximumSpaces <= 0) return null;
+
+  /*
+   * PUSH/PULL are instantaneous forced movement. Start from the full legal
+   * distance and walk back one Space at a time until we find the nearest
+   * unoccupied position the target Token can actually fit in. This preserves
+   * the rule while avoiding overlapping Tokens and out-of-scene placements.
+   * Walls and unusual multi-level terrain remain GM-assisted by design.
+   */
+  for (let movedSpaces = maximumSpaces; movedSpaces >= 1; movedSpaces -= 1) {
+    const rawDestination = {
+      x: Number(targetToken.document.x ?? 0) + (dx / length) * gridSize * movedSpaces * sign,
+      y: Number(targetToken.document.y ?? 0) + (dy / length) * gridSize * movedSpaces * sign
+    };
+
+    const snapped = targetToken.document.getSnappedPosition?.({
+      x: rawDestination.x,
+      y: rawDestination.y
+    }) ?? canvas?.grid?.getSnappedPoint?.(
+      rawDestination,
+      { mode: CONST.GRID_SNAPPING_MODES?.TOP_LEFT_VERTEX ?? CONST.GRID_SNAPPING_MODES?.CENTER }
+    ) ?? rawDestination;
+
+    const destination = {
+      x: Math.round(Number(snapped?.x ?? rawDestination.x)),
+      y: Math.round(Number(snapped?.y ?? rawDestination.y))
+    };
+
+    if (
+      destination.x === Math.round(Number(targetToken.document.x ?? 0)) &&
+      destination.y === Math.round(Number(targetToken.document.y ?? 0))
+    ) {
+      continue;
+    }
+
+    if (isLegalForcedMovementPosition(targetToken, destination)) {
+      return {
+        ...destination,
+        movedSpaces
+      };
+    }
+  }
+
+  return null;
+}
+
+async function applyForcedMovementBurnDamage(defender, movedSpaces = 0) {
+  if (!defender || Number(movedSpaces ?? 0) <= 0) return 0;
+
+  const activeEffects = defender.system?.effects?.active ?? [];
+  if (!activeEffects.some((entry) => getEffectTagKey(entry.tag) === "burn")) return 0;
+
+  const damageEffectCount = activeEffects.filter((entry) => {
+    return ["burn", "freeze", "poison", "ruin"].includes(getEffectTagKey(entry.tag));
+  }).length;
+  const reduction = Math.max(0, damageEffectCount - 1) + Math.max(
+    0,
+    Number(defender.system?.qualityFeatures?.naturewalk?.damageReduction?.burn ?? 0)
+  );
+  let burnDamage = Math.max(0, Math.floor(Number(movedSpaces) / 2) - reduction);
+  const roundKey = `${game.combat?.id ?? "no-combat"}:${Number(game.combat?.round ?? 0)}`;
+  const previousDamage = String(defender.system?.combat?.effectDamageRoundKey ?? "") === roundKey
+    ? Math.max(0, Number(defender.system?.combat?.effectDamageTakenThisRound ?? 0))
+    : 0;
+  const cap = Math.max(0, Number(getActorSv(defender)) * 2);
+  burnDamage = Math.min(burnDamage, Math.max(0, cap - previousDamage));
+
+  if (burnDamage <= 0) return 0;
+
+  const woundsPath = defender.type === "character"
+    ? "system.derived.wounds.value"
+    : "system.miscStats.wounds.value";
+  const wounds = Math.max(0, Number(foundry.utils.getProperty(defender, woundsPath) ?? 0));
+  await defender.update({
+    [woundsPath]: Math.max(0, wounds - burnDamage),
+    "system.combat.effectDamageRoundKey": roundKey,
+    "system.combat.effectDamageTakenThisRound": previousDamage + burnDamage
+  });
+
+  return burnDamage;
+}
+
 async function applyForcedMovementEffect(defender, effect, direction) {
   const spaces = Math.max(0, Math.floor(Number(effect.value ?? 0)));
-  if (!defender || spaces <= 0) return false;
+  if (!defender) return false;
+
+  if (spaces <= 0) {
+    ui.notifications.info(combatText(
+      `[${String(direction).toUpperCase()}] resolveu com 0 espaços após os modificadores.`,
+      `[${String(direction).toUpperCase()}] resolved with 0 spaces after modifiers.`
+    ));
+    return false;
+  }
 
   const sourceDocument = effect.sourceActorUuid
     ? await fromUuid(effect.sourceActorUuid).catch(() => null)
@@ -9685,42 +10287,63 @@ async function applyForcedMovementEffect(defender, effect, direction) {
     ? sourceDocument.actor
     : sourceDocument;
 
-  const sourceToken = findSceneTokenForActor(source);
-  const targetToken = findSceneTokenForActor(defender);
-  if (!sourceToken || !targetToken) return false;
+  const sourceToken = await resolveForcedMovementToken({
+    actor: source,
+    tokenUuid: effect.sourceTokenUuid,
+    tokenId: effect.sourceTokenId,
+    sceneId: effect.sourceSceneId
+  });
 
-  const sourceCenter = sourceToken.center;
-  const targetCenter = targetToken.center;
-  const dx = Number(targetCenter.x ?? 0) - Number(sourceCenter.x ?? 0);
-  const dy = Number(targetCenter.y ?? 0) - Number(sourceCenter.y ?? 0);
-  const length = Math.hypot(dx, dy);
-  if (length <= 0) return false;
+  const targetToken = await resolveForcedMovementToken({
+    actor: defender,
+    tokenUuid: effect.targetTokenUuid,
+    tokenId: effect.targetTokenId,
+    sceneId: effect.targetSceneId
+  });
 
-  const sign = direction === "pull" ? -1 : 1;
-  const gridSize = Number(canvas.grid?.size ?? 100);
-  const movedSpaces = direction === "pull"
-    ? Math.min(spaces, Math.max(0, Math.ceil(length / gridSize) - 1))
-    : spaces;
-  if (movedSpaces <= 0) return false;
-  const destination = {
-    x: Number(targetToken.document.x ?? 0) + (dx / length) * gridSize * movedSpaces * sign,
-    y: Number(targetToken.document.y ?? 0) + (dy / length) * gridSize * movedSpaces * sign
-  };
+  const resolvedSourceActor = source ?? sourceToken?.actor ?? null;
 
-  const snapped = canvas.grid?.getSnappedPoint
-    ? canvas.grid.getSnappedPoint(destination, { mode: CONST.GRID_SNAPPING_MODES?.CENTER })
-    : destination;
+  if (!sourceToken || !targetToken) {
+    console.warn("DDA | PUSH/PULL could not resolve the exact source/target Token.", {
+      direction,
+      spaces,
+      sourceActorUuid: effect.sourceActorUuid,
+      sourceTokenUuid: effect.sourceTokenUuid,
+      targetActorUuid: defender.uuid,
+      targetTokenUuid: effect.targetTokenUuid
+    });
+    ui.notifications.warn(combatText(
+      `[${String(direction).toUpperCase()}] foi aplicado, mas o sistema não encontrou os Tokens no Canvas para mover o alvo.`,
+      `[${String(direction).toUpperCase()}] was applied, but the system could not find the Tokens on the Canvas to move the target.`
+    ));
+    return false;
+  }
+
+  const destination = getForcedMovementDestination({
+    sourceToken,
+    targetToken,
+    spaces,
+    direction
+  });
+
+  if (!destination) {
+    ui.notifications.info(combatText(
+      `[${String(direction).toUpperCase()}] não encontrou um espaço desocupado válido para mover ${defender.name}.`,
+      `[${String(direction).toUpperCase()}] could not find a valid unoccupied space to move ${defender.name}.`
+    ));
+    return false;
+  }
 
   try {
     const clashAutomation = await import("../combat/clash.js");
     const clashResolution = await clashAutomation.handleClashForcedMovement?.({
       defender,
-      source,
+      source: resolvedSourceActor,
       direction,
       potency: Number(effect.potency ?? effect.value ?? spaces),
       destination: {
-        x: Math.round(Number(snapped.x ?? destination.x)),
-        y: Math.round(Number(snapped.y ?? destination.y))
+        x: destination.x,
+        y: destination.y
       }
     });
     if (clashResolution?.handled) return Boolean(clashResolution.moved);
@@ -9728,45 +10351,58 @@ async function applyForcedMovementEffect(defender, effect, direction) {
     console.warn("DDA | Clash forced-movement handling failed.", error);
   }
 
-  await targetToken.document.update({
-    x: Math.round(Number(snapped.x ?? destination.x)),
-    y: Math.round(Number(snapped.y ?? destination.y))
-  }, withDDAMovementContext({
+  const movementOptions = withDDAMovementContext({
     ddaForcedMovement: true
   }, {
     mode: "forced", movementBudget: "none", voluntary: false, reactions: true,
     traversal: true, source: "attackEffect", unwilling: true, suppressBurn: true
-  }));
+  });
 
-  const activeEffects = defender.system?.effects?.active ?? [];
-  if (activeEffects.some((entry) => getEffectTagKey(entry.tag) === "burn")) {
-    const damageEffectCount = activeEffects.filter((entry) => {
-      return ["burn", "freeze", "poison", "ruin"].includes(getEffectTagKey(entry.tag));
-    }).length;
-    const reduction = Math.max(0, damageEffectCount - 1) + Math.max(
-      0,
-      Number(defender.system?.qualityFeatures?.naturewalk?.damageReduction?.burn ?? 0)
-    );
-    let burnDamage = Math.max(0, Math.floor(movedSpaces / 2) - reduction);
-    const roundKey = `${game.combat?.id ?? "no-combat"}:${Number(game.combat?.round ?? 0)}`;
-    const previousDamage = String(defender.system?.combat?.effectDamageRoundKey ?? "") === roundKey
-      ? Math.max(0, Number(defender.system?.combat?.effectDamageTakenThisRound ?? 0))
-      : 0;
-    const cap = Math.max(0, Number(getActorSv(defender)) * 2);
-    burnDamage = Math.min(burnDamage, Math.max(0, cap - previousDamage));
+  /*
+   * A player normally owns the attacking Digimon, not the enemy Token being
+   * displaced. Foundry correctly rejects TokenDocument.update in that case.
+   * Resolve PUSH/PULL locally when permitted, otherwise ask the primary active
+   * GM to commit the already validated forced-movement destination.
+   */
+  if (!canCurrentUserUpdateDocument(targetToken.document)) {
+    return requestGMForcedMovementUpdate({
+      sourceToken,
+      targetToken,
+      destination,
+      direction,
+      spaces
+    });
+  }
 
-    if (burnDamage > 0) {
-      const woundsPath = defender.type === "character"
-        ? "system.derived.wounds.value"
-        : "system.miscStats.wounds.value";
-      const wounds = Math.max(0, Number(foundry.utils.getProperty(defender, woundsPath) ?? 0));
-      await defender.update({
-        [woundsPath]: Math.max(0, wounds - burnDamage),
-        "system.combat.effectDamageRoundKey": roundKey,
-        "system.combat.effectDamageTakenThisRound": previousDamage + burnDamage
+  try {
+    await targetToken.document.update({
+      x: destination.x,
+      y: destination.y
+    }, movementOptions);
+  } catch (error) {
+    console.warn("DDA | Local PUSH/PULL Token update failed; trying the primary GM.", error);
+
+    if (!game.user?.isGM) {
+      return requestGMForcedMovementUpdate({
+        sourceToken,
+        targetToken,
+        destination,
+        direction,
+        spaces
       });
     }
+
+    ui.notifications.warn(combatText(
+      `[${String(direction).toUpperCase()}] calculou o destino, mas o Token não pôde ser movido.`,
+      `[${String(direction).toUpperCase()}] calculated the destination, but the Token could not be moved.`
+    ));
+    return false;
   }
+
+  await applyForcedMovementBurnDamage(
+    defender,
+    Math.max(0, Number(destination.movedSpaces ?? spaces))
+  );
 
   return true;
 }
@@ -9783,7 +10419,7 @@ async function applyAttackEffectTags(defender, effectsToApply) {
 
   const currentEffects = foundry.utils.deepClone(defender.system.effects?.active ?? []);
   const cleanseReports = [];
-  let shouldClearShieldTemp = false;
+  const expiredShieldEffectIds = new Set();
   const appliedEffectKeys = [];
 
   const gainForceResolution = await resolveIncomingDigizoidGainForceEffects(defender, effectsToApply);
@@ -9904,8 +10540,9 @@ if (restoredStunActions > 0 || removedUnusedHaste) {
 
     currentEffects.splice(0, currentEffects.length, ...cleanseData.remainingEffects);
 
-    if (cleanseData.expiredEffects.some((expiredEffect) => getEffectTagKey(expiredEffect.tag) === "shield")) {
-      shouldClearShieldTemp = true;
+    for (const expiredEffect of cleanseData.expiredEffects) {
+      if (getEffectTagKey(expiredEffect.tag) !== "shield") continue;
+      if (expiredEffect.id) expiredShieldEffectIds.add(String(expiredEffect.id));
     }
 
 cleanseReports.push({
@@ -9946,6 +10583,16 @@ cleanseReports.push({
       tempWoundsRemaining: shieldAmount
     };
 
+    const previousShield = currentEffects.find((existing) => {
+      return getEffectTagKey(existing.tag) === "shield";
+    }) ?? null;
+    if (previousShield?.id && String(previousShield.id) !== String(shieldEffect.id ?? "")) {
+      await expireNonStackingTemporaryWounds(defender, {
+        sourceId: "shield",
+        effectId: String(previousShield.id)
+      });
+    }
+
     const withoutOldShield = currentEffects.filter((existing) => {
       return getEffectTagKey(existing.tag) !== "shield";
     });
@@ -9961,8 +10608,8 @@ cleanseReports.push({
   }
 
   if (effectKey === "pull" || effectKey === "push") {
-    await applyForcedMovementEffect(defender, effect, effectKey);
-    appliedEffectKeys.push(effectKey);
+    const moved = await applyForcedMovementEffect(defender, effect, effectKey);
+    if (moved) appliedEffectKeys.push(effectKey);
     continue;
   }
 
@@ -10101,8 +10748,8 @@ for (const effect of incomingEffects) {
   }
 }
 
-if (shouldClearShieldTemp) {
-  await clearShieldTempFromCleanse(defender);
+for (const shieldEffectId of expiredShieldEffectIds) {
+  await clearShieldTempFromCleanse(defender, shieldEffectId);
 }
 
 defender.sheet?.render(true);
@@ -11181,6 +11828,7 @@ async function requestAttackDodgeResult({
   areaTargetTokenId = "",
   ignoresUncatchableTarget = false,
   suppressTargetInterrupts = false,
+  environmentAutomaticDodgeSuccesses = 0,
   fakeoutEligible = false
 } = {}) {
   if (!attacker || !defender || !attackItem) return null;
@@ -11230,6 +11878,7 @@ async function requestAttackDodgeResult({
     areaProgressMessageId: String(areaProgressMessageId ?? ""),
     areaTargetTokenId: cleanAreaTargetTokenId,
     effectDodgeModifier: Number(effectDodgeModifier ?? 0),
+    environmentAutomaticDodgeSuccesses: Math.max(0, Number(environmentAutomaticDodgeSuccesses ?? 0)),
     accuracySuccesses: Math.max(0, Number(accuracySuccesses ?? 0)),
     dodgeShouldHalve: Boolean(dodgeShouldHalve),
     ignoresUncatchableTarget: Boolean(ignoresUncatchableTarget),
@@ -12280,18 +12929,36 @@ const adaptiveBonus = Math.max(
   Number(adaptiveIntelligence?.bonus ?? 0)
 );
 
+const environmentAutomaticSuccesses = Math.max(
+  0,
+  Number(request?.environmentAutomaticDodgeSuccesses ?? 0)
+);
+
+const dodgeModifierBreakdown = [];
+if (adaptiveBonus > 0) {
+  dodgeModifierBreakdown.push({
+    label: combatText("Inteligência Adaptativa", "Adaptive Intelligence"),
+    value: adaptiveBonus
+  });
+}
+if (environmentAutomaticSuccesses > 0) {
+  dodgeModifierBreakdown.push({
+    label: combatText("Cover / Obscured", "Cover / Obscured"),
+    value: environmentAutomaticSuccesses,
+    automaticSuccess: true
+  });
+}
+
 return rollPool(defender, "dodge", {
   allowZeroSuccesses: true,
   diceModifier: Number(effectDodgeModifier ?? 0) + adaptiveBonus,
-  modifierBreakdown: adaptiveBonus > 0
-    ? [{
-        label: combatText("Inteligência Adaptativa", "Adaptive Intelligence"),
-        value: adaptiveBonus
-      }]
-    : [],
-  externalLabel: adaptiveBonus > 0
-    ? `${localize("DDA.Attack.ActiveEffects")} · ${combatText("Inteligência Adaptativa", "Adaptive Intelligence")} +${adaptiveBonus}`
-    : localize("DDA.Attack.ActiveEffects")
+  automaticSuccesses: environmentAutomaticSuccesses,
+  modifierBreakdown: dodgeModifierBreakdown,
+  externalLabel: environmentAutomaticSuccesses > 0
+    ? `${localize("DDA.Attack.ActiveEffects")} · ${combatText("Cover / Obscured", "Cover / Obscured")} +${environmentAutomaticSuccesses}`
+    : adaptiveBonus > 0
+      ? `${localize("DDA.Attack.ActiveEffects")} · ${combatText("Inteligência Adaptativa", "Adaptive Intelligence")} +${adaptiveBonus}`
+      : localize("DDA.Attack.ActiveEffects")
 });
 }
 
@@ -12722,83 +13389,12 @@ async function getShieldTempData(defender, effect) {
   };
 }
 
-function stripShieldTempSource(source = "") {
-  return String(source ?? "")
-    .split("+")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .filter((entry) => {
-      const key = identityForMatching(entry);
-      return !key.includes("shield") && !key.includes("escudo");
-    })
-    .join(" + ");
-}
-
 async function applyShieldTempWounds(defender, amount, shieldEffect) {
-  const rootPath = defender.type === "character"
-    ? "system.derived.wounds.temp"
-    : ["digimon", "npc"].includes(defender.type)
-      ? "system.miscStats.wounds.temp"
-      : "";
-
-  if (!rootPath) return;
-
-  const temp = foundry.utils.getProperty(
-    defender,
-    rootPath
-  ) ?? {};
-
-  const current = Math.max(
-    0,
-    Number(temp.value ?? 0)
-  );
-
-  const previousShield = (
-    defender.system?.effects?.active ?? []
-  ).find((effect) => {
-    return getEffectTagKey(effect?.tag) === "shield";
-  });
-
-  const previousShieldRemaining = Math.max(
-    0,
-    Number(
-      previousShield?.tempWoundsRemaining ??
-      previousShield?.tempWounds ??
-      0
-    )
-  );
-
-  const nonShieldTemp = Math.max(
-    0,
-    current - previousShieldRemaining
-  );
-
-  const shieldAmount = Math.max(
-    0,
-    Number(amount ?? 0)
-  );
-
-  const cleanSource = stripShieldTempSource(
-    temp.source
-  );
-
-  const shieldLabel = String(
-    shieldEffect?.label ??
-    localize("DDA.Effect.Shield") ??
-    "[SHIELD]"
-  ).trim();
-
-  const nextSource = [
-    cleanSource,
-    ...(shieldAmount > 0 ? [shieldLabel] : [])
-  ].filter(Boolean).join(" + ");
-
-  await defender.update({
-    [`${rootPath}.value`]: nonShieldTemp + shieldAmount,
-    [`${rootPath}.source`]: nextSource,
-    [`${rootPath}.duration`]: nextSource
-      ? shieldEffect.remaining ?? shieldEffect.duration ?? 3
-      : ""
+  return grantNonStackingTemporaryWounds(defender, amount, {
+    sourceId: "shield",
+    label: String(shieldEffect?.label ?? localize("DDA.Effect.Shield") ?? "[SHIELD]"),
+    duration: String(shieldEffect?.remaining ?? shieldEffect?.duration ?? 3),
+    effectId: String(shieldEffect?.id ?? "")
   });
 }
 
@@ -12874,24 +13470,12 @@ function applyCleanseToEffectList(currentEffects, amount = 1, selectedEffectKeys
 }
 
 
-async function clearShieldTempFromCleanse(actor) {
-  if (actor.type === "character") {
-    await actor.update({
-      "system.derived.wounds.temp.value": 0,
-      "system.derived.wounds.temp.source": "",
-      "system.derived.wounds.temp.duration": ""
-    });
-
-    return;
-  }
-
-  if (actor.type === "digimon" || actor.type === "npc") {
-    await actor.update({
-      "system.miscStats.wounds.temp.value": 0,
-      "system.miscStats.wounds.temp.source": "",
-      "system.miscStats.wounds.temp.duration": ""
-    });
-  }
+async function clearShieldTempFromCleanse(actor, effectId = "") {
+  const expired = await expireNonStackingTemporaryWounds(actor, {
+    sourceId: "shield",
+    effectId: String(effectId ?? "")
+  });
+  return Boolean(expired?.expired);
 }
 
 async function createCleanseChatMessage(defender, cleanseReport) {
@@ -13235,12 +13819,23 @@ function validateAttackTargeting({
 
 function getAttackCombatSide(actor) {
   const combatant = getCombatantForActor(game.combat, actor);
+  const disposition = Number(
+    combatant?.token?.disposition ??
+    combatant?.token?.document?.disposition ??
+    canvas?.tokens?.placeables?.find((token) => token.actor?.uuid === actor?.uuid)?.document?.disposition ??
+    actor?.prototypeToken?.disposition ??
+    0
+  );
+
+  if (disposition === 1) return "players";
+  if (disposition === -1) return "enemies";
 
   const rawSide =
     combatant?.getFlag?.(game.system.id, "initiative.side") ??
     combatant?.flags?.[game.system.id]?.initiative?.side ??
     combatant?.getFlag?.(game.system.id, "side") ??
     combatant?.flags?.[game.system.id]?.side ??
+    actor?.system?.combat?.initiative?.side ??
     "";
 
   return String(rawSide).trim().toLowerCase();

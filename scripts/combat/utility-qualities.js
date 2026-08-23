@@ -15,6 +15,7 @@ import {
 import { withDDAMovementContext } from "../canvas/movement-context.js";
 import { spendActorActions } from "./action-economy.js";
 import { getTokenDistanceSpaces } from "./offensive-qualities.js";
+import { measureGridPointDistanceSpaces } from "./positioning.js";
 import { applyDamage } from "../rolls/damage-application.js";
 import { hasBossQuality } from "./boss-qualities.js";
 
@@ -189,8 +190,7 @@ async function pickCanvasPoint({ title, maximumDistance = Number.POSITIVE_INFINI
       const point = event.data?.getLocalPosition?.(canvas.stage) ?? event.getLocalPosition?.(canvas.stage);
       if (!point) return;
       if (origin && Number.isFinite(maximumDistance)) {
-        const grid = Math.max(1, number(canvas?.grid?.size, 100));
-        const distance = Math.hypot(point.x - origin.x, point.y - origin.y) / grid;
+        const distance = measureGridPointDistanceSpaces(origin, point);
         if (distance > maximumDistance) {
           ui.notifications.warn(text(`O destino precisa estar dentro de ${maximumDistance} Espaços.`, `The destination must be within ${maximumDistance} Spaces.`));
           return;
@@ -237,8 +237,11 @@ function canPlaceTokenAt(token, point) {
 
   const grid = Math.max(1, number(canvas?.grid?.size, 100));
   const document = token.document ?? token;
-  const x = point.x - Math.max(1, number(document.width, 1)) * grid / 2;
-  const y = point.y - Math.max(1, number(document.height, 1)) * grid / 2;
+  const renderedCenter = token.center ?? tokenCenter(token);
+  const centerOffsetX = number(renderedCenter?.x) - number(document.x);
+  const centerOffsetY = number(renderedCenter?.y) - number(document.y);
+  const x = point.x - centerOffsetX;
+  const y = point.y - centerOffsetY;
   const collision = CONFIG.Canvas?.polygonBackends?.move?.testCollision?.(
     tokenCenter(token),
     point,
@@ -273,10 +276,12 @@ async function adjacentTransportAllies(actor) {
 }
 
 async function moveTokenCenter(token, point) {
-  const grid = Math.max(1, number(canvas?.grid?.size, 100));
   const document = token.document ?? token;
-  const x = point.x - Math.max(1, number(document.width, 1)) * grid / 2;
-  const y = point.y - Math.max(1, number(document.height, 1)) * grid / 2;
+  const renderedCenter = token.center ?? tokenCenter(token);
+  const centerOffsetX = number(renderedCenter?.x) - number(document.x);
+  const centerOffsetY = number(renderedCenter?.y) - number(document.y);
+  const x = point.x - centerOffsetX;
+  const y = point.y - centerOffsetY;
   await document.update({ x, y }, withDDAMovementContext(
     { animate: false, ddaTeleport: true },
     {
@@ -316,15 +321,35 @@ async function performTeleport(actor, { actionCost = 1, reaction = false, clashE
   }
   if (actionCost > 0 && !(await spendActorActions(actor, actionCost, { requireActiveUnit: !reaction && !clashEscape }))) return null;
   await moveTokenCenter(token, destination);
-  const grid = Math.max(1, number(canvas?.grid?.size, 100));
-  const offsets = [
-    { x: grid, y: 0 }, { x: -grid, y: 0 }, { x: 0, y: grid }, { x: 0, y: -grid },
-    { x: grid, y: grid }, { x: -grid, y: grid }, { x: grid, y: -grid }, { x: -grid, y: -grid }
-  ];
+  let adjacentCenters = [];
+  try {
+    adjacentCenters = (canvas?.grid?.getAdjacentOffsets?.(destination) ?? [])
+      .map((offset) => canvas.grid.getCenterPoint(offset));
+  } catch (_error) {
+    adjacentCenters = [];
+  }
+  if (!adjacentCenters.length) {
+    const grid = Math.max(1, number(canvas?.grid?.size, 100));
+    adjacentCenters = [
+      { x: destination.x + grid, y: destination.y },
+      { x: destination.x - grid, y: destination.y },
+      { x: destination.x, y: destination.y + grid },
+      { x: destination.x, y: destination.y - grid }
+    ];
+  }
+
   for (let index = 0; index < allies.length; index += 1) {
     const ally = allies[index];
-    const candidate = { x: destination.x + offsets[index % offsets.length].x, y: destination.y + offsets[index % offsets.length].y };
-    if (canPlaceTokenAt(ally, candidate)) await moveTokenCenter(ally, candidate);
+    const candidate = adjacentCenters.find((point) => canPlaceTokenAt(ally, point));
+    if (!candidate) {
+      ui.notifications.warn(text(
+        `Não há espaço adjacente livre para transportar ${ally.name}.`,
+        `There is no free adjacent space to transport ${ally.name}.`
+      ));
+      continue;
+    }
+    await moveTokenCenter(ally, candidate);
+    adjacentCenters = adjacentCenters.filter((point) => point !== candidate);
     const allyState = getState(ally.actor);
     allyState.transporter = {
       ...(allyState.transporter ?? {}),
@@ -1522,11 +1547,10 @@ export function registerUtilityQualities() {
       const flag = overlay.getFlag(SYSTEM_ID, ILLUSION_FLAG);
       if (flag.actorUuid === actor?.uuid) {
         const center = tokenCenter(tokenDocument.object ?? tokenDocument);
-        const grid = Math.max(1, number(canvas?.grid?.size, 100));
-        const distance = Math.hypot(
-          center.x - number(flag.originX),
-          center.y - number(flag.originY)
-        ) / grid;
+        const distance = measureGridPointDistanceSpaces(center, {
+          x: number(flag.originX),
+          y: number(flag.originY)
+        });
         if (distance > number(flag.maxDistance)) {
           void deleteIllusionaryOverlay(overlay, "creator-out-of-range");
           continue;

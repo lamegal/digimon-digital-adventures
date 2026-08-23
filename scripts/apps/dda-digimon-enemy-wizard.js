@@ -420,7 +420,10 @@ function createEnemyBossDraft(form = null) {
     options: {
       bigScary: {
         enabled: false,
-        dpIncreasePercent: 50
+        dpIncreasePercent: 50,
+        healthFocusEnabled: false,
+        healthFocusPercent: 70,
+        appliedHealthFocusDp: 0
       },
       bossTemplate: {
         enabled: false
@@ -469,6 +472,19 @@ function normalizeEnemyBossDraft(boss = {}, form = null) {
     10,
     100,
     50
+  );
+  source.options.bigScary.healthFocusEnabled = Boolean(
+    source.options?.bigScary?.healthFocusEnabled
+  );
+  source.options.bigScary.healthFocusPercent = clampEnemyBossNumber(
+    source.options?.bigScary?.healthFocusPercent,
+    0,
+    100,
+    70
+  );
+  source.options.bigScary.appliedHealthFocusDp = Math.max(
+    0,
+    Number(source.options?.bigScary?.appliedHealthFocusDp ?? 0) || 0
   );
   source.options.multiStage.stageCount = clampEnemyBossNumber(
     source.options?.multiStage?.stageCount,
@@ -2166,6 +2182,8 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
           "Recommends 10% to 100% more DP than the party average."
         ),
         bossDpIncrease: text("Aumento de PD", "DP increase"),
+        bossHealthFocus: text("Focar PD extra em Health", "Focus extra DP into Health"),
+        bossHealthFocusPercent: text("Foco em Health", "Health focus"),
         bossOptionTemplate: text("Opção 2 · Boss Template", "Option 2 · Boss Template"),
         bossOptionTemplateHint: text(
           "Planeja um Turno e um Pool de Ferimentos por jogador. Cada pool usa as Caixas de Ferimento normais desta build.",
@@ -2179,6 +2197,8 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
           "Recommends one enemy Digimon per player. This is encounter planning; create or duplicate the required NPCs."
         ),
         bossEnemyCount: text("Inimigos recomendados", "Recommended enemies"),
+        bossDpPerEnemy: text("PD por inimigo", "DP per enemy"),
+        bossTagTeamTotalDp: text("PD total do encontro", "Total encounter DP"),
         bossOptionRaid: text("Opção 4 · Raid Boss", "Option 4 · Raid Boss"),
         bossOptionRaidHint: text(
           "Usa como referência +50% de PD e calcula o NA do Decipher Intent da Raid Action.",
@@ -2186,6 +2206,10 @@ export class DDADigimonEnemyWizard extends DDADigimonEnemyWizardBase {
         ),
         bossRaidTn: text("NA da Raid Action", "Raid Action TN"),
         bossRaidNotes: text("Notas / mecânicas da Raid Action", "Raid Action notes / mechanics"),
+        bossRaidResistanceAdvice: text(
+          "A regra recomenda resistência — não imunidade — a vários Efeitos Negativos. Use Resistant/Qualidades apropriadas conforme a build; o Builder não inventa um bônus universal.",
+          "The rule recommends resistance — not immunity — to several Negative Effects. Use Resistant/appropriate Qualities for the build; the Builder does not invent a universal bonus."
+        ),
         bossOptionMultiStage: text("Opção 5 · Boss Multi-Stage", "Option 5 · Multi-Stage Boss"),
         bossOptionMultiStageHint: text(
           "Planeja de 2 a 4 fases. A troca de forma e a recuperação total são registradas como configuração do Boss.",
@@ -2888,6 +2912,21 @@ static async _onRemoveEnemyAttack(event, target) {
 
     this.enemyBuild.baseDp = recommended;
 
+    const boss = this._ensureEnemyBossDraft();
+    const focusDp = Math.max(0, Number(preview.boss?.healthFocusDp ?? 0));
+    if (boss.options.bigScary.healthFocusEnabled && focusDp > 0) {
+      const alreadyApplied = Math.max(0, Number(boss.options.bigScary.appliedHealthFocusDp ?? 0));
+      const delta = Math.max(0, focusDp - alreadyApplied);
+      if (delta > 0) {
+        this.enemyBuild.statInvestments ??= {};
+        this.enemyBuild.statInvestments.health = Math.max(
+          0,
+          Number(this.enemyBuild.statInvestments.health ?? 0) + delta
+        );
+        boss.options.bigScary.appliedHealthFocusDp = focusDp;
+      }
+    }
+
     await this._renderPreservingScroll({
       preserveForms: true,
       preservePreview: true
@@ -3042,7 +3081,14 @@ static async _onRemoveEnemyAttack(event, target) {
 
   _setEnemyBossOption(key = "", enabled = false) {
     const boss = this._ensureEnemyBossDraft();
-    const option = boss.options?.[String(key ?? "")];
+    const normalizedKey = String(key ?? "");
+
+    if (normalizedKey === "bigScaryHealthFocus") {
+      boss.options.bigScary.healthFocusEnabled = Boolean(enabled);
+      return;
+    }
+
+    const option = boss.options?.[normalizedKey];
     if (!option) return;
     option.enabled = Boolean(enabled);
   }
@@ -3072,6 +3118,16 @@ static async _onRemoveEnemyAttack(event, target) {
         10,
         100,
         boss.options.bigScary.dpIncreasePercent
+      );
+      return;
+    }
+
+    if (numericKey === "bigScaryHealthFocusPercent") {
+      boss.options.bigScary.healthFocusPercent = clampEnemyBossNumber(
+        value,
+        0,
+        100,
+        boss.options.bigScary.healthFocusPercent
       );
       return;
     }
@@ -3124,6 +3180,11 @@ static async _onRemoveEnemyAttack(event, target) {
         )
       : stageBaseDp;
 
+    const extraRecommendedDp = Math.max(0, recommendedBaseDp - stageBaseDp);
+    const healthFocusDp = boss.options.bigScary.enabled && boss.options.bigScary.healthFocusEnabled
+      ? Math.floor(extraRecommendedDp * (boss.options.bigScary.healthFocusPercent / 100))
+      : 0;
+
     const bossQualityCount = selectedQualityRows.filter((row) => {
       return isDdaBossQuality(row.quality);
     }).length;
@@ -3133,12 +3194,16 @@ static async _onRemoveEnemyAttack(event, target) {
       enabled: isBoss,
       recommendedIncreasePercent,
       recommendedBaseDp,
+      extraRecommendedDp,
+      healthFocusDp,
       raidTn: 10 + Math.max(0, Number(stageValue ?? 0)) + boss.partyMilestones,
       poolCount: partySize,
       turnCount: partySize,
       woundsPerPool: Math.max(0, Number(wounds ?? 0)),
       totalWoundCapacity: Math.max(0, Number(wounds ?? 0)) * partySize,
       tagTeamEnemyCount: partySize,
+      tagTeamDpPerEnemy: Math.max(0, Number(averagePartyDp ?? stageBaseDp)),
+      tagTeamTotalDp: Math.max(0, Number(averagePartyDp ?? stageBaseDp)) * partySize,
       bossQualityCount,
       bossQualityOverAdvice: bossQualityCount > 2,
       stageCount: boss.options.multiStage.stageCount,
@@ -5491,6 +5556,21 @@ _buildEnemyAttackItems(form = {}, build = {}) {
       const isRanged = rangeType === "range";
       const isSupport = functionType === "support";
 
+      /*
+       * Enemy/NPC attacks must carry a usable ranged profile in their own
+       * Item source. This matters for synthetic Token actors and for any
+       * runtime path that reads the Attack before the Actor's derived data
+       * has been prepared. The old builder hard-coded 3 and could leave a
+       * ranged Support move effectively at 0 on a spawned Token.
+       */
+      const rangedValue = isRanged
+        ? Math.max(1, Number(build.range ?? 3))
+        : 0;
+
+      const effectiveLimitValue = isRanged
+        ? Math.max(rangedValue, Number(build.effectiveLimit ?? rangedValue))
+        : 0;
+
       const qualityTags =
         this._getEnemyAttackQualityTags(
           attack.key,
@@ -5533,17 +5613,17 @@ _buildEnemyAttackItems(form = {}, build = {}) {
           },
 
           range: {
-            value: isRanged ? 3 : 0,
+            value: rangedValue,
             bonus: 0,
             qualityBonus: 0,
-            total: isRanged ? 3 : 0
+            total: rangedValue
           },
 
           effectiveLimit: {
-            value: isRanged ? 3 : 0,
+            value: effectiveLimitValue,
             bonus: 0,
             qualityBonus: 0,
-            total: isRanged ? 3 : 0
+            total: effectiveLimitValue
           },
 
           qualityTags,
@@ -7282,6 +7362,266 @@ removeEnemyQualityById(
     });
   }
 
+  async _resolveEnemyQualityAttackChoices(actor) {
+    if (!actor?.items) return;
+
+    const normalizeTag = (value = "") => {
+      return String(value ?? "")
+        .trim()
+        .replace(/^\[|\]$/g, "")
+        .toLowerCase();
+    };
+
+    const attacks = Array.from(actor.items).filter((item) => {
+      return item.type === "attack";
+    });
+
+    const attackByIdentity = new Map();
+
+    for (const attack of attacks) {
+      const identities = [
+        attack.id,
+        attack.system?.wizard?.attackKey,
+        attack.flags?.[DDA_SYSTEM_ID]?.enemyBuilderAttackKey,
+        attack.flags?.[DDA_SYSTEM_ID]?.wizardAttackKey
+      ]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean);
+
+      for (const identity of identities) {
+        attackByIdentity.set(identity, attack);
+      }
+    }
+
+    const findAttackForChoice = (choice = {}) => {
+      const keyText = String(choice.key ?? "").trim();
+      const separatorIndex = keyText.indexOf(":");
+      const keyAttackPart = separatorIndex > 0
+        ? keyText.slice(0, separatorIndex).trim()
+        : keyText;
+
+      const identities = [
+        choice.attackId,
+        choice.attackItemId,
+        choice.itemId,
+        choice.attackKey,
+        choice.builderAttackKey,
+        keyAttackPart
+      ]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean);
+
+      for (const identity of identities) {
+        const attack = attackByIdentity.get(identity);
+        if (attack) return attack;
+      }
+
+      const explicitAttackName = String(
+        choice.attackName ?? ""
+      ).trim();
+
+      /*
+       * Effect choices are displayed as "Attack Name — [TAG]". Some older
+       * Enemy Builder payloads retained that display label but lost the
+       * provisional attackKey during serialization. Recover only the Attack
+       * portion of that label so the post-create rebinder can still attach the
+       * purchased Effect to the real embedded Attack Item.
+       */
+      const displayLabel = String(
+        choice.label ??
+        choice.originalLabel ??
+        ""
+      ).trim();
+
+      const labelAttackName = displayLabel
+        .split(/\s+[—–]\s+\[/u)[0]
+        .trim();
+
+      const attackNames = [explicitAttackName, labelAttackName]
+        .filter(Boolean);
+
+      for (const attackName of attackNames) {
+        const matched = attacks.find((attack) => {
+          return String(attack.name ?? "").trim() === attackName;
+        });
+
+        if (matched) return matched;
+      }
+
+      return null;
+    };
+
+    const qualities = Array.from(actor.items).filter((item) => {
+      return item.type === "quality";
+    });
+
+    for (const quality of qualities) {
+      const selectedRanks = Array.isArray(
+        quality.system?.choices?.selectedRanks
+      )
+        ? foundry.utils.deepClone(
+            quality.system.choices.selectedRanks
+          )
+        : [];
+
+      if (!selectedRanks.length) continue;
+
+      const choiceType = String(
+        quality.system?.choices?.type ?? ""
+      ).trim();
+
+      const appliesTo = String(
+        quality.system?.attackModifier?.appliesTo ?? ""
+      ).trim();
+
+      const isEffectQuality =
+        choiceType === "effectTagPerRank" ||
+        appliesTo === "oneAttackPerPurchasedEffect";
+
+      const effectOptions = Array.isArray(
+        quality.system?.choices?.options
+      )
+        ? quality.system.choices.options
+        : [];
+
+      const optionByTag = new Map(
+        effectOptions.map((option) => [
+          normalizeTag(option?.key),
+          option
+        ])
+      );
+
+      let changedQuality = false;
+      const nextChoices = [];
+
+      for (const choice of selectedRanks) {
+        const attack = findAttackForChoice(choice);
+
+        if (!attack) {
+          nextChoices.push(choice);
+          continue;
+        }
+
+        const keyText = String(choice.key ?? "").trim();
+        const separatorIndex = keyText.indexOf(":");
+        const keyTag = separatorIndex > 0
+          ? keyText.slice(separatorIndex + 1)
+          : "";
+
+        const tag = normalizeTag(
+          choice.effectTag ??
+          choice.attackTag ??
+          choice.grantedTag ??
+          keyTag
+        );
+
+        const builderAttackKey = String(
+          attack.flags?.[DDA_SYSTEM_ID]?.enemyBuilderAttackKey ??
+          attack.system?.wizard?.attackKey ??
+          ""
+        ).trim();
+
+        const currentTags = Array.isArray(
+          attack.system?.qualityTags
+        )
+          ? foundry.utils.deepClone(attack.system.qualityTags)
+          : [];
+
+        const normalizedCurrentTags = currentTags.map(normalizeTag);
+
+        if (tag && !normalizedCurrentTags.includes(tag)) {
+          currentTags.push(tag);
+        }
+
+        const attackUpdate = {};
+
+        if (
+          currentTags.length !==
+          (attack.system?.qualityTags?.length ?? 0)
+        ) {
+          attackUpdate["system.qualityTags"] = currentTags;
+        }
+
+        if (isEffectQuality && tag) {
+          const option = optionByTag.get(tag) ?? {};
+
+          const effectData = {
+            enabled: true,
+            tag,
+            type: String(
+              choice.effectType ??
+              choice.type ??
+              option.type ??
+              ""
+            ),
+            sourceQualityId: String(
+              quality.system?.sourceId ??
+              quality.id ??
+              ""
+            ),
+            potencyStat: String(
+              choice.potencyStat ??
+              choice.potency ??
+              option.potencyStat ??
+              option.potency ??
+              ""
+            ),
+            duration:
+              choice.duration ??
+              option.duration ??
+              true
+          };
+
+          attackUpdate["system.effectTag"] = effectData;
+
+          if (
+            String(
+              attack.system?.baseTags?.functionType ?? ""
+            ).trim().toLowerCase() === "support"
+          ) {
+            attackUpdate["system.support.effect"] = String(
+              choice.effect ??
+              option.effect ??
+              attack.system?.support?.effect ??
+              ""
+            );
+          }
+        }
+
+        if (Object.keys(attackUpdate).length) {
+          await attack.update(attackUpdate);
+        }
+
+        changedQuality = true;
+
+        nextChoices.push({
+          ...choice,
+          key: tag
+            ? `${attack.id}:${tag}`
+            : attack.id,
+          attackId: attack.id,
+          attackKey: builderAttackKey || choice.attackKey || "",
+          builderAttackKey:
+            builderAttackKey || choice.builderAttackKey || "",
+          attackName: attack.name,
+          attackTag: tag || choice.attackTag || "",
+          effectTag:
+            isEffectQuality
+              ? tag
+              : String(choice.effectTag ?? "").trim(),
+          pendingAttackChoice: false,
+          pendingAttackSlot: null
+        });
+      }
+
+      if (changedQuality) {
+        await quality.update({
+          "system.choices.selectedRanks": nextChoices
+        });
+      }
+    }
+  }
+
   _adjustEnemyStat(statKey, adjustment = 0) {
     const selected = this._getSelectedForm();
 
@@ -8065,6 +8405,15 @@ const tokenCandidates = await getTokenCandidates(
 
     if (!actor) return;
 
+    /*
+     * Actor.create() assigns the real embedded Item IDs only after the
+     * Enemy Builder payload has been materialized. Rebind every attack-bound
+     * Quality to those real IDs and mirror purchased Effect Tags onto the
+     * Attack itself. This keeps Enemy/Ally attacks identical to Partner
+     * attacks for sheets, Token synthetic actors, and combat resolution.
+     */
+    await this._resolveEnemyQualityAttackChoices(actor);
+
     const woundsMax = Number(
       actor.system?.miscStats?.wounds?.max ?? 0
     );
@@ -8192,7 +8541,9 @@ const tokenCandidates = await getTokenCandidates(
               : null,
             tagTeam: build.boss?.options?.tagTeam?.enabled
               ? {
-                  recommendedEnemyCount: Number(build.boss?.tagTeamEnemyCount ?? 1)
+                  recommendedEnemyCount: Number(build.boss?.tagTeamEnemyCount ?? 1),
+                  dpPerEnemy: Number(build.boss?.tagTeamDpPerEnemy ?? build.boss?.averagePartyDp ?? 0),
+                  totalEncounterDp: Number(build.boss?.tagTeamTotalDp ?? 0)
                 }
               : null,
             raid: build.boss?.options?.raidBoss?.enabled
@@ -8401,6 +8752,42 @@ const tokenCandidates = await getTokenCandidates(
           stageValue,
           build.statInvestments ?? {}
         ),
+
+        /*
+         * Store the important derived combat distances in the Actor source as
+         * well. prepareDerivedData will still recalculate them normally, but
+         * Token/synthetic-Actor creation no longer has a transient 0-range
+         * state to inherit.
+         */
+        miscStats: {
+          movement: {
+            label: "DDA.Resource.Movement",
+            base: Math.max(0, Number(build.movement ?? 0)),
+            bonus: 0,
+            qualityBonus: 0,
+            effectBonus: 0,
+            value: Math.max(0, Number(build.movement ?? 0)),
+            total: Math.max(0, Number(build.movement ?? 0))
+          },
+          wounds: {
+            label: "DDA.Resource.WoundBoxes",
+            value: Math.max(1, Number(build.wounds ?? 1)),
+            max: Math.max(1, Number(build.wounds ?? 1)),
+            temp: { value: 0, source: "", duration: "" }
+          },
+          range: {
+            label: "DDA.Resource.Range",
+            base: Math.max(0, Number(build.range ?? 3)),
+            value: Math.max(0, Number(build.range ?? 3)),
+            total: Math.max(0, Number(build.range ?? 3))
+          },
+          effectiveLimit: {
+            label: "DDA.Resource.EffectiveLimit",
+            base: Math.max(0, Number(build.effectiveLimit ?? build.range ?? 3)),
+            value: Math.max(0, Number(build.effectiveLimit ?? build.range ?? 3)),
+            total: Math.max(0, Number(build.effectiveLimit ?? build.range ?? 3))
+          }
+        },
 
         creation: {
           dp: {

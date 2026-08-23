@@ -1,7 +1,10 @@
 import { withDDAMovementContext } from "../canvas/movement-context.js";
 import { spendActorActions } from "./action-economy.js";
 import { areActorsAllies, areActorsAlliesForQualities } from "../rules/quality-automation.js";
-import { getTokenGridDistance } from "./positioning.js";
+import {
+  getTokenGridDistance,
+  measureGridPointDistanceSpaces
+} from "./positioning.js";
 import { hasBossQuality } from "./boss-qualities.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
@@ -1003,10 +1006,11 @@ function validateSocketPlacement(source, scene, pointOrPoints, spec) {
     bottom: number(point.y) + height * grid
   }));
   for (const [index, rectangle] of rectangles.entries()) {
-    const distance = Math.max(
-      Math.abs(rectangle.left - sourceCenter.x),
-      Math.abs(rectangle.top - sourceCenter.y)
-    ) / grid;
+    const candidateCenter = {
+      x: rectangle.left + ((rectangle.right - rectangle.left) / 2),
+      y: rectangle.top + ((rectangle.bottom - rectangle.top) / 2)
+    };
+    const distance = measureGridPointDistanceSpaces(sourceCenter, candidateCenter);
     if (distance > range) return false;
     if (rectangles.some((other, otherIndex) => otherIndex !== index && (
       rectangle.left < other.right && rectangle.right > other.left &&

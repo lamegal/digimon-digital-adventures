@@ -18,6 +18,9 @@ import { hasQuality } from "../rules/quality-automation.js";
 import {
   applyEndTurnEffectDamage
 } from "./effect-damage.js";
+import {
+  expireNonStackingTemporaryWounds
+} from "./temporary-wounds.js";
 
 export async function endDigimonTurn(actor, options = {}) {
   if (!actor || (actor.type !== "digimon" && actor.type !== "npc")) {
@@ -548,68 +551,12 @@ async function clearExpiredShieldTemp(actor, expiredEffects = []) {
 
   if (!expiredShield) return false;
 
-  const tempPath = actor.type === "character"
-    ? "system.derived.wounds.temp"
-    : ["digimon", "npc"].includes(actor.type)
-      ? "system.miscStats.wounds.temp"
-      : "";
-
-  if (!tempPath) return false;
-
-  const temp = foundry.utils.getProperty(actor, tempPath) ?? {};
-  const source = String(temp.source ?? "");
-  const sourceKey = source
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-  if (!sourceKey.includes("shield") && !sourceKey.includes("escudo")) {
-    return false;
-  }
-
-  const shieldRemaining = Math.max(
-    0,
-    Number(
-      expiredShield.tempWoundsRemaining ??
-      expiredShield.tempWounds ??
-      0
-    )
-  );
-
-  const current = Math.max(
-    0,
-    Number(temp.value ?? 0)
-  );
-
-  const nextValue = Math.max(
-    0,
-    current - shieldRemaining
-  );
-
-  const nextSource = source
-    .split("+")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .filter((entry) => {
-      const key = entry
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-      return !key.includes("shield") && !key.includes("escudo");
-    })
-    .join(" + ");
-
-  await actor.update({
-    [`${tempPath}.value`]: nextValue,
-    [`${tempPath}.source`]: nextSource,
-    ...(
-      nextValue <= 0 || !nextSource
-        ? { [`${tempPath}.duration`]: "" }
-        : {}
-    )
+  const result = await expireNonStackingTemporaryWounds(actor, {
+    sourceId: "shield",
+    effectId: String(expiredShield.id ?? "")
   });
 
-  return true;
+  return Boolean(result?.expired);
 }
 
 function getLinkedTamerEndTurnActionRestrictions(actor, maxActions) {

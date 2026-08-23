@@ -979,6 +979,88 @@ function withMovementBack(actor, token, children) {
   ];
 }
 
+function withEnvironmentBack(actor, token, children) {
+  return [
+    {
+      key: "__environmentBack",
+      label: text("Voltar ao Ambiente", "Back to Environment"),
+      icon: HUD_ICONS.previous,
+      tone: "movement",
+      children: () => environmentQuickItems(actor, token)
+    },
+    ...children
+  ];
+}
+
+async function environmentQuickItems(actor, token) {
+  const environment = await import("../combat/environment.js");
+  const state = environment.getCombatEnvironmentState(actor);
+  const update = (patch) => environment.updateCombatEnvironmentState(actor, patch);
+
+  return [
+    {
+      key: "environment-editor",
+      label: text("Configuração completa", "Full Environment Editor"),
+      icon: HUD_ICONS.config,
+      tone: "tactical",
+      handler: () => environment.openCombatEnvironmentDialog(actor)
+    },
+    {
+      key: "environment-sight",
+      label: text("Visibilidade", "Visibility"),
+      icon: state.sight === "blinded" ? HUD_ICONS.hidden : HUD_ICONS.visibility,
+      tone: "tactical",
+      cost: state.sight === "unobscured" ? "OK" : state.sight === "obscured" ? "OBS" : "BLIND",
+      active: state.sight !== "unobscured",
+      children: () => withEnvironmentBack(actor, token, [
+        { key: "sight-clear", label: "Unobscured", icon: HUD_ICONS.visibility, active: state.sight === "unobscured", handler: () => update({ sight: "unobscured" }) },
+        { key: "sight-obscured", label: "Obscured", icon: HUD_ICONS.visibility, active: state.sight === "obscured", handler: () => update({ sight: "obscured" }) },
+        { key: "sight-blinded", label: "Blinded", icon: HUD_ICONS.hidden, active: state.sight === "blinded", handler: () => update({ sight: "blinded" }) }
+      ])
+    },
+    {
+      key: "environment-cover",
+      label: "Cover",
+      icon: HUD_ICONS.guard,
+      tone: "tactical",
+      cost: state.cover === "major" ? "+2" : state.cover === "partial" ? "+1" : "0",
+      active: state.cover !== "none",
+      children: () => withEnvironmentBack(actor, token, [
+        { key: "cover-none", label: text("Sem Cover", "No Cover"), icon: HUD_ICONS.guard, active: state.cover === "none", handler: () => update({ cover: "none" }) },
+        { key: "cover-partial", label: text("Cover Parcial (+1)", "Partial Cover (+1)"), icon: HUD_ICONS.guard, active: state.cover === "partial", handler: () => update({ cover: "partial" }) },
+        { key: "cover-major", label: text("Cover Maior (+2)", "Major Cover (+2)"), icon: HUD_ICONS.guard, active: state.cover === "major", handler: () => update({ cover: "major" }) }
+      ])
+    },
+    {
+      key: "environment-hidden",
+      label: "Hidden",
+      icon: HUD_ICONS.hidden,
+      tone: "tactical",
+      cost: state.hidden ? "ON" : "OFF",
+      active: state.hidden,
+      handler: () => update({ hidden: !state.hidden })
+    },
+    {
+      key: "environment-submerged",
+      label: "Submerged",
+      icon: HUD_ICONS.movement,
+      tone: "movement",
+      cost: state.submerged ? "ON" : "OFF",
+      active: state.submerged,
+      handler: () => update({ submerged: !state.submerged })
+    },
+    {
+      key: "environment-drowning",
+      label: text("Sem ar", "No Air"),
+      icon: HUD_ICONS.holdBreath,
+      tone: "effect-negative",
+      cost: state.drowning ? "ON" : "OFF",
+      active: state.drowning,
+      handler: () => update({ drowning: !state.drowning })
+    }
+  ];
+}
+
 async function movementStanceItems(actor, token, definition) {
   if (!["digimon", "npc"].includes(actor?.type)) return [];
 
@@ -1038,7 +1120,7 @@ async function movementSubmenuItems(actor, token) {
   if (!definition) return [];
 
   const items = [];
-  for (const key of ["move", "difficultMove"]) {
+  for (const key of ["move", "longJump", "difficultMove"]) {
     const entry = movementEntry(definition, key);
     if (!entry) continue;
     items.push({
@@ -1065,6 +1147,14 @@ async function movementSubmenuItems(actor, token) {
       });
     }
   }
+
+  items.push({
+    key: "movement-environment",
+    label: text("Ambiente", "Environment"),
+    icon: HUD_ICONS.visibility,
+    tone: "tactical",
+    children: async () => withMovementBack(actor, token, await environmentQuickItems(actor, token))
+  });
 
   return items;
 }

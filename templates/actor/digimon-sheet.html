@@ -629,7 +629,7 @@
 
 <div class="combat-actions">
   <button type="button" class="open-digimon-actions">{{localize "DDA.DigimonAction.Menu.Title"}}</button>
-  <button type="button" class="end-turn"><i class="fa-solid fa-forward-step"></i> {{localize "DDA.EndTurn.Title"}}</button>
+  <button type="button" class="end-turn" data-action="endTurn"><i class="fa-solid fa-forward-step"></i> {{localize "DDA.EndTurn.Title"}}</button>
 
   {{#if settings.energizeAction}}
   <button type="button" class="energize-action">{{localize "DDA.Energize.Title"}}</button>
@@ -838,24 +838,39 @@
   </div>
 
   <div class="item-list">
-    {{#each itemsByType.attack as |item|}}
-    <div class="item-row" data-item-id="{{item.id}}">
+    {{#each combatAttacks as |item|}}
+    <div class="item-row dda-combat-attack-row" data-item-id="{{item.id}}">
       <img src="{{item.img}}" title="{{item.name}}" />
-      <div class="item-name">
+
+      <div class="item-name dda-combat-attack-info">
         <strong>{{item.name}}</strong>
-        <span>
-          {{#if item.system.isSignature}}{{localize "DDA.Attack.Signature"}}{{else}}{{localize "DDA.Item.Attack"}}{{/if}}
-        </span>
+
+        <div class="dda-combat-attack-badges">
+          <span class="dda-attack-kind-pill">
+            {{#if item.system.isSignature}}{{localize "DDA.Attack.Signature"}}{{else}}{{localize "DDA.Item.Attack"}}{{/if}}
+          </span>
+
+          {{#each item.combatBadges as |badge|}}
+          <span
+            class="dda-attack-linked-pill dda-attack-linked-pill--{{badge.kind}}"
+            title="{{badge.title}}"
+            data-tooltip="{{badge.title}}"
+          >{{badge.label}}</span>
+          {{/each}}
+        </div>
       </div>
-<div class="item-tags">
-  <span>{{ddaAttackRangeLabel item.system.baseTags.rangeType}}</span>
-  <span>{{ddaAttackFunctionLabel item.system.baseTags.functionType}}</span>
-</div>
-<div class="item-controls">
-  <button type="button" class="roll-attack">{{localize "DDA.Button.Attack"}}</button>
-  <button type="button" class="item-edit">{{localize "DDA.Button.Edit"}}</button>
-  <button type="button" class="item-delete">{{localize "DDA.Button.Delete"}}</button>
-</div>    </div>
+
+      <div class="item-tags dda-combat-attack-core-tags">
+        <span>{{ddaAttackRangeLabel item.system.baseTags.rangeType}}</span>
+        <span>{{ddaAttackFunctionLabel item.system.baseTags.functionType}}</span>
+      </div>
+
+      <div class="item-controls">
+        <button type="button" class="roll-attack">{{localize "DDA.Button.Attack"}}</button>
+        <button type="button" class="item-edit">{{localize "DDA.Button.Edit"}}</button>
+        <button type="button" class="item-delete">{{localize "DDA.Button.Delete"}}</button>
+      </div>
+    </div>
     {{/each}}
   </div>
 </section>
