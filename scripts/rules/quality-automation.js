@@ -45,6 +45,7 @@ export const QUALITY_ALIASES = {
   lifesteal: ["roubodevida", "lifesteal", "life steal"],
   reload: ["recarregar", "reload"],
   combatAwareness: ["conscienciadecombate", "percepcaodecombate", "combatawareness", "combat awareness"],
+  tacticalOrder: ["ordemtatica", "ordem tatica", "tacticalorder", "tactical order"],
   hordeDuelist: ["duelistadehordas", "hordeduelist", "horde duelist"],
   aggressiveFlank: ["flancoagressivo", "aggressiveflank", "aggressive flank"],
   hideInPlainSight: ["ocultarseavistadetodos", "ocultareseavistadetodos", "ocultarseavista", "hideinplainsight", "hide in plain sight"],

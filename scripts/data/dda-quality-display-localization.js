@@ -142,7 +142,7 @@ const DDA_QUALITY_EN_DISPLAY_OVERRIDES = {
   "perfuracaoDeArmadura": {
     "fields": {
       "requirements.text": "Requires Total Damage 4 for Rank 1, 8 for Rank 2, and 12 for Rank 3.",
-      "incompatible.text": "[PIERCING] and [CERTAIN] cannot be applied to the same Attack unless both are applied to the Signature Move.",
+      "incompatible.text": "",
       "choices.label": "Attack with [PIERCING]",
       "effect": "On first purchase, apply the [PIERCING] Tag to one [DAMAGE] Attack. An Attack with [PIERCING] deals Unalterable Damage on a hit equal to twice this Quality's Ranks, or equal to this Quality's Ranks on an Area Attack. [PIERCING] may only be applied to one Attack per Digimon. If [PIERCING] is applied to a Signature Move, Battery added to the Attack's Damage may become Unalterable Damage instead, up to this Quality's Ranks, chosen when the Tag is applied to the Attack.",
       "description": "Armor Piercing allows one specific [DAMAGE] Attack to bypass defenses and deal fixed Unalterable Damage on a hit."
@@ -151,7 +151,7 @@ const DDA_QUALITY_EN_DISPLAY_OVERRIDES = {
   "golpeCerteiro": {
     "fields": {
       "requirements.text": "Requires Total Accuracy 4 for Rank 1, 8 for Rank 2, and 12 for Rank 3.",
-      "incompatible.text": "[CERTAIN] and [PIERCING] cannot be applied to the same Attack unless both are applied to the Signature Move.",
+      "incompatible.text": "",
       "choices.label": "Attack with [CERTAIN]",
       "effect": "On first purchase, apply the [CERTAIN] Tag to one [DAMAGE] Attack. An Attack with [CERTAIN] gains automatic Successes equal to this Quality's Ranks. [CERTAIN] may only be applied to one Attack per Digimon. If [CERTAIN] is applied to a Signature Move and the Digimon has 2 Battery or more, the Attack gains +1 additional automatic Success.",
       "description": "Certain Strike makes one specific [DAMAGE] Attack more reliable by granting automatic Accuracy Successes."
@@ -220,7 +220,7 @@ const DDA_QUALITY_EN_DISPLAY_OVERRIDES = {
   "venenoso": {
     "fields": {
       "choices.label": "[DAMAGE] Attack with [VENOM]",
-      "effect": "Apply [VENOM] to one [DAMAGE] Attack. If the Attack hits, the attacker makes a BIT (Survival) Check against TN 10 + the target's RAM. On a success, the target suffers [POISON] for 1 Round; if it already has [POISON], the Potency increases by 1. On a critical success, the Potency increases by an additional +1. Area Attacks do not receive this benefit."
+      "effect": "Apply [VENOM] to one [DAMAGE] Attack. On a hit, the Attacker may roll BIT (Survival) against TN 10 + the Target's RAM. Critical Failure gives the Attack -1 Damage; Failure has no effect; Success applies [POISON] for 1 Round, or increases existing [POISON] Potency by 1; Critical Success also adds +1 Potency. Area Attacks gain no benefit. [POISON] and [VENOM] cannot share an Attack. On a Signature Move, Battery is added to the applied [POISON] Potency."
     }
   },
   "alcance": {

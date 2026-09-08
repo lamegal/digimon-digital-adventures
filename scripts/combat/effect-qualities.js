@@ -757,8 +757,8 @@ export async function resolveInspiringGuidanceAfterAttack({
     ? Math.max(0, number(currentBattery))
     : 0;
   let guidingDice = signatureDice;
-  if (check.criticalSuccess) guidingDice += rank + 1;
-  else if (check.success) guidingDice += rank;
+  if (check.criticalSuccess) guidingDice += (rank * 2) + 2;
+  else if (check.success) guidingDice += rank * 2;
 
   if (check.criticalFailure) {
     await adjustEffectDuration(selected.defender, selected, -1);

@@ -7,7 +7,8 @@ import {
 } from "../rules/tamer-resources.js";
 
 import {
-  getActorSv
+  getActorSv,
+  hasQuality
 } from "../rules/quality-automation.js";
 import {
   grantShiningDigizoidTemporaryIp,
@@ -988,6 +989,123 @@ function initiativeCard(units) {
   `;
 }
 
+function swapInitiativeUnits(units, sourceUnitId, targetUnitId) {
+  const sourceIndex = units.findIndex((unit) => unit.id === sourceUnitId);
+  const targetIndex = units.findIndex((unit) => unit.id === targetUnitId);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return false;
+  [units[sourceIndex], units[targetIndex]] = [units[targetIndex], units[sourceIndex]];
+  return true;
+}
+
+async function promptTacticalOrderSwap(unit, allies) {
+  const options = allies.map((ally) => {
+    return `<option value="${html(ally.id)}">${html(unitName(ally))}</option>`;
+  }).join("");
+
+  return foundry.applications.api.DialogV2.wait({
+    classes: ["dda", "dda-tactical-order-dialog"],
+    position: { width: 520, height: "auto" },
+    window: { title: label("Ordem Tática", "Tactical Order") },
+    modal: true,
+    content: `<form class="dda-roll-dialog">
+      <p>${label(
+        `<strong>${html(unitName(unit))}</strong> pode trocar sua posição de Iniciativa com um aliado disposto pelo restante do Combate.`,
+        `<strong>${html(unitName(unit))}</strong> may swap its Initiative position with a willing ally for the rest of this Combat.`
+      )}</p>
+      <div class="form-group"><label>${label("Aliado disposto", "Willing Ally")}</label><select name="targetUnitId">${options}</select></div>
+    </form>`,
+    buttons: [
+      {
+        action: "swap",
+        label: label("Trocar posições", "Swap Positions"),
+        icon: "fa-solid fa-right-left",
+        default: true,
+        callback: (_event, button) => String(button.form?.elements?.targetUnitId?.value ?? "")
+      },
+      {
+        action: "keep",
+        label: label("Manter ordem", "Keep Order"),
+        icon: "fa-solid fa-xmark",
+        callback: () => ""
+      }
+    ],
+    rejectClose: false,
+    close: () => ""
+  });
+}
+
+async function applyTacticalOrderInitiativeSwaps(units, combat) {
+  if (!combat || !Array.isArray(units) || units.length < 2) return units;
+
+  const stored = foundry.utils.deepClone(
+    combat.getFlag?.(SYSTEM_ID, "tacticalOrder") ?? {}
+  );
+  const state = {
+    resolvedActorUuids: Array.isArray(stored.resolvedActorUuids)
+      ? [...new Set(stored.resolvedActorUuids.map(String))]
+      : [],
+    swaps: Array.isArray(stored.swaps) ? stored.swaps : []
+  };
+
+  // Reapply prior choices whenever Initiative is rebuilt. The Combat flag is
+  // authoritative, so the choice survives evolution or loss of the Quality.
+  for (const swap of state.swaps) {
+    swapInitiativeUnits(units, String(swap.sourceUnitId ?? ""), String(swap.targetUnitId ?? ""));
+  }
+
+  const resolved = new Set(state.resolvedActorUuids);
+  let changed = false;
+
+  for (const unit of [...units]) {
+    const actor = unit.primaryActor;
+    const actorUuid = String(actor?.uuid ?? "");
+    if (!actorUuid || resolved.has(actorUuid) || unit.initiative?.temporal) continue;
+    if (!hasQuality(actor, "tacticalOrder")) continue;
+    if (!game.user?.isGM && !actor.testUserPermission?.(
+      game.user,
+      CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER
+    )) continue;
+
+    const allies = units.filter((candidate) => {
+      return candidate.id !== unit.id &&
+        candidate.side === unit.side &&
+        !candidate.initiative?.temporal;
+    });
+
+    let targetUnitId = "";
+    if (allies.length) {
+      targetUnitId = await promptTacticalOrderSwap(unit, allies);
+    }
+
+    resolved.add(actorUuid);
+    changed = true;
+
+    if (!targetUnitId) continue;
+    const target = units.find((candidate) => candidate.id === targetUnitId);
+    if (!target || !swapInitiativeUnits(units, unit.id, target.id)) continue;
+
+    state.swaps.push({
+      sourceActorUuid: actorUuid,
+      sourceUnitId: unit.id,
+      targetUnitId: target.id,
+      targetActorUuid: String(target.primaryActor?.uuid ?? ""),
+      chosenAt: new Date().toISOString()
+    });
+
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: `<div class="dda-chat-card dda-effect-card effect-positive"><h2>${label("Ordem Tática", "Tactical Order")}</h2><p><strong>${html(unitName(unit))}</strong> ${label("trocou sua posição de Iniciativa com", "swapped Initiative position with")} <strong>${html(unitName(target))}</strong> ${label("pelo restante do Combate.", "for the rest of the Combat.")}</p></div>`
+    });
+  }
+
+  if (changed) {
+    state.resolvedActorUuids = [...resolved];
+    await combat.setFlag(SYSTEM_ID, "tacticalOrder", state);
+  }
+
+  return units;
+}
+
 
 function tacticalAdaptationActorOwners(actor) {
   const charmIds = game?.dda?.bossQualities?.getCharmAuthorizedUserIds?.(actor, { includeGMs: true });
@@ -1133,6 +1251,8 @@ export async function rollDDACombatInitiative(
       ...normalUnits,
       ...units.filter((unit) => unit.initiative?.temporal)
     ]);
+
+    await applyTacticalOrderInitiativeSwaps(ordered, combat);
 
 if (!combat.started) {
   await resetCombatStancesToNeutral(combat);
@@ -1762,9 +1882,9 @@ async function processDDAUnitStart(combat, anchorCombatant = combat?.combatant) 
 
     const trueGuardianRefund =
       memberActor.system?.combat?.intercedeUsage?.trueGuardianRefund ?? null;
-    if (trueGuardianRefund?.pending) {
+    if (trueGuardianRefund) {
       const sameCombat = String(trueGuardianRefund.combatId ?? "") === String(combat?.id ?? "");
-      if (sameCombat) {
+      if (sameCombat && trueGuardianRefund.pending) {
         await memberActor.update({
           "system.combat.actions.value": Math.max(
             0,
@@ -2880,7 +3000,7 @@ export function registerDDACombatInitiativeHooks() {
     }
     for (const actor of actors.values()) {
       const refund = actor.system?.combat?.intercedeUsage?.trueGuardianRefund ?? null;
-      if (!refund?.pending) continue;
+      if (!refund) continue;
       if (refund.combatId && combatId && String(refund.combatId) !== combatId) continue;
       await actor.update({
         "system.combat.intercedeUsage.-=trueGuardianRefund": null

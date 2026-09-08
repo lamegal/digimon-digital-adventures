@@ -1062,6 +1062,7 @@ await this._applyDataSpecializationFreeGrant(
       quality: quality.name
     }));
 
+    this.actor.sheet?.render(false);
     this.render();
   }
 
@@ -2391,6 +2392,14 @@ const availableOptions =
           `;
         })
         .join("");
+
+      /*
+       * DialogV2 runs this callback in strict module scope. These values were
+       * previously implicit globals, so the first render threw before the
+       * selected Effect details and compatible Attack list were populated.
+       */
+      let selectedTag = effectGroups[0]?.tag ?? "";
+      let activeFilter = "all";
 
       const selectedKey = await DialogV2.wait({
         classes: ["dda", "dda-effect-choice-dialog"],
@@ -3736,14 +3745,6 @@ _getAttackChoiceOptionsForQuality(
       return false;
     }
 
-    if (["perfuracaodearmadura", "armorpiercing"].includes(offensiveQualityKey)) {
-      if (tags.has("certain") && !isSignature) return false;
-    }
-
-    if (["golpecerteiro", "certainstrike"].includes(offensiveQualityKey)) {
-      if (tags.has("piercing") && !isSignature) return false;
-    }
-
     if (["venenoso", "venomous"].includes(offensiveQualityKey)) {
       if (tags.has("poison")) return false;
     }
@@ -4000,6 +4001,7 @@ await this._applyDataSpecializationFreeGrant(
       rank: nextRank
     }));
 
+    this.actor.sheet?.render(false);
     this.render();
   }
 

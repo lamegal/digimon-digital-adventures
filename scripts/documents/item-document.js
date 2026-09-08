@@ -1,3 +1,5 @@
+import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+
 const DDA_QUALITY_AUTOMATION_DEFAULTS = {
   instinto: {
     grants: {
@@ -733,12 +735,159 @@ function resolveDdaItemDefaultIcon(item, { type = null, rangeType = null, parent
 
 function applyQualityAutomationDefaults(item) {
   const automationKey = getQualityAutomationKey(item);
-  if (!automationKey) return;
+  if (automationKey) {
+    const defaults = DDA_QUALITY_AUTOMATION_DEFAULTS[automationKey];
+    if (defaults) applyMissingQualityAutomation(item.system, defaults);
+  }
 
-  const defaults = DDA_QUALITY_AUTOMATION_DEFAULTS[automationKey];
-  if (!defaults) return;
+  applyCurrentQualityDefinition(item);
+}
 
-  applyMissingQualityAutomation(item.system, defaults);
+const CURRENT_RULE_QUALITY_IDS = new Set([
+  "ordemTatica",
+  "orientacaoInspiradora",
+  "perfuracaoDeArmadura",
+  "golpeCerteiro",
+  "conjurador",
+  "invocador",
+  "evocador",
+  "venenoso",
+  "substituir",
+  "perigoDigital"
+]);
+
+function getCurrentQualityDefinition(item) {
+  const identities = new Set([
+    item?.system?.sourceId,
+    item?.system?.id,
+    item?.system?.originalName,
+    item?.name
+  ].map(normalizeQualityAutomationLookup).filter(Boolean));
+
+  return DDA_DIGIMON_QUALITIES.find((definition) => (
+    CURRENT_RULE_QUALITY_IDS.has(definition.id) &&
+    [definition.id, definition.name, definition.originalName]
+      .some((value) => identities.has(normalizeQualityAutomationLookup(value)))
+  )) ?? null;
+}
+
+function applyCurrentQualityDefinition(item) {
+  const definition = getCurrentQualityDefinition(item);
+  if (!definition) return;
+
+  const system = item.system;
+  const currentRankValue = Number(system.rank?.value ?? definition.rank?.value ?? 1);
+  const currentChoices = cloneQualityAutomationValue(system.choices ?? {});
+  const currentCreation = cloneQualityAutomationValue(system.creation ?? {});
+
+  for (const key of [
+    "section",
+    "tier",
+    "originalTier",
+    "category",
+    "availability",
+    "stageRequirement",
+    "requirements",
+    "incompatible",
+    "requiredFor",
+    "statRankRequirement",
+    "effect",
+    "description",
+    "result",
+    "substitute",
+    "hazard"
+  ]) {
+    if (definition[key] !== undefined) {
+      system[key] = cloneQualityAutomationValue(definition[key]);
+    }
+  }
+
+  system.cost = {
+    ...(system.cost ?? {}),
+    ...cloneQualityAutomationValue(definition.cost ?? {})
+  };
+  system.rank = {
+    ...(system.rank ?? {}),
+    ...cloneQualityAutomationValue(definition.rank ?? {}),
+    value: currentRankValue
+  };
+  system.grants = {
+    ...(system.grants ?? {}),
+    ...cloneQualityAutomationValue(definition.grants ?? {})
+  };
+  system.attackModifier = {
+    ...(system.attackModifier ?? {}),
+    ...cloneQualityAutomationValue(definition.attackModifier ?? {})
+  };
+  system.activation = {
+    ...(system.activation ?? {}),
+    ...cloneQualityAutomationValue(definition.activation ?? {})
+  };
+
+  const canonicalChoices = cloneQualityAutomationValue(definition.choices ?? {});
+  system.choices = {
+    ...currentChoices,
+    ...canonicalChoices,
+    options: Array.isArray(canonicalChoices.options) && canonicalChoices.options.length
+      ? canonicalChoices.options
+      : (currentChoices.options ?? []),
+    selectedRanks: currentChoices.selectedRanks ?? [],
+    selected: currentChoices.selected ?? []
+  };
+
+  /* Legacy Conjurer/Summoner Items predate the current option schema. Give
+   * them a deterministic Rank-1 choice so an existing Actor remains usable
+   * without deleting and repurchasing the Quality. Explicit current choices
+   * always win. */
+  if (["conjurador", "invocador"].includes(definition.id)) {
+    const validOptions = Array.isArray(canonicalChoices.options)
+      ? canonicalChoices.options
+      : [];
+    const validKeys = new Set(validOptions.map((option) => normalizeQualityAutomationLookup(option.key)));
+    const selectedRanks = Array.isArray(system.choices.selectedRanks)
+      ? system.choices.selectedRanks
+      : [];
+    const selected = Array.isArray(system.choices.selected)
+      ? system.choices.selected
+      : (system.choices.selected ? [system.choices.selected] : []);
+    const hasCurrentChoice = [...selectedRanks, ...selected].some((choice) => validKeys.has(normalizeQualityAutomationLookup(
+      choice?.key ?? choice?.originalLabel ?? choice?.label ?? choice
+    )));
+    if (!hasCurrentChoice && validOptions.length) {
+      const fallback = validOptions[0];
+      system.choices.selectedRanks = [{
+        ...cloneQualityAutomationValue(fallback),
+        rank: 1,
+        key: fallback.key,
+        label: fallback.label ?? fallback.key,
+        originalLabel: fallback.originalLabel ?? ""
+      }];
+    }
+  }
+
+  if (definition.creation !== undefined) {
+    system.creation = {
+      ...currentCreation,
+      ...cloneQualityAutomationValue(definition.creation),
+      appearance: currentCreation.appearance ?? definition.creation?.appearance ?? "",
+      summoningMethod: currentCreation.summoningMethod ?? definition.creation?.summoningMethod ?? ""
+    };
+  }
+
+  if (definition.rankLimit !== undefined) {
+    system.rankLimit = cloneQualityAutomationValue(definition.rankLimit);
+  } else {
+    system.rankLimit = {};
+  }
+
+  if (["perfuracaoDeArmadura", "golpeCerteiro"].includes(definition.id)) {
+    delete system.attackModifier.cannotShareWithTagsUnlessSignatureMove;
+  }
+
+  if (definition.id === "perfuracaoDeArmadura") {
+    delete system.attackModifier.piercingUnalterablePerLeftoverSuccess;
+    delete system.attackModifier.piercingUnalterableMaxPerRank;
+  }
 }
 
 export class DDAItem extends Item {

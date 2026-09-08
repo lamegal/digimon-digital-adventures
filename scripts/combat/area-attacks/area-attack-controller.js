@@ -22,6 +22,8 @@ import {
   requestAreaIntercede
 } from "../intercede.js";
 
+import { getTokenGridDistance } from "../positioning.js";
+
 const AREA_TAGS_IMPLEMENTED = new Set([
   "t:blast",
   "t:burst",
@@ -185,6 +187,8 @@ function elementLabel(element = "") {
 function getNaturewalkElements(actor) {
   const prepared = actor?.system?.qualityFeatures?.naturewalk?.elements ?? [];
   const values = Array.isArray(prepared) ? prepared : [];
+  const inheritedTerrain = actor?.flags?.["digimon-digital-adventures"]
+    ?.evokerCreation?.naturewalkTerrainElements ?? [];
   const fallback = actor?.items?.flatMap?.((item) => {
     if (item?.type !== "quality") return [];
     const id = normalizeKey(item?.system?.sourceId ?? item?.name ?? "");
@@ -192,8 +196,20 @@ function getNaturewalkElements(actor) {
     return getSelectedChoiceKeys(item);
   }) ?? [];
 
-  return [...new Set([...values, ...fallback].map(normalizeElement).filter(Boolean))]
-    .map((key) => ({ key, label: elementLabel(key) }));
+  const entries = [
+    ...values.map((value) => ({ key: value, label: elementLabel(value) })),
+    ...fallback.map((value) => ({ key: value, label: elementLabel(value) })),
+    ...inheritedTerrain.map((entry) => ({
+      key: entry?.key ?? entry,
+      label: String(entry?.label ?? elementLabel(entry?.key ?? entry))
+    }))
+  ];
+  const unique = new Map();
+  for (const entry of entries) {
+    const key = normalizeElement(entry.key);
+    if (key && !unique.has(key)) unique.set(key, { key, label: entry.label || elementLabel(key) });
+  }
+  return [...unique.values()];
 }
 
 async function promptMobileArtilleryTerrain({ attacker, attackItem } = {}) {
@@ -891,6 +907,10 @@ export function canAreaAttackReachTarget({
     if (!bounds) return false;
     const maximum = Math.max(0, Number(bounds.maximum ?? bounds.base ?? 0));
 
+    if (tag === "t:burst") {
+      return getTokenGridDistance(attackerToken, targetToken) <= maximum + 0.001;
+    }
+
     // BLAST may place its center anywhere within the Attack's Range, then extends
     // from that center by its selected Area size. Other implemented Areas are
     // anchored on/adjacent to the attacker and can be rotated toward the Target.
@@ -934,6 +954,10 @@ function buildTemplateData({ attackerToken, tag, size, requestId } = {}) {
   const normalizedTag = normalizeAreaTag(tag);
   const isWave = normalizedTag === "t:wave";
   const tokenWidth = Math.max(1, Number(attackerToken?.document?.width ?? 1));
+  const tokenHeight = Math.max(1, Number(attackerToken?.document?.height ?? 1));
+  const burstExpansion = normalizedTag === "t:burst"
+    ? Math.max(0, (Math.max(tokenWidth, tokenHeight) - 1) / 2)
+    : 0;
   const sizeOrder = ["small", "medium", "large", "huge", "gigantic", "colossal"];
   const sizeKey = String(attackerToken?.actor?.system?.size ?? "medium").trim().toLowerCase();
   const sizeIndex = sizeOrder.indexOf(sizeKey);
@@ -950,7 +974,7 @@ function buildTemplateData({ attackerToken, tag, size, requestId } = {}) {
     user: game.user.id,
     x: center.x,
     y: center.y,
-    distance: getTemplateDistance(tag, size),
+    distance: getTemplateDistance(tag, Number(size ?? 1) + burstExpansion),
     direction: isWave ? 45 : 0,
     angle: normalizedTag === "t:cone" ? 90 : 0,
     width: lineWidth * getGridDistance(),
@@ -1241,7 +1265,7 @@ async function deletePersistentTemplate(document) {
   }
 }
 
-function tokenIsInsideBaseArea(token, templateData, bounds) {
+function tokenIsInsideBaseArea(token, templateData, bounds, attackerToken = null) {
   if (!token || !templateData || !bounds) return false;
 
   const originX = Number(templateData.x ?? 0);
@@ -1250,6 +1274,11 @@ function tokenIsInsideBaseArea(token, templateData, bounds) {
   const normalizedTag = normalizeAreaTag(
     templateData?.flags?.[game.system.id]?.[AREA_PREVIEW_FLAG]?.tag ?? ""
   );
+
+  if (normalizedTag === "t:burst" && attackerToken) {
+    return getTokenGridDistance(attackerToken, token) <=
+      Math.max(0, Number(bounds.base ?? 1)) + 0.001;
+  }
 
   /*
    * All targets reaching this point are already inside the selected maximum
@@ -1329,14 +1358,22 @@ function filterAreaTargets({
   forcedAll = false
 } = {}) {
   const templateObject = getTemplateObject(templateDocument);
-  if (!templateObject?.shape?.contains) return [];
-
   const normalizedTag = normalizeAreaTag(tag);
+  const isBurst = normalizedTag === "t:burst";
+  if (!isBurst && !templateObject?.shape?.contains) return [];
+
+  const selectedSize = Math.max(0, Number(
+    templateDocument?.flags?.[game.system.id]?.[AREA_PREVIEW_FLAG]?.size ??
+    templateObject?.document?.flags?.[game.system.id]?.[AREA_PREVIEW_FLAG]?.size ??
+    0
+  ));
 
   return (canvas?.tokens?.placeables ?? [])
     .filter((token) => token?.actor)
     .filter((token) => game.user.isGM || !token.document?.hidden)
-    .filter((token) => templateContainsToken(templateObject, token))
+    .filter((token) => isBurst
+      ? getTokenGridDistance(attackerToken, token) <= selectedSize + 0.001
+      : templateContainsToken(templateObject, token))
     .filter((token) => {
       const sameToken = token.id === attackerToken?.id;
       if (!sameToken) return true;
@@ -3261,7 +3298,8 @@ export async function runAreaAttackWorkflow({
           insideBaseSize: tokenIsInsideBaseArea(
             token,
             templateData,
-            bounds
+            bounds,
+            attackerToken
           ),
           trueGuardianProtection: getTrueGuardianProtection({
             attacker,

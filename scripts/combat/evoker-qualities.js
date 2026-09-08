@@ -21,6 +21,15 @@ function text(pt, en) {
   return english() ? en : pt;
 }
 
+function escapeHtml(value = "") {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function number(value, fallback = 0) {
   const result = Number(value);
   return Number.isFinite(result) ? result : fallback;
@@ -114,13 +123,15 @@ function gridDistance(a, point) {
   return Math.max(Math.abs(point.x - ax), Math.abs(point.y - ay)) / size;
 }
 
-function occupiedAt(point, width = 1, height = 1) {
+function occupiedAt(point, width = 1, height = 1, { ignoredActorIds = new Set() } = {}) {
   const size = Math.max(1, number(canvas?.grid?.size, 100));
   const left = point.x;
   const top = point.y;
   const right = left + width * size;
   const bottom = top + height * size;
   return (canvas?.tokens?.placeables ?? []).some((token) => {
+    const actorId = String(token.actor?.id ?? token.document?.actorId ?? "");
+    if (ignoredActorIds.has(actorId)) return false;
     const x = number(token.document?.x);
     const y = number(token.document?.y);
     const r = x + Math.max(1, number(token.document?.width, 1)) * size;
@@ -129,7 +140,7 @@ function occupiedAt(point, width = 1, height = 1) {
   });
 }
 
-async function pickCanvasPoint(actor, { width = 1, height = 1 } = {}) {
+async function pickCanvasPoint(actor, { width = 1, height = 1, ignoredActorIds = new Set() } = {}) {
   const token = sourceToken(actor);
   if (!canvas?.ready || !canvas?.stage || !token) {
     ui.notifications.warn(text("O Digimon precisa ter um Token na cena ativa.", "The Digimon needs a Token on the active Scene."));
@@ -156,7 +167,7 @@ async function pickCanvasPoint(actor, { width = 1, height = 1 } = {}) {
         ui.notifications.warn(text("O espaço está fora do Alcance.", "That space is outside Range."));
         return;
       }
-      if (occupiedAt(snapped, width, height)) {
+      if (occupiedAt(snapped, width, height, { ignoredActorIds })) {
         ui.notifications.warn(text("O espaço precisa estar desocupado.", "The space must be unoccupied."));
         return;
       }
@@ -182,8 +193,40 @@ async function chooseCreation(title, content, callback) {
 }
 
 function selectedChoiceKeys(quality) {
-  return new Set((quality?.system?.choices?.selectedRanks ?? [])
-    .flatMap((choice) => [choice?.key, choice?.originalLabel, choice?.label]).map(identity).filter(Boolean));
+  const ranked = Array.isArray(quality?.system?.choices?.selectedRanks)
+    ? quality.system.choices.selectedRanks
+    : [];
+  const selected = Array.isArray(quality?.system?.choices?.selected)
+    ? quality.system.choices.selected
+    : (quality?.system?.choices?.selected ? [quality.system.choices.selected] : []);
+  return new Set([...ranked, ...selected]
+    .flatMap((choice) => typeof choice === "string"
+      ? [choice]
+      : [choice?.key, choice?.originalLabel, choice?.label])
+    .map(identity)
+    .filter(Boolean));
+}
+
+function qualityIdentityKeys(quality) {
+  return new Set([
+    quality?.system?.sourceId,
+    quality?.system?.originalName,
+    quality?.name
+  ].map(identity).filter(Boolean));
+}
+
+function qualityHasAnyIdentity(quality, aliases = []) {
+  const keys = qualityIdentityKeys(quality);
+  return aliases.some((alias) => keys.has(identity(alias)));
+}
+
+function sourceHasSelectedQualityChoice(source, qualityAliases = [], choiceAliases = []) {
+  const wantedChoices = new Set(choiceAliases.map(identity));
+  return Boolean(source?.items?.some?.((quality) => (
+    quality?.type === "quality" &&
+    qualityHasAnyIdentity(quality, qualityAliases) &&
+    [...selectedChoiceKeys(quality)].some((choice) => wantedChoices.has(choice))
+  )));
 }
 
 function naturewalkElements(actor) {
@@ -242,10 +285,36 @@ function creationActorsForSource(actor, kind = "") {
   });
 }
 
-async function deleteCreationLocal(created, { refund = false } = {}) {
+function creationFoundationIds(created) {
+  const flag = created?.flags?.[SYSTEM_ID]?.evokerCreation ?? {};
+  return new Set([
+    ...(Array.isArray(flag.foundationActorIds) ? flag.foundationActorIds : []),
+    ...(Array.isArray(flag.foundationActorUuids) ? flag.foundationActorUuids : [])
+  ].map((value) => String(value ?? "").trim()).filter(Boolean));
+}
+
+function dependentStructures(created) {
+  const identifiers = new Set([String(created?.id ?? ""), String(created?.uuid ?? "")].filter(Boolean));
+  if (!identifiers.size) return [];
+  return (game.actors?.contents ?? []).filter((candidate) => {
+    const flag = candidate?.flags?.[SYSTEM_ID]?.evokerCreation;
+    if (flag?.kind !== "structure" || candidate.id === created.id || flag.deleting) return false;
+    return [...creationFoundationIds(candidate)].some((id) => identifiers.has(id));
+  });
+}
+
+async function deleteCreationLocal(created, { refund = false, cascade = true } = {}) {
   const flag = created?.flags?.[SYSTEM_ID]?.evokerCreation;
   if (!flag || flag.deleting) return;
   await created.update({ [`${CREATION_FLAG}.deleting`]: true });
+  const collapsed = cascade && flag.kind === "structure"
+    ? dependentStructures(created)
+    : [];
+  for (const dependent of collapsed) {
+    /* A dependent Structure collapses because its foundation was destroyed;
+     * it did not itself reach 0 Wound Boxes, so its Mastery is not refunded. */
+    await deleteCreationLocal(dependent, { refund: false, cascade: true });
+  }
   if (refund) {
     const source = await fromUuid(flag.sourceActorUuid).catch(() => null);
     await refundMastery(source, Math.max(0, number(flag.masteryCost)));
@@ -255,25 +324,108 @@ async function deleteCreationLocal(created, { refund = false } = {}) {
     if (ids.length) await scene.deleteEmbeddedDocuments("Token", ids);
   }
   await created.delete();
+  if (collapsed.length) {
+    await ChatMessage.create({
+      content: `<div class="dda-chat-card"><h2>${text("Colapso de Estrutura", "Structure Collapse")}</h2><p>${collapsed.map((entry) => `<strong>${escapeHtml(entry.name)}</strong>`).join(", ")} ${text("desabou porque sua fundação foi destruída.", "collapsed because its foundation was destroyed.")}</p></div>`
+    });
+  }
 }
 
-async function deleteCreation(created, { refund = false } = {}) {
+async function deleteCreation(created, { refund = false, cascade = true } = {}) {
   if (!created) return false;
   if (game.user.isGM) {
-    await deleteCreationLocal(created, { refund });
+    await deleteCreationLocal(created, { refund, cascade });
     return true;
   }
   const result = await requestEvokerGmOperation("delete", {
     creationUuid: created.uuid,
-    refund: Boolean(refund)
+    refund: Boolean(refund),
+    cascade: Boolean(cascade)
   });
   return Boolean(result?.ok);
 }
 
 async function clearCreations(actor, kind, keepIds = new Set(), { refund = false } = {}) {
   for (const created of creationActorsForSource(actor, kind)) {
-    if (!keepIds.has(created.id)) await deleteCreation(created, { refund });
+    if (!keepIds.has(created.id)) await deleteCreation(created, { refund, cascade: false });
   }
+}
+
+function expandStructureKeepSet(structures, keepIds) {
+  const expanded = new Set([...keepIds].map(String));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const structure of structures) {
+      if (!expanded.has(String(structure.id))) continue;
+      for (const foundationId of creationFoundationIds(structure)) {
+        const foundation = structures.find((candidate) => (
+          String(candidate.id) === foundationId || String(candidate.uuid) === foundationId
+        ));
+        if (foundation && !expanded.has(String(foundation.id))) {
+          expanded.add(String(foundation.id));
+          changed = true;
+        }
+      }
+    }
+  }
+  return expanded;
+}
+
+function structureTokenRectangles(structure) {
+  const size = Math.max(1, number(canvas?.grid?.size, 100));
+  return (canvas?.tokens?.placeables ?? [])
+    .filter((token) => String(token.actor?.id ?? token.document?.actorId ?? "") === String(structure?.id ?? ""))
+    .map((token) => ({
+      left: number(token.document?.x),
+      top: number(token.document?.y),
+      right: number(token.document?.x) + Math.max(1, number(token.document?.width, 1)) * size,
+      bottom: number(token.document?.y) + Math.max(1, number(token.document?.height, 1)) * size
+    }));
+}
+
+function pointIsSupportedByStructure(point, width, height, structure) {
+  const size = Math.max(1, number(canvas?.grid?.size, 100));
+  const rectangle = {
+    left: number(point?.x),
+    top: number(point?.y),
+    right: number(point?.x) + Math.max(1, number(width, 1)) * size,
+    bottom: number(point?.y) + Math.max(1, number(height, 1)) * size
+  };
+  return structureTokenRectangles(structure).some((foundation) => (
+    rectangle.left < foundation.right && rectangle.right > foundation.left &&
+    rectangle.top < foundation.bottom && rectangle.bottom > foundation.top
+  ));
+}
+
+function restrictClonedQualityChoices(data, allowedAliases = []) {
+  const allowed = new Set(allowedAliases.map(identity));
+  const keep = (choice) => allowed.has(identity(
+    choice?.key ?? choice?.value ?? choice?.id ?? choice?.originalLabel ?? choice?.label ?? choice
+  ));
+  const choices = data?.system?.choices ?? {};
+
+  if (Array.isArray(choices.selectedRanks)) {
+    choices.selectedRanks = choices.selectedRanks.filter(keep);
+  }
+  if (Array.isArray(choices.selected)) {
+    choices.selected = choices.selected.filter(keep);
+  } else if (choices.selected && !keep(choices.selected)) {
+    choices.selected = [];
+  }
+
+  const remaining = [
+    ...(Array.isArray(choices.selectedRanks) ? choices.selectedRanks : []),
+    ...(Array.isArray(choices.selected) ? choices.selected : []),
+    ...(!Array.isArray(choices.selected) && choices.selected ? [choices.selected] : [])
+  ];
+  if (data?.system?.rank) {
+    data.system.rank.value = Math.min(
+      Math.max(0, number(data.system.rank.value, remaining.length)),
+      remaining.length
+    );
+  }
+  return remaining.length;
 }
 
 function tokenSize(size) {
@@ -368,10 +520,10 @@ async function createEvokerActor(source, spec, pointOrPoints, items = []) {
 }
 
 function inheritedQualityData(source, minionType) {
-  const all = new Set(["otimizacaodedados", "dataoptimization", "velocista", "speedster", "acelerar", "accelerate", "movimentoextra", "extramovement", "mobilidadeavancada", "advancedmobility", "acrobata", "tumbler", "flancoagressivo", "aggressiveflank"]);
+  const all = new Set(["otimizacaodedados", "dataoptimization", "velocista", "speedster", "acelerar", "accelerate", "movimentoextra", "extramovement", "mobilidadeavancada", "advancedmobility", "acrobata", "tumbler"]);
   const byType = {
-    infantry: new Set(["especializacaodedados", "dataspecialization", "guardiaoverdadeiro", "trueguardian"]),
-    protector: new Set(),
+    infantry: new Set(["flancoagressivo", "aggressiveflank"]),
+    protector: new Set(["especializacaodedados", "dataspecialization", "guardiaoverdadeiro", "trueguardian"]),
     recon: new Set(["especializacaodedados", "dataspecialization", "atiradordeelite", "sniper", "combatenteadistancia", "rangedstriker"]),
     volatile: new Set(["passonatural", "naturewalk", "especializacaodedados", "dataspecialization", "artilhariamovel", "mobileartillery"])
   };
@@ -380,27 +532,70 @@ function inheritedQualityData(source, minionType) {
     const keys = [item.system?.sourceId, item.system?.originalName, item.name].map(identity);
     const choiceKeys = selectedChoiceKeys(item);
     if (keys.some((key) => ["otimizacaodedados", "dataoptimization"].includes(key))) {
-      const permitted = ["closecombat", "combatecorpoacorpo", "speedster", "velocista"];
+      /* Speedster is inherited only as +1 Movement, applied to the creation's
+       * fixed Movement below. Embedding it would also grant its Dodge benefit. */
+      const permitted = ["closecombat", "combatecorpoacorpo"];
       if (minionType === "recon") permitted.push("rangedstriker", "combatenteadistancia");
       return permitted
         .some((key) => choiceKeys.has(key));
     }
     if (keys.some((key) => ["especializacaodedados", "dataspecialization"].includes(key))) {
       const permitted = {
-        infantry: ["trueguardian", "guardiaoverdadeiro"],
+        /* Protector inherits only True Guardian's Action refund. That narrow
+         * benefit is tracked on the Summoner when the Protector Intercedes. */
+        protector: [],
         recon: ["sniper", "atiradordeelite"],
         volatile: ["mobileartillery", "artilhariamovel"]
       }[minionType] ?? [];
       return permitted.some((key) => choiceKeys.has(key));
     }
+    /* Volatile inherits only Naturewalk's Terrain permission. Its selected
+     * Elements are stored on the creation flag instead of embedding the full
+     * Quality (which would also grant stats, reductions and elemental defense). */
+    if (keys.some((key) => ["passonatural", "naturewalk"].includes(key))) return false;
+    /* Standalone legacy Speedster Items receive the same Movement-only rule. */
+    if (keys.some((key) => ["velocista", "speedster"].includes(key))) return false;
+    /* A standalone legacy True Guardian Item must not restore the parts that
+     * Protector explicitly does not inherit. */
+    if (keys.some((key) => ["guardiaoverdadeiro", "trueguardian"].includes(key))) return false;
     return keys.some((key) => all.has(key) || byType[minionType]?.has(key));
   }).map((item) => {
     const data = item.toObject();
     delete data._id;
+
+    const keys = qualityIdentityKeys(item);
+    if ([...keys].some((key) => ["otimizacaodedados", "dataoptimization"].includes(key))) {
+      const permitted = ["closecombat", "combatecorpoacorpo"];
+      if (minionType === "recon") permitted.push("rangedstriker", "combatenteadistancia");
+      if (!restrictClonedQualityChoices(data, permitted)) return null;
+    }
+    if ([...keys].some((key) => ["especializacaodedados", "dataspecialization"].includes(key))) {
+      const permitted = minionType === "recon"
+        ? ["sniper", "atiradordeelite"]
+        : minionType === "volatile"
+          ? ["mobileartillery", "artilhariamovel"]
+          : [];
+      if (!restrictClonedQualityChoices(data, permitted)) return null;
+    }
+    if ([...keys].some((key) => ["movimentoextra", "extramovement"].includes(key))) {
+      const allMovementChoices = [
+        ...(Array.isArray(data.system?.choices?.selectedRanks) ? data.system.choices.selectedRanks : []),
+        ...(Array.isArray(data.system?.choices?.selected) ? data.system.choices.selected : []),
+        ...(!Array.isArray(data.system?.choices?.selected) && data.system?.choices?.selected ? [data.system.choices.selected] : [])
+      ];
+      const permitted = allMovementChoices
+        .filter((choice) => !["flight", "fly", "voo"].includes(identity(
+          choice?.key ?? choice?.value ?? choice?.id ?? choice?.originalLabel ?? choice?.label ?? choice
+        )))
+        .flatMap((choice) => [choice?.key, choice?.value, choice?.id, choice?.originalLabel, choice?.label, choice])
+        .filter((choice) => typeof choice === "string" && choice.trim());
+      if (!restrictClonedQualityChoices(data, permitted)) return null;
+    }
+
     data.flags ??= {};
     data.flags[SYSTEM_ID] = { ...(data.flags[SYSTEM_ID] ?? {}), evokerInherited: true };
     return data;
-  });
+  }).filter(Boolean);
 }
 
 function inheritedMovementBonus(source) {
@@ -409,6 +604,7 @@ function inheritedMovementBonus(source) {
     const choices = selectedChoiceKeys(item);
     if (keys.some((key) => ["otimizacaodedados", "dataoptimization"].includes(key)) &&
       (choices.has("speedster") || choices.has("velocista"))) return total + 1;
+    if (keys.some((key) => ["velocista", "speedster"].includes(key))) return total + 1;
     if (keys.some((key) => ["acelerar", "accelerate"].includes(key))) {
       const rank = Math.max(1, number(item.system?.rank?.value, 1));
       const grants = item.system?.grants?.miscStats ?? {};
@@ -416,6 +612,30 @@ function inheritedMovementBonus(source) {
     }
     return total;
   }, 0);
+}
+
+async function trackProtectorTrueGuardianRefund(source, actionCost = 1) {
+  if (!sourceHasSelectedQualityChoice(
+    source,
+    ["especializacaoDeDados", "dataSpecialization"],
+    ["trueGuardian", "guardiaoVerdadeiro"]
+  )) return;
+
+  const combatId = String(game.combat?.id ?? "");
+  const current = source.system?.combat?.intercedeUsage?.trueGuardianRefund ?? {};
+  const sameCombat = !current.combatId || String(current.combatId) === combatId;
+  const spentActions = (sameCombat ? Math.max(0, number(current.spentActions)) : 0) +
+    Math.max(0, number(actionCost));
+
+  await source.update({
+    "system.combat.intercedeUsage.trueGuardianRefund": {
+      pending: Boolean(current.pending && sameCombat) || spentActions >= 2,
+      combatId,
+      round: number(game.combat?.round),
+      spentActions,
+      source: "evokerProtector"
+    }
+  });
 }
 
 function buildMinionAttack(source, type, element = "", { explosion = false } = {}) {
@@ -453,10 +673,23 @@ async function useConjure(actor, { prepaidActions = false, accessOverride = null
     return { handled: true, success: false };
   }
   const choices = selectedChoiceKeys(quality);
+  const existingStructures = creationActorsForSource(actor, "structure");
+  const supportStructures = existingStructures.filter((entry) => (
+    ["platform", "walls"].includes(entry.flags?.[SYSTEM_ID]?.evokerCreation?.subtype)
+  ));
+  const infusedPlatforms = existingStructures.filter((entry) => {
+    const flag = entry.flags?.[SYSTEM_ID]?.evokerCreation;
+    return flag?.subtype === "platform" && Boolean(String(flag.element ?? "").trim()) &&
+      String(flag.platformTerrain ?? "").toLowerCase() !== "dangerous";
+  });
+  const hasTerrainChoice = choices.has("terrain") || choices.has("terreno");
   const options = [
     choices.has("wallsandpillars") || choices.has("paredesepilares") ? ["walls", text("Paredes/Pilares", "Walls/Pillars")] : null,
     choices.has("platforms") || choices.has("plataformas") ? ["platform", text("Plataforma", "Platform")] : null,
-    choices.has("terrain") || choices.has("terreno") ? ["terrain", text("Terreno", "Terrain")] : null
+    hasTerrainChoice ? ["terrain", text("Terreno", "Terrain")] : null,
+    hasTerrainChoice && infusedPlatforms.length
+      ? ["platformDangerous", text("Converter Plataforma em Terreno Perigoso", "Convert Platform into Dangerous Terrain")]
+      : null
   ].filter(Boolean);
   if (!options.length) return { handled: true, success: false };
   const mastery = getMastery(actor);
@@ -467,13 +700,16 @@ async function useConjure(actor, { prepaidActions = false, accessOverride = null
       <label>${text("Ações", "Actions")}<select name="actionCost"><option value="1">1</option><option value="2">2</option></select></label>
       <label>${text("Estrutura", "Structure")}<select name="kind">${options.map(([key, label]) => `<option value="${key}">${label}</option>`).join("")}</select></label>
       <label>${text("Quantidade de espaços", "Number of spaces")}<input type="number" name="spaces" min="1" max="4" value="1"></label>
-      <label>${text("Aparência", "Appearance")}<input type="text" name="appearance" required value="${escape(configuredAppearance)}" ${configuredAppearance ? "readonly" : ""} placeholder="${text("Descreva a criação", "Describe the creation")}"></label>
-      <label>${text("Elemento (Plataforma/Terreno)", "Element (Platform/Terrain)")}<select name="element"><option value="">—</option>${elements.map((element) => `<option value="${escape(element.key)}">${escape(element.label)}</option>`).join("")}</select></label>
+      <label>${text("Aparência", "Appearance")}<input type="text" name="appearance" required value="${escapeHtml(configuredAppearance)}" ${configuredAppearance ? "readonly" : ""} placeholder="${text("Descreva a criação", "Describe the creation")}"></label>
+      <label>${text("Elemento (Plataforma/Terreno)", "Element (Platform/Terrain)")}<select name="element"><option value="">—</option>${elements.map((element) => `<option value="${escapeHtml(element.key)}">${escapeHtml(element.label)}</option>`).join("")}</select></label>
       <label>${text("Camada do Terreno", "Terrain Layer")}<select name="terrainLayer"><option value="surface">${text("Superfície", "Surface")}</option><option value="aerial">${text("Aérea", "Aerial")}</option></select></label>
       <label>${text("Terreno da Plataforma", "Platform Terrain")}<select name="platformTerrain"><option value="">${text("Sem Elemento", "No Element")}</option><option value="basic">${text("Básico", "Basic")}</option><option value="difficult">${text("Difícil", "Difficult")}</option></select></label>
       <label><input type="checkbox" name="existingElement"> ${text("Elemento já existe (Terreno)", "Element already exists (Terrain)")}</label>
       <label><input type="checkbox" name="dangerous"> ${text("Terreno Perigoso (+1 Mastery)", "Dangerous Terrain (+1 Mastery)")}</label>
       <label><input type="checkbox" name="windows"> ${text("Janelas para visão/Ataques (Parede)", "Windows for sight/Attacks (Wall)")}</label>
+      ${supportStructures.length ? `<label>${text("Fundação para Paredes/Pilares (opcional)", "Foundation for Walls/Pillars (optional)")}<select name="foundationId"><option value="">${text("Chão ou outra fundação", "Ground or another foundation")}</option>${supportStructures.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.name)}</option>`).join("")}</select></label>` : ""}
+      ${infusedPlatforms.length ? `<label>${text("Plataforma a converter", "Platform to convert")}<select name="targetStructureId">${infusedPlatforms.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.name)}</option>`).join("")}</select></label>` : ""}
+      ${existingStructures.length ? `<fieldset><legend>${text("Estruturas a recriar/manter", "Structures to recreate/keep")}</legend>${existingStructures.map((entry) => `<label><input type="checkbox" name="keepStructureIds" value="${escapeHtml(entry.id)}"> ${escapeHtml(entry.name)}</label>`).join("")}</fieldset>` : ""}
     </form>`, (_event, button) => ({
       actionCost: Math.max(1, Math.min(2, number(button.form?.elements?.actionCost?.value, 1))),
       kind: String(button.form?.elements?.kind?.value ?? "walls"),
@@ -484,14 +720,24 @@ async function useConjure(actor, { prepaidActions = false, accessOverride = null
       platformTerrain: String(button.form?.elements?.platformTerrain?.value ?? "").trim(),
       existingElement: Boolean(button.form?.elements?.existingElement?.checked),
       dangerous: Boolean(button.form?.elements?.dangerous?.checked),
-      windows: Boolean(button.form?.elements?.windows?.checked)
+      windows: Boolean(button.form?.elements?.windows?.checked),
+      foundationId: String(button.form?.elements?.foundationId?.value ?? "").trim(),
+      targetStructureId: String(button.form?.elements?.targetStructureId?.value ?? "").trim(),
+      keepIds: Array.from(button.form?.querySelectorAll?.("[name='keepStructureIds']:checked") ?? [])
+        .map((input) => String(input.value ?? "").trim())
+        .filter(Boolean)
     }));
   if (!result) return { handled: true, success: false };
-  if (!result.appearance) {
+  if (!options.some(([key]) => key === result.kind)) return { handled: true, success: false };
+  if (result.kind !== "platformDangerous" && !result.appearance) {
     ui.notifications.warn(text("Defina a aparência da criação.", "Define the creation's appearance."));
     return { handled: true, success: false };
   }
-  if (result.kind === "terrain" && (!actor.system?.qualityFeatures?.elementMaster?.active || !result.element)) {
+  if (["terrain", "platformDangerous"].includes(result.kind) && !actor.system?.qualityFeatures?.elementMaster?.active) {
+    ui.notifications.warn(text("Esta opção exige Mestre Elemental.", "This option requires Element Master."));
+    return { handled: true, success: false };
+  }
+  if (result.kind === "terrain" && !result.element) {
     ui.notifications.warn(text("Terreno exige Mestre Elemental e um Elemento de Passo Natural possuído.", "Terrain requires Element Master and an owned Naturewalk Element."));
     return { handled: true, success: false };
   }
@@ -499,20 +745,55 @@ async function useConjure(actor, { prepaidActions = false, accessOverride = null
     ui.notifications.warn(text("Escolha um Elemento de Passo Natural para a Plataforma.", "Choose a Naturewalk Element for the Platform."));
     return { handled: true, success: false };
   }
-  const spaces = result.kind === "platform" ? 1 : result.spaces;
-  const baseCost = result.kind === "walls" ? spaces : result.kind === "platform" ? 2 : (result.existingElement ? 1 : 2) * spaces;
+  const existingIds = new Set(existingStructures.map((entry) => String(entry.id)));
+  let keepIds = new Set(result.keepIds.filter((id) => existingIds.has(id)));
+  const foundation = result.kind === "walls"
+    ? supportStructures.find((entry) => String(entry.id) === result.foundationId)
+    : null;
+  const convertedPlatform = result.kind === "platformDangerous"
+    ? infusedPlatforms.find((entry) => String(entry.id) === result.targetStructureId)
+    : null;
+  if (result.kind === "platformDangerous" && !convertedPlatform) {
+    ui.notifications.warn(text("Escolha uma Plataforma elemental válida.", "Choose a valid elemental Platform."));
+    return { handled: true, success: false };
+  }
+  if (foundation) keepIds.add(String(foundation.id));
+  if (convertedPlatform) keepIds.add(String(convertedPlatform.id));
+  keepIds = expandStructureKeepSet(existingStructures, keepIds);
+
+  const spaces = ["platform", "platformDangerous"].includes(result.kind) ? 1 : result.spaces;
+  const baseCost = result.kind === "walls"
+    ? spaces
+    : result.kind === "platform"
+      ? 2
+      : result.kind === "platformDangerous"
+        ? 1
+        : (result.existingElement ? 1 : 2) * spaces;
   const cost = baseCost + (result.kind === "terrain" && result.dangerous ? spaces : 0);
+  const conversionCost = result.kind === "platformDangerous" ? 2 : cost;
+  const refundableMastery = existingStructures
+    .filter((entry) => !keepIds.has(String(entry.id)))
+    .reduce((total, entry) => total + Math.max(0, number(entry.flags?.[SYSTEM_ID]?.evokerCreation?.masteryCost)), 0);
+  const masteryAvailableAfterReplacement = Math.min(mastery.max, mastery.value + refundableMastery);
   const accessible = accessOverride ?? (result.actionCost === 1 ? Math.floor(mastery.max / 2) : mastery.max);
-  if (cost > accessible || cost > mastery.value) {
-    ui.notifications.warn(text(`A criação exige ${cost} Mastery, mas esta Ação acessa no máximo ${accessible}.`, `The creation costs ${cost} Mastery, but this Action accesses at most ${accessible}.`));
+  if (conversionCost > accessible || conversionCost > masteryAvailableAfterReplacement) {
+    ui.notifications.warn(text(`A criação exige ${conversionCost} Mastery, mas esta Ação acessa no máximo ${accessible}.`, `The creation costs ${conversionCost} Mastery, but this Action accesses at most ${accessible}.`));
     return { handled: true, success: false };
   }
   const dimensions = result.kind === "platform" ? { width: 2, height: 1 } : { width: 1, height: 1 };
   const points = [];
   const gridSize = Math.max(1, number(canvas?.grid?.size, 100));
-  while (points.length < spaces) {
-    const point = await pickCanvasPoint(actor, dimensions);
+  const ignoredActorIds = new Set(existingStructures
+    .filter((entry) => !keepIds.has(String(entry.id)))
+    .map((entry) => String(entry.id)));
+  if (foundation) ignoredActorIds.add(String(foundation.id));
+  while (result.kind !== "platformDangerous" && points.length < spaces) {
+    const point = await pickCanvasPoint(actor, { ...dimensions, ignoredActorIds });
     if (!point) return { handled: true, success: false };
+    if (foundation && !pointIsSupportedByStructure(point, dimensions.width, dimensions.height, foundation)) {
+      ui.notifications.warn(text("O segmento precisa ficar sobre a Fundação escolhida.", "The segment must be placed over the selected Foundation."));
+      continue;
+    }
     const overlapsSelection = points.some((other) => (
       Math.abs(number(point.x) - number(other.x)) < dimensions.width * gridSize &&
       Math.abs(number(point.y) - number(other.y)) < dimensions.height * gridSize
@@ -534,8 +815,24 @@ async function useConjure(actor, { prepaidActions = false, accessOverride = null
     points.push(point);
   }
   if (!prepaidActions && !(await spendActorActions(actor, result.actionCost))) return { handled: true, success: false };
-  if (!(await spendMastery(actor, cost))) return { handled: true, success: false };
-  await clearCreations(actor, "structure");
+  await clearCreations(actor, "structure", keepIds, { refund: true });
+  if (!(await spendMastery(actor, conversionCost))) return { handled: true, success: false };
+  if (convertedPlatform) {
+    const flag = convertedPlatform.flags?.[SYSTEM_ID]?.evokerCreation ?? {};
+    try {
+      await convertedPlatform.update({
+        [`${CREATION_FLAG}.platformTerrain`]: "dangerous",
+        [`${CREATION_FLAG}.terrainUpgradeMasteryCost`]: Math.max(0, number(flag.terrainUpgradeMasteryCost)) + conversionCost,
+        [`${CREATION_FLAG}.masteryCost`]: Math.max(0, number(flag.masteryCost)) + conversionCost
+      });
+    } catch (error) {
+      await refundMastery(actor, conversionCost);
+      throw error;
+    }
+    await markCooldown(actor, "conjure");
+    await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<div class="dda-chat-card"><h2>${text("Conjurar", "Conjure")}</h2><p><strong>${escapeHtml(convertedPlatform.name)}</strong> ${text("foi convertida em Terreno Perigoso", "was converted into Dangerous Terrain")} (${conversionCost} Mastery).</p></div>` });
+    return { handled: true, success: true, masterySpent: conversionCost, actionCost: result.actionCost };
+  }
   const dos = Math.max(0, number(actor.system?.derivedStats?.dos?.total ?? actor.system?.derivedStats?.dos?.value));
   const wounds = result.kind === "platform" ? 2 : spaces;
   const created = await createEvokerActor(actor, {
@@ -551,15 +848,17 @@ async function useConjure(actor, { prepaidActions = false, accessOverride = null
     element: result.element,
     platformTerrain: result.kind === "platform" ? result.platformTerrain : "",
     windows: result.kind === "walls" && result.windows,
+    foundationActorIds: foundation ? [String(foundation.id)] : [],
+    foundationActorUuids: foundation ? [String(foundation.uuid)] : [],
     accuracy: 0, damage: 0, movement: 0, armor: 0, dodge: 0, size: "medium"
   }, points);
   if (!created) {
-    await refundMastery(actor, cost);
+    await refundMastery(actor, conversionCost);
     return { handled: true, success: false };
   }
   await markCooldown(actor, "conjure");
-  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<div class="dda-chat-card"><h2>${text("Conjurar", "Conjure")}</h2><p><strong>${actor.name}</strong> ${text("criou", "created")} <strong>${result.appearance}</strong> (${cost} Mastery).</p></div>` });
-  return { handled: true, success: true, masterySpent: cost, actionCost: result.actionCost };
+  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<div class="dda-chat-card"><h2>${text("Conjurar", "Conjure")}</h2><p><strong>${escapeHtml(actor.name)}</strong> ${text("criou", "created")} <strong>${escapeHtml(result.appearance)}</strong> (${conversionCost} Mastery).</p></div>` });
+  return { handled: true, success: true, masterySpent: conversionCost, actionCost: result.actionCost };
 }
 
 function getSummonerType(quality) {
@@ -615,79 +914,144 @@ async function useSummon(actor, { prepaidActions = false, accessOverride = null 
   const mastery = getMastery(actor);
   const elements = naturewalkElements(actor);
   const configuredAppearance = String(quality.system?.creation?.appearance ?? "").trim();
+  const maximumMinions = Math.max(1, getRank(quality));
+  const enhancementFields = Array.from({ length: maximumMinions }, (_unused, index) => `
+    <label>${text(`Mastery adicional — Lacaio ${index + 1}`, `Extra Mastery — Minion ${index + 1}`)}
+      <input type="number" name="extra${index}" min="0" value="0">
+    </label>`).join("");
   const result = await chooseCreation(text("Invocar", "Summon"), `<form class="dda-evoker-grid">
     <label>${text("Ações", "Actions")}<select name="actionCost"><option value="1">1</option><option value="2">2</option></select></label>
-    <label>${text("Mastery adicional", "Extra Mastery")}<input type="number" name="extra" min="0" value="0"></label>
-    <label>${text("Nome/Aparência", "Name/Appearance")}<input type="text" name="appearance" required value="${escape(configuredAppearance || text("Lacaio Digital", "Digital Minion"))}" ${configuredAppearance ? "readonly" : ""}></label>
-    ${type === "volatile" ? `<label>${text("Elemento de Passo Natural", "Naturewalk Element")}<select name="element" required>${elements.map((element) => `<option value="${escape(element.key)}">${escape(element.label)}</option>`).join("")}</select></label>` : ""}
-    ${existing.length ? `<label><input type="checkbox" name="keepExisting"> ${text("Manter os Lacaios atuais", "Keep current Minions")}</label>` : ""}
+    <label>${text("Quantidade de Lacaios", "Number of Minions")}<select name="quantity">${Array.from({ length: maximumMinions }, (_unused, index) => `<option value="${index + 1}">${index + 1}</option>`).join("")}</select></label>
+    ${enhancementFields}
+    <p>${text("Somente os aprimoramentos dos Lacaios selecionados serão cobrados.", "Only enhancements for the selected Minions will be charged.")}</p>
+    <label>${text("Nome/Aparência", "Name/Appearance")}<input type="text" name="appearance" required value="${escapeHtml(configuredAppearance || text("Lacaio Digital", "Digital Minion"))}" ${configuredAppearance ? "readonly" : ""}></label>
+    ${type === "volatile" ? `<label>${text("Elemento de Passo Natural", "Naturewalk Element")}<select name="element" required>${elements.map((element) => `<option value="${escapeHtml(element.key)}">${escapeHtml(element.label)}</option>`).join("")}</select></label>` : ""}
+    ${existing.length ? `<fieldset><legend>${text("Lacaios que serão mantidos", "Minions to keep")}</legend>${existing.map((entry) => `<label><input type="checkbox" name="keepMinionIds" value="${escapeHtml(entry.id)}"> ${escapeHtml(entry.name)}</label>`).join("")}</fieldset>` : ""}
   </form>`, (_event, button) => ({
     actionCost: Math.max(1, Math.min(2, number(button.form?.elements?.actionCost?.value, 1))),
-    extra: Math.max(0, Math.floor(number(button.form?.elements?.extra?.value))),
+    quantity: Math.max(1, Math.min(maximumMinions, Math.floor(number(button.form?.elements?.quantity?.value, 1)))),
+    extras: Array.from({ length: maximumMinions }, (_unused, index) => (
+      Math.max(0, Math.floor(number(button.form?.elements?.[`extra${index}`]?.value)))
+    )),
     appearance: String(button.form?.elements?.appearance?.value ?? "").trim(),
     element: String(button.form?.elements?.element?.value ?? "").trim(),
-    keepExisting: Boolean(button.form?.elements?.keepExisting?.checked)
+    keepIds: Array.from(button.form?.querySelectorAll?.("[name='keepMinionIds']:checked") ?? [])
+      .map((input) => String(input.value ?? "").trim())
+      .filter(Boolean)
   }));
   if (!result) return { handled: true, success: false };
   if (type === "volatile" && (!actor.system?.qualityFeatures?.elementMaster?.active || !result.element || !elements.length)) {
     ui.notifications.warn(text("Lacaio Volátil exige Mestre Elemental e um Elemento de Passo Natural possuído.", "Volatile Minion requires Element Master and an owned Naturewalk Element."));
     return { handled: true, success: false };
   }
-  const keepIds = result.keepExisting ? new Set(existing.map((entry) => entry.id)) : new Set();
+  const existingIds = new Set(existing.map((entry) => String(entry.id)));
+  const keepIds = new Set(result.keepIds.filter((id) => existingIds.has(id)));
   if (keepIds.size >= getRank(quality)) {
     ui.notifications.warn(text("O limite de Lacaios já foi atingido.", "The Minion limit has already been reached."));
     return { handled: true, success: false };
   }
-  const cost = base + result.extra;
+  const capacity = Math.max(0, maximumMinions - keepIds.size);
+  if (result.quantity > capacity) {
+    ui.notifications.warn(text(
+      `Esta Invocação pode criar no máximo ${capacity} Lacaio(s) sem ultrapassar os Ranks da Qualidade.`,
+      `This Summon can create at most ${capacity} Minion(s) without exceeding the Quality's Ranks.`
+    ));
+    return { handled: true, success: false };
+  }
+  const extras = result.extras.slice(0, result.quantity);
+  const costs = extras.map((extra) => base + extra);
+  const totalCost = costs.reduce((total, cost) => total + cost, 0);
   const refundableMastery = existing
     .filter((entry) => !keepIds.has(entry.id))
     .reduce((total, entry) => total + Math.max(0, number(entry.flags?.[SYSTEM_ID]?.evokerCreation?.masteryCost)), 0);
   const masteryAvailableAfterReplacement = Math.min(mastery.max, mastery.value + refundableMastery);
   const accessible = accessOverride ?? (result.actionCost === 1 ? Math.floor(mastery.max / 2) : mastery.max);
-  if (cost > accessible || cost > masteryAvailableAfterReplacement) {
-    ui.notifications.warn(text(`O Lacaio exige ${cost} Mastery, mas esta Ação acessa no máximo ${accessible}.`, `The Minion costs ${cost} Mastery, but this Action accesses at most ${accessible}.`));
+  if (totalCost > accessible || totalCost > masteryAvailableAfterReplacement) {
+    ui.notifications.warn(text(
+      `Os Lacaios exigem ${totalCost} Mastery, mas esta Ação acessa no máximo ${accessible}.`,
+      `The Minions cost ${totalCost} Mastery, but this Action accesses at most ${accessible}.`
+    ));
     return { handled: true, success: false };
   }
   const sizes = { infantry: "large", protector: "huge", recon: "medium", volatile: "large" };
-  const point = await pickCanvasPoint(actor, { width: tokenSize(sizes[type]), height: tokenSize(sizes[type]) });
-  if (!point) return { handled: true, success: false };
+  const dimensions = { width: tokenSize(sizes[type]), height: tokenSize(sizes[type]) };
+  const ignoredActorIds = new Set(existing
+    .filter((entry) => !keepIds.has(entry.id))
+    .map((entry) => String(entry.id)));
+  const gridSize = Math.max(1, number(canvas?.grid?.size, 100));
+  const points = [];
+  while (points.length < result.quantity) {
+    ui.notifications.info(text(
+      `Posicione o Lacaio ${points.length + 1} de ${result.quantity}.`,
+      `Place Minion ${points.length + 1} of ${result.quantity}.`
+    ));
+    const point = await pickCanvasPoint(actor, { ...dimensions, ignoredActorIds });
+    if (!point) return { handled: true, success: false };
+    const overlapsSelection = points.some((other) => (
+      number(point.x) < number(other.x) + dimensions.width * gridSize &&
+      number(point.x) + dimensions.width * gridSize > number(other.x) &&
+      number(point.y) < number(other.y) + dimensions.height * gridSize &&
+      number(point.y) + dimensions.height * gridSize > number(other.y)
+    ));
+    if (overlapsSelection) {
+      ui.notifications.warn(text("Cada Lacaio precisa ocupar um espaço diferente.", "Each Minion must occupy a different space."));
+      continue;
+    }
+    points.push(point);
+  }
   if (!prepaidActions && !(await spendActorActions(actor, result.actionCost))) return { handled: true, success: false };
   await clearCreations(actor, "minion", keepIds, { refund: true });
-  if (!(await spendMastery(actor, cost))) return { handled: true, success: false };
+  if (!(await spendMastery(actor, totalCost))) return { handled: true, success: false };
   const bit = Math.max(0, number(actor.system?.derivedStats?.bit?.total ?? actor.system?.derivedStats?.bit?.value));
   const dos = Math.max(0, number(actor.system?.derivedStats?.dos?.total ?? actor.system?.derivedStats?.dos?.value));
   const sv = Math.max(0, number(actor.system?.stageValue ?? CONFIG.DDA?.stages?.[actor.system?.stage]?.stageValue));
-  const statBonus = Math.floor(result.extra / 2);
-  const stats = {
-    accuracy: bit + statBonus + (type === "recon" ? sv : 0),
-    damage: bit + statBonus + (type === "volatile" ? sv : 0),
-    movement: bit + statBonus + (type === "infantry" ? sv : 0) + inheritedMovementBonus(actor),
-    wounds: (dos * 2) + (result.extra * 2) + (type === "protector" ? sv * 2 : 0)
-  };
-  const items = [
-    ...inheritedQualityData(actor, type),
-    buildMinionAttack(actor, type, result.element),
-    ...(type === "volatile" ? [buildMinionAttack(actor, type, result.element, { explosion: true })] : [])
-  ];
-  const created = await createEvokerActor(actor, {
-    kind: "minion", subtype: type, name: result.appearance || text("Lacaio Digital", "Digital Minion"),
-    img: type === "volatile" ? "icons/svg/explosion.svg" : "icons/svg/mystery-man.svg",
-    masteryCost: cost, size: sizes[type], armor: 0, dodge: 0, flight: true,
-    sourceRange: number(actor.system?.miscStats?.range?.total ?? actor.system?.miscStats?.range?.value),
-    sourceEffectiveLimit: number(actor.system?.miscStats?.effectiveLimit?.total ?? actor.system?.miscStats?.effectiveLimit?.value),
-    sourceDerivedStats: Object.fromEntries(["bit", "dos", "ram", "cpu"].map((key) => [
-      key,
-      number(actor.system?.derivedStats?.[key]?.total ?? actor.system?.derivedStats?.[key]?.value)
-    ])),
-    element: result.element, ...stats
-  }, point, items);
-  if (!created) {
-    await refundMastery(actor, cost);
+  const baseName = result.appearance || text("Lacaio Digital", "Digital Minion");
+  const multipleMinions = keepIds.size + result.quantity > 1;
+  const createdMinions = [];
+  try {
+    for (let index = 0; index < result.quantity; index += 1) {
+      const extra = extras[index];
+      const statBonus = Math.floor(extra / 2);
+      const name = multipleMinions ? `${baseName} ${keepIds.size + index + 1}` : baseName;
+      const stats = {
+        accuracy: bit + statBonus + (type === "recon" ? sv : 0),
+        damage: bit + statBonus + (type === "volatile" ? sv : 0),
+        movement: bit + statBonus + (type === "infantry" ? sv : 0) + inheritedMovementBonus(actor),
+        wounds: (dos * 2) + (extra * 2) + (type === "protector" ? sv * 2 : 0)
+      };
+      const items = [
+        ...inheritedQualityData(actor, type),
+        buildMinionAttack(actor, type, result.element),
+        ...(type === "volatile" ? [buildMinionAttack(actor, type, result.element, { explosion: true })] : [])
+      ];
+      const created = await createEvokerActor(actor, {
+        kind: "minion", subtype: type, name,
+        img: type === "volatile" ? "icons/svg/explosion.svg" : "icons/svg/mystery-man.svg",
+        masteryCost: costs[index], size: sizes[type], armor: 0, dodge: 0, flight: true,
+        sourceRange: number(actor.system?.miscStats?.range?.total ?? actor.system?.miscStats?.range?.value),
+        sourceEffectiveLimit: number(actor.system?.miscStats?.effectiveLimit?.total ?? actor.system?.miscStats?.effectiveLimit?.value),
+        sourceDerivedStats: Object.fromEntries(["bit", "dos", "ram", "cpu"].map((key) => [
+          key,
+          number(actor.system?.derivedStats?.[key]?.total ?? actor.system?.derivedStats?.[key]?.value)
+        ])),
+        naturewalkTerrainElements: type === "volatile"
+          ? elements.map((entry) => ({ key: entry.key, label: entry.label }))
+          : [],
+        element: result.element, ...stats
+      }, points[index], items);
+      if (!created) throw new Error(`Failed to create Minion ${index + 1}`);
+      createdMinions.push(created);
+    }
+  } catch (error) {
+    console.warn("DDA | Summon creation failed.", error);
+    for (const created of createdMinions) await deleteCreation(created, { refund: false });
+    await refundMastery(actor, totalCost);
+    ui.notifications.error(text("Não foi possível concluir a Invocação.", "The Summon could not be completed."));
     return { handled: true, success: false };
   }
   await markCooldown(actor, "summon");
-  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<div class="dda-chat-card"><h2>${text("Invocar", "Summon")}</h2><p><strong>${actor.name}</strong> ${text("invocou", "summoned")} <strong>${created.name}</strong> (${cost} Mastery).</p></div>` });
-  return { handled: true, success: true, masterySpent: cost, actionCost: result.actionCost };
+  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<div class="dda-chat-card"><h2>${text("Invocar", "Summon")}</h2><p><strong>${actor.name}</strong> ${text("invocou", "summoned")} ${createdMinions.map((created) => `<strong>${created.name}</strong>`).join(", ")} (${totalCost} Mastery).</p></div>` });
+  return { handled: true, success: true, masterySpent: totalCost, actionCost: result.actionCost };
 }
 
 async function useCommand(actor) {
@@ -765,7 +1129,7 @@ export function getEvokerActionMenuEntries(actor) {
   const entries = [];
   if (findQuality(actor, ["conjurador", "conjurer"])) entries.push({ key: "conjure", title: text("Conjurar", "Conjure"), summary: text("Crie Estruturas gastando Mastery.", "Create Structures by spending Mastery."), cost: "1–2A" });
   if (findQuality(actor, ["invocador", "summoner"])) {
-    entries.push({ key: "summon", title: text("Invocar", "Summon"), summary: text("Crie um Lacaio gastando Mastery.", "Create a Minion by spending Mastery."), cost: "1–2A" });
+    entries.push({ key: "summon", title: text("Invocar", "Summon"), summary: text("Crie Lacaios gastando Mastery.", "Create Minions by spending Mastery."), cost: "1–2A" });
     entries.push({ key: "commandMinion", title: text("Comandar Lacaio", "Command Minion"), summary: text("Conceda 2 Ações a um ou a todos os Lacaios.", "Grant 2 Actions to one or all Minions."), cost: "1–2A" });
   }
   if (findQuality(actor, ["evocador", "evoker", "omnievoker"]) && entries.length >= 3) entries.push({ key: "omnievoker", title: "Omnievoker", summary: text("Conjure e Invoque com as mesmas Ações.", "Conjure and Summon with the same Actions."), cost: "1–2A" });
@@ -813,7 +1177,54 @@ export function prepareEvokerCreationActor(actor, system) {
   system.combat.evokerCreation = foundry.utils.deepClone(flag);
   system.combat.cannotDodge = true;
   system.movementTypes ??= {};
-  system.movementTypes.flight = { ...(system.movementTypes.flight ?? {}), enabled: true, active: true, penalty: 0 };
+  const movement = Math.max(0, number(flag.movement));
+  for (const [key, entry] of Object.entries(system.movementTypes)) {
+    if (!entry || typeof entry !== "object") continue;
+    if (key === "land") {
+      entry.enabled = true;
+      entry.base = movement;
+      entry.total = movement;
+      entry.costMultiplier = 1;
+      continue;
+    }
+    if (entry.isExtraMovement) {
+      entry.base = movement;
+      entry.total = movement;
+      entry.costMultiplier = 1;
+      continue;
+    }
+    if (["jump", "swim"].includes(key)) {
+      entry.base = Math.floor(movement / 2);
+      entry.total = Math.floor(movement / 2);
+      entry.costMultiplier = 2;
+    }
+  }
+
+  /* Minions always count as having Extra Movement: Flight, but do not suffer
+   * Flight's -1 Movement. Advanced Mobility still delays its low-Wounds loss. */
+  const advancedFlight = Boolean(system.qualityFeatures?.advancedMobility?.types?.includes?.("fly"));
+  const flightLossRatio = advancedFlight ? 0.25 : 0.5;
+  const currentWounds = Math.max(0, number(system.miscStats?.wounds?.value));
+  const maximumWounds = Math.max(0, number(system.miscStats?.wounds?.max));
+  const flightAvailable = maximumWounds <= 0 || currentWounds > maximumWounds * flightLossRatio;
+  system.movementTypes.fly = {
+    ...(system.movementTypes.fly ?? {}),
+    enabled: flightAvailable,
+    active: flightAvailable,
+    base: flightAvailable ? movement : 0,
+    total: flightAvailable ? movement : 0,
+    costMultiplier: 1,
+    isExtraMovement: true,
+    flightMovementPenalty: 0,
+    disabledByLowHealth: !flightAvailable,
+    lostAtWoundRatio: flightLossRatio,
+    lostAtWounds: maximumWounds * flightLossRatio,
+    disabledReason: flightAvailable
+      ? ""
+      : (advancedFlight
+        ? "Advanced Mobility: Flight is lost at one quarter Wounds or below."
+        : "Flight is lost at half Wounds or below.")
+  };
 }
 
 export async function executeEvokerMinionAction(actor, key, callback) {
@@ -901,16 +1312,19 @@ export async function useEvokerMinionAid(actor) {
     ui.notifications.warn(text("Selecione exatamente um aliado.", "Select exactly one ally."));
     return null;
   }
-  const token = sourceToken(source);
+  /* Aid originates from the Minion's position, but uses the Summoner's Range
+   * value as required by Summoner. */
+  const token = sourceToken(actor);
   const range = number(source.system?.miscStats?.range?.total ?? source.system?.miscStats?.range?.value);
-  const targetPoint = { x: number(targetToken.document?.x), y: number(targetToken.document?.y) };
-  if (!token || gridDistance(token, targetPoint) > range) {
+  if (!token || getTokenGridDistance(token, targetToken) > range) {
     ui.notifications.warn(text("O alvo está fora do Alcance do Invocador.", "The target is outside the Summoner's Range."));
     return null;
   }
   if (!(await spendActorActions(actor, 1))) return null;
   const effects = foundry.utils.deepClone(target.system?.effects?.active ?? []);
-  effects.push({ id: foundry.utils.randomID(), tag: "digimonAid", label: `${text("Ajudar", "Aid")} — ${actor.name}`, value: 2, poolStats: ["accuracy", "dodge"], sourceActorUuid: actor.uuid, expiresOn: "sourceTurnStart" });
+  /* The Minion is not a Combatant of its own, so tie expiration to the
+   * Summoner's next turn. Otherwise an unused Aid bonus could persist forever. */
+  effects.push({ id: foundry.utils.randomID(), tag: "digimonAid", label: `${text("Ajudar", "Aid")} — ${actor.name}`, value: 2, poolStats: ["accuracy", "dodge"], sourceActorUuid: source.uuid, expiresOn: "sourceTurnStart" });
   await target.update({ "system.effects.active": effects });
   return true;
 }
@@ -937,17 +1351,50 @@ export async function requestEvokerProtectorIntercede({ attacker, targetToken } 
     (_event, button) => String(button.form?.elements?.protector?.value ?? ""));
   if (!result) return null;
   const candidate = candidates.find((entry) => entry.protector.id === result);
-  if (!candidate || !(await spendActorActions(candidate.source, 1, { requireActiveUnit: false }))) return null;
+  if (!candidate) return null;
 
   const size = Math.max(1, number(canvas?.grid?.size, 100));
-  const around = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]
-    .map(([dx, dy]) => ({ x: number(targetToken.document?.x) + dx * size, y: number(targetToken.document?.y) + dy * size }))
-    .filter((point) => !occupiedAt(point, number(candidate.token.document?.width, 1), number(candidate.token.document?.height, 1)));
+  const targetX = number(targetToken.document?.x);
+  const targetY = number(targetToken.document?.y);
+  const targetWidth = Math.max(1, number(targetToken.document?.width, 1));
+  const targetHeight = Math.max(1, number(targetToken.document?.height, 1));
+  const protectorWidth = Math.max(1, number(candidate.token.document?.width, 1));
+  const protectorHeight = Math.max(1, number(candidate.token.document?.height, 1));
+  const leftX = targetX - (protectorWidth * size);
+  const rightX = targetX + (targetWidth * size);
+  const aboveY = targetY - (protectorHeight * size);
+  const belowY = targetY + (targetHeight * size);
+  const ignoredProtectorIds = new Set([String(candidate.protector.id)]);
+  const around = [
+    { x: rightX, y: targetY },
+    { x: leftX, y: targetY },
+    { x: targetX, y: belowY },
+    { x: targetX, y: aboveY },
+    { x: rightX, y: belowY },
+    { x: leftX, y: belowY },
+    { x: rightX, y: aboveY },
+    { x: leftX, y: aboveY }
+  ]
+    .filter((point) => !occupiedAt(
+      point,
+      protectorWidth,
+      protectorHeight,
+      { ignoredActorIds: ignoredProtectorIds }
+    ));
   const destination = around.sort((left, right) => {
     const current = { x: number(candidate.token.document?.x), y: number(candidate.token.document?.y) };
     return Math.hypot(left.x - current.x, left.y - current.y) - Math.hypot(right.x - current.x, right.y - current.y);
   })[0];
-  if (destination) await candidate.token.document.update(destination, withDDAMovementContext(
+  if (!destination) {
+    ui.notifications.warn(text(
+      "O Protetor não encontrou um espaço desocupado adjacente ao alvo.",
+      "The Protector could not find an unoccupied space adjacent to the target."
+    ));
+    return null;
+  }
+  if (!(await spendActorActions(candidate.source, 1, { requireActiveUnit: false }))) return null;
+  await trackProtectorTrueGuardianRefund(candidate.source, 1);
+  await candidate.token.document.update(destination, withDDAMovementContext(
     { animate: true, ddaEvokerProtectorIntercede: true },
     {
       mode: "automated", movementBudget: "none", voluntary: true, reactions: true,
@@ -996,6 +1443,30 @@ function validateSocketPlacement(source, scene, pointOrPoints, spec) {
   const range = Math.max(0, number(source.system?.miscStats?.range?.total ?? source.system?.miscStats?.range?.value));
   const width = Math.max(1, number(spec?.width, tokenSize(spec?.size)));
   const height = Math.max(1, number(spec?.height, width));
+  const requestedFoundationIds = new Set([
+    ...(Array.isArray(spec?.foundationActorIds) ? spec.foundationActorIds : []),
+    ...(Array.isArray(spec?.foundationActorUuids) ? spec.foundationActorUuids : [])
+  ].map((value) => String(value ?? "").trim()).filter(Boolean));
+  const foundationActors = (game.actors?.contents ?? []).filter((actor) => {
+    const flag = actor?.flags?.[SYSTEM_ID]?.evokerCreation;
+    if (flag?.kind !== "structure" || !["platform", "walls"].includes(flag.subtype) || flag.sourceActorUuid !== source.uuid) return false;
+    return requestedFoundationIds.has(String(actor.id)) || requestedFoundationIds.has(String(actor.uuid));
+  });
+  if (requestedFoundationIds.size) {
+    if (spec?.kind !== "structure" || spec?.subtype !== "walls") return false;
+    if ([...requestedFoundationIds].some((id) => !foundationActors.some((actor) => (
+      id === String(actor.id) || id === String(actor.uuid)
+    )))) return false;
+  }
+  const foundationActorIds = new Set(foundationActors.map((actor) => String(actor.id)));
+  const foundationRectangles = scene.tokens
+    .filter((token) => foundationActorIds.has(String(token.actorId)))
+    .map((token) => ({
+      left: number(token.x),
+      top: number(token.y),
+      right: number(token.x) + Math.max(1, number(token.width, 1)) * grid,
+      bottom: number(token.y) + Math.max(1, number(token.height, 1)) * grid
+    }));
   const points = (Array.isArray(pointOrPoints) ? pointOrPoints : [pointOrPoints])
     .filter((point) => point && Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y)));
   if (!points.length || points.length > 4) return false;
@@ -1016,7 +1487,12 @@ function validateSocketPlacement(source, scene, pointOrPoints, spec) {
       rectangle.left < other.right && rectangle.right > other.left &&
       rectangle.top < other.bottom && rectangle.bottom > other.top
     ))) return false;
+    if (requestedFoundationIds.size && !foundationRectangles.some((foundation) => (
+      rectangle.left < foundation.right && rectangle.right > foundation.left &&
+      rectangle.top < foundation.bottom && rectangle.bottom > foundation.top
+    ))) return false;
     if (scene.tokens.some((token) => {
+      if (foundationActorIds.has(String(token.actorId))) return false;
       const tokenLeft = number(token.x);
       const tokenTop = number(token.y);
       const tokenRight = tokenLeft + Math.max(1, number(token.width, 1)) * grid;
@@ -1089,7 +1565,10 @@ async function handleEvokerSocket(message = {}) {
       const flag = created?.flags?.[SYSTEM_ID]?.evokerCreation;
       const source = flag?.sourceActorUuid ? await fromUuid(flag.sourceActorUuid).catch(() => null) : null;
       if (created && flag && userControlsActor(requestingUser, source ?? created)) {
-        await deleteCreationLocal(created, { refund: Boolean(payload.refund) });
+        await deleteCreationLocal(created, {
+          refund: Boolean(payload.refund),
+          cascade: payload.cascade !== false
+        });
         result = { ok: true };
       }
     }
