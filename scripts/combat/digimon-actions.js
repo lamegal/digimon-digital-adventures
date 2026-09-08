@@ -621,7 +621,8 @@ async function useAid(actor) {
   await revealHiddenFromCreatureInteraction(actor, "aid");
 
   const baseValue = Math.max(0, number(getActorSv(actor)));
-  const value = baseValue + bolster.diceBonus;
+  const tacticalOrderBonus = findQuality(actor, "tacticalOrder") ? 2 : 0;
+  const value = baseValue + bolster.diceBonus + tacticalOrderBonus;
 
   await addPoolEffect(target, {
     tag: "digimonAid",
@@ -634,7 +635,8 @@ async function useAid(actor) {
     createdTurnSignature: turnSignature(actor),
     bolstered: bolster.bolstered,
     calculated: bolster.calculated,
-    bolsterBonus: bolster.bonus
+    bolsterBonus: bolster.bonus,
+    tacticalOrderBonus
   });
 
   if (bolster.calculated) {
@@ -650,7 +652,8 @@ async function useAid(actor) {
     diceBonus: value,
     automaticSuccesses: bolster.automaticSuccesses,
     bolstered: bolster.bolstered,
-    calculated: bolster.calculated
+    calculated: bolster.calculated,
+    tacticalOrderBonus
   };
 }
 
@@ -1240,7 +1243,10 @@ export async function getDigimonActionMenuDefinition(actor) {
   const charmGate = game?.dda?.bossQualities?.ensureCharmActionController;
   if (typeof charmGate === "function" && !charmGate(actor, { user: game?.user, notify: false })) return null;
 
-  if (actor.system?.clash?.state?.active) {
+  const evokerAutomation = await import("./evoker-qualities.js");
+  const evokerMinion = evokerAutomation.isEvokerCreation(actor, "minion");
+
+  if (actor.system?.clash?.state?.active && !evokerMinion) {
     const clashAutomation = await import("./clash.js");
     const entries = [{
       key: "clashActions",
@@ -1275,8 +1281,6 @@ export async function getDigimonActionMenuDefinition(actor) {
     };
   }
 
-  const evokerAutomation = await import("./evoker-qualities.js");
-  const evokerMinion = evokerAutomation.isEvokerCreation(actor, "minion");
   const baseMenuEntries = evokerMinion
     ? DIGIMON_ACTION_MENU_ENTRIES.filter((entry) => ["move", "attack", "aid"].includes(entry.key))
     : DIGIMON_ACTION_MENU_ENTRIES;
@@ -1307,7 +1311,7 @@ export async function getDigimonActionMenuDefinition(actor) {
     for (const entry of gainForceAutomation.getDigizoidGainForceActionMenuEntries(actor)) menuEntries.push(entry);
   }
 
-  if (coordinatedAssaultQuality(actor)) {
+  if (!evokerMinion && coordinatedAssaultQuality(actor)) {
     menuEntries.splice(11, 0, {
       key: "coordinatedAssault",
       titleKey: "DDA.DigimonAction.CoordinatedAssault.Title",
@@ -1316,39 +1320,43 @@ export async function getDigimonActionMenuDefinition(actor) {
     });
   }
 
-  const { getClashQualityMenuEntries } = await import("./clash-qualities.js");
-  for (const entry of getClashQualityMenuEntries(actor)) {
-    menuEntries.push({
-      key: entry.key,
-      titleKey: "",
-      summaryKey: "",
-      title: entry.title,
-      summary: entry.summary,
-      cost: entry.cost
-    });
-  }
-
   const clashAutomation = await import("./clash.js");
-  if (clashAutomation.canAttemptBreakClash?.(actor)) {
-    menuEntries.push({
-      key: "breakClash",
-      titleKey: "DDA.Clash.Break.Title",
-      summaryKey: "DDA.Clash.Break.MenuSummary",
-      cost: "2A"
-    });
-  }
+  if (!evokerMinion) {
+    const { getClashQualityMenuEntries } = await import("./clash-qualities.js");
+    for (const entry of getClashQualityMenuEntries(actor)) {
+      menuEntries.push({
+        key: entry.key,
+        titleKey: "",
+        summaryKey: "",
+        title: entry.title,
+        summary: entry.summary,
+        cost: entry.cost
+      });
+    }
 
-  if (actor.type === "npc") {
-    menuEntries.push({
-      key: "evolution",
-      titleKey: "DDA.DigimonAction.Evolution.Title",
-      summaryKey: "DDA.DigimonAction.Evolution.Summary",
-      cost: "2A"
-    });
+    if (clashAutomation.canAttemptBreakClash?.(actor)) {
+      menuEntries.push({
+        key: "breakClash",
+        titleKey: "DDA.Clash.Break.Title",
+        summaryKey: "DDA.Clash.Break.MenuSummary",
+        cost: "2A"
+      });
+    }
+
+    if (actor.type === "npc") {
+      menuEntries.push({
+        key: "evolution",
+        titleKey: "DDA.DigimonAction.Evolution.Title",
+        summaryKey: "DDA.DigimonAction.Evolution.Summary",
+        cost: "2A"
+      });
+    }
   }
 
   const tamerTalentOrders = await import("../rules/tamer-talent-special-orders.js");
-  const realizationDefense = tamerTalentOrders.getRealizationDefenseMenuEntry(actor);
+  const realizationDefense = evokerMinion
+    ? null
+    : tamerTalentOrders.getRealizationDefenseMenuEntry(actor);
   if (realizationDefense) menuEntries.push(realizationDefense);
 
   const handlers = {
@@ -1408,7 +1416,10 @@ export async function getDigimonActionMenuDefinition(actor) {
     hint: localize("DDA.DigimonAction.Menu.Hint", "Cada ação consome somente os recursos deste Digimon."),
     entries: menuEntries,
     notes: [],
-    execute: (key, options = {}) => handlers[key]?.(options) ?? null
+    execute: (key, options = {}) => {
+      if (evokerMinion && !["move", "attack", "aid"].includes(key)) return null;
+      return handlers[key]?.(options) ?? null;
+    }
   };
 }
 

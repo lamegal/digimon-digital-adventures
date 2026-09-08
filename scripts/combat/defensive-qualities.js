@@ -730,17 +730,15 @@ export async function handleDefensiveEndTurn(actor) {
 
   const qualityAttackUses = foundry.utils.deepClone(actor.system?.combat?.qualityAttackUses ?? {});
   const defensiveState = getState(actor);
-  let usesChanged = false;
+  const updates = {};
   let stateChanged = false;
 
   if (qualityAttackUses.bulletProof && Object.keys(qualityAttackUses.bulletProof).length) {
-    qualityAttackUses.bulletProof = {};
-    usesChanged = true;
+    updates["system.combat.qualityAttackUses.-=bulletProof"] = null;
   }
 
   if (qualityAttackUses["reroll-dodge"] && Object.keys(qualityAttackUses["reroll-dodge"]).length) {
-    qualityAttackUses["reroll-dodge"] = {};
-    usesChanged = true;
+    updates["system.combat.qualityAttackUses.-=reroll-dodge"] = null;
   }
 
   if (defensiveState.savagery?.usedSinceLastTurn) {
@@ -748,8 +746,6 @@ export async function handleDefensiveEndTurn(actor) {
     stateChanged = true;
   }
 
-  const updates = {};
-  if (usesChanged) updates["system.combat.qualityAttackUses"] = qualityAttackUses;
   if (stateChanged) updates[STATE_PATH] = defensiveState;
   if (Object.keys(updates).length) await actor.update(updates);
 
@@ -779,12 +775,10 @@ async function initializeCombatMonsterForCombat(combat) {
       continue;
     }
 
-    const qualityAttackUses = foundry.utils.deepClone(actor.system?.combat?.qualityAttackUses ?? {});
-    qualityAttackUses.bulletProof = {};
-
     await actor.update({
       [STATE_PATH]: { initializedCombatId: String(combat?.id ?? "") },
-      "system.combat.qualityAttackUses": qualityAttackUses
+      "system.combat.qualityAttackUses.-=bulletProof": null,
+      "system.combat.qualityAttackUses.-=reroll-dodge": null
     });
 
     if (getCombatMonsterResolveMax(actor) <= 0) continue;

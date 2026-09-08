@@ -6,7 +6,8 @@ import { energizeDigimon } from "../combat/energize.js";
 import { getDDASetting } from "../settings.js";
 import {
   evolvePartner,
-  evolveIndependentDigimon
+  evolveIndependentDigimon,
+  registerExistingPartnerEvolutionForm
 } from "../combat/evolution.js";
 import { initiateDigimonClash, endDigimonClash } from "../combat/clash.js";
 import { openDigimonActionMenu } from "../combat/digimon-actions.js";
@@ -2918,10 +2919,17 @@ async _onEvolutionDrop(event) {
   );
 
   const registeredForms = normalizeEvolutionSlotForms(currentSlot, stageKey);
+  const graph = getNormalizedEvolutionGraph(this.actor);
+  const targetNode = upsertEvolutionGraphActorNode(graph, droppedActor);
+  const predecessorNode = ensureUnambiguousEvolutionPredecessor(graph, targetNode);
   const formData = {
     name: droppedActor.name,
+    displayName: getDigimonDisplayName(droppedActor) || droppedActor.name,
+    species: droppedActor.system?.species || droppedActor.name,
     uuid: droppedActor.uuid,
-    stage: droppedActor.system.stage ?? stageKey
+    actorUuid: droppedActor.uuid,
+    stage: droppedActor.system.stage ?? stageKey,
+    img: droppedActor.img ?? ""
   };
 
   const existingIndex = registeredForms.findIndex((form) => form.uuid === formData.uuid);
@@ -2932,9 +2940,21 @@ async _onEvolutionDrop(event) {
     registeredForms.push(formData);
   }
 
-  const updateData = buildEvolutionSlotUpdate(stageKey, registeredForms);
+  const updateData = {
+    "system.evolutionGraph": graph,
+    ...buildEvolutionLineUpdatesFromGraph(graph),
+    ...buildEvolutionSlotUpdate(stageKey, registeredForms)
+  };
 
   await this.actor.update(updateData);
+  await registerExistingPartnerEvolutionForm({
+    partnerActor: this.actor,
+    formActor: droppedActor,
+    plannedEvolutionMethod: "normal",
+    plannedFromReference: predecessorNode?.actorUuid ?? ""
+  });
+
+  this._refreshEvolutionGraphViews();
 
   ui.notifications.info(formatI18n("DDA.Info.EvolutionFormRegistered", { form: droppedActor.name, actor: this.actor.name }));
 }
@@ -3051,30 +3071,28 @@ async _onEvolutionSolarDrop(event) {
     return;
   }
 
-  if (droppedActor.type !== "digimon" && droppedActor.type !== "npc") {
+  if (
+    droppedActor.type !== "digimon" &&
+    !(droppedActor.type === "npc" && droppedActor.system?.isDigimon)
+  ) {
     ui.notifications.warn(formatI18n("DDA.Warning.PartnerMustBeDigimon", { type: droppedActor.type }));
     return;
   }
 
   const graph = getNormalizedEvolutionGraph(this.actor);
-  const nextNode = buildEvolutionNodeFromActor(droppedActor);
-  const existingIndex = graph.nodes.findIndex((node) => node.actorUuid === nextNode.actorUuid);
-
-  if (existingIndex >= 0) {
-    graph.nodes[existingIndex] = {
-      ...graph.nodes[existingIndex],
-      ...nextNode
-    };
-  } else {
-    graph.nodes.push(nextNode);
-  }
-
-  graph.legacyImported = true;
-  graph.removedActorUuids = (graph.removedActorUuids ?? []).filter((uuid) => uuid !== droppedActor.uuid);
+  const nextNode = upsertEvolutionGraphActorNode(graph, droppedActor);
+  const predecessorNode = ensureUnambiguousEvolutionPredecessor(graph, nextNode);
 
   await this.actor.update({
     "system.evolutionGraph": graph,
     ...buildEvolutionLineUpdatesFromGraph(graph)
+  });
+
+  await registerExistingPartnerEvolutionForm({
+    partnerActor: this.actor,
+    formActor: droppedActor,
+    plannedEvolutionMethod: "normal",
+    plannedFromReference: predecessorNode?.actorUuid ?? ""
   });
 
   this._refreshEvolutionGraphViews();
@@ -3124,10 +3142,35 @@ async _onCreateEvolutionEdge(event) {
 
   graph.legacyImported = true;
 
+  const fromNode = graph.nodes.find((node) => node.id === from);
+  const toNode = graph.nodes.find((node) => node.id === to);
+
   await this.actor.update({
     "system.evolutionGraph": graph,
     ...buildEvolutionLineUpdatesFromGraph(graph)
   });
+
+  const currentFormReferences = new Set([
+    this.actor.uuid,
+    this.actor.system?.evolution?.currentFormUuid,
+    this.actor.system?.evolution?.sourceFormUuid
+  ].map((value) => String(value ?? "").trim()).filter(Boolean));
+
+  if (toNode?.actorUuid && !currentFormReferences.has(String(toNode.actorUuid))) {
+    try {
+      const toActor = await fromUuid(toNode.actorUuid);
+      if (toActor?.documentName === "Actor") {
+        await registerExistingPartnerEvolutionForm({
+          partnerActor: this.actor,
+          formActor: toActor,
+          plannedEvolutionMethod: method,
+          plannedFromReference: fromNode?.actorUuid ?? ""
+        });
+      }
+    } catch (error) {
+      console.warn("DDA | Could not synchronize the linked form with the Evolution Planner.", error);
+    }
+  }
 
   this._refreshEvolutionGraphViews();
 }
@@ -3444,18 +3487,16 @@ async _onEditDigimonPortrait(event) {
 
     const flagScope = game.system?.id ?? "digimon-digital-adventures";
 
-    if (isVideoPath(path)) {
-      // Foundry valida actor.img como imagem estática/animada, mas não como vídeo.
-      // Por isso vídeos do Digivice ficam em flag própria e não quebram o schema do ator.
-      await this.actor.setFlag(flagScope, "digivicePortrait", path);
-      await this.actor.setFlag(flagScope, "digivicePortraitManual", true);
-      this.render(false);
-      return;
-    }
+    const updateData = {
+      [`flags.${flagScope}.digivicePortrait`]: path,
+      [`flags.${flagScope}.digivicePortraitManual`]: true
+    };
 
-    await this.actor.update({ img: path });
-    await this.actor.unsetFlag(flagScope, "digivicePortrait");
-    await this.actor.setFlag(flagScope, "digivicePortraitManual", true);
+    // Foundry's Actor image field does not accept video paths. Static artwork
+    // is stored in both places so the sheet portrait and Actor directory agree.
+    if (!isVideoPath(path)) updateData.img = path;
+
+    await this.actor.update(updateData);
     this.render(false);
   };
 
@@ -3707,6 +3748,72 @@ function buildEvolutionLineUpdatesFromGraph(graph = {}) {
   }
 
   return updates;
+}
+
+function upsertEvolutionGraphActorNode(graph, actor) {
+  if (!graph || !actor?.uuid) return null;
+
+  const nextNode = buildEvolutionNodeFromActor(actor);
+  const existingIndex = graph.nodes.findIndex((node) => {
+    return String(node.actorUuid ?? node.uuid ?? "") === String(actor.uuid);
+  });
+
+  if (existingIndex >= 0) {
+    graph.nodes[existingIndex] = {
+      ...graph.nodes[existingIndex],
+      ...nextNode
+    };
+  } else {
+    graph.nodes.push(nextNode);
+  }
+
+  graph.legacyImported = true;
+  graph.removedActorUuids = (graph.removedActorUuids ?? [])
+    .filter((uuid) => String(uuid) !== String(actor.uuid));
+
+  return graph.nodes.find((node) => node.id === nextNode.id) ?? nextNode;
+}
+
+function ensureUnambiguousEvolutionPredecessor(graph, targetNode) {
+  if (!graph || !targetNode?.id) return null;
+
+  const inboundEdges = (graph.edges ?? []).filter((edge) => edge.to === targetNode.id);
+  if (inboundEdges.length === 1) {
+    return graph.nodes.find((node) => node.id === inboundEdges[0].from) ?? null;
+  }
+
+  // Multiple inbound routes are intentional planner data; never guess among them.
+  if (inboundEdges.length > 1) return null;
+
+  const targetStageIndex = getEvolutionStageIndex(targetNode.stage);
+  for (let stageIndex = targetStageIndex - 1; stageIndex >= 0; stageIndex -= 1) {
+    const candidates = (graph.nodes ?? []).filter((node) => {
+      return node.id !== targetNode.id &&
+        !node.hidden &&
+        getEvolutionStageIndex(node.stage) === stageIndex;
+    });
+
+    if (candidates.length > 1) return null;
+    if (candidates.length !== 1) continue;
+
+    const predecessor = candidates[0];
+    const edge = {
+      id: generateEvolutionEdgeId(predecessor.id, targetNode.id, "normal"),
+      from: predecessor.id,
+      to: targetNode.id,
+      method: "normal",
+      unlocked: true
+    };
+
+    if (!(graph.edges ?? []).some((entry) => entry.id === edge.id)) {
+      graph.edges ??= [];
+      graph.edges.push(edge);
+    }
+
+    return predecessor;
+  }
+
+  return null;
 }
 
 

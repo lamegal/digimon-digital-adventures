@@ -1274,6 +1274,7 @@ system.qualityFeatures.preservation = {
 system.qualityFeatures.utility = {
   systemBoostRanks: 0,
   combatAwareness: false,
+  tacticalOrder: false,
   teleport: false,
   glamor: false,
   illusionaryOverlay: false,
@@ -1662,6 +1663,7 @@ if (["imunidade", "immunity"].includes(normalizedSourceId)) preservationFeature.
 const utilityFeature = system.qualityFeatures.utility;
 if (["impulsodesistema", "systemboost"].includes(normalizedSourceId)) utilityFeature.systemBoostRanks = Math.max(utilityFeature.systemBoostRanks, rankValue);
 if (["conscienciadecombate", "combatawareness"].includes(normalizedSourceId)) utilityFeature.combatAwareness = true;
+if (["ordemtatica", "tacticalorder"].includes(normalizedSourceId)) utilityFeature.tacticalOrder = true;
 if (["teleporte", "teleport"].includes(normalizedSourceId)) utilityFeature.teleport = true;
 if (["glamour", "glamor"].includes(normalizedSourceId)) utilityFeature.glamor = true;
 if (["sobreposicaoilusoria", "illusionaryoverlay"].includes(normalizedSourceId)) utilityFeature.illusionaryOverlay = true;

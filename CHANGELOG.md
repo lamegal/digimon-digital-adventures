@@ -1,3 +1,37 @@
+Digimon Digital Adventures V2 — v2.0.23-beta
+
+2026 rules refresh and cumulative gameplay fixes
+
+New and changed Qualities
+
+Added Tactical Order as a 1 DP Static Utility Quality requiring Combat Awareness. Its Aid bonus gains +2, and its Digimon may swap Initiative positions with a willing allied unit when Initiative is rolled. The selected swap is stored on the Combat and remains in effect even if the Quality is later lost.
+
+Updated Inspiring Guidance so a Success grants twice its Ranks in Guiding Dice and a Critical Success grants two additional dice. Signature Move Battery dice remain independent of the Check result.
+
+Updated Armor Piercing to cost 2 DP per Rank and deal 2 Unalterable Damage per Rank on normal hits or 1 per Rank on Area Attacks. Updated its Signature Move choice so Battery damage may become Unalterable Damage up to the Quality's Ranks. Updated Certain Strike so a Signature Move gains one additional automatic Success while the Digimon has at least 2 Battery. Both Qualities may now be placed on any eligible [DAMAGE] Attack and may coexist on the same non-Signature Attack.
+
+Promoted Venomous to the main Quality catalog with its BIT (Survival) Check, Critical Failure damage penalty, one-Round [POISON], existing-Potency increase, Area exclusion, [POISON] incompatibility and Signature Move Battery interaction.
+
+Completed the Conjurer, Summoner and Omnievoker rules refresh. Mastery, one- or two-Action access, cooldowns, Structures, Damage Thresholds, destruction refunds, structure replacement, linked foundations and automatic collapse, elemental Platform conversion, all four Minion types, individual Mastery upgrades, exact inherited-Quality restrictions, commands, shared Accuracy, Aid, Protector Intercede, Recon sight and Volatile explosions are supported. A single Summon may now create multiple independently upgraded Minions up to the Summoner's Rank limit.
+
+Confirmed Special Order: Miracle at exactly 9 pooled non-Temporary IP, made Digital Hazard end the user's active Clashes, and made Substitute forfeit only true Wound Boxes.
+
+Gameplay and sheet fixes
+
+Fixed PUSH and PULL failing against enemy Tokens by preserving exact source and target Token identity, using Foundry v13 occupied-grid geometry and routing unauthorized movement through the active GM.
+
+Fixed dragged evolution forms being linked only visually. Dropped forms now update the Evolution Graph, create a persistent Partner form snapshot, appear in Planning Stages and become valid evolution destinations.
+
+Fixed Digimon sheet portrait changes not persisting. Static portraits now update both the Actor image and the sheet-specific portrait; video portraits remain stored safely in the sheet flag.
+
+Fixed Qualities purchased or ranked after Actor creation not immediately appearing or recalculating on the sheet. Also fixed the Effect Quality picker failing before it could populate the Effect details and compatible Attack selector.
+
+Fixed Bullet Proof's escalating penalty and defensive reroll state not clearing at turn end. Fixed [T:BURST] target detection and preview sizing, including larger caster Tokens.
+
+Compatibility
+
+Designed for Foundry Virtual Tabletop v13. Existing Actor Items, canonical IDs, legacy localized names and Partner snapshots remain compatible; no world migration is required. A world backup is still recommended before installing a beta build.
+
 Digimon Digital Adventures V2 — v2.0.22-beta.11
 
 PUSH/PULL forced movement and Combat pill label hotfix

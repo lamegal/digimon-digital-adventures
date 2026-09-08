@@ -4460,51 +4460,76 @@ async function getPostHitQualityEffects({ attacker, defender, attackItem, qualit
     attackFunctionType === "damage"
   ) {
     const venomQuality = getQualityForAttackModifier(attacker, "venomous");
-    const tn = 10 + getActorDerivedStat(defender, "ram");
-    const check = await rollDerivedCheck(attacker, "bit", {
-      skillKey: "survival",
-      tn,
-      title: venomQuality?.name ?? localizeQ("DDA.QualityAutomation.Venomous.Name", "Venomous"),
-        targetActor: defender
+    const useVenom = await promptUseQuality(venomQuality, {
+      body: combatText(
+        "Usar Venenoso e fazer o Teste BIT (Sobrevivência)? Uma Falha Crítica reduz o Dano deste Ataque em 1.",
+        "Use Venomous and make the BIT (Survival) Check? A Critical Failure reduces this Attack's Damage by 1."
+      ),
+      defaultYes: false
     });
-
-    if (!check) return null;
-
-    if (check.criticalFailure) {
-      data.damageReduction += 1;
-      data.minimumNormalDamage = Math.max(data.minimumNormalDamage, 1);
-      data.notes.push(combatText(
-        "Venenoso falhou criticamente: -1 Dano, mínimo 1.",
-        "Venomous critically failed: -1 Damage, minimum 1."
-      ));
-    } else if (check.success) {
-      const batteryBonus = attackItem?.system?.isSignature
-        ? Math.max(0, Number(attacker.system?.resources?.battery?.value ?? 0))
-        : 0;
-      const existingPoison = (defender.system?.effects?.active ?? []).find((effect) => {
-        return getEffectTagKey(effect?.tag) === "poison";
+    if (useVenom) {
+      const tn = 10 + getActorDerivedStat(defender, "ram");
+      const check = await rollDerivedCheck(attacker, "bit", {
+        skillKey: "survival",
+        tn,
+        title: venomQuality?.name ?? localizeQ("DDA.QualityAutomation.Venomous.Name", "Venomous"),
+        targetActor: defender
       });
-      const existingPotency = Math.max(
-        0,
-        Number(existingPoison?.potency ?? existingPoison?.value ?? 0)
-      );
-      const potency = (existingPoison ? existingPotency : 0) +
-        1 +
-        (check.criticalSuccess ? 1 : 0) +
-        batteryBonus;
-      data.extraEffects.push(buildOffensiveQualityEffect({
-        tag: "poison",
-        attacker,
-        defender,
-        attackItem,
-        sourceName: venomQuality?.name ?? "Venomous",
-        potency,
-        duration: 1
-      }));
-      data.notes.push(combatText(
-        `Venenoso aplicou [POISON ${potency}] por 1 Rodada.`,
-        `Venomous applied [POISON ${potency}] for 1 Round.`
-      ));
+
+      if (!check) return null;
+
+      if (check.criticalFailure) {
+        data.damageReduction += 1;
+        data.minimumNormalDamage = Math.max(data.minimumNormalDamage, 1);
+        data.notes.push(combatText(
+          "Venenoso falhou criticamente: -1 Dano, mínimo 1.",
+          "Venomous critically failed: -1 Damage, minimum 1."
+        ));
+      } else if (check.success) {
+        const batteryBonus = attackItem?.system?.isSignature
+          ? Math.max(0, Number(attacker.system?.resources?.battery?.value ?? 0))
+          : 0;
+        const existingPoison = (defender.system?.effects?.active ?? []).find((effect) => {
+          return getEffectTagKey(effect?.tag) === "poison";
+        });
+        const existingPotency = Math.max(
+          0,
+          Number(existingPoison?.potency ?? existingPoison?.value ?? 0)
+        );
+        const defenderCreation = defender.flags?.["digimon-digital-adventures"]?.evokerCreation;
+        const poisonStatActor = defenderCreation?.kind === "minion"
+          ? game.actors?.get?.(defenderCreation.sourceActorId) ?? defender
+          : defender;
+        const poisonBaseRaw = applyHackersMemoryDerivedStatModifier(
+          attacker,
+          defender,
+          getEffectDerivedStatValue(poisonStatActor, "cpu")
+        );
+        const poisonResistanceFloor = Math.min(2, poisonBaseRaw);
+        const newPoisonPotency = Math.max(
+          poisonResistanceFloor,
+          poisonBaseRaw - getEffectResistance(defender)
+        );
+        const potency = (existingPoison ? existingPotency + 1 : newPoisonPotency) +
+          (check.criticalSuccess ? 1 : 0) +
+          batteryBonus;
+        const poisonEffect = buildOffensiveQualityEffect({
+          tag: "poison",
+          attacker,
+          defender,
+          attackItem,
+          sourceName: venomQuality?.name ?? "Venomous",
+          potency,
+          duration: 1
+        });
+        poisonEffect.venomous = true;
+        poisonEffect.replacePotency = true;
+        data.extraEffects.push(poisonEffect);
+        data.notes.push(combatText(
+          `Venenoso aplicou [POISON ${potency}] por 1 Rodada.`,
+          `Venomous applied [POISON ${potency}] for 1 Round.`
+        ));
+      }
     }
   }
 
@@ -7215,7 +7240,10 @@ if (
 
   if (
     isSignature &&
-    selectedAttackBinding?.signatureBatteryAsUnalterable
+    /* Old embedded Armor Piercing Items have no stored answer because this
+     * choice did not exist yet. Treat only an explicit `false` as opting out,
+     * so upgraded Actors can use the new Signature benefit immediately. */
+    selectedAttackBinding?.signatureBatteryAsUnalterable !== false
   ) {
     modifierTotal.signatureBatteryUnalterableDamage = Math.max(
       modifierTotal.signatureBatteryUnalterableDamage,
@@ -10100,6 +10128,52 @@ function forcedMovementRectsOverlap(left, right) {
   );
 }
 
+function getForcedMovementCanvasBounds() {
+  const rect = canvas?.dimensions?.rect;
+  if (rect) {
+    const left = Number(rect.x ?? rect.left ?? 0);
+    const top = Number(rect.y ?? rect.top ?? 0);
+    const width = Math.max(0, Number(rect.width ?? 0));
+    const height = Math.max(0, Number(rect.height ?? 0));
+    return {
+      left,
+      top,
+      right: Number(rect.right ?? left + width),
+      bottom: Number(rect.bottom ?? top + height)
+    };
+  }
+
+  return {
+    left: 0,
+    top: 0,
+    right: Math.max(0, Number(canvas?.scene?.width ?? 0)),
+    bottom: Math.max(0, Number(canvas?.scene?.height ?? 0))
+  };
+}
+
+function getForcedMovementOccupiedOffsets(tokenDocument, position = {}) {
+  if (!tokenDocument || typeof tokenDocument.getOccupiedGridSpaceOffsets !== "function") {
+    return [];
+  }
+
+  try {
+    const offsets = tokenDocument.getOccupiedGridSpaceOffsets({
+      x: Number(position.x ?? tokenDocument.x ?? 0),
+      y: Number(position.y ?? tokenDocument.y ?? 0),
+      width: Math.max(0.01, Number(tokenDocument.width ?? 1)),
+      height: Math.max(0.01, Number(tokenDocument.height ?? 1))
+    });
+    return Array.isArray(offsets) ? offsets : Array.from(offsets ?? []);
+  } catch (_error) {
+    return [];
+  }
+}
+
+function getForcedMovementOffsetKey(offset) {
+  if (Array.isArray(offset)) return `${offset[0]}:${offset[1]}`;
+  return `${offset?.i ?? offset?.row ?? offset?.y ?? ""}:${offset?.j ?? offset?.column ?? offset?.x ?? ""}`;
+}
+
 async function resolveForcedMovementToken({
   actor = null,
   tokenUuid = "",
@@ -10142,16 +10216,29 @@ function isLegalForcedMovementPosition(targetToken, { x, y } = {}) {
   const rectangle = getForcedMovementTokenRect(targetDocument, x, y);
   if (!rectangle) return false;
 
-  const sceneWidth = Math.max(0, Number(canvas?.scene?.width ?? 0));
-  const sceneHeight = Math.max(0, Number(canvas?.scene?.height ?? 0));
+  const canvasBounds = getForcedMovementCanvasBounds();
+  if (rectangle.left < canvasBounds.left || rectangle.top < canvasBounds.top) return false;
+  if (canvasBounds.right > canvasBounds.left && rectangle.right > canvasBounds.right) return false;
+  if (canvasBounds.bottom > canvasBounds.top && rectangle.bottom > canvasBounds.bottom) return false;
 
-  if (rectangle.left < 0 || rectangle.top < 0) return false;
-  if (sceneWidth > 0 && rectangle.right > sceneWidth) return false;
-  if (sceneHeight > 0 && rectangle.bottom > sceneHeight) return false;
+  const occupiedOffsets = getForcedMovementOccupiedOffsets(targetDocument, { x, y });
+  const occupiedKeys = new Set(occupiedOffsets.map(getForcedMovementOffsetKey));
 
   for (const otherToken of canvas?.tokens?.placeables ?? []) {
     const otherDocument = otherToken?.document;
-    if (!otherDocument || otherDocument.id === targetDocument.id) continue;
+    if (
+      !otherDocument ||
+      otherDocument.id === targetDocument.id ||
+      (targetDocument.uuid && otherDocument.uuid === targetDocument.uuid)
+    ) continue;
+
+    const otherOffsets = getForcedMovementOccupiedOffsets(otherDocument);
+    if (occupiedKeys.size && otherOffsets.length) {
+      if (otherOffsets.some((offset) => occupiedKeys.has(getForcedMovementOffsetKey(offset)))) {
+        return false;
+      }
+      continue;
+    }
 
     const otherRectangle = getForcedMovementTokenRect(otherDocument);
     if (forcedMovementRectsOverlap(rectangle, otherRectangle)) return false;
@@ -10167,12 +10254,16 @@ function getForcedMovementDestination({
   direction = "push"
 } = {}) {
   if (!sourceToken?.document || !targetToken?.document) return null;
+  if (
+    sourceToken.document === targetToken.document ||
+    (sourceToken.document.uuid && sourceToken.document.uuid === targetToken.document.uuid)
+  ) return null;
 
   const requestedSpaces = Math.max(0, Math.floor(Number(spaces ?? 0)));
   if (requestedSpaces <= 0) return null;
 
-  const sourceCenter = sourceToken.center;
-  const targetCenter = targetToken.center;
+  const sourceCenter = sourceToken.document.getCenterPoint?.() ?? sourceToken.center;
+  const targetCenter = targetToken.document.getCenterPoint?.() ?? targetToken.center;
   const dx = Number(targetCenter?.x ?? 0) - Number(sourceCenter?.x ?? 0);
   const dy = Number(targetCenter?.y ?? 0) - Number(sourceCenter?.y ?? 0);
   const length = Math.hypot(dx, dy);
@@ -10428,8 +10519,7 @@ async function applyAttackEffectTags(defender, effectsToApply) {
   if (defender.flags?.["digimon-digital-adventures"]?.evokerCreation?.kind === "minion") {
     const allowedMinionEffects = new Set([
       "burn", "freeze", "poison", "ruin", "dot",
-      "root", "slow", "paralyze", "pull", "push", "swift", "tailwind", "nimble", "heavy",
-      "charm", "bug", "frenzy", "invincible"
+      "root", "paralyze", "pull", "push", "tailwind", "heavy"
     ]);
     incomingEffects = incomingEffects.filter((effect) => {
       const key = getEffectTagKey(effect.tag);
@@ -10703,9 +10793,21 @@ if (existingIndex >= 0) {
       : oldRemaining;
 
   const refreshUsesLatestCaster = ["fear", "taunt", "invincible"].includes(effectKey);
+  const replacesPotency = Boolean(effect.replacePotency);
 
   currentEffects[existingIndex] = {
     ...(refreshUsesLatestCaster ? { ...existing, ...effect } : existing),
+
+    ...(replacesPotency ? {
+      potency: Math.max(0, Number(effect.potency ?? effect.value ?? 0)),
+      value: Math.max(0, Number(effect.value ?? effect.potency ?? 0)),
+      sourceActorUuid: effect.sourceActorUuid ?? existing.sourceActorUuid,
+      sourceActorName: effect.sourceActorName ?? existing.sourceActorName,
+      sourceAttackId: effect.sourceAttackId ?? existing.sourceAttackId,
+      sourceAttackName: effect.sourceAttackName ?? existing.sourceAttackName,
+      sourceQualityName: effect.sourceQualityName ?? existing.sourceQualityName,
+      venomous: Boolean(effect.venomous)
+    } : {}),
 
     id:
       existing.id ??

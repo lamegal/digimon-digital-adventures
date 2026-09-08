@@ -12086,6 +12086,39 @@ if (isSystemBoost) {
 
   if (!selectedOption) return null;
 
+  let signatureBatteryAsUnalterable = false;
+  const selectedQualityIdentity = normalizeWizardQualityIdentity(
+    quality?.id ?? quality?.originalName ?? quality?.name ?? ""
+  );
+  if (
+    ["perfuracaodearmadura", "armorpiercing"].includes(selectedQualityIdentity) &&
+    selectedOption.isSignatureMove
+  ) {
+    try {
+      signatureBatteryAsUnalterable = Boolean(
+        await foundry.applications.api.DialogV2.confirm({
+          classes: ["dda", "dda-area-attack-dialog", "dda-offensive-quality-window"],
+          window: {
+            title: text(
+              "Perfuração de Armadura — Movimento Assinatura",
+              "Armor Piercing — Signature Move"
+            )
+          },
+          content: `<div class="dda-confirm-dialog dda-offensive-quality-dialog"><p>${text(
+            "Converter o Dano da Bateria em Dano Inalterável, até o limite de Ranks desta Qualidade? Esta escolha ficará registrada neste vínculo com o Ataque.",
+            "Convert Battery damage into Unalterable Damage, up to this Quality's Ranks? This choice is stored on this Attack binding."
+          )}</p></div>`,
+          yes: { label: text("Converter", "Convert") },
+          no: { label: text("Manter Dano normal", "Keep normal Damage") },
+          rejectClose: false,
+          modal: true
+        })
+      );
+    } catch (_error) {
+      signatureBatteryAsUnalterable = false;
+    }
+  }
+
   return {
     rank: rankNumber,
     key: selectedOption.key,
@@ -12142,6 +12175,8 @@ requirements:
 
 effect:
   selectedOption.effect ?? "",
+
+signatureBatteryAsUnalterable,
 
 pendingAttackChoice:
   Boolean(
@@ -12581,6 +12616,9 @@ _getAttackChoiceOptionsForQuality(
 
       attackTag:
         normalizedTag,
+
+      isSignatureMove:
+        Boolean(attack.system?.isSignature),
 
       pendingAttackChoice:
         isPendingSlot,

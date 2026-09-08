@@ -163,6 +163,7 @@ if (id === "arma") {
 }
 
 if (id === "golpeCerteiro") {
+  const english = isEnglishLanguage();
   next.cost ??= {};
   next.cost.dp = 2;
   next.cost.perRank = true;
@@ -172,7 +173,7 @@ if (id === "golpeCerteiro") {
     required: true,
     type: "singleAttack",
     repeatOnRankIncrease: false,
-    label: next.choices?.label || "Ataque com [CERTAIN]",
+    label: next.choices?.label || (english ? "Attack with [CERTAIN]" : "Ataque com [CERTAIN]"),
     options: Array.isArray(next.choices?.options) ? next.choices.options : []
   };
 
@@ -182,7 +183,7 @@ if (id === "golpeCerteiro") {
   next.attackModifier.automaticSuccessesPerRank = 1;
   next.attackModifier.signatureBatteryAutomaticSuccessThreshold = 2;
   next.attackModifier.signatureBatteryAutomaticSuccessBonus = 1;
-  next.attackModifier.cannotShareWithTagsUnlessSignatureMove = ["piercing"];
+  delete next.attackModifier.cannotShareWithTagsUnlessSignatureMove;
 
   next.statRankRequirement = {
     enabled: true,
@@ -198,37 +199,42 @@ if (id === "golpeCerteiro") {
 
   next.requirements = {
     ...(next.requirements ?? {}),
-    text: "Requer Acerto Total 4 para Rank 1, Acerto Total 8 para Rank 2 e Acerto Total 12 para Rank 3."
+    text: english
+      ? "Requires 4 Total Accuracy for Rank 1, 8 Total Accuracy for Rank 2, and 12 Total Accuracy for Rank 3."
+      : "Requer Acerto Total 4 para Rank 1, Acerto Total 8 para Rank 2 e Acerto Total 12 para Rank 3."
   };
 
-  next.incompatible = {
-    ...(next.incompatible ?? {}),
-    text: "[CERTAIN] e [PIERCING] não podem ser aplicadas ao mesmo ataque, a menos que ambas sejam aplicadas ao Movimento Assinatura."
-  };
+  next.incompatible = { text: "", qualityNames: "" };
 
-  next.effect = "Na primeira compra, aplique a Tag [CERTAIN] a um ataque [DAMAGE]. Um ataque com [CERTAIN] recebe Sucessos automáticos iguais aos Ranks nesta Qualidade. [CERTAIN] só pode ser aplicada a um ataque por Digimon. Se [CERTAIN] for aplicada a um Movimento Assinatura e o Digimon tiver 2 Bateria ou mais, o ataque recebe +1 Sucesso automático adicional.";
+  next.effect = english
+    ? "On first purchase, apply [CERTAIN] to one [DAMAGE] Attack. An Attack with [CERTAIN] gains automatic Successes equal to the Ranks in this Quality. [CERTAIN] may only be applied to one Attack per Digimon. If it is applied to a Signature Move and the Digimon has 2 Battery or more, the Attack gains +1 additional automatic Success."
+    : "Na primeira compra, aplique a Tag [CERTAIN] a um ataque [DAMAGE]. Um ataque com [CERTAIN] recebe Sucessos automáticos iguais aos Ranks nesta Qualidade. [CERTAIN] só pode ser aplicada a um ataque por Digimon. Se [CERTAIN] for aplicada a um Movimento Assinatura e o Digimon tiver 2 Bateria ou mais, o ataque recebe +1 Sucesso automático adicional.";
 
-  next.description = "Golpe Certeiro torna um ataque [DAMAGE] específico mais confiável, concedendo Sucessos automáticos à rolagem de Acerto.";
+  next.description = english
+    ? "Certain Strike makes one [DAMAGE] Attack more reliable by granting automatic Successes to its Accuracy roll."
+    : "Golpe Certeiro torna um ataque [DAMAGE] específico mais confiável, concedendo Sucessos automáticos à rolagem de Acerto.";
 }
 
 if (id === "perfuracaoDeArmadura") {
+  const english = isEnglishLanguage();
   next.cost ??= {};
   next.cost.dp = 2;
   next.cost.perRank = true;
+  delete next.rankLimit;
 
   next.choices = {
     ...(next.choices ?? {}),
     required: true,
     type: "singleAttack",
     repeatOnRankIncrease: false,
-    label: next.choices?.label || "Ataque com [PIERCING]",
+    label: next.choices?.label || (english ? "Attack with [PIERCING]" : "Ataque com [PIERCING]"),
     options: Array.isArray(next.choices?.options) ? next.choices.options : []
   };
 
   next.attackModifier.enabled = true;
   next.attackModifier.appliesTo = "oneDamageAttack";
   next.attackModifier.grantsTags = ["piercing"];
-  next.attackModifier.cannotShareWithTagsUnlessSignatureMove = ["certain"];
+  delete next.attackModifier.cannotShareWithTagsUnlessSignatureMove;
 
   delete next.attackModifier.piercingUnalterablePerLeftoverSuccess;
   delete next.attackModifier.piercingUnalterableMaxPerRank;
@@ -251,17 +257,20 @@ if (id === "perfuracaoDeArmadura") {
 
   next.requirements = {
     ...(next.requirements ?? {}),
-    text: "Requer Dano Total 4 para Rank 1, Dano Total 8 para Rank 2 e Dano Total 12 para Rank 3."
+    text: english
+      ? "Requires 4 Total Damage for Rank 1, 8 Total Damage for Rank 2, and 12 Total Damage for Rank 3."
+      : "Requer Dano Total 4 para Rank 1, Dano Total 8 para Rank 2 e Dano Total 12 para Rank 3."
   };
 
-  next.incompatible = {
-    ...(next.incompatible ?? {}),
-    text: "[PIERCING] e [CERTAIN] não podem ser aplicadas ao mesmo ataque, a menos que ambas sejam aplicadas ao Movimento Assinatura."
-  };
+  next.incompatible = { text: "", qualityNames: "" };
 
-  next.effect = "Na primeira compra, aplique a Tag [PIERCING] a um ataque [DAMAGE]. Um ataque com [PIERCING] causa Dano Inalterável em um acerto igual a 2 vezes os Ranks nesta Qualidade, ou igual aos Ranks em um Ataque de Área. [PIERCING] só pode ser aplicada a um ataque por Digimon. Se [PIERCING] for aplicada a um Movimento Assinatura, a Bateria adicionada ao Dano do ataque pode ser Dano Inalterável em vez disso, até os Ranks nesta Qualidade, escolhido quando a Tag é aplicada ao ataque.";
+  next.effect = english
+    ? "On first purchase, apply [PIERCING] to one [DAMAGE] Attack. An Attack with [PIERCING] deals Unalterable Damage on a hit equal to twice the Ranks in this Quality, or equal to its Ranks on an Area Attack. [PIERCING] may only be applied to one Attack per Digimon. If it is applied to a Signature Move, Battery added to the Attack's Damage may become Unalterable Damage instead, up to the Ranks in this Quality, chosen when the Tag is applied."
+    : "Na primeira compra, aplique a Tag [PIERCING] a um ataque [DAMAGE]. Um ataque com [PIERCING] causa Dano Inalterável em um acerto igual a 2 vezes os Ranks nesta Qualidade, ou igual aos Ranks em um Ataque de Área. [PIERCING] só pode ser aplicada a um ataque por Digimon. Se [PIERCING] for aplicada a um Movimento Assinatura, a Bateria adicionada ao Dano do ataque pode ser Dano Inalterável em vez disso, até os Ranks nesta Qualidade, escolhido quando a Tag é aplicada ao ataque.";
 
-  next.description = "Perfuração de Armadura permite que um ataque [DAMAGE] específico atravesse defesas e cause Dano Inalterável fixo em acertos.";
+  next.description = english
+    ? "Armor Piercing lets one [DAMAGE] Attack bypass defenses with fixed Unalterable Damage on a hit."
+    : "Perfuração de Armadura permite que um ataque [DAMAGE] específico atravesse defesas e cause Dano Inalterável fixo em acertos.";
 }
 
 if (id === "ataqueDeInvestida") {
@@ -380,12 +389,62 @@ if (id === "cacadorVigilante") {
 }
 
 if (id === "venenoso") {
+  const english = isEnglishLanguage();
   next.choices = { ...(next.choices ?? {}), required: true, type: "singleAttack", options: Array.isArray(next.choices?.options) ? next.choices.options : [] };
   next.attackModifier.enabled = true;
   next.attackModifier.appliesTo = "oneDamageAttack";
   next.attackModifier.grantsTags = ["venom"];
   next.attackModifier.venomous = true;
   next.attackModifier.cannotShareWithTags = ["poison"];
+  next.effect = english
+    ? "Apply [VENOM] to one [DAMAGE] Attack. On a hit, the Attacker may roll BIT (Survival) against TN 10 + the Target's RAM. Critical Failure gives the Attack -1 Damage; Failure has no effect; Success applies [POISON] for 1 Round, or increases existing [POISON] Potency by 1; Critical Success also adds +1 Potency. Area Attacks gain no benefit. [POISON] and [VENOM] cannot share an Attack. On a Signature Move, Battery is added to the applied [POISON] Potency."
+    : "Aplique [VENOM] a um Ataque [DAMAGE]. Ao acertar, o Atacante pode rolar BIT (Sobrevivência) contra NA 10 + RAM do Alvo. Falha Crítica dá -1 Dano ao Ataque; Falha não produz efeito; Sucesso aplica [POISON] por 1 Rodada ou aumenta em 1 a Potência de [POISON] já existente; Sucesso Crítico também concede +1 Potência. Ataques de Área não recebem o benefício. [POISON] e [VENOM] não podem estar no mesmo Ataque. Em Movimento Assinatura, a Bateria é adicionada à Potência de [POISON].";
+  next.description = english
+    ? "Venomous lets one [DAMAGE] Attack inflict or intensify [POISON] after a successful BIT (Survival) Check."
+    : "Venenoso permite que um Ataque [DAMAGE] inflija ou intensifique [POISON] após um Teste bem-sucedido de BIT (Sobrevivência).";
+}
+
+if (id === "orientacaoInspiradora") {
+  const english = isEnglishLanguage();
+  next.result = {
+    criticalFailure: english
+      ? "The Positive Effect's Duration is reduced by 1, to a minimum of 1."
+      : "A Duração do Efeito Positivo é reduzida em 1, até o mínimo de 1.",
+    failure: english ? "The Attack occurs normally." : "O Ataque ocorre normalmente.",
+    success: english
+      ? "The Target gains Guiding Dice equal to twice the Ranks in this Quality."
+      : "O Alvo recebe Dados de Orientação iguais ao dobro dos Ranks nesta Qualidade.",
+    criticalSuccess: english
+      ? "The Target gains two additional Guiding Dice."
+      : "O Alvo recebe dois Dados de Orientação adicionais."
+  };
+  next.effect = english
+    ? "Apply [GUIDING] to one [SUPPORT] Attack with a Positive Effect. Its maximum Ranks equal the DP spent on that Effect. After the Effect is successfully applied to an Ally, roll BIT (Persuasion) against TN 15 - DOS. Critical Failure reduces the Effect Duration by 1 (minimum 1); Failure changes nothing; Success grants Guiding Dice equal to twice this Quality's Ranks; Critical Success grants two more. The Target may add any number of these d6s to rolled Pools until spent or the Positive Effect ends. Only one Digimon may benefit from this source at a time; for an Area Attack, choose one target. A Signature Move grants additional Guiding Dice equal to Battery regardless of the Check result."
+    : "Aplique [GUIDING] a um Ataque [SUPPORT] com Efeito Positivo. O máximo de Ranks é igual ao DP gasto nesse Efeito. Depois que o Efeito for aplicado com sucesso a um Aliado, role BIT (Persuasão) contra NA 15 - DOS. Falha Crítica reduz a Duração do Efeito em 1 (mínimo 1); Falha não altera nada; Sucesso concede Dados de Orientação iguais ao dobro dos Ranks nesta Qualidade; Sucesso Crítico concede mais dois. O Alvo pode adicionar qualquer quantidade desses d6 às Pools roladas até gastá-los ou o Efeito Positivo terminar. Apenas um Digimon pode se beneficiar desta fonte por vez; em Ataque de Área, escolha um alvo. Um Movimento Assinatura concede Dados de Orientação adicionais iguais à Bateria, independentemente do resultado do Teste.";
+}
+
+if (id === "substituir") {
+  const english = isEnglishLanguage();
+  const trueWoundsRule = english
+    ? "The forfeiture uses only true Wound Boxes and never consumes Temporary Wound Boxes."
+    : "O sacrifício usa somente Caixas de Ferimento verdadeiras e nunca consome Caixas de Ferimento Temporárias.";
+  next.substitute = { ...(next.substitute ?? {}), trueWoundBoxesOnly: true };
+  if (!String(next.effect ?? "").toLowerCase().includes(english ? "true wound boxes" : "ferimento verdadeiras")) {
+    next.effect = `${String(next.effect ?? "").trim()} ${trueWoundsRule}`.trim();
+  }
+  next.result ??= {};
+  if (next.result.success) next.result.success = `${next.result.success} ${trueWoundsRule}`.trim();
+  if (next.result.criticalSuccess) next.result.criticalSuccess = `${next.result.criticalSuccess} ${trueWoundsRule}`.trim();
+}
+
+if (id === "perigoDigital") {
+  const english = isEnglishLanguage();
+  const clashRule = english ? "A [HAZARD] Attack ends the user's Clashes." : "Um Ataque [HAZARD] encerra os Clashes do usuário.";
+  next.attackModifier.endsClashes = true;
+  next.hazard = { ...(next.hazard ?? {}), endsClashes: true };
+  if (!String(next.effect ?? "").toLowerCase().includes(english ? "ends the user's clashes" : "encerra os clashes")) {
+    next.effect = `${String(next.effect ?? "").trim()} ${clashRule}`.trim();
+  }
 }
 
 if (id === "alcance") {
@@ -617,6 +676,9 @@ if (id === "conjurador") {
     appearanceMustBeDefined: true,
 
     masteryRefundedWhenDestroyedAtZeroWounds: true,
+    masteryReallocatedOnNewConjure: true,
+    supportsFoundationLinks: true,
+    foundationCollapseAutomatic: true,
 
     disappearOnNewConjure: true,
     disappearAtZeroWounds: true,
@@ -628,12 +690,12 @@ if (id === "conjurador") {
 
 Each Rank selects one different option. Walls and Pillars cost 1 Mastery per space, rise up to DOS spaces or the ceiling, have 1 Wound Box per space, and form a Wall of at most 4 adjacent spaces; windows may allow sight and Attacks but not movement. Platforms cost 2 Mastery, occupy 2 spaces by 1 space, have 2 Wound Boxes, may be created in mid-air, and may be Basic or Difficult Terrain of an owned Naturewalk Element. Terrain requires Element Master: each surface or aerial space costs 2 Mastery, or 1 when that Element is already present, plus 1 to become Dangerous Terrain; up to 4 adjacent spaces form one Structure with 1 Wound Box per space.
 
-Pillars and Walls may stand on Platforms, and elemental Platforms may become Dangerous Terrain. Destroying a supporting foundation collapses what it supports (resolved by the GM on a two-dimensional canvas). Existing Structures disappear without a refund when Conjure is used again, when the Digimon reaches 0 Wound Boxes, or when this Quality becomes unavailable.`
+Pillars and Walls may stand on Platforms or other Pillars, and elemental Platforms may be converted into Dangerous Terrain. Destroying a supporting foundation automatically collapses what it supports without refunding the collapsed Structure. When Conjure is used again, selected Structures may be recreated in place and the Mastery allocated to removed Structures is reassigned. Structures disappear when the Digimon reaches 0 Wound Boxes or this Quality becomes unavailable.`
     : `Mastery é igual ao BIT + duas vezes a soma dos Ranks em Conjurador e Invocador. Conjurar usa 1 Ação para acessar metade da Mastery máxima ou 2 Ações para acessar toda ela, e não pode ser usada novamente por 1 Rodada. Estruturas devem ocupar espaços desocupados dentro do Alcance, possuem Limiar de Dano igual ao DOS, não rolam Esquiva e só devolvem seu custo de Mastery quando são destruídas ao chegar a 0 Caixas de Ferimento. Defina sua aparência ao comprar esta Qualidade.
 
 Cada Rank seleciona uma opção diferente. Paredes e Pilares custam 1 Mastery por espaço, sobem até DOS espaços ou o teto, possuem 1 Caixa de Ferimento por espaço e formam uma Parede de no máximo 4 espaços adjacentes; janelas podem permitir visão e Ataques, mas não movimento. Plataformas custam 2 Mastery, ocupam 2 espaços por 1 espaço, possuem 2 Caixas de Ferimento, podem ser criadas no ar e podem ser Terreno Básico ou Difícil de um Elemento de Passo Natural possuído. Terreno exige Mestre Elemental: cada espaço de superfície ou aéreo custa 2 Mastery, ou 1 quando o Elemento já existe, mais 1 para se tornar Terreno Perigoso; até 4 espaços adjacentes formam uma Estrutura com 1 Caixa de Ferimento por espaço.
 
-Pilares e Paredes podem se apoiar em Plataformas, e Plataformas elementais podem se tornar Terreno Perigoso. Destruir a fundação derruba o que ela sustenta (resolvido pelo GM no canvas bidimensional). Estruturas existentes desaparecem sem reembolso quando Conjurar é usada novamente, quando o Digimon chega a 0 Caixas de Ferimento ou quando esta Qualidade fica indisponível.`;
+Pilares e Paredes podem se apoiar em Plataformas ou outros Pilares, e Plataformas elementais podem ser convertidas em Terreno Perigoso. Destruir uma fundação derruba automaticamente o que ela sustenta sem devolver a Mastery da Estrutura derrubada. Quando Conjurar é usada novamente, Estruturas selecionadas podem ser recriadas no lugar e a Mastery alocada às Estruturas removidas é redistribuída. Estruturas desaparecem quando o Digimon chega a 0 Caixas de Ferimento ou quando esta Qualidade fica indisponível.`;
 
   next.description = english
     ? "Conjurer creates persistent Structures and elemental terrain by spending Mastery."
@@ -902,7 +964,7 @@ Command Minion uses 1 Action for one Minion or 2 Actions for all Minions and gra
 
 Infantry costs 4, is Large, gains SV Movement, and reduces Command by 1 Action once per turn; discounted Minions cannot Aid. Protector costs 3, is Huge, gains 2 × SV Wound Boxes, may Intercede using the Summoner's Actions, and ignores Difficult Terrain. Recon costs 2, is Medium, gains SV Accuracy, uses the Summoner's Range and Effective Limit for [RANGE] Attacks, and shares its sight. Volatile requires Element Master, costs 1, is Large, gains SV Damage, uses an owned Naturewalk Element, and at 0 Wound Boxes makes a free minimum-range [RANGE][DAMAGE][T:BURST] Attack; matching Element Master targets take no Damage.
 
-Only the listed inherited Qualities apply: all Minions may use Data Optimization (Close Combat; Speedster Movement only), Accelerate, Extra Movement other than Flight, Advanced Mobility, Tumbler, and Aggressive Flank; Infantry may use True Guardian's Action refund; Recon may use Ranged Striker and Sniper; Volatile may use Naturewalk for Terrain and Mobile Artillery. Minions disappear when removed by a new Summon, when the Summoner reaches 0 Wound Boxes, or when this Quality becomes unavailable.`
+Only the listed inherited Qualities apply: all Minions may use Data Optimization (Close Combat; Speedster Movement only), Accelerate, Extra Movement other than Flight, Advanced Mobility, and Tumbler. Infantry may use Aggressive Flank; Protector may use only True Guardian's Action refund; Recon may use Ranged Striker and Sniper; Volatile may use Naturewalk for Terrain and Mobile Artillery. Minions disappear when removed by a new Summon, when the Summoner reaches 0 Wound Boxes, or when this Quality becomes unavailable.`
     : `Mastery é igual ao BIT + duas vezes a soma dos Ranks em Invocador e Conjurador. Invocar usa 1 Ação para acessar metade da Mastery máxima ou 2 Ações para acessar toda ela, cria Lacaios em espaços desocupados dentro do Alcance e não pode ser usada novamente por 1 Rodada. Defina o método e a aparência da invocação ao comprar esta Qualidade. O máximo de Lacaios é igual aos Ranks em Invocador. Uma nova Invocação remove e reembolsa os Lacaios não mantidos; Lacaios mantidos preservam a Mastery gasta. Lacaios que chegam a 0 Caixas de Ferimento são destruídos e reembolsados.
 
 Precisão, Dano e Movimento base são iguais ao BIT; Caixas de Ferimento são DOS × 2; Armadura e Esquiva são 0 e Lacaios não rolam Esquiva. Eles possuem Voo sem sua penalidade de Movimento, não possuem Estatísticas Derivadas e normalmente usam Ataques [MELEE]. Cada Mastery adicional concede +2 Caixas de Ferimento, e a cada 2 Mastery adicionais também recebem +1 Precisão, Dano e Movimento. Lacaios só recebem Efeitos de Dano e Efeitos que movem ou alteram Movimento; [POISON] usa o CPU do Invocador.
@@ -911,7 +973,7 @@ Comandar Lacaio usa 1 Ação para um Lacaio ou 2 Ações para todos e concede 2 
 
 Infantaria custa 4, é Grande, recebe Movimento igual ao SV e reduz Comandar em 1 Ação uma vez por turno; Lacaios com desconto não podem Ajudar. Protetor custa 3, é Enorme, recebe 2 × SV Caixas de Ferimento, pode Interceder usando as Ações do Invocador e ignora Terreno Difícil. Reconhecimento custa 2, é Médio, recebe Precisão igual ao SV, usa o Alcance e Limite Efetivo do Invocador em Ataques [RANGE] e compartilha sua visão. Volátil exige Mestre Elemental, custa 1, é Grande, recebe Dano igual ao SV, usa um Elemento de Passo Natural possuído e, a 0 Caixas, faz um Ataque gratuito [RANGE][DAMAGE][T:BURST] de alcance mínimo; alvos com Mestre Elemental correspondente não sofrem Dano.
 
-Apenas as Qualidades herdadas listadas se aplicam: todos podem usar Otimização de Dados (Combate Corpo a Corpo; Movimento de Velocista), Acelerar, Movimento Extra além de Voo, Mobilidade Avançada, Acrobata e Flanco Agressivo; Infantaria pode usar o reembolso de Ação de Guardião Verdadeiro; Reconhecimento pode usar Combatente à Distância e Atirador de Elite; Volátil pode usar Passo Natural para Terreno e Artilharia Móvel. Lacaios desaparecem quando removidos por uma nova Invocação, quando o Invocador chega a 0 Caixas de Ferimento ou quando esta Qualidade fica indisponível.`;
+Apenas as Qualidades herdadas listadas se aplicam: todos podem usar Otimização de Dados (Combate Corpo a Corpo; Movimento de Velocista), Acelerar, Movimento Extra além de Voo, Mobilidade Avançada e Acrobata. Infantaria pode usar Flanco Agressivo; Protetor pode usar apenas o reembolso de Ação de Guardião Verdadeiro; Reconhecimento pode usar Combatente à Distância e Atirador de Elite; Volátil pode usar Passo Natural para Terreno e Artilharia Móvel. Lacaios desaparecem quando removidos por uma nova Invocação, quando o Invocador chega a 0 Caixas de Ferimento ou quando esta Qualidade fica indisponível.`;
 
   next.description = english
     ? "Summoner creates and commands digital Minions by spending Mastery."
@@ -28574,6 +28636,64 @@ const DDA_DIGIMON_QUALITIES_EN = [
   }
 ];
 
+function buildTacticalOrderQuality(language = "pt-BR") {
+  const english = language === "en";
+  return {
+    id: "ordemTatica",
+    name: english ? "Tactical Order" : "Ordem Tática",
+    originalName: "Tactical Order",
+    section: "Utility Qualities",
+    category: {
+      core: false,
+      attack: false,
+      trigger: false,
+      static: true,
+      free: false,
+      negative: false
+    },
+    cost: {
+      dp: 1,
+      perRank: false,
+      coreDiscountAvailable: false,
+      countsAgainstFreeLimit: false,
+      grantsDp: false
+    },
+    rank: { value: 1, max: 1, limited: false },
+    stageRequirement: { enabled: false, minimum: "", maximum: "" },
+    requirements: {
+      text: english ? "Requires Combat Awareness." : "Requer Consciência de Combate.",
+      qualityNames: "Combat Awareness"
+    },
+    incompatible: { text: "", qualityNames: "" },
+    requiredFor: [],
+    choices: { required: false, type: "", options: [] },
+    attackModifier: { grantsTags: [] },
+    grants: {
+      aidBonus: 2,
+      tacticalOrderInitiativeSwap: true
+    },
+    activation: {
+      enabled: false,
+      active: false,
+      mode: "passive",
+      chatMessage: ""
+    },
+    uses: { enabled: false, value: 0, max: 0, recharge: "" },
+    effect: english
+      ? "The bonus this Digimon grants with the Aid Action gains +2. When Initiative is rolled, the Digimon may choose one willing Ally who also rolled Initiative and swap places with them in the Initiative order for the entire Combat. The swap persists even if this Quality is later lost."
+      : "O bônus que este Digimon concede com a Ação Ajudar recebe +2. Quando a Iniciativa é rolada, o Digimon pode escolher um Aliado disposto que também rolou Iniciativa e trocar de posição com ele na ordem pelo Combate inteiro. A troca persiste mesmo que esta Qualidade seja perdida depois.",
+    description: english
+      ? "Tactical Order improves Aid and permits one persistent allied Initiative swap."
+      : "Ordem Tática melhora Ajudar e permite uma troca persistente de Iniciativa com um aliado.",
+    tier: "starting",
+    originalTier: "Starting Qualities",
+    availability: {
+      minimumStage: "",
+      label: english ? "Starting Quality" : "Qualidade Inicial"
+    }
+  };
+}
+
 let cachedQualitiesLanguage = "";
 let cachedLocalizedQualities = null;
 
@@ -28586,9 +28706,13 @@ function getLocalizedDigimonQualities() {
 
   cachedQualitiesLanguage = language;
 
-  const sourceQualities = language === "en"
+  const baseQualities = language === "en"
     ? DDA_DIGIMON_QUALITIES_EN
     : DDA_DIGIMON_QUALITIES_PT;
+  const sourceQualities = [
+    ...baseQualities,
+    buildTacticalOrderQuality(language)
+  ];
 
   cachedLocalizedQualities = applyDefaultQualityAvailability(sourceQualities)
     .map((quality) => normalizeQualityAutomationData(quality))

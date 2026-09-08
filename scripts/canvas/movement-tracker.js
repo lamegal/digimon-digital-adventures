@@ -761,8 +761,13 @@ function normalizeTerrainElement(value = "") {
 }
 
 function actorNaturewalkElements(actor) {
+  const inheritedTerrainElements = actor?.flags?.["digimon-digital-adventures"]
+    ?.evokerCreation?.naturewalkTerrainElements ?? [];
   return new Set(
-    (actor?.system?.qualityFeatures?.naturewalk?.elements ?? [])
+    [
+      ...(actor?.system?.qualityFeatures?.naturewalk?.elements ?? []),
+      ...inheritedTerrainElements.map((entry) => entry?.key ?? entry)
+    ]
       .map(normalizeTerrainElement)
       .filter(Boolean)
   );
@@ -863,8 +868,8 @@ function evokerTerrainEntries(actor, layer = "surface", { includeNaturewalk = fa
       terrain = String(flag.terrain ?? "").toLowerCase();
       element = normalizeTerrainElement(flag.element);
       terrainLayer = String(flag.terrainLayer ?? "surface") === "aerial" ? "aerial" : "surface";
-    } else if (flag.subtype === "platform" && String(flag.platformTerrain ?? "").toLowerCase() === "difficult") {
-      terrain = "difficult";
+    } else if (flag.subtype === "platform" && ["difficult", "dangerous"].includes(String(flag.platformTerrain ?? "").toLowerCase())) {
+      terrain = String(flag.platformTerrain).toLowerCase();
       element = normalizeTerrainElement(flag.element);
       terrainLayer = "surface";
     }
