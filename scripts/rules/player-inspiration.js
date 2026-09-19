@@ -61,7 +61,7 @@ export function canPlayerInspirationAlterRoll(actor, { option = "standard" } = {
 function isHostileActor(actor) {
   if (!actor) return false;
   if (actor.type === "npc" && actor.system?.enemy?.isEnemy) return true;
-  const disposition = Number(actor.prototypeToken?.disposition ?? 0);
+  const disposition = Number(actor.token?.disposition ?? actor.prototypeToken?.disposition ?? 0);
   return disposition === CONST.TOKEN_DISPOSITIONS.HOSTILE;
 }
 
@@ -74,18 +74,23 @@ function getOwnedTamersForUser(user, { requireIp = true } = {}) {
     .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
 }
 
-function getEligibleUsers(actor) {
+async function getEligibleUsers(actor, opposingActorUuids = []) {
   const activePlayers = Array.from(game.users ?? [])
     .filter((user) => user?.active && !user.isGM);
 
-  if (isHostileActor(actor)) {
-    return activePlayers
-      .filter((user) => getOwnedTamersForUser(user).length > 0)
-      .sort((a, b) => String(a.id).localeCompare(String(b.id)));
-  }
+  // Enemy rolls concern only their actual opponents in this roll. Never use
+  // every connected player (or a client's currently selected targets) here.
+  const participants = isHostileActor(actor)
+    ? (await Promise.all([...new Set(Array.isArray(opposingActorUuids) ? opposingActorUuids : [])]
+        .filter((uuid) => typeof uuid === "string" && uuid)
+        .map(async (uuid) => {
+          try { return await fromUuid(uuid); } catch (_error) { return null; }
+        }))).filter((participant) => participant && !isHostileActor(participant))
+    : [actor];
 
   return activePlayers
-    .filter((user) => actor?.testUserPermission?.(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER))
+    .filter((user) => participants.some((participant) =>
+      participant?.testUserPermission?.(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER)))
     .filter((user) => getOwnedTamersForUser(user).length > 0)
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 }
@@ -199,8 +204,13 @@ async function promptOneChoice({ phase, actorName = "", currentLabel = "" } = {}
   return result ?? null;
 }
 
-async function resolveLocalInspirationOffer({ phase, actorName = "", currentLabel = "" } = {}) {
+async function resolveLocalInspirationOffer({ phase, actorUuid = "", opposingActorUuids = [], actorName = "", currentLabel = "" } = {}) {
   const choices = [];
+  let actor = null;
+  try { actor = await fromUuid(actorUuid); } catch (_error) { return choices; }
+  if (!actor || !canPlayerInspirationAlterRoll(actor)) return choices;
+  const eligibleUsers = await getEligibleUsers(actor, opposingActorUuids);
+  if (!eligibleUsers.some((user) => user.id === game.user?.id)) return choices;
 
   while (true) {
     const chosen = await promptOneChoice({ phase, actorName, currentLabel });
@@ -278,14 +288,14 @@ function requestRemoteUser(user, payload = {}) {
   });
 }
 
-async function collectChoices(actor, phase, currentLabel = "") {
+async function collectChoices(actor, phase, currentLabel = "", opposingActorUuids = []) {
   if (!actor) return { blocked: false, choices: [] };
 
   if (!canPlayerInspirationAlterRoll(actor, { option: "standard" })) {
     return { blocked: true, choices: [] };
   }
 
-  const users = getEligibleUsers(actor);
+  const users = await getEligibleUsers(actor, opposingActorUuids);
   if (!users.length) return { blocked: false, choices: [] };
 
   const results = await Promise.all(
@@ -295,6 +305,7 @@ async function collectChoices(actor, phase, currentLabel = "") {
         phase,
         actorName: actor.name ?? "Actor",
         actorUuid: actor.uuid ?? "",
+        opposingActorUuids,
         currentLabel
       })
     }))
@@ -308,9 +319,9 @@ async function collectChoices(actor, phase, currentLabel = "") {
   };
 }
 
-export async function preparePoolPlayerInspiration(actor, { diceCount = 0, miracleUsed = false } = {}) {
+export async function preparePoolPlayerInspiration(actor, { diceCount = 0, miracleUsed = false, opposingActorUuids = [] } = {}) {
   const originalDiceCount = integer(diceCount, 0);
-  const collected = await collectChoices(actor, "pool-pre", `${originalDiceCount}d6`);
+  const collected = await collectChoices(actor, "pool-pre", `${originalDiceCount}d6`, opposingActorUuids);
 
   let finalDiceCount = originalDiceCount;
   const applied = [];
@@ -339,9 +350,10 @@ export async function applyCheckPlayerInspiration(actor, {
   roll = null,
   formula = "",
   data = {},
-  currentLabel = ""
+  currentLabel = "",
+  opposingActorUuids = []
 } = {}) {
-  const collected = await collectChoices(actor, "check-post", currentLabel || String(roll?.total ?? ""));
+  const collected = await collectChoices(actor, "check-post", currentLabel || String(roll?.total ?? ""), opposingActorUuids);
   let currentRoll = roll;
   let totalAdjustment = 0;
   let inspirationRerolled = false;
@@ -390,9 +402,10 @@ export async function applyCheckPlayerInspiration(actor, {
 export async function applyPoolPlayerInspiration(actor, {
   roll = null,
   diceCount = 0,
-  currentLabel = ""
+  currentLabel = "",
+  opposingActorUuids = []
 } = {}) {
-  const collected = await collectChoices(actor, "pool-post", currentLabel || `${integer(diceCount, 0)}d6`);
+  const collected = await collectChoices(actor, "pool-post", currentLabel || `${integer(diceCount, 0)}d6`, opposingActorUuids);
   let currentRoll = roll;
   let currentDiceCount = integer(diceCount, 0);
   let diceResults = (currentRoll?.dice?.[0]?.results ?? []).map((result) => ({

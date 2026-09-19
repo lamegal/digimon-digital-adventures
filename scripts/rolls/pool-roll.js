@@ -304,7 +304,7 @@ const prePlayerInspiration = options.allowPlayerInspiration === false
   ? { blocked: false, originalDiceCount: dice, diceCount: dice, choices: [] }
   : await preparePoolPlayerInspiration(
       actor,
-      { diceCount: dice }
+      { diceCount: dice, opposingActorUuids: options.inspirationOpposingActorUuids ?? [] }
     );
 
 dice = prePlayerInspiration.diceCount;
@@ -523,6 +523,7 @@ const postPlayerInspiration = options.allowPlayerInspiration === false
       {
         roll,
         diceCount: dice,
+        opposingActorUuids: options.inspirationOpposingActorUuids ?? [],
         currentLabel: `${dice}d6`
       }
     );

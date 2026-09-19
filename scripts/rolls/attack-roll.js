@@ -1861,6 +1861,10 @@ const accuracyResult = sharedAccuracyResult ?? (
         ddaTamerDirectEffects: []
       }
     : await rollPool(attacker, "accuracy", {
+  inspirationOpposingActorUuids: [...new Set([
+    ...(areaBatch?.targetActorUuids ?? []),
+    defender.uuid
+  ].filter(Boolean))],
   diceModifier: accuracyDiceBonus,
 
   automaticSuccesses: Number(qualityAttackModifier.automaticSuccesses ?? 0),
@@ -2207,7 +2211,9 @@ const tamerDefense = dodgeResult.tamerDefense ?? null;
 let hit = tamerDefense
   ? Number(tamerDefense.damage ?? 0) > 0
   : targetIsWillingForEffect
-    ? true
+    // Willing targets skip Dodge, but PUSH/PULL still need an Accuracy success.
+    ? accuracySuccesses > 0 || !activeEffectTags.some((tag) =>
+        ["push", "pull"].includes(getEffectTagKey(tag)))
     : accuracySuccesses > 0 &&
     (
       equalAccuracyAndDodgeCountsAsMiss
@@ -2734,6 +2740,7 @@ const focusedResistance = hit && activeEffectTags.length && !attackDivertedBySub
 
 let effectApplication = getAttackEffectApplication({
   hit,
+  automaticHit: autoHitUsed || criticalArmsResult === 12,
   attackItem,
   activeEffectTags,
   normalDamage,
@@ -9026,6 +9033,7 @@ function getAttackEffectPotencyBonus(
 
 function getAttackEffectApplication({
   hit,
+  automaticHit = false,
   attackItem,
   activeEffectTags,
   normalDamage,
@@ -9133,6 +9141,13 @@ for (const tag of activeEffectTags) {
 
   const effectKey =
     getEffectTagKey(tag);
+
+  // Forced movement has a base distance even with zero leftover successes.
+  // That distance is a magnitude, never a substitute for landing the Attack.
+  if (["push", "pull"].includes(effectKey) && !automaticHit && !(Number(accuracySuccesses) > 0)) {
+    result.reason = localize("DDA.Attack.EffectReason.AttackMissed");
+    continue;
+  }
 
   if (bossImmunityEffectTags.has(normalizeKey(effectKey))) {
     result.reason = combatText(
@@ -13052,6 +13067,7 @@ if (environmentAutomaticSuccesses > 0) {
 }
 
 return rollPool(defender, "dodge", {
+  inspirationOpposingActorUuids: request.attackerUuid ? [request.attackerUuid] : [],
   allowZeroSuccesses: true,
   diceModifier: Number(effectDodgeModifier ?? 0) + adaptiveBonus,
   automaticSuccesses: environmentAutomaticSuccesses,
@@ -14512,6 +14528,7 @@ export async function applyDigitalHazardEffects({ attacker, defender, attackItem
   if (!effectTags.length) return { applied: [], reason: "noEffectTags" };
   const application = getAttackEffectApplication({
     hit: true,
+    automaticHit: true,
     attackItem,
     activeEffectTags: effectTags,
     normalDamage: Number(normalDamage),
