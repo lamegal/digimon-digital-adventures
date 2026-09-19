@@ -662,6 +662,7 @@ export async function rollTamerCheck(
           // rerolls, so intentionally omit the r=1 modifier here.
           formula: `${3 + extraDice}d6 + @modifier`,
           data: { modifier },
+          opposingActorUuids: options.inspirationOpposingActorUuids ?? [],
           currentLabel: tn
             ? `${total} vs ${tn}`
             : String(total)
