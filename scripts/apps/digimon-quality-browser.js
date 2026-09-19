@@ -1001,7 +1001,6 @@ _matchesQualitySearch(quality, searchTerm) {
           ui.notifications.warn(isQualityBrowserEnglish()
             ? `${quality.name} and the selected Effect cost ${totalCost} DP, but only ${this._getActorRemainingDp()} remain.`
             : `${quality.name} e o Efeito escolhido custam ${totalCost} PD, mas restam apenas ${this._getActorRemainingDp()}.`);
-          return;
         }
 
         itemData.system.overclock = {
@@ -3939,7 +3938,6 @@ _getAttackChoiceOptionsForQuality(
         cost: rankCost,
         remaining: remainingDp
       }));
-      return;
     }
 
     if (!this._actorHasRequiredQualities(quality)) {
@@ -4584,12 +4582,9 @@ _isAccelerateQuality(quality, ownedItem = null) {
   }
 
 
-  _actorHasEnoughDp(quality) {
-    const cost = this._getQualityDpCost(quality);
-
-    if (cost <= 0) return true;
-
-    return this._getActorRemainingDp() >= cost;
+  _actorHasEnoughDp(_quality) {
+    // DP accounting is informational; the owner and GM review the build.
+    return true;
   }
 
     _getActorFreeQualityLimit() {

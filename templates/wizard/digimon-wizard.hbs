@@ -906,6 +906,10 @@
             <span><strong>{{localize "DDA.Progression.BonusDP.SharedStats"}}:</strong> {{data.dp.sharedStatTotal}}</span>
             <span><strong>{{localize "DDA.Progression.BonusDP.QualityAllocation"}}:</strong> {{data.dp.sharedQualityAllocated}}</span>
             <span><strong>{{localize "DDA.Progression.BonusDP.Unallocated"}}:</strong> {{data.dp.bonusUnallocated}}</span>
+            {{#if canAllocateFormBonus}}
+              <button type="button" data-action="allocate-form-bonus">{{localize "DDA.DigimonWizard.AllocateBonus"}}</button>
+              <small>{{localize "DDA.DigimonWizard.AllocateBonusHint"}}</small>
+            {{/if}}
           {{/if}}
         </div>
 
@@ -945,11 +949,9 @@
                   <button
                     type="button"
                     data-stat-increase="{{statKey}}"
-                    {{#if ../formMode}}
-                      {{#unless ../data.dp.statRemaining}}disabled{{/unless}}
-                    {{else}}
+                    {{#unless ../formMode}}
                       {{#unless ../data.dp.remaining}}disabled{{/unless}}
-                    {{/if}}
+                    {{/unless}}
                   >
                     +
                   </button>
@@ -1060,7 +1062,7 @@
     </div>
 
     <p class="dda-wizard-hint">
-      Configure os ataques exclusivos desta forma. Eles não substituem os ataques do estágio atual.
+      {{localize "DDA.DigimonWizard.FormAttacksHint"}}
     </p>
   </section>
 {{/if}}
@@ -1082,6 +1084,7 @@
     {{/if}}
     <p>
       {{localize "DDA.DigimonWizard.Qualities.Help"}}
+      {{#if formMode}}{{localize "DDA.Progression.BonusDP.AdvisoryValidation"}}{{/if}}
     </p>
 
     {{#if formBuildView.enabled}}
@@ -1123,6 +1126,10 @@
         <span><strong>{{localize "DDA.Progression.BonusDP.SharedStats"}}:</strong> {{data.dp.sharedStatTotal}}</span>
         <span><strong>{{localize "DDA.Progression.BonusDP.QualityAllocation"}}:</strong> {{data.dp.sharedQualitySpent}} / {{data.dp.sharedQualityAllocated}}</span>
         <span><strong>{{localize "DDA.Progression.BonusDP.Unallocated"}}:</strong> {{data.dp.bonusUnallocated}}</span>
+            {{#if canAllocateFormBonus}}
+              <button type="button" data-action="allocate-form-bonus">{{localize "DDA.DigimonWizard.AllocateBonus"}}</button>
+              <small>{{localize "DDA.DigimonWizard.AllocateBonusHint"}}</small>
+            {{/if}}
       {{/if}}
       <span><strong>{{localize "DDA.Creation.NegativeDP"}}:</strong> {{data.dp.negativeUsed}} / {{data.dp.negativeLimit}}</span>
       <span><strong>{{localize "DDA.DigimonWizard.Qualities.Free"}}:</strong> {{data.dp.freeQualityUsed}} / {{data.dp.freeQualityLimit}}</span>

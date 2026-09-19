@@ -164,6 +164,9 @@ export class DDAPartnerBonusDpAdvancement extends DDAPartnerBonusDpBase {
       )
     );
 
+    if (result.needsReview) {
+      ui.notifications.warn(localize("DDA.Progression.BonusDP.Info.SavedWithWarnings", "Saved. Some forms need review; these warnings do not block play."));
+    }
     this._draft = null;
     await this.render();
     this.tamerActor?.sheet?.render(false);
@@ -211,21 +214,10 @@ export class DDAPartnerBonusDpAdvancement extends DDAPartnerBonusDpBase {
       draftAllocation
     );
 
-    const statMaximums = Object.fromEntries(
-      DDA_BONUS_DP_STAT_KEYS.map((key) => {
-        const values = formStatus.forms
-          .filter((form) => form.eligible)
-          .map((form) => integer(form.statHeadroom?.[key], 20));
-
-        return [key, values.length ? Math.min(...values) : 20];
-      })
-    );
-
     const stats = DDA_BONUS_DP_STAT_KEYS.map((key) => ({
       key,
       label: getStatLabel(key),
-      value: integer(this._draft.sharedStatBonus?.[key], 0),
-      max: Math.min(allocation.total, statMaximums[key])
+      value: integer(this._draft.sharedStatBonus?.[key], 0)
     }));
 
     const forms = formStatus.forms.map((form) => ({
@@ -310,19 +302,7 @@ export class DDAPartnerBonusDpAdvancement extends DDAPartnerBonusDpBase {
 
     const updatePreview = () => {
       const statTotal = this._draftStatTotal();
-      const quality = integer(this._draft.qualityAllocated, 0);
-      const total = integer(this.partnerActor?.system?.advancement?.bonusDp?.total, 0);
-      const qualityInput = root.querySelector("[data-bonus-quality]");
-      const qualityMax = Math.max(0, total - statTotal);
-
-      if (qualityInput) {
-        qualityInput.max = String(qualityMax);
-        if (quality > qualityMax) {
-          this._draft.qualityAllocated = qualityMax;
-          qualityInput.value = String(qualityMax);
-        }
-      }
-
+      const total = getPartnerBonusDpAllocation(this.partnerActor).total;
       const effectiveQuality = integer(this._draft.qualityAllocated, 0);
       const unallocated = Math.max(0, total - statTotal - effectiveQuality);
 
@@ -340,8 +320,7 @@ export class DDAPartnerBonusDpAdvancement extends DDAPartnerBonusDpBase {
         const key = String(event.currentTarget.dataset.bonusStat ?? "").trim();
         if (!DDA_BONUS_DP_STAT_KEYS.includes(key)) return;
 
-        const max = integer(event.currentTarget.max, 20);
-        const value = Math.min(max, integer(event.currentTarget.value, 0));
+        const value = integer(event.currentTarget.value, 0);
         event.currentTarget.value = String(value);
         this._draft.sharedStatBonus[key] = value;
         updatePreview();
@@ -349,8 +328,7 @@ export class DDAPartnerBonusDpAdvancement extends DDAPartnerBonusDpBase {
     });
 
     root.querySelector("[data-bonus-quality]")?.addEventListener("input", (event) => {
-      const max = integer(event.currentTarget.max, 0);
-      const value = Math.min(max, integer(event.currentTarget.value, 0));
+      const value = integer(event.currentTarget.value, 0);
       event.currentTarget.value = String(value);
       this._draft.qualityAllocated = value;
       updatePreview();

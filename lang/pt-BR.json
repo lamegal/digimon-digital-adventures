@@ -3503,5 +3503,11 @@
   "DDA.PartnerFormPlanner.Npc.LockHint": "Remove esta forma das evoluções disponíveis do NPC sem apagar a build planejada.",
   "DDA.PartnerFormPlanner.Npc.Unlocked": "Forma liberada para este NPC.",
   "DDA.PartnerFormPlanner.Npc.Locked": "Forma removida das evoluções disponíveis deste NPC.",
-  "DDA.PartnerFormPlanner.Npc.AvailabilityFailed": "Não foi possível alterar a disponibilidade desta forma do NPC."
+  "DDA.PartnerFormPlanner.Npc.AvailabilityFailed": "Não foi possível alterar a disponibilidade desta forma do NPC.",
+  "DDA.DigimonWizard.FormAttacksHint": "Configure os ataques exclusivos desta forma. Eles não substituem os ataques do estágio atual.",
+  "DDA.DigimonWizard.AllocateBonus": "Distribuir PD bônus",
+  "DDA.DigimonWizard.AllocateBonusHint": "A distribuição de PD bônus é registrada como referência. Você pode comprar Qualidades e salvar mesmo quando o orçamento precisa de revisão.",
+  "DDA.DigimonWizard.SharedStatsOverCap": "Uma Estatística está acima de {max}. Revise com o narrador; isso não impede salvar.",
+  "DDA.Progression.BonusDP.AdvisoryValidation": "Orçamentos de PD, limites de Estatísticas e avisos da build não impedem salvar esta forma. O jogador e o narrador podem revisá-los depois.",
+  "DDA.Progression.BonusDP.Info.SavedWithWarnings": "Salvo. Algumas formas precisam de revisão; esses avisos não bloqueiam o jogo."
 }

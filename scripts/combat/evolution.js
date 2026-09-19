@@ -1754,7 +1754,7 @@ export async function getFuturePartnerFormWizardContext(
     : null;
   const totalBonusDp = requestedBonusProfile
     ? Math.max(0, Number(requestedBonusProfile.total ?? options?.bonusDpTotal ?? 0))
-    : (Number.isFinite(Number(options?.bonusDpTotal))
+    : (options?.bonusDpTotal != null && Number.isFinite(Number(options.bonusDpTotal))
         ? Math.max(0, Number(options.bonusDpTotal))
         : standardBonusDp);
 

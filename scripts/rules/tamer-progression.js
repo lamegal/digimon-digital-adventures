@@ -1294,20 +1294,14 @@ export function getPartnerBonusDpAllocation(partner, totalBonusDp = null) {
     partner?.system?.advancement?.sharedStatBonus ?? {}
   );
 
-  const statAllocated = Math.min(
-    total,
-    getSharedStatBonusTotal(sharedStatBonus)
-  );
+  const statAllocated = getSharedStatBonusTotal(sharedStatBonus);
 
   const requestedQuality = integer(
     partner?.system?.advancement?.sharedQualityDp?.allocated,
     0
   );
 
-  const qualityAllocated = Math.min(
-    Math.max(0, total - statAllocated),
-    requestedQuality
-  );
+  const qualityAllocated = requestedQuality;
 
   const allocated = statAllocated + qualityAllocated;
 
@@ -1481,13 +1475,10 @@ function synchronizeBonusDpCreationAllocation(
     ? normalizeSharedStatBonus(sharedStatBonus)
     : normalizeSharedStatBonus({});
   const statAllocated = eligible
-    ? Math.min(total, getSharedStatBonusTotal(targetStats))
+    ? getSharedStatBonusTotal(targetStats)
     : 0;
   const qualityBudget = eligible
-    ? Math.min(
-        Math.max(0, total - statAllocated),
-        integer(qualityAllocated, 0)
-      )
+    ? integer(qualityAllocated, 0)
     : 0;
 
   const previousBaseStats = integer(next.dp.spentBaseStats, 0);
@@ -1509,7 +1500,7 @@ function synchronizeBonusDpCreationAllocation(
   next.dp.spentBaseQualities = baseQualitySpent;
   next.dp.spentBonusQualities = bonusQualitySpent;
   next.dp.spentTotal = spentTotal;
-  next.dp.remaining = Math.max(0, totalDp - spentTotal);
+  next.dp.remaining = totalDp - spentTotal;
   next.dp.total = totalDp;
   next.dp.sharedStatBonusApplied = targetStats;
   next.dp.sharedStatTotal = statAllocated;
@@ -1557,37 +1548,12 @@ export async function updatePartnerBonusDpAllocation(
   const statAllocated = getSharedStatBonusTotal(normalizedStats);
   const quality = integer(qualityAllocated, 0);
 
-  if (statAllocated + quality > total) {
-    return {
-      ok: false,
-      message: formatI18n(
-        "DDA.Progression.BonusDP.Warning.OverBudget",
-        { total },
-        `Bonus DP allocation cannot exceed ${total}.`
-      )
-    };
-  }
-
+  // Budget and form consistency are advisory. Owners may save a draft build
+  // and resolve its warnings with the GM later.
   const proposed = getPartnerBonusDpFormStatus(partner, {
-    total,
-    sharedStatBonus: normalizedStats,
-    qualityAllocated: quality
+    total, sharedStatBonus: normalizedStats, qualityAllocated: quality
   });
-
-  const invalidForm = proposed.forms.find((form) => {
-    return !form.proposedStatFits || form.baseRemaining < 0;
-  });
-
-  if (invalidForm) {
-    return {
-      ok: false,
-      message: formatI18n(
-        "DDA.Progression.BonusDP.Warning.FormInvalid",
-        { form: invalidForm.name },
-        `${invalidForm.name} cannot support this allocation without exceeding its Stat cap or base DP budget.`
-      )
-    };
-  }
+  const needsReview = statAllocated + quality > total || proposed.hasInvalidForms;
 
   await synchronizePartnerBonusDpAcrossForms(
     partner,
@@ -1600,6 +1566,7 @@ export async function updatePartnerBonusDpAllocation(
 
   return {
     ok: true,
+    needsReview,
     ...getPartnerBonusDpFormStatus(partner)
   };
 }
@@ -2952,10 +2919,7 @@ export async function synchronizePartnerBonusDpAcrossForms(
     : baseAllocation;
 
   allocation.statAllocated = getSharedStatBonusTotal(allocation.sharedStatBonus);
-  allocation.qualityAllocated = Math.min(
-    Math.max(0, total - allocation.statAllocated),
-    allocation.qualityAllocated
-  );
+  allocation.qualityAllocated = integer(allocation.qualityAllocated, 0);
   allocation.allocated = allocation.statAllocated + allocation.qualityAllocated;
   allocation.unallocated = Math.max(0, total - allocation.allocated);
 

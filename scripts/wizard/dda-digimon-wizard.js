@@ -1,3 +1,4 @@
+import { getPartnerBonusDpAllocation } from "../rules/tamer-progression.js";
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
 import {
   DDA_DIGIMON_BUILD_TEMPLATES,
@@ -2175,6 +2176,7 @@ getData() {
       formBuildSummary: this._getFormBuildSummaryData(),
       reviewAdjustmentView,
       formMode: this.mode === "formSnapshot",
+      canAllocateFormBonus: this.mode === "formSnapshot" && this.data.stage !== "baby1" && Boolean(this.formContext?.tamerActor) && !this.formContext?.bonusDpProfile,
       identityPixelArt: getDigimonPixelArtPath(this.data.identity?.species || this.data.identity?.name, this.data.stage),      wizardTitle: this.mode === "formSnapshot" ? game.i18n.localize("DDA.DigimonWizard.FormTitle") : game.i18n.localize("DDA.DigimonWizard.Title"),
       createButtonLabel: this.mode === "formSnapshot" ? game.i18n.localize("DDA.DigimonWizard.Button.SaveForm") : game.i18n.localize("DDA.DigimonWizard.Button.CreateDigimon"),
 
@@ -2214,6 +2216,7 @@ getData() {
 
   activateListeners(html) {
 
+    html.find("[data-action='allocate-form-bonus']").on("click", this._onAllocateFormBonus.bind(this));
     html.find("[data-action='next']").on("click", this._onNext.bind(this));
     html.find("[data-action='back']").on("click", this._onBack.bind(this));
     html.find("[data-action='create']").on("click", this._onCreate.bind(this));
@@ -3878,7 +3881,7 @@ async _onIncreaseStat(event) {
     );
 
   if (
-    currentTotal >=
+    this.mode !== "formSnapshot" && currentTotal >=
     DDA_DIGIMON_MAIN_STAT_MAX
   ) {
     ui.notifications.warn(
@@ -3896,7 +3899,7 @@ async _onIncreaseStat(event) {
     ? Number(this.data.dp?.statRemaining ?? 0)
     : Number(this.data.dp?.remaining ?? 0);
 
-  if (statBudgetRemaining <= 0) {
+  if (this.mode !== "formSnapshot" && statBudgetRemaining <= 0) {
     ui.notifications.warn(
       text(
         "Você não possui PD restante para aumentar este atributo.",
@@ -3998,7 +4001,7 @@ async _onNext(event) {
         this._pendingCompatibilityScrollQuestionId = this._getFirstUnansweredCompatibilityQuestionId();
       }
 
-      ui.notifications.warn(this.data.validation.errors[0] ?? "Revise esta etapa antes de continuar.");
+      ui.notifications.warn(this.data.validation.errors[0] ?? text("Revise esta etapa antes de continuar.", "Review this step before continuing."));
       this._renderAtStepTop();
       return;
     }
@@ -4544,10 +4547,7 @@ _initializeFormSnapshotData() {
       ? 0
       : Math.max(0, Number(appliedShared?.[key] ?? 0));
     const storedBase = Number(mainStats[key]?.base ?? defaultBase);
-    const effectiveBase = Math.min(
-      DDA_DIGIMON_MAIN_STAT_MAX,
-      Math.max(defaultBase, storedBase + targetShared - alreadyApplied)
-    );
+    const effectiveBase = Math.max(defaultBase, storedBase + targetShared - alreadyApplied);
 
     stat.base = defaultBase;
     stat.spent = Math.max(targetShared, effectiveBase - defaultBase);
@@ -4734,7 +4734,7 @@ tokenImg:
           sharedQualityAllocated,
           bonusUnallocated: Number(this.data.dp.bonusUnallocated ?? 0),
           spentTotal,
-          remaining: Math.max(0, totalDp - spentTotal)
+          remaining: totalDp - spentTotal
         };
       })(),
 coreDiscount: {
@@ -9254,29 +9254,12 @@ coreDiscount: {
 _buildMainStatData(stat) {
   const startingBase = Number(stat.base ?? 0);
   const spent = Number(stat.spent ?? 0);
-
-  const base =
-    Math.min(
-      DDA_DIGIMON_MAIN_STAT_MAX,
-
-      startingBase +
-      spent
-    );
-
-  const bonus =
-    0;
-
-  const qualityBonus =
-    0;
-
-  const total =
-    Math.min(
-      DDA_DIGIMON_MAIN_STAT_MAX,
-
-      base +
-      bonus +
-      qualityBonus
-    );
+  const base = this.mode === "formSnapshot"
+    ? startingBase + spent
+    : Math.min(DDA_DIGIMON_MAIN_STAT_MAX, startingBase + spent);
+  const bonus = 0;
+  const qualityBonus = 0;
+  const total = base;
 
   return {
     label: stat.label ?? "",
@@ -9739,23 +9722,27 @@ if (!isFormSnapshotMode && (this.currentStep === "evolutionLine" || this.current
   }
 }
 
+    const buildIssues = isFormSnapshotMode ? warnings : errors;
     if (["stats", "qualities", "summary"].includes(this.currentStep)) {
+      if (this._formStatsExceedCap()) {
+        buildIssues.push(game.i18n.format("DDA.DigimonWizard.SharedStatsOverCap", { max: DDA_DIGIMON_MAIN_STAT_MAX }));
+      }
       if (this._usesInitialFormBuildsForMechanicalState()) {
-        errors.push(...this._getFormBuildValidationErrors());
+        buildIssues.push(...this._getFormBuildValidationErrors());
       } else if (this.currentStep === "qualities" || this.currentStep === "summary") {
         const incompatibilityErrors = this._getSelectedQualityIncompatibilityErrors();
         const requirementErrors = this._getSelectedQualityRequirementErrors();
 
         for (const error of incompatibilityErrors) {
-          errors.push(error);
+          buildIssues.push(error);
         }
 
         for (const error of requirementErrors) {
-          errors.push(error);
+          buildIssues.push(error);
         }
 
         if (this.data.dp.remaining < 0) {
-          errors.push(text("Você gastou mais PD do que possui. Remova Qualidades ou escolha Qualidades Negativas.", "You spent more DP than you have. Remove Qualities or choose Negative Qualities."));
+          buildIssues.push(text("Você gastou mais PD do que possui. Remova Qualidades ou escolha Qualidades Negativas.", "You spent more DP than you have. Remove Qualities or choose Negative Qualities."));
         }
 
 
@@ -9764,7 +9751,7 @@ if (!isFormSnapshotMode && (this.currentStep === "evolutionLine" || this.current
           const spentQualityBonus = Number(this.data.dp?.sharedQualitySpent ?? 0);
 
           if (spentQualityBonus < requiredQualityBonus) {
-            errors.push(text(
+            buildIssues.push(text(
               `Esta forma precisa gastar ${requiredQualityBonus} Bonus DP em Qualidades. Atualmente foram comprometidos ${spentQualityBonus}.`,
               `This form must spend ${requiredQualityBonus} Bonus DP on Qualities. It currently commits ${spentQualityBonus}.`
             ));
@@ -9775,7 +9762,7 @@ if (!isFormSnapshotMode && (this.currentStep === "evolutionLine" || this.current
           this.data.dp.freeQualityLimit > 0 &&
           this.data.dp.freeQualityUsed > this.data.dp.freeQualityLimit
         ) {
-          errors.push(text("Você excedeu o limite de Qualidades Gratuitas para este estágio.", "You exceeded the Free Quality limit for this stage."));
+          buildIssues.push(text("Você excedeu o limite de Qualidades Gratuitas para este estágio.", "You exceeded the Free Quality limit for this stage."));
         }
       }
     }
@@ -9785,6 +9772,9 @@ if (!isFormSnapshotMode && (this.currentStep === "evolutionLine" || this.current
   }
 
   _canAdvance() {
+    if (this.mode === "formSnapshot" && ["stats", "qualities", "summary"].includes(this.currentStep)) {
+      return this.data.validation.errors.length === 0;
+    }
     if (this.currentStep === "welcome") return true;
     if (this.currentStep === "origin") {
   return ["existing", "custom"].includes(this.data.creationMode);
@@ -9838,7 +9828,7 @@ if (this.currentStep === "partnerQuestions") {
         return this._formBuildsAreValidForAdvance();
       }
 
-      return this.data.dp.remaining >= 0;
+      return this.data.dp.remaining >= 0 && !this._formStatsExceedCap();
     }
 
     if (this.currentStep === "qualities") {
@@ -9853,6 +9843,7 @@ if (this.currentStep === "partnerQuestions") {
       const requirementsOk = this._getSelectedQualityRequirementErrors().length === 0;
 
       return this.data.dp.remaining >= 0
+        && !this._formStatsExceedCap()
         && freeOk
         && incompatibilityOk
         && requirementsOk;
@@ -9898,7 +9889,7 @@ _recalculateStageData() {
   const localSpent = localSpentStats + baseQualitySpent;
   const localRemaining = localPool - localSpent;
   const qualityRemaining = Math.max(0, qualityBonusDp - bonusQualitySpent);
-  const remaining = localRemaining + qualityRemaining;
+  const remaining = localRemaining < 0 ? localRemaining : localRemaining + qualityRemaining;
   const totalAvailable = localPool + sharedStatTotal + qualityBonusDp;
   const spentPositive = localSpentStats + sharedStatTotal + spentQualities;
 
@@ -9982,6 +9973,36 @@ _getSpentStatDp() {
   }, 0);
 }
 
+async _onAllocateFormBonus(event) {
+  event.preventDefault();
+  if (this.mode !== "formSnapshot" || !this.formContext?.tamerActor || this.formContext?.bonusDpProfile || this._bonusAllocationOpen) return;
+  this._bonusAllocationOpen = true;
+  let previousAllocation = JSON.stringify(this._getFormBonusDpAllocation());
+  let app;
+  try {
+    const { openPartnerBonusDpAdvancement } = await import("../apps/dda-partner-bonus-dp.js");
+    app = await openPartnerBonusDpAdvancement(this.formContext.tamerActor);
+  } catch (error) {
+    this._bonusAllocationOpen = false;
+    throw error;
+  }
+  const refresh = () => {
+    const currentAllocation = JSON.stringify(this._getFormBonusDpAllocation());
+    if (previousAllocation === currentAllocation) return;
+    previousAllocation = currentAllocation;
+    // A save in the allocation app refreshes this form without closing either window.
+    // Stat rebasing happens in _recalculateStatAllocation on every recalculation.
+    if (this.rendered) this._renderPreservingScroll();
+  };
+  app.addEventListener("render", refresh);
+  app.addEventListener("close", () => {
+    this._bonusAllocationOpen = false;
+    app.removeEventListener("render", refresh);
+    refresh();
+  }, { once: true });
+  refresh();
+}
+
 _getFormBonusDpAllocation() {
   if (this.mode !== "formSnapshot") {
     return {
@@ -10003,6 +10024,17 @@ _getFormBonusDpAllocation() {
   const overrideProfile = this.formContext?.bonusDpProfile && typeof this.formContext.bonusDpProfile === "object"
     ? this.formContext.bonusDpProfile
     : null;
+  // Normal forms always use the live shared allocation, not a cached context total.
+  if (!overrideProfile && partner) {
+    const allocation = getPartnerBonusDpAllocation(partner);
+    return {
+      total: allocation.total,
+      sharedStats: allocation.sharedStatBonus,
+      sharedStatTotal: allocation.statAllocated,
+      qualityAllocated: allocation.qualityAllocated,
+      unallocated: allocation.unallocated
+    };
+  }
   const total = Math.max(
     0,
     Number(
@@ -10081,16 +10113,26 @@ _recalculateStatAllocation(stage = null) {
       DDA_DIGIMON_MAIN_STAT_MAX - stat.base
     );
 
-    stat.spent = Math.min(
-      maximumSpent,
-      Math.max(sharedMinimum, Number(stat.spent ?? 0))
-    );
+    if (this.mode === "formSnapshot") {
+      // sharedBonus records what is already in this draft, unlike the live
+      // allocation on the partner. Rebase once, preserving local purchases.
+      const previouslyApplied = Number(stat.sharedBonus ?? sharedMinimum);
+      const localSpent = Math.max(0, Number(stat.spent ?? 0) - previouslyApplied);
+      stat.spent = localSpent + sharedMinimum;
+    } else {
+      stat.spent = Math.min(maximumSpent, Math.max(0, Number(stat.spent ?? 0)));
+    }
 
     stat.sharedBonus = sharedMinimum;
     stat.localSpent = Math.max(0, stat.spent - sharedMinimum);
     stat.canDecrease = stat.spent > sharedMinimum;
     stat.total = stat.base + stat.spent;
   }
+}
+
+_formStatsExceedCap() {
+  return this.mode === "formSnapshot" && Object.values(this.data.statAllocation ?? {})
+    .some((stat) => Number(stat.total ?? 0) > DDA_DIGIMON_MAIN_STAT_MAX);
 }
 
 _recalculateDerivedStatsPreview() {
@@ -10399,7 +10441,7 @@ async _onAddQuality(event) {
 
     const increaseCost = this._getQualityRankIncreaseCostInfo(quality);
 
-    if (quality.kind !== "negative" && increaseCost.effectiveCost > this.data.dp.remaining) {
+    if (this.mode !== "formSnapshot" && quality.kind !== "negative" && increaseCost.effectiveCost > this.data.dp.remaining) {
       ui.notifications.warn(text("PD insuficiente para aumentar o Rank desta Qualidade.", "Not enough DP to increase this Quality Rank."));
       return;
 }
@@ -13513,7 +13555,7 @@ _prepareQualityForBrowser(quality) {
 
   const availabilityCheck = this._checkQualityAvailability(quality);
   const purchaseCost = this._getQualityPurchaseCostInfo(quality);
-  const canAfford = quality.kind === "negative"
+  const canAfford = this.mode === "formSnapshot" || quality.kind === "negative"
     ? true
     : this.data.dp.remaining >= Number(purchaseCost.effectiveCost ?? 0);
   const canTakeFreeQuality = this._canTakeFreeQuality(quality, ownedEntry);
