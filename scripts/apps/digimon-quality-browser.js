@@ -1001,7 +1001,6 @@ _matchesQualitySearch(quality, searchTerm) {
           ui.notifications.warn(isQualityBrowserEnglish()
             ? `${quality.name} and the selected Effect cost ${totalCost} DP, but only ${this._getActorRemainingDp()} remain.`
             : `${quality.name} e o Efeito escolhido custam ${totalCost} PD, mas restam apenas ${this._getActorRemainingDp()}.`);
-          return;
         }
 
         itemData.system.overclock = {
@@ -1062,6 +1061,7 @@ await this._applyDataSpecializationFreeGrant(
       quality: quality.name
     }));
 
+    this.actor.sheet?.render(false);
     this.render();
   }
 
@@ -2391,6 +2391,14 @@ const availableOptions =
           `;
         })
         .join("");
+
+      /*
+       * DialogV2 runs this callback in strict module scope. These values were
+       * previously implicit globals, so the first render threw before the
+       * selected Effect details and compatible Attack list were populated.
+       */
+      let selectedTag = effectGroups[0]?.tag ?? "";
+      let activeFilter = "all";
 
       const selectedKey = await DialogV2.wait({
         classes: ["dda", "dda-effect-choice-dialog"],
@@ -3736,14 +3744,6 @@ _getAttackChoiceOptionsForQuality(
       return false;
     }
 
-    if (["perfuracaodearmadura", "armorpiercing"].includes(offensiveQualityKey)) {
-      if (tags.has("certain") && !isSignature) return false;
-    }
-
-    if (["golpecerteiro", "certainstrike"].includes(offensiveQualityKey)) {
-      if (tags.has("piercing") && !isSignature) return false;
-    }
-
     if (["venenoso", "venomous"].includes(offensiveQualityKey)) {
       if (tags.has("poison")) return false;
     }
@@ -3938,7 +3938,6 @@ _getAttackChoiceOptionsForQuality(
         cost: rankCost,
         remaining: remainingDp
       }));
-      return;
     }
 
     if (!this._actorHasRequiredQualities(quality)) {
@@ -4000,6 +3999,7 @@ await this._applyDataSpecializationFreeGrant(
       rank: nextRank
     }));
 
+    this.actor.sheet?.render(false);
     this.render();
   }
 
@@ -4582,12 +4582,9 @@ _isAccelerateQuality(quality, ownedItem = null) {
   }
 
 
-  _actorHasEnoughDp(quality) {
-    const cost = this._getQualityDpCost(quality);
-
-    if (cost <= 0) return true;
-
-    return this._getActorRemainingDp() >= cost;
+  _actorHasEnoughDp(_quality) {
+    // DP accounting is informational; the owner and GM review the build.
+    return true;
   }
 
     _getActorFreeQualityLimit() {

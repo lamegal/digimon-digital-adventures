@@ -39,6 +39,7 @@
         <div>
           <h3>{{labels.ruleTitle}}</h3>
           <p>{{labels.ruleText}}</p>
+          <p>{{localize "DDA.Progression.BonusDP.AdvisoryValidation"}}</p>
         </div>
       </section>
 
@@ -58,7 +59,6 @@
               <input
                 type="number"
                 min="0"
-                max="{{max}}"
                 step="1"
                 value="{{value}}"
                 data-bonus-stat="{{key}}"
@@ -83,7 +83,6 @@
             <input
               type="number"
               min="0"
-              max="{{qualityMax}}"
               step="1"
               value="{{qualityAllocated}}"
               data-bonus-quality

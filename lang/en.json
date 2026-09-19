@@ -2582,8 +2582,8 @@
   "DDA.QualityAutomation.InstantCounter.Chat": "Use Counterattack as a Free Action once per combat.",
   "DDA.QualityAutomation.FocusedResistance.Chat": "When subjected to an Effect from an Attack, double Resistance against that incoming Effect.",
   "DDA.QualityAutomation.DomainControl.Chat": "Create a Domain. Track the chosen Element/Domain option and duration on the scene.",
-  "DDA.QualityAutomation.Conjurer.Chat": "Use Conjure to create structures/terrain with Mastery. Track Mastery and created objects manually on the scene.",
-  "DDA.QualityAutomation.Summoner.Chat": "Use Summon/Command Minion with Mastery. Track created minions manually on the scene.",
+  "DDA.QualityAutomation.Conjurer.Chat": "Use Conjure to create and manage Structures or Terrain by spending Mastery.",
+  "DDA.QualityAutomation.Summoner.Chat": "Use Summon and Command Minion to create and direct Minions by spending Mastery.",
   "DDA.Warning.SelectTargetBeforeQuality": "Select a target before using this Quality.",
   "DDA.QualityAutomation.AttackNegated": "had the attack negated by a Quality effect.",
   "DDA.QualityAutomation.Brace.Chat": "When damaged by an Attack, use an Interrupt and roll CPU (Endurance) to reduce damage.",
@@ -3503,5 +3503,11 @@
   "DDA.PartnerFormPlanner.Npc.LockHint": "Remove this form from this NPC's available evolutions without deleting the planned build.",
   "DDA.PartnerFormPlanner.Npc.Unlocked": "Form made available to this NPC.",
   "DDA.PartnerFormPlanner.Npc.Locked": "Form removed from this NPC's available evolutions.",
-  "DDA.PartnerFormPlanner.Npc.AvailabilityFailed": "The NPC form availability could not be changed."
+  "DDA.PartnerFormPlanner.Npc.AvailabilityFailed": "The NPC form availability could not be changed.",
+  "DDA.DigimonWizard.FormAttacksHint": "Configure this form's own attacks. They do not replace the current stage's attacks.",
+  "DDA.DigimonWizard.AllocateBonus": "Allocate Bonus DP",
+  "DDA.DigimonWizard.AllocateBonusHint": "Bonus DP allocation is tracked for reference. You can buy Qualities and save even when the budget needs review.",
+  "DDA.DigimonWizard.SharedStatsOverCap": "A Stat is above {max}. Review it with the GM; this does not prevent saving.",
+  "DDA.Progression.BonusDP.AdvisoryValidation": "DP budgets, Stat caps and build warnings do not prevent saving this form. The player and GM can review them later.",
+  "DDA.Progression.BonusDP.Info.SavedWithWarnings": "Saved. Some forms need review; these warnings do not block play."
 }

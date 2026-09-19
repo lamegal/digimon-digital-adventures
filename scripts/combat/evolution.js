@@ -1754,7 +1754,7 @@ export async function getFuturePartnerFormWizardContext(
     : null;
   const totalBonusDp = requestedBonusProfile
     ? Math.max(0, Number(requestedBonusProfile.total ?? options?.bonusDpTotal ?? 0))
-    : (Number.isFinite(Number(options?.bonusDpTotal))
+    : (options?.bonusDpTotal != null && Number.isFinite(Number(options.bonusDpTotal))
         ? Math.max(0, Number(options.bonusDpTotal))
         : standardBonusDp);
 
@@ -1837,6 +1837,60 @@ export async function savePartnerFutureFormSnapshot({
   await synchronizePartnerBonusDpAcrossForms(partnerActor);
 
   return storedSnapshot;
+}
+
+export async function registerExistingPartnerEvolutionForm({
+  partnerActor,
+  formActor,
+  plannedEvolutionMethod = "normal",
+  plannedFromReference = ""
+} = {}) {
+  const isDigimonForm = formActor?.type === "digimon" ||
+    (formActor?.type === "npc" && formActor?.system?.isDigimon);
+  if (!partnerActor || !formActor || !isDigimonForm) return null;
+
+  const sourceFormUuid = String(formActor.uuid ?? "").trim();
+  if (!sourceFormUuid) return null;
+
+  const existingSnapshot = getPartnerFormSnapshot(partnerActor, sourceFormUuid);
+  const snapshot = buildFormSnapshotFromActor(formActor, {
+    sourceFormUuid,
+    sourceFormName: formActor.system?.species || formActor.name
+  });
+  const now = new Date().toISOString();
+  const method = String(
+    plannedEvolutionMethod ||
+    existingSnapshot?.wizard?.plannedEvolutionMethod ||
+    "normal"
+  ).trim() || "normal";
+
+  snapshot.key = existingSnapshot?.key || snapshot.key;
+  snapshot.createdAt = existingSnapshot?.createdAt || snapshot.createdAt || now;
+  snapshot.name = getPersistentPartnerNickname(partnerActor) ||
+    snapshot.species || snapshot.name;
+  snapshot.wizard = foundry.utils.mergeObject(
+    foundry.utils.deepClone(existingSnapshot?.wizard ?? {}),
+    {
+      ...foundry.utils.deepClone(snapshot.wizard ?? {}),
+      preparedFutureForm: true,
+      preparedAt: existingSnapshot?.wizard?.preparedAt || now,
+      plannedEvolutionMethod: method,
+      plannedFromReference: String(
+        plannedFromReference ||
+        existingSnapshot?.wizard?.plannedFromReference ||
+        ""
+      ).trim(),
+      plannedByGM: Boolean(
+        existingSnapshot?.wizard?.plannedByGM || game.user?.isGM
+      )
+    },
+    { inplace: false, recursive: true }
+  );
+
+  await upsertPartnerFormSnapshot(partnerActor, snapshot);
+  await synchronizePartnerBonusDpAcrossForms(partnerActor);
+
+  return getPartnerFormSnapshot(partnerActor, sourceFormUuid) ?? snapshot;
 }
 
 async function saveCurrentPartnerFormSnapshot(partnerActor) {

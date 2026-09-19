@@ -9784,3 +9784,29 @@ html body :is(.window-app, .application).dda-wizard .dda-form-appearance-grid se
     align-items: stretch;
   }
 }
+
+/* Keep rank choices usable on short viewports, including Area Attack lists. */
+.application.dda-quality-choice-dialog {
+  max-height: calc(100dvh - 32px);
+}
+.application.dda-quality-choice-dialog .window-content,
+.application.dda-quality-choice-dialog .dialog-form {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.application.dda-quality-choice-dialog .dialog-content {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.application.dda-quality-choice-dialog .dda-quality-choice-effects {
+  max-height: min(45dvh, 360px);
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+.application.dda-quality-choice-dialog .dialog-buttons,
+.application.dda-quality-choice-dialog .form-footer {
+  flex-shrink: 0;
+}
