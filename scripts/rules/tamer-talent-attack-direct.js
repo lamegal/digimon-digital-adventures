@@ -1,3 +1,4 @@
+import { requestChatResponse } from "../utils/pending-chat-request.js";
 import {
   hasUnlockedOfficialTamerTalent
 } from "./tamer-resources.js";
@@ -1316,23 +1317,29 @@ export async function requestDistractingGesture({ attacker, defender, attackItem
     attackName: attackItem?.name ?? "",
     candidates
   };
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: attacker }),
-    content: distractingCard(request),
-    flags: { [SYSTEM_ID]: { distractingGestureRequest: request } }
-  });
-  return new Promise((resolve) => {
-    const timeoutId = globalThis.setTimeout(() => {
-      pendingDistractingGestureRequests.delete(request.requestId);
+  return requestChatResponse({
+    pendingRequests: pendingDistractingGestureRequests,
+    request,
+    messageData: {
+      speaker: ChatMessage.getSpeaker({ actor: attacker }),
+      content: distractingCard(request),
+      flags: { [SYSTEM_ID]: { distractingGestureRequest: request } }
+    },
+    timeoutMs: DISTRACTING_TIMEOUT_MS,
+    onTimeout: async requestId => {
+      const pending = pendingDistractingGestureRequests.get(requestId);
+      if (!pending) return;
+      globalThis.clearTimeout(pending.timeoutId);
+      pendingDistractingGestureRequests.delete(requestId);
+      pending.resolve(null);
+      const message = await pending.messageReady;
       if (message?.isOwner || game.user?.isGM) {
-        void message.update({
+        await message?.update({
           content: `<div class="dda-chat-card dda-effect-card effect-special"><p>${text("A janela de Distracting Gesture expirou; o ataque prossegue normalmente.", "The Distracting Gesture window expired; the Attack continues normally.")}</p></div>`,
           [`flags.${SYSTEM_ID}.distractingGestureRequest.status`]: "expired"
-        }).catch(() => {});
+        });
       }
-      resolve(null);
-    }, DISTRACTING_TIMEOUT_MS);
-    pendingDistractingGestureRequests.set(request.requestId, { ...request, timeoutId, resolve, messageId: message.id });
+    }
   });
 }
 
@@ -1353,18 +1360,19 @@ export function registerTamerTalentAttackDirectHooks() {
     globalThis.clearTimeout(pending.timeoutId);
     pendingDistractingGestureRequests.delete(response.requestId);
 
-    const requestMessage = game.messages?.get(response.requestMessageId ?? pending.messageId);
-    if (requestMessage && (requestMessage.isOwner || game.user?.isGM)) {
-      const candidate = response.candidate ?? null;
-      void requestMessage.update({
-        content: candidate
-          ? `<div class="dda-chat-card dda-effect-card effect-special"><h2>HEY, OVER HERE</h2><p><strong>${escapeHtml(candidate.tamerName)}</strong> ${text("reduziu pela metade os dados de Precisão do ataque.", "halved the Attack's Accuracy dice.")}</p></div>`
-          : `<div class="dda-chat-card dda-effect-card effect-special"><p>${text("O ataque prossegue sem Distracting Gesture.", "The Attack continues without Distracting Gesture.")}</p></div>`,
-        [`flags.${SYSTEM_ID}.distractingGestureRequest.status`]: "resolved"
-      }).catch(() => {});
-    }
-
     pending.resolve(response.candidate ?? null);
+    void (async () => {
+      const requestMessage = await pending.messageReady ?? game.messages?.get(response.requestMessageId ?? pending.messageId);
+      if (requestMessage && (requestMessage.isOwner || game.user?.isGM)) {
+        const candidate = response.candidate ?? null;
+        void requestMessage.update({
+          content: candidate
+            ? `<div class="dda-chat-card dda-effect-card effect-special"><h2>HEY, OVER HERE</h2><p><strong>${escapeHtml(candidate.tamerName)}</strong> ${text("reduziu pela metade os dados de Precisão do ataque.", "halved the Attack's Accuracy dice.")}</p></div>`
+            : `<div class="dda-chat-card dda-effect-card effect-special"><p>${text("O ataque prossegue sem Distracting Gesture.", "The Attack continues without Distracting Gesture.")}</p></div>`,
+          [`flags.${SYSTEM_ID}.distractingGestureRequest.status`]: "resolved"
+        }).catch(() => {});
+      }
+    })().catch(error => console.warn("DDA | Could not update Distracting Gesture card.", error));
   });
 
   const registerSocket = () => {

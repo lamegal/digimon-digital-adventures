@@ -1,5 +1,6 @@
 import { DDADigimonDatabase } from "../data/digimon-database.js";
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+import { getCanonicalQualityRankData } from "../rules/quality-rank-limits.js";
 import {
   getDdaBossQualityById,
   isDdaBossQuality
@@ -4693,6 +4694,7 @@ getEnemyQualityEffectiveMax(
   quality = {},
   form = this._getSelectedForm()
 ) {
+  quality = { ...quality, ...(getCanonicalQualityRankData(quality) ?? {}) };
   const qualityId = getEnemyQualityId(quality);
 
   if (
