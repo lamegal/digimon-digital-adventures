@@ -1,3 +1,4 @@
+import { requestChatResponse } from "../utils/pending-chat-request.js";
 import {
   areActorsAllies,
   areActorsAlliesForQualities,
@@ -226,9 +227,10 @@ async function closeStandardIntercedeRequest(requestId, { reason = "cancelled", 
 
   if (pending.timeoutId) globalThis.clearTimeout(pending.timeoutId);
   pendingRequests.delete(id);
+  pending.resolve(null);
 
   if (updateMessage) {
-    const message = game.messages?.get(pending.messageId) ?? null;
+    const message = await pending.messageReady ?? game.messages?.get(pending.messageId) ?? null;
     if (message) {
       const live = message.getFlag?.(game.system.id, "intercedeRequest") ?? pending;
       const next = {
@@ -248,7 +250,6 @@ async function closeStandardIntercedeRequest(requestId, { reason = "cancelled", 
     }
   }
 
-  pending.resolve(null);
   return true;
 }
 
@@ -262,6 +263,23 @@ async function closeAreaIntercedeRequest(requestId, { reason = "cancelled", upda
   pendingAreaRequests.delete(id);
 
   if (updateMessages) {
+    for (const message of game.messages?.contents ?? []) {
+      const throwRequest = message.getFlag?.(game.system.id, "areaIntercedeThrow") ?? null;
+      if (String(throwRequest?.requestId ?? "") !== id || !["ready", "moving"].includes(String(throwRequest?.status ?? ""))) continue;
+      if (throwRequest.movementGranted && throwRequest.protectedActorUuid) {
+        try {
+          const actor = await fromUuid(throwRequest.protectedActorUuid);
+          if (actor) await game.dda?.movementTracker?.clearForActor?.(actor);
+        } catch (error) {
+          console.warn("DDA | Could not clear expired Area Intercede throw movement.", error);
+        }
+      }
+    }
+  }
+  pending.resolve(null);
+
+  if (updateMessages) {
+    await pending.messageReady;
     for (const message of game.messages?.contents ?? []) {
       const areaRequest = message.getFlag?.(game.system.id, "areaIntercedeRequest") ?? null;
       if (String(areaRequest?.requestId ?? "") === id && ["pending", "awaitingThrow"].includes(String(areaRequest?.status ?? ""))) {
@@ -284,15 +302,6 @@ async function closeAreaIntercedeRequest(requestId, { reason = "cancelled", upda
       const throwRequest = message.getFlag?.(game.system.id, "areaIntercedeThrow") ?? null;
       if (String(throwRequest?.requestId ?? "") !== id || !["ready", "moving"].includes(String(throwRequest?.status ?? ""))) continue;
 
-      if (throwRequest.movementGranted && throwRequest.protectedActorUuid) {
-        try {
-          const actor = await fromUuid(throwRequest.protectedActorUuid);
-          if (actor) await game.dda?.movementTracker?.clearForActor?.(actor);
-        } catch (error) {
-          console.warn("DDA | Could not clear expired Area Intercede throw movement.", error);
-        }
-      }
-
       const nextThrow = {
         ...foundry.utils.deepClone(throwRequest),
         status: reason === "timeout" ? "expired" : "cancelled",
@@ -310,7 +319,6 @@ async function closeAreaIntercedeRequest(requestId, { reason = "cancelled", upda
     }
   }
 
-  pending.resolve(null);
   return true;
 }
 
@@ -947,19 +955,16 @@ export async function requestStandardIntercede({ attacker, targetToken, attackIt
     targetTokenId: targetToken.id, attackItemId: attackItem.id, attackName: attackItem.name,
     candidates
   };
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: attacker }),
-    content: requestCard(request),
-    flags: { [game.system.id]: { intercedeRequest: request } }
-  });
-  return new Promise((resolve) => {
-    const timeoutId = globalThis.setTimeout(() => {
-      void closeStandardIntercedeRequest(request.requestId, {
-        reason: "timeout",
-        updateMessage: true
-      });
-    }, Math.max(1, Number(request.expiresAt ?? Date.now() + REQUEST_TIMEOUT_MS) - Date.now()));
-    pendingRequests.set(request.requestId, { ...request, messageId: message.id, timeoutId, resolve });
+  return requestChatResponse({
+    pendingRequests: pendingRequests,
+    request,
+    messageData: {
+      speaker: ChatMessage.getSpeaker({ actor: attacker }),
+      content: requestCard(request),
+      flags: { [game.system.id]: { intercedeRequest: request } }
+    },
+    timeoutMs: Math.max(1, Number(request.expiresAt ?? Date.now() + REQUEST_TIMEOUT_MS) - Date.now()),
+    onTimeout: requestId => closeStandardIntercedeRequest(requestId, { reason: "timeout", updateMessage: true })
   });
 }
 
@@ -977,16 +982,16 @@ export async function requestFatalIntercede({ attacker, targetToken, attackItem,
     targetTokenId: targetToken.id, attackItemId: attackItem.id, attackName: attackItem.name,
     candidates
   };
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: attacker }),
-    content: requestCard(request),
-    flags: { [game.system.id]: { intercedeRequest: request } }
-  });
-  return new Promise((resolve) => {
-    const timeoutId = globalThis.setTimeout(() => {
-      void closeStandardIntercedeRequest(request.requestId, { reason: "timeout", updateMessage: true });
-    }, Math.max(1, Number(request.expiresAt ?? Date.now() + REQUEST_TIMEOUT_MS) - Date.now()));
-    pendingRequests.set(request.requestId, { ...request, messageId: message.id, timeoutId, resolve });
+  return requestChatResponse({
+    pendingRequests: pendingRequests,
+    request,
+    messageData: {
+      speaker: ChatMessage.getSpeaker({ actor: attacker }),
+      content: requestCard(request),
+      flags: { [game.system.id]: { intercedeRequest: request } }
+    },
+    timeoutMs: Math.max(1, Number(request.expiresAt ?? Date.now() + REQUEST_TIMEOUT_MS) - Date.now()),
+    onTimeout: requestId => closeStandardIntercedeRequest(requestId, { reason: "timeout", updateMessage: true })
   });
 }
 
@@ -1694,25 +1699,16 @@ export async function requestAreaIntercede({
     candidates
   };
 
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: attacker }),
-    content: areaRequestCard(request),
-    flags: { [game.system.id]: { areaIntercedeRequest: request } }
-  });
-
-  return new Promise((resolve) => {
-    const timeoutId = globalThis.setTimeout(() => {
-      void closeAreaIntercedeRequest(request.requestId, {
-        reason: "timeout",
-        updateMessages: true
-      });
-    }, Math.max(1, Number(request.expiresAt ?? Date.now() + REQUEST_TIMEOUT_MS) - Date.now()));
-    pendingAreaRequests.set(request.requestId, {
-      ...request,
-      messageId: message.id,
-      timeoutId,
-      resolve
-    });
+  return requestChatResponse({
+    pendingRequests: pendingAreaRequests,
+    request,
+    messageData: {
+      speaker: ChatMessage.getSpeaker({ actor: attacker }),
+      content: areaRequestCard(request),
+      flags: { [game.system.id]: { areaIntercedeRequest: request } }
+    },
+    timeoutMs: Math.max(1, Number(request.expiresAt ?? Date.now() + REQUEST_TIMEOUT_MS) - Date.now()),
+    onTimeout: requestId => closeAreaIntercedeRequest(requestId, { reason: "timeout", updateMessages: true })
   });
 }
 

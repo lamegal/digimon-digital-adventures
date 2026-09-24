@@ -11835,7 +11835,11 @@ async function cancelPendingAttackDodgeRequest(
     );
   }
 
+  // Release the workflow even if deleting/updating its chat card is delayed.
+  request.resolve(null);
+
   if (updateMessage) {
+    await request.messageReady;
     const message =
       game.messages?.get(
         request.messageId
@@ -11876,10 +11880,6 @@ async function cancelPendingAttackDodgeRequest(
       }
     }
   }
-
-  request.resolve(
-    null
-  );
 
   return true;
 }
@@ -12010,73 +12010,58 @@ async function requestAttackDodgeResult({
     requesterUserId: game.user.id
   };
 
-  const message = await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: attacker }),
-    content: buildPendingAttackDodgeCard(request),
-    flags: {
-      [game.system.id]: {
-        attackDodgeRequest: request
+  // Register the waiter and per-token cache BEFORE publishing. Foundry can
+  // render the request and receive an automatic Dodge before create() returns.
+  let publishMessage;
+  const messageReady = new Promise(resolve => { publishMessage = resolve; });
+  let resolveDodge;
+  const dodgePromise = new Promise(resolve => { resolveDodge = resolve; });
+  const pendingRequest = {
+    ...request,
+    messageId: "",
+    messageReady,
+    resolve: resolveDodge,
+    timeoutId: globalThis.setTimeout(() => {
+      void cancelPendingAttackDodgeRequest(requestId, {
+        reason: "timeout",
+        updateMessage: true
+      });
+    }, Math.max(1, request.expiresAt - Date.now()))
+  };
+  pendingAttackDodgeRequests.set(requestId, pendingRequest);
+  pendingAttackDodgeByAttacker.set(attacker.uuid, requestId);
+
+  if (areaDodgeCacheKey) {
+    areaAttackDodgePromiseCache.set(areaDodgeCacheKey, {
+      promise: dodgePromise,
+      createdAt: Date.now()
+    });
+    globalThis.setTimeout(() => {
+      if (areaAttackDodgePromiseCache.get(areaDodgeCacheKey)?.promise === dodgePromise) {
+        areaAttackDodgePromiseCache.delete(areaDodgeCacheKey);
       }
-    }
-  });
+    }, AREA_ATTACK_DODGE_CACHE_TTL_MS);
+  }
 
-pendingAttackDodgeByAttacker.set(
-  attacker.uuid,
-  requestId
-);
-
-const dodgePromise = new Promise((resolve) => {
-  const timeoutId =
-    globalThis.setTimeout(
-      () => {
-        void cancelPendingAttackDodgeRequest(
-          requestId,
-          {
-            reason:
-              "timeout",
-
-            updateMessage:
-              true
-          }
-        );
-      },
-
-      Math.max(
-        1,
-        Number(request.expiresAt ?? Date.now() + ATTACK_DODGE_REQUEST_TIMEOUT_MS) - Date.now()
-      )
-    );
-
-  pendingAttackDodgeRequests.set(
-    requestId,
-    {
-      ...request,
-
-      messageId:
-        message.id,
-
-      timeoutId,
-
-      resolve
-    }
-  );
-});
-
-if (areaDodgeCacheKey) {
-  areaAttackDodgePromiseCache.set(areaDodgeCacheKey, {
-    promise: dodgePromise,
-    createdAt: Date.now()
-  });
-
-  globalThis.setTimeout(() => {
-    const cached = areaAttackDodgePromiseCache.get(areaDodgeCacheKey);
-    if (cached?.promise === dodgePromise) {
+  try {
+    const message = await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: attacker }),
+      content: buildPendingAttackDodgeCard(request),
+      flags: { [game.system.id]: { attackDodgeRequest: request } }
+    });
+    if (!message) throw new Error("DDA | Could not create the Dodge request card.");
+    pendingRequest.messageId = message.id;
+    publishMessage(message);
+  } catch (error) {
+    publishMessage(null);
+    await cancelPendingAttackDodgeRequest(requestId);
+    if (areaAttackDodgePromiseCache.get(areaDodgeCacheKey)?.promise === dodgePromise) {
       areaAttackDodgePromiseCache.delete(areaDodgeCacheKey);
     }
-  }, AREA_ATTACK_DODGE_CACHE_TTL_MS);
-}
+    throw error;
+  }
 
-return dodgePromise;
+  return dodgePromise;
 }
 
 async function receiveAttackDodgeResponse(message) {
@@ -12149,6 +12134,10 @@ pendingAttackDodgeRequests.delete(
     pendingAttackDodgeByAttacker.delete(request.attackerUuid);
   }
 
+  // A valid response completes the roll. Chat cleanup is presentation only
+  // and must never keep the remaining Area Attack targets waiting.
+  request.resolve(dodgeResult);
+  await request.messageReady;
   await markAttackDodgeRequestResolved(
     request,
     dodgeResult,
@@ -12156,7 +12145,6 @@ pendingAttackDodgeRequests.delete(
     outcome
   );
 
-  request.resolve(dodgeResult);
 }
 
 function getAttackDodgeRequestFromMessage(message) {

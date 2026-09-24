@@ -1,3 +1,18 @@
+Digimon Digital Adventures V2 — v2.0.25-beta
+
+Quality ranks and multiplayer reaction fixes
+
+- Fixed Huge Power being incorrectly capped at Rank 1 for Adult/Champion Digimon with legacy quality data. Its maximum is 2 Ranks.
+- Existing official qualities and evolution snapshots now use current catalog rank rules across the Actor sheet, Quality Browser, evolution wizard and enemy wizard. This also repairs obsolete caps in Counterattack, Area Attack, Reach, Avoidance, Vital Energy, Protecting Shield, Boiling Blood, Mode Change and Memory Upgrade.
+- Preserved purchased ranks, choices and remaining uses, including zero. Legitimate stage, derived-stat, dependent-quality and available-Attack limits remain in effect.
+- Fixed Area Attack Dodge requests losing responses received before chat-card creation completed, including Support Attacks and repeated Actors represented by different Tokens. Each target retains its own Dodge resolution.
+- Applied the same response-order fix to standard, fatal and area Intercede, and Distracting Gesture. Failed card creation clears pending requests; slow expiry-card updates no longer hold combat progression. Expired Area Intercede clears temporary throw movement before visual cleanup.
+- Retained the advisory DP-budget behavior and all previous v2.0.24-beta fixes.
+
+Validation: 27 automated tests passed, plus 83 wizard/progression regression assertions, using actual production modules with simulated Foundry clients and APIs. Live multiplayer validation remains pending.
+
+Compatibility: Foundry Virtual Tabletop v13.
+
 Digimon Digital Adventures V2 — v2.0.23-beta
 
 2026 rules refresh and cumulative gameplay fixes

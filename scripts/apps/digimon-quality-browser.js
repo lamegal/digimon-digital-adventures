@@ -1,4 +1,5 @@
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+import { getCanonicalQualityRankData } from "../rules/quality-rank-limits.js";
 import { EFFECT_TAGS } from "../rules/quality-automation.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
@@ -336,6 +337,7 @@ function matchesQualityBrowserCategory(
   ]?.includes(section) ?? false;
 }
 export function buildQualityItemData(quality) {
+    quality = { ...quality, ...(getCanonicalQualityRankData(quality) ?? {}) };
     return {
     name: quality.name,
     type: "quality",
@@ -4129,6 +4131,9 @@ _getQualityEffectiveMax(
   quality,
   ownedItem = null
 ) {
+  const canonicalRank = getCanonicalQualityRankData(quality) ?? getCanonicalQualityRankData(ownedItem);
+  if (canonicalRank) quality = { ...quality, ...canonicalRank };
+
   const coreQualityId = getCoreQualityId(ownedItem ?? quality);
 
   const inspiringGuidanceMaximum = this._getInspiringGuidanceEffectiveMax(quality, ownedItem);
@@ -4283,11 +4288,11 @@ _getQualityEffectiveMax(
       Number.NaN
     );
 
-  if (Number.isFinite(actorComputedEffectiveMax) && actorComputedEffectiveMax >= 0) {
+  if (!canonicalRank && Number.isFinite(actorComputedEffectiveMax) && actorComputedEffectiveMax >= 0) {
     return actorComputedEffectiveMax;
   }
 
-  const rankLimit = quality.rankLimit ?? ownedItem?.system?.rankLimit ?? null;
+  const rankLimit = canonicalRank ? canonicalRank.rankLimit : (quality.rankLimit ?? ownedItem?.system?.rankLimit ?? null);
 
 if (this._isAccelerateQuality(quality, ownedItem)) {
   return this._getActorDerivedStatValue("ram");

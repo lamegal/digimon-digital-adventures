@@ -1,4 +1,5 @@
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+import { getCanonicalQualityRankData } from "../rules/quality-rank-limits.js";
 
 const DDA_QUALITY_AUTOMATION_DEFAULTS = {
   instinto: {
@@ -735,15 +736,26 @@ function resolveDdaItemDefaultIcon(item, { type = null, rangeType = null, parent
 
 function applyQualityAutomationDefaults(item) {
   const automationKey = getQualityAutomationKey(item);
+  // Spent uses are runtime state, not missing numeric defaults.
+  const remainingUses = item.system.uses?.value;
   if (automationKey) {
     const defaults = DDA_QUALITY_AUTOMATION_DEFAULTS[automationKey];
     if (defaults) applyMissingQualityAutomation(item.system, defaults);
   }
 
   applyCurrentQualityDefinition(item);
+  if (remainingUses !== undefined && remainingUses !== null) {
+    item.system.uses.value = remainingUses;
+  }
+  const canonicalRank = getCanonicalQualityRankData(item);
+  if (canonicalRank) {
+    item.system.rank = canonicalRank.rank;
+    item.system.rankLimit = canonicalRank.rankLimit ?? {};
+  }
 }
 
 const CURRENT_RULE_QUALITY_IDS = new Set([
+  "poderBrutal",
   "ordemTatica",
   "orientacaoInspiradora",
   "perfuracaoDeArmadura",

@@ -1,5 +1,6 @@
 import { getPartnerBonusDpAllocation } from "../rules/tamer-progression.js";
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
+import { getCanonicalQualityRankData } from "../rules/quality-rank-limits.js";
 import {
   DDA_DIGIMON_BUILD_TEMPLATES,
   DDA_DIGIMON_BUILD_TEMPLATE_INDEX
@@ -4577,6 +4578,7 @@ for (const item of items.filter((entry) => entry.type === "quality")) {
 
 _selectionFromQualityItem(itemData) {
   const system = itemData.system ?? {};
+  const canonicalRank = getCanonicalQualityRankData(itemData);
   const sourceId = system.sourceId ?? "";
   const catalog = DDA_DIGIMON_QUALITIES.find((entry) => entry.id === sourceId);
   const rankValue = Math.max(1, Number(system.rank?.value ?? 1));
@@ -4594,8 +4596,8 @@ _selectionFromQualityItem(itemData) {
     section: system.section ?? catalog?.section ?? "",
     category: system.category ?? catalog?.category ?? {},
     costData: system.cost ?? catalog?.cost ?? {},
-    rank: { ...(system.rank ?? catalog?.rank ?? {}), value: rankValue },
-    rankLimit: system.rankLimit ?? catalog?.rankLimit ?? null,
+    rank: { ...(canonicalRank?.rank ?? system.rank ?? catalog?.rank ?? {}), value: rankValue },
+    rankLimit: canonicalRank ? canonicalRank.rankLimit : (system.rankLimit ?? catalog?.rankLimit ?? null),
     stageRequirement: system.stageRequirement ?? catalog?.stageRequirement ?? {},
     requirements: system.requirements ?? catalog?.requirements ?? {},
     incompatible: system.incompatible ?? catalog?.incompatible ?? {},
@@ -13057,6 +13059,8 @@ _escapeHtml(value) {
 _getQualityEffectiveMaxForWizard(
   quality
 ) {
+  quality = { ...quality, ...(getCanonicalQualityRankData(quality) ?? {}) };
+
   if (
     isWizardNaturewalkQuality(
       quality

@@ -1,4 +1,5 @@
 import { getAttributeFinalCap } from "../rules/campaign-rules.js";
+import { getCanonicalQualityRankData } from "../rules/quality-rank-limits.js";
 import {
   getTamerAttributeCap,
   getTamerEvolutionPointMaximum
@@ -4878,8 +4879,10 @@ function getQualityRankLimitForStage(
   stageKey,
   actorSystem = {}
 ) {
-  const rankLimit =
-    itemSystem.rankLimit ?? {};
+  const canonicalRank = getCanonicalQualityRankData(itemSystem);
+  const rankLimit = canonicalRank
+    ? (canonicalRank.rankLimit ?? {})
+    : (itemSystem.rankLimit ?? {});
 
   const type =
     rankLimit.type ??
@@ -4940,7 +4943,7 @@ if (isAccelerateQualitySystem(itemSystem)) {
     };
   }
 
-  const fixedValue = Number(rankLimit.value ?? itemSystem.rank?.max ?? 0);
+  const fixedValue = Number(rankLimit.value ?? canonicalRank?.rank?.max ?? itemSystem.rank?.max ?? 0);
 
   return {
     type: "fixed",
