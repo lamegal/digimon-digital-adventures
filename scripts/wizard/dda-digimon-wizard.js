@@ -32,7 +32,9 @@ import {
 } from "../helpers/digimon-portrait-resolver.js";
 import {
   applyIntrinsicQualityDiscount,
-  getIntrinsicFirstPurchaseDiscount
+  getIntrinsicFirstPurchaseDiscount,
+  getCoreQualityId,
+  getDataSpecializationEntries
 } from "../rules/core-qualities.js";
 import {
   getDigimonTokenScaleForSize
@@ -7283,6 +7285,8 @@ async _resolveAutomaticTokenForLineForm(stageKey = "child") {
   if (
     currentToken &&
     currentToken !== baseImg &&
+    currentToken !== "icons/svg/mystery-man.svg" &&
+    !currentToken.endsWith("/Digimon-Logo-2.webp") &&
     !isObsoleteDdaDigimonImagePath(currentToken)
   ) {
     return currentToken;
@@ -8976,7 +8980,7 @@ if (isCompatibilityBaby1Flow) {
 
   const currentLineName = currentLineForm?.species?.trim() || "";
   const currentLineImg = currentLineForm?.img?.trim() || "";
-  const currentLineTokenImg = currentLineForm?.tokenImg?.trim() || currentLineImg;
+  const currentLineTokenImg = currentLineForm?.tokenImg?.trim() || "";
 
   const species = currentLineName || this.data.identity.species?.trim() || sourceData?.species || this.data.compatibility?.digitama?.name?.trim() || "Digimon";
 
@@ -9009,6 +9013,7 @@ const actorTokenImg = currentLineTokenImg ||
   const stageValue = this._getStageValue(stageKey);
   const stageData = this._getStageOptions().find((entry) => entry.key === stageKey) ?? this._getStageOptions()[0];
   const initialSize = stageData?.maxSize ?? "medium";
+  const initialTokenSize = getDigimonTokenScaleForSize(initialSize);
 
   const derived = this.data.derivedStatsPreview ?? {};
   const movement = Number(this.data.stats.movement ?? stageData?.movement ?? 0);
@@ -9036,6 +9041,8 @@ const actorTokenImg = currentLineTokenImg ||
     
       prototypeToken: {
     name,
+    width: initialTokenSize,
+    height: initialTokenSize,
     texture: {
       src: actorTokenImg
     },
@@ -12567,6 +12574,11 @@ _getAttackChoiceOptionsForQuality(
       }
     );
 
+  const wizardHasCodeWizard = selectedWizardQualities.some((selectedQuality) => {
+    return getCoreQualityId(selectedQuality) === "especializacaoDeDados" &&
+      getDataSpecializationEntries(selectedQuality).some((entry) => entry.key === "codeWizard");
+  });
+
   const assignedEffectTags =
     new Set(
       allSelectedQualityChoices
@@ -12891,7 +12903,7 @@ _getAttackChoiceOptionsForQuality(
           })
           .filter((attack) => {
             if (
-              !option.requiresDamageTag
+              !option.requiresDamageTag || wizardHasCodeWizard
             ) {
               return true;
             }

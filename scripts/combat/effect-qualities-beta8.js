@@ -97,7 +97,8 @@ export function validateEffectAttackDeclaration(options = {}) {
   }
 
   // Preserve any Effect-specific [DAMAGE] declaration.
-  if (definition.requiresDamage && functionType !== "damage") {
+  if (definition.requiresDamage && functionType !== "damage" &&
+      !attacker?.system?.qualityFeatures?.dataSpecialization?.codeWizardDamageTagBypass) {
     return baseResult;
   }
 

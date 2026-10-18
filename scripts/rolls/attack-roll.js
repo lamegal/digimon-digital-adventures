@@ -133,6 +133,7 @@ import {
   attackAllowedDuringDot,
   consumeDenyForIncomingEffects,
   consumeProtectingShieldUse,
+  getBoundAttackEffectTags,
   getIncomingEffectDurationPenalty,
   resolveInspiringGuidanceAfterAttack
 } from "../combat/effect-qualities.js";
@@ -527,6 +528,17 @@ function attackHasExtraTags(attackItem) {
   return qualityTags.size > 0 || effectTagEnabled || isSignature;
 }
 
+function attackHasEffectTag(attacker, attackItem) {
+  const tags = [
+    ...getAttackQualityTags(attackItem),
+    ...(attackItem?.system?.effectTag?.enabled ? [attackItem.system.effectTag.tag] : []),
+    ...getPurchasedEffectTagsForAttack(attacker, attackItem)
+  ];
+  // Status Warlord excludes Effect Tags, not Weapon/Area/Charge Tags or
+  // Signature Moves. ZERO also explicitly counts as a Positive Effect.
+  return tags.some((tag) => Boolean(EFFECT_TAGS[normalizeAttackTag(tag)]) || normalizeAttackTag(tag) === "zero");
+}
+
 function getDataSpecializationAttackPermission(attacker, attackItem, attackOptions = {}, alreadyAttacked = false) {
   const feature = getDataSpecializationFeature(attacker);
   const rangeType = String(attackItem?.system?.baseTags?.rangeType ?? "").toLowerCase();
@@ -567,7 +579,7 @@ function getDataSpecializationAttackPermission(attacker, attackItem, attackOptio
   if (feature.statusWarlordAttackPair && statusUse && !statusUse.completed && !isInterrupt) {
     const firstFunction = String(statusUse.firstFunction ?? "");
     const firstHadEffect = Boolean(statusUse.firstHadEffect);
-    const currentHasEffect = attackHasExtraTags(attackItem);
+    const currentHasEffect = attackHasEffectTag(attacker, attackItem);
     const validPair = (
       firstFunction === "support" && functionType === "damage" && !currentHasEffect
     ) || (
@@ -585,7 +597,7 @@ function getDataSpecializationAttackPermission(attacker, attackItem, attackOptio
 async function recordDataSpecializationAttackUse(attacker, attackItem, mode = "normal") {
   const feature = getDataSpecializationFeature(attacker);
   const functionType = String(attackItem?.system?.baseTags?.functionType ?? "").toLowerCase();
-  const hadEffect = attackHasExtraTags(attackItem);
+  const hadEffect = attackHasEffectTag(attacker, attackItem);
 
   if (mode === "flurry") {
     await setUseState(attacker, "dataSpecialization", "flurry", {
@@ -6611,6 +6623,11 @@ function getAppliedAttackQualityModifier(attacker, attackItem, options = {}) {
     return modifierTotal;
   }
 
+  // Fixed-payload purchases such as Protecting Shield can carry only an
+  // Attack binding. They do not require a second Effect purchase or a copied
+  // tag on the embedded Attack, including during Area preflight.
+  modifierTotal.effectTags.push(...(getBoundAttackEffectTags(attacker, attackItem) ?? []));
+
   const stanceModifier = getStanceAttackModifier(attacker, attackItem, options);
   if (stanceModifier) {
     modifierTotal.accuracyBonus += Number(stanceModifier.accuracyBonus ?? 0);
@@ -7591,7 +7608,7 @@ modifierTotal.qualities.push({
 
   const zonerData = getZonerQualityDataForActor(attacker);
 
-if (zonerData && modifierTotal.areaAttackTags.length) {
+if (zonerData && (modifierTotal.areaAttackTags.length || getDirectAreaAttackTags(attackItem).length)) {
   if (zonerData.key) {
     modifierTotal.zonerOptions.push(zonerData.key);
   }
@@ -7769,11 +7786,16 @@ function getSelectedAttackAreaTagsForQuality(
     const choiceData = getAttackChoiceIdentity(choice);
     const tag = normalizeAttackTag(
       choice.attackTag ||
-      choiceData.tag
+      choiceData.tag ||
+      choice.tag ||
+      choice.key
     );
 
-    if (tag.startsWith("t:")) {
-      tags.push(tag);
+    // Older selections used BLAST/[BLAST] instead of T:BLAST. Only the six
+    // actual area shapes qualify; other T: tags remain ordinary attack tags.
+    const areaTag = tag.startsWith("t:") ? tag : `t:${tag}`;
+    if (DIRECT_AREA_ATTACK_TAGS.has(areaTag)) {
+      tags.push(areaTag);
     }
   }
 
@@ -7785,6 +7807,7 @@ function getAttackIdentityKeys(
 ) {
   return new Set([
     attackItem?.id,
+    attackItem?.uuid,
 
     attackItem?.system
       ?.wizard
@@ -7829,7 +7852,7 @@ function getAttackChoiceIdentity(
             separatorIndex
           )
           .trim()
-      : "";
+      : keyText;
 
   const keyTag =
     separatorIndex > 0
@@ -7999,7 +8022,7 @@ function getSelectedAttackEffectChoicesForQuality(
 function getPurchasedEffectTagsForAttack(attacker, attackItem) {
   if (!attacker?.items || !attackItem) return [];
 
-  const tags = [];
+  const tags = [...(getBoundAttackEffectTags(attacker, attackItem) ?? [])];
 
   for (const quality of attacker.items) {
     if (quality?.type !== "quality") continue;
@@ -8046,7 +8069,7 @@ function getZonerQualityDataForActor(actor) {
   const selectedChoice = selectedChoices[0] ?? null;
 
   const key = normalizeQualityChoiceKeyForAttack(
-    selectedChoice?.key ??
+    (typeof selectedChoice === "string" ? selectedChoice : selectedChoice?.key) ??
     selectedChoice?.value ??
     selectedChoice?.id ??
     ""
@@ -8415,9 +8438,9 @@ const DIRECT_AREA_ATTACK_TAGS = new Set([
 ]);
 
 function getDirectAreaAttackTags(attackItem) {
-  return [...getAttackQualityTags(attackItem)].filter((tag) => {
-    return DIRECT_AREA_ATTACK_TAGS.has(tag);
-  });
+  return [...new Set([...getAttackQualityTags(attackItem)]
+    .map(tag => tag.startsWith("t:") ? tag : `t:${tag}`)
+    .filter(tag => DIRECT_AREA_ATTACK_TAGS.has(tag)))];
 }
 
 function normalizeAttackTag(value = "") {

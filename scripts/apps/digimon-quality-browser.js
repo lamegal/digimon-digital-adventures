@@ -3291,17 +3291,7 @@ _getAttackChoiceOptionsForQuality(
       .filter(Boolean)
   );
 
-  const actorHasCodeWizard = (this.actor?.items ?? []).some((item) => {
-    const selected = [
-      ...(item.system?.choices?.selectedRanks ?? []),
-      ...(item.system?.choices?.selected ?? [])
-    ];
-    return item.type === "quality" && selected.some((choice) => {
-      return normalizeQualityBrowserIdentity(
-        typeof choice === "string" ? choice : choice?.key ?? choice?.value ?? choice?.id
-      ) === "codewizard";
-    });
-  });
+  const actorHasCodeWizard = this._actorHasDataSpecializationChoice("codeWizard");
 
   const getAttackTags = (
     attack

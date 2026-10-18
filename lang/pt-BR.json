@@ -688,6 +688,7 @@
   "DDA.TormentSheet.BlocksCombatActions": "Bloqueia ações em combate",
   "DDA.Warning.EndTurnOnlyForDigimonNpc": "Fim do Turno só está disponível para Digimon e NPCs.",
   "DDA.EndTurn.Title": "Encerrar Turno",
+  "DDA.EndTurn.Failed": "Não foi possível encerrar o turno. Confira a conexão e tente novamente.",
   "DDA.EndTurn.ActorEndedTurn": "{actor} encerrou seu turno.",
   "DDA.EndTurn.ActionsRestoredTo": "Ações restauradas para {actions}.",
   "DDA.EndTurn.RestoredActionsTo": "restaurou Ações para {actions}.",

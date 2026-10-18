@@ -22,7 +22,10 @@ import {
   requestAreaIntercede
 } from "../intercede.js";
 
-import { getTokenGridDistance } from "../positioning.js";
+import {
+  getTokenGridDistance,
+  measureGridPointDistanceSpaces
+} from "../positioning.js";
 
 const AREA_TAGS_IMPLEMENTED = new Set([
   "t:blast",
@@ -54,7 +57,8 @@ function escapeHtml(value = "") {
 }
 
 function normalizeAreaTag(value = "") {
-  const raw = String(value ?? "").trim().toLowerCase();
+  const raw = String(value?.tag ?? value?.key ?? value?.value ?? value ?? "")
+    .trim().replace(/^\[|\]$/g, "").trim().toLowerCase();
   if (!raw) return "";
   return raw.startsWith("t:") ? raw : `t:${raw}`;
 }
@@ -383,6 +387,8 @@ async function deleteMobileArtilleryTemplates(predicate = () => false) {
 }
 
 export function registerAreaAttackTerrainHooks() {
+  registerAreaTemplateShapes();
+
   Hooks.on("updateCombat", async (combat, changed) => {
     if (!game.user?.isGM || !combat?.started) return;
     if (!("turn" in changed) && !("round" in changed)) return;
@@ -658,8 +664,49 @@ function getAreaSizeBounds({
   };
 }
 
+function getLineWidthBounds(attacker, attackItem) {
+  const sizes = ["small", "medium", "large", "huge", "gigantic", "colossal"];
+  const sizeIndex = sizes.indexOf(String(attacker?.system?.size ?? "medium").toLowerCase());
+  const melee = String(attackItem?.system?.baseTags?.rangeType ?? "").toLowerCase() === "melee";
+  return {
+    minimum: 1,
+    maximum: 1 + Math.max(0, sizeIndex - sizes.indexOf("large")) +
+      (melee ? getWideSwingsBonus(attacker) : 0)
+  };
+}
+
 function getZonerChoice(qualityAttackModifier = {}) {
   return normalizeKey(qualityAttackModifier?.zonerOptions?.[0] ?? "");
+}
+
+function getAreaEffectTags(attackItem, qualityAttackModifier = {}) {
+  const explicitTags = [
+    ...(qualityAttackModifier?.effectTags ?? []),
+    ...(attackItem?.system?.effectTag?.enabled ? [attackItem.system.effectTag.tag] : [])
+  ];
+  // Match Attack resolution: a current purchase overrides stale copied tags.
+  const tags = explicitTags.length ? explicitTags : attackItem?.system?.qualityTags ?? [];
+  return tags.map((entry) => String(entry?.tag ?? entry?.key ?? entry?.value ?? entry ?? "")
+    .trim().replace(/^\[|\]$/g, "").toLowerCase()).filter((tag) => EFFECT_TAGS[tag]);
+}
+
+function canUseFriendlyFire(attackItem, qualityAttackModifier = {}) {
+  return String(attackItem?.system?.baseTags?.functionType ?? "").trim().toLowerCase() === "support" &&
+    getZonerChoice(qualityAttackModifier) === "friendlyfire" &&
+    getAreaEffectTags(attackItem, qualityAttackModifier).some((tag) => {
+      const definition = EFFECT_TAGS[tag];
+      return definition.type === "positive" || definition.alliesOnly;
+    });
+}
+
+function getAreaTargetOverrides(attacker, targetActor, attackItem, qualityAttackModifier, targetMode) {
+  const friendlyFireActive = targetMode === "all" && canUseFriendlyFire(attackItem, qualityAttackModifier);
+  const targetIsAlly = areActorsAllies(attacker, targetActor);
+  return {
+    friendlyFireActive,
+    functionTypeOverride: friendlyFireActive ? (targetIsAlly ? "support" : "damage") : "",
+    suppressEffectTags: Boolean(friendlyFireActive && !targetIsAlly)
+  };
 }
 
 function canChooseAllTargets(attackItem, qualityAttackModifier = {}) {
@@ -670,7 +717,7 @@ function canChooseAllTargets(attackItem, qualityAttackModifier = {}) {
 
   if (functionType === "damage") return zonerChoice === "bombardment";
   if (functionType === "support") {
-    return ["firewallbypass", "friendlyfire"].includes(zonerChoice);
+    return zonerChoice === "firewallbypass" || canUseFriendlyFire(attackItem, qualityAttackModifier);
   }
   return false;
 }
@@ -770,7 +817,12 @@ async function promptAreaConfiguration({
   const attackFunction = String(
     attackItem?.system?.baseTags?.functionType ?? "damage"
   ).trim().toLowerCase();
-  const defaultMode = attackFunction === "support" ? "allies" : "enemies";
+  const effectTags = getAreaEffectTags(attackItem, qualityAttackModifier);
+  const hasHarmfulEffect = effectTags.some(value => {
+    const key = String(value?.tag ?? value ?? "").trim().replace(/^\[|\]$/g, "").toLowerCase();
+    return ["negative", "damage"].includes(EFFECT_TAGS[key]?.type);
+  });
+  const defaultMode = attackFunction === "support" && !hasHarmfulEffect ? "allies" : "enemies";
   const canTargetAll = forcedAll || canChooseAllTargets(
     attackItem,
     qualityAttackModifier
@@ -796,6 +848,9 @@ async function promptAreaConfiguration({
         `Tamanho permitido: ${bounds.base}–${bounds.maximum}`,
         `Allowed Size: ${bounds.base}–${bounds.maximum}`
       );
+  const lineWidth = normalizeAreaTag(tag) === "t:line"
+    ? getLineWidthBounds(attacker, attackItem)
+    : null;
 
   return DialogV2.wait({
     classes: ["dda", "dda-area-attack-dialog"],
@@ -821,6 +876,13 @@ async function promptAreaConfiguration({
           </div>
           <p class="hint">${sizeHint}</p>
         </div>
+        ${lineWidth ? `
+          <div class="form-group">
+            <label>${text("Largura (Espaços)", "Width (Spaces)")}</label>
+            <input type="number" name="areaWidth" min="${lineWidth.minimum}"
+              max="${lineWidth.maximum}" step="1" value="${lineWidth.minimum}">
+          </div>
+        ` : ""}
         <div class="form-group">
           <label>${text("Alvos", "Targets")}</label>
           <select name="targetMode" ${forcedAll ? "disabled" : ""}>
@@ -829,8 +891,8 @@ async function promptAreaConfiguration({
         </div>
         <p class="hint">
           ${text(
-            "Depois de confirmar, posicione a área no mapa. Clique esquerdo confirma; botão direito ou Esc cancela; a roda do mouse gira cones e ondas.",
-            "After confirming, place the area on the canvas. Left-click confirms; right-click or Escape cancels; the mouse wheel rotates cones and waves."
+            "Depois de confirmar, posicione a área no mapa. Clique esquerdo confirma; botão direito ou Esc cancela; a roda do mouse gira cones, linhas, passagens e ondas.",
+            "After confirming, place the area on the canvas. Left-click confirms; right-click or Escape cancels; the mouse wheel rotates cones, lines, passes and waves."
           )}
         </p>
       </div>
@@ -854,6 +916,10 @@ async function promptAreaConfiguration({
 
           return {
             size,
+            width: lineWidth ? Math.max(lineWidth.minimum, Math.min(
+              lineWidth.maximum,
+              Math.floor(Number(button.form.elements.areaWidth?.value) || lineWidth.minimum)
+            )) : 1,
             targetMode: forcedAll
               ? "all"
               : String(
@@ -908,7 +974,7 @@ export function canAreaAttackReachTarget({
     const maximum = Math.max(0, Number(bounds.maximum ?? bounds.base ?? 0));
 
     if (tag === "t:burst") {
-      return getTokenGridDistance(attackerToken, targetToken) <= maximum + 0.001;
+      return getBurstTokenDistance(attackerToken, targetToken) <= maximum + 0.001;
     }
 
     // BLAST may place its center anywhere within the Attack's Range, then extends
@@ -934,48 +1000,170 @@ function getTemplateType(tag = "") {
   const normalizedTag = normalizeAreaTag(tag);
   if (["t:blast", "t:burst"].includes(normalizedTag)) return "circle";
   if (normalizedTag === "t:cone") return "cone";
-  if (["t:line", "t:pass"].includes(normalizedTag)) return "ray";
-  if (normalizedTag === "t:wave") return "rect";
+  if (["t:line", "t:pass", "t:wave"].includes(normalizedTag)) return "ray";
   return "circle";
 }
 
-function getTemplateDistance(tag, size) {
-  const sceneDistance = Number(size ?? 1) * getGridDistance();
-
-  if (normalizeAreaTag(tag) === "t:wave") {
-    return Math.sqrt(2) * sceneDistance;
-  }
-
-  return sceneDistance;
+function getTokenBounds(token) {
+  return token?.bounds ?? {
+    x: Number(token?.x ?? token?.document?.x ?? 0),
+    y: Number(token?.y ?? token?.document?.y ?? 0),
+    width: Number(token?.w ?? (token?.document?.width ?? 1) * getGridSize()),
+    height: Number(token?.h ?? (token?.document?.height ?? 1) * getGridSize())
+  };
 }
 
-function buildTemplateData({ attackerToken, tag, size, requestId } = {}) {
+function getBurstCenterBounds(token) {
+  const bounds = getTokenBounds(token);
+  const width = Math.max(0, bounds.width - getGridSize());
+  const height = Math.max(0, bounds.height - getGridSize());
+  return {
+    x: bounds.x + (bounds.width - width) / 2,
+    y: bounds.y + (bounds.height - height) / 2,
+    width, height
+  };
+}
+
+function getBurstTokenDistance(source, target) {
+  if (!canvas.grid?.isGridless) return getTokenGridDistance(source, target);
+  // Continuous equivalent of measuring from the nearest occupied Space centers.
+  const a = getBurstCenterBounds(source), b = getBurstCenterBounds(target);
+  return pixelsToSpaces(Math.hypot(
+    Math.max(0, a.x - b.x - b.width, b.x - a.x - a.width),
+    Math.max(0, a.y - b.y - b.height, b.y - a.y - a.height)
+  ));
+}
+
+function getTokenEdgeOrigin(token, direction = 0) {
+  const center = getTokenCenter(token);
+  const bounds = getTokenBounds(token);
+  const radians = direction * Math.PI / 180;
+  const dx = Math.cos(radians);
+  const dy = Math.sin(radians);
+  const distance = Math.min(
+    Math.abs(dx) > 1e-8 ? bounds.width / (2 * Math.abs(dx)) : Infinity,
+    Math.abs(dy) > 1e-8 ? bounds.height / (2 * Math.abs(dy)) : Infinity
+  );
+  return { x: center.x + dx * distance, y: center.y + dy * distance };
+}
+
+function getBurstSourceCenters(token) {
+  const grid = canvas.grid;
+  if (grid?.isGridless) return [getTokenCenter(token)];
+  try {
+    const offsets = token.document.getOccupiedGridSpaceOffsets();
+    if (offsets?.length) return offsets.map(offset => grid.getCenterPoint(offset));
+  } catch (_error) { /* Bounds-based fallback for older Token data. */ }
+  try {
+    const [i0, j0, i1, j1] = grid.getOffsetRange(getTokenBounds(token));
+    const centers = [];
+    for (let i = i0; i < i1; i += 1) {
+      for (let j = j0; j < j1; j += 1) centers.push(grid.getCenterPoint({ i, j }));
+    }
+    if (centers.length) return centers;
+  } catch (_error) { /* Gridless fallback. */ }
+  return [getTokenCenter(token)];
+}
+
+// Draw the same grid cells used by BURST's token-to-token distance test. The
+// stored footprint keeps persistent terrain anchored when its caster moves.
+function getBurstTemplateShape(document) {
+  const flag = document.flags?.[game.system.id]?.[AREA_PREVIEW_FLAG];
+  const grid = canvas.grid;
+  if (normalizeAreaTag(flag?.tag) !== "t:burst" || !flag?.burstCenters?.length) return null;
+  if (grid?.isGridless) {
+    const b = flag.burstCenterBounds ?? { x: 0, y: 0, width: 0, height: 0 };
+    const radius = Number(flag.size) * getGridSize();
+    const steps = Math.max(8, Math.ceil(Math.PI / (2 * Math.acos(1 - Math.min(0.25 / radius, 1)))));
+    const points = [];
+    const corners = [
+      [b.x + b.width, b.y, -90], [b.x + b.width, b.y + b.height, 0],
+      [b.x, b.y + b.height, 90], [b.x, b.y, 180]
+    ];
+    for (const [x, y, angle] of corners) {
+      for (let index = 0; index <= steps; index += 1) {
+        const radians = (angle + 90 * index / steps) * Math.PI / 180;
+        points.push(x + Math.cos(radians) * radius, y + Math.sin(radians) * radius);
+      }
+    }
+    return new PIXI.Polygon(points);
+  }
+  if (!grid?.getVertices || !grid?.getOffsetRange) return null;
+  const origin = { x: document.x, y: document.y };
+  const centers = flag.burstCenters.map(point => ({
+    x: point.x + origin.x, y: point.y + origin.y
+  }));
+  const radius = Math.max(0, Number(flag.size ?? 0));
+  const paddingX = (radius + 1) * Number(grid.sizeX ?? getGridSize());
+  const paddingY = (radius + 1) * Number(grid.sizeY ?? getGridSize());
+  const xs = centers.map(point => point.x), ys = centers.map(point => point.y);
+  const [i0, j0, i1, j1] = grid.getOffsetRange({
+    x: Math.min(...xs) - paddingX, y: Math.min(...ys) - paddingY,
+    width: Math.max(...xs) - Math.min(...xs) + 2 * paddingX,
+    height: Math.max(...ys) - Math.min(...ys) + 2 * paddingY
+  });
+  const edges = new Map();
+  const key = point => `${Math.round(point.x * 1e5)},${Math.round(point.y * 1e5)}`;
+  for (let i = i0; i < i1; i += 1) {
+    for (let j = j0; j < j1; j += 1) {
+      const offset = { i, j };
+      const center = grid.getCenterPoint(offset);
+      if (!centers.some(source => measureGridPointDistanceSpaces(source, center) <= radius + 0.001)) continue;
+      const vertices = grid.getVertices(offset);
+      for (let index = 0; index < vertices.length; index += 1) {
+        const a = vertices[index], b = vertices[(index + 1) % vertices.length];
+        const edgeKey = [key(a), key(b)].sort().join(";");
+        if (edges.has(edgeKey)) edges.delete(edgeKey);
+        else edges.set(edgeKey, [a, b]);
+      }
+    }
+  }
+  if (!edges.size) return null;
+  const next = new Map([...edges.values()].map(([a, b]) => [key(a), b]));
+  const start = edges.values().next().value[0];
+  const points = [];
+  let point = start;
+  do {
+    points.push(point.x - origin.x, point.y - origin.y);
+    point = next.get(key(point));
+  } while (point && key(point) !== key(start) && points.length <= edges.size * 2);
+  if (!point || key(point) !== key(start) || points.length !== edges.size * 2) return null;
+  return new PIXI.Polygon(points);
+}
+
+function registerAreaTemplateShapes() {
+  const Base = CONFIG.MeasuredTemplate.objectClass ?? foundry.canvas.placeables.MeasuredTemplate;
+  if (Base.ddaAreaShapes) return;
+  CONFIG.MeasuredTemplate.objectClass = class DDAAreaMeasuredTemplate extends Base {
+    static ddaAreaShapes = true;
+
+    _computeShape() {
+      return getBurstTemplateShape(this.document) ?? super._computeShape();
+    }
+  };
+}
+
+function buildTemplateData({ attackerToken, tag, size, width = 1, requestId } = {}) {
   const center = getTokenCenter(attackerToken);
   const normalizedTag = normalizeAreaTag(tag);
   const isWave = normalizedTag === "t:wave";
-  const tokenWidth = Math.max(1, Number(attackerToken?.document?.width ?? 1));
-  const tokenHeight = Math.max(1, Number(attackerToken?.document?.height ?? 1));
-  const burstExpansion = normalizedTag === "t:burst"
-    ? Math.max(0, (Math.max(tokenWidth, tokenHeight) - 1) / 2)
-    : 0;
-  const sizeOrder = ["small", "medium", "large", "huge", "gigantic", "colossal"];
-  const sizeKey = String(attackerToken?.actor?.system?.size ?? "medium").trim().toLowerCase();
-  const sizeIndex = sizeOrder.indexOf(sizeKey);
-  const spacesLargerThanLarge = Math.max(0, (sizeIndex >= 0 ? sizeIndex : 1) - 2);
-  const wideSwingsWidthBonus = getWideSwingsBonus(attackerToken?.actor);
+  const origin = ["t:cone", "t:line", "t:wave"].includes(normalizedTag)
+    ? getTokenEdgeOrigin(attackerToken)
+    : center;
+  const tokenHeight = Math.max(0.5, Number(attackerToken?.document?.height ?? 1));
   const lineWidth = normalizedTag === "t:line"
-    ? Math.max(1, 1 + spacesLargerThanLarge + wideSwingsWidthBonus)
+    ? Math.max(1, Number(width) || 1)
     : normalizedTag === "t:pass"
-      ? Math.max(1, tokenWidth + wideSwingsWidthBonus)
-      : 1;
+      ? tokenHeight + getWideSwingsBonus(attackerToken?.actor)
+      : isWave ? Number(size ?? 1) : 1;
 
   return {
     t: getTemplateType(tag),
     user: game.user.id,
-    x: center.x,
-    y: center.y,
-    distance: getTemplateDistance(tag, Number(size ?? 1) + burstExpansion),
-    direction: isWave ? 45 : 0,
+    x: origin.x,
+    y: origin.y,
+    distance: Number(size ?? 1) * getGridDistance(),
+    direction: 0,
     angle: normalizedTag === "t:cone" ? 90 : 0,
     width: lineWidth * getGridDistance(),
     borderColor: game.user.color ?? "#ff6400",
@@ -985,7 +1173,16 @@ function buildTemplateData({ attackerToken, tag, size, requestId } = {}) {
         [AREA_PREVIEW_FLAG]: {
           requestId,
           tag: normalizedTag,
-          size: Number(size ?? 1)
+          size: Number(size ?? 1),
+          ...(normalizedTag === "t:burst" ? {
+            burstCenterBounds: (() => {
+              const b = getBurstCenterBounds(attackerToken);
+              return { ...b, x: b.x - center.x, y: b.y - center.y };
+            })(),
+            burstCenters: getBurstSourceCenters(attackerToken).map(point => ({
+              x: point.x - center.x, y: point.y - center.y
+            }))
+          } : {})
         }
       }
     }
@@ -1041,14 +1238,21 @@ async function drawTemplatePreview(templateData, {
   canvas.templates.preview.addChild(template);
 
   const attackerCenter = getTokenCenter(attackerToken);
-  const attackerEdgeOffset = Math.max(
-    Number(attackerToken?.w ?? getGridSize()),
-    Number(attackerToken?.h ?? getGridSize())
-  ) / 2;
-  document.updateSource({
-    x: fixedOrigin ? attackerCenter.x + attackerEdgeOffset : templateData.x,
-    y: fixedOrigin ? attackerCenter.y : templateData.y
-  });
+  const tag = normalizeAreaTag(templateData.flags?.[game.system.id]?.[AREA_PREVIEW_FLAG]?.tag);
+  const setDirection = direction => {
+    const origin = tag === "t:pass" ? attackerCenter : getTokenEdgeOrigin(attackerToken, direction);
+    const update = { direction };
+    if (fixedOrigin || rotateOnly) Object.assign(update, origin);
+    if (tag === "t:pass") {
+      const bounds = getTokenBounds(attackerToken);
+      const radians = direction * Math.PI / 180;
+      update.width = (Math.abs(Math.sin(radians)) * bounds.width +
+        Math.abs(Math.cos(radians)) * bounds.height) / getGridSize() * getGridDistance() +
+        getWideSwingsBonus(attackerToken?.actor) * getGridDistance();
+    }
+    document.updateSource(update);
+  };
+  setDirection(Number(document.direction ?? 0));
   template.refresh();
 
   ui.notifications.info(text(
@@ -1100,12 +1304,7 @@ async function drawTemplatePreview(templateData, {
         const dy = point.y - attackerCenter.y;
         const direction = Math.atan2(dy, dx) * 180 / Math.PI;
 
-        const radians = direction * Math.PI / 180;
-        document.updateSource({
-          x: attackerCenter.x + Math.cos(radians) * attackerEdgeOffset,
-          y: attackerCenter.y + Math.sin(radians) * attackerEdgeOffset,
-          direction
-        });
+        setDirection(direction);
       } else {
         const snapped = getSnappedPoint(point);
         document.updateSource({ x: snapped.x, y: snapped.y });
@@ -1115,6 +1314,7 @@ async function drawTemplatePreview(templateData, {
     };
 
     const onConfirm = (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
       event.stopPropagation();
       const result = foundry.utils.deepClone(document.toObject(false));
       delete result._id;
@@ -1134,7 +1334,7 @@ async function drawTemplatePreview(templateData, {
 
     canvas.app.view.oncontextmenu = (event) => event.preventDefault();
     canvas.app.view.onwheel = (event) => {
-      if (!["cone", "rect"].includes(document.t)) return;
+      if (!["cone", "ray", "rect"].includes(document.t)) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -1147,7 +1347,7 @@ async function drawTemplatePreview(templateData, {
       const direction = Number(document.direction ?? 0) +
         (event.deltaY < 0 ? snap : -snap);
 
-      document.updateSource({ direction });
+      setDirection(direction);
       template.refresh();
     };
 
@@ -1160,9 +1360,9 @@ async function drawTemplatePreview(templateData, {
 
 function getTemplateOriginDistance(attackerToken, templateData) {
   const center = getTokenCenter(attackerToken);
-  const dx = Number(templateData.x ?? 0) - center.x;
-  const dy = Number(templateData.y ?? 0) - center.y;
-  return Math.ceil(pixelsToSpaces(Math.hypot(dx, dy)));
+  return Math.ceil(measureGridPointDistanceSpaces(center, {
+    x: Number(templateData.x ?? 0), y: Number(templateData.y ?? 0)
+  }) - 0.001);
 }
 
 function validateTemplatePlacement({
@@ -1268,34 +1468,32 @@ async function deletePersistentTemplate(document) {
 function tokenIsInsideBaseArea(token, templateData, bounds, attackerToken = null) {
   if (!token || !templateData || !bounds) return false;
 
-  const originX = Number(templateData.x ?? 0);
-  const originY = Number(templateData.y ?? 0);
   const basePixels = Math.max(1, Number(bounds.base ?? 1)) * getGridSize();
   const normalizedTag = normalizeAreaTag(
     templateData?.flags?.[game.system.id]?.[AREA_PREVIEW_FLAG]?.tag ?? ""
   );
 
   if (normalizedTag === "t:burst" && attackerToken) {
-    return getTokenGridDistance(attackerToken, token) <=
+    return getBurstTokenDistance(attackerToken, token) <=
       Math.max(0, Number(bounds.base ?? 1)) + 0.001;
   }
 
-  /*
-   * All targets reaching this point are already inside the selected maximum
-   * template.  For circles and cones, Base Size is the distance from the
-   * template origin.  Wave uses the same nearest-point test, which mirrors
-   * the rule's Base Size band without relying on private canvas internals.
-   */
-  const distanceLimit = normalizedTag === "t:wave"
-    ? Math.SQRT2 * basePixels
-    : basePixels;
+  const ObjectClass = CONFIG.MeasuredTemplate.objectClass ?? foundry.canvas?.placeables?.MeasuredTemplate;
+  const baseSize = basePixels / getGridSize();
+  const direction = Number(templateData.direction ?? 0);
+  let shape;
+  if (["t:blast", "t:burst"].includes(normalizedTag)) {
+    shape = ObjectClass.getCircleShape(baseSize);
+  } else if (normalizedTag === "t:cone") {
+    shape = ObjectClass.getConeShape(baseSize, direction, 90);
+  } else {
+    const width = normalizedTag === "t:wave"
+      ? baseSize
+      : Number(templateData.width ?? getGridDistance()) / getGridDistance();
+    shape = ObjectClass.getRayShape(baseSize, direction, width);
+  }
 
-  return getTokenSamplePoints(token).some((point) => {
-    return Math.hypot(
-      Number(point.x ?? 0) - originX,
-      Number(point.y ?? 0) - originY
-    ) <= distanceLimit + 0.5;
-  });
+  return templateContainsToken({ document: templateData, shape }, token);
 }
 
 function getTokenSamplePoints(token) {
@@ -1344,6 +1542,39 @@ function templateContainsToken(templateObject, token) {
     y: Number(templateObject.document?.y ?? 0)
   };
 
+  // Sampling alone misses an area crossing the middle of a large Token's
+  // edge. Test the footprint as well, preserving the small boundary inset.
+  const bounds = getTokenBounds(token);
+  const inset = Math.min(2, bounds.width / 4, bounds.height / 4);
+  const left = bounds.x + inset - origin.x;
+  const top = bounds.y + inset - origin.y;
+  const right = bounds.x + bounds.width - inset - origin.x;
+  const bottom = bounds.y + bounds.height - inset - origin.y;
+  const corners = [
+    { x: left, y: top }, { x: right, y: top },
+    { x: right, y: bottom }, { x: left, y: bottom }
+  ];
+  if (Number.isFinite(shape.radius) && shape.contains(
+    Math.max(left, Math.min(right, shape.x)),
+    Math.max(top, Math.min(bottom, shape.y))
+  )) return true;
+
+  const points = shape.points;
+  if (points?.length >= 6) {
+    const cross = (a, b, p) => (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+    for (let index = 0; index < points.length; index += 2) {
+      const a = { x: points[index], y: points[index + 1] };
+      const b = { x: points[(index + 2) % points.length], y: points[(index + 3) % points.length] };
+      if (a.x >= left && a.x <= right && a.y >= top && a.y <= bottom) return true;
+      for (let edge = 0; edge < corners.length; edge += 1) {
+        const c = corners[edge], d = corners[(edge + 1) % corners.length];
+        if (Math.max(a.x, b.x) < Math.min(c.x, d.x) || Math.min(a.x, b.x) > Math.max(c.x, d.x) ||
+          Math.max(a.y, b.y) < Math.min(c.y, d.y) || Math.min(a.y, b.y) > Math.max(c.y, d.y)) continue;
+        if (cross(a, b, c) * cross(a, b, d) <= 0 && cross(c, d, a) * cross(c, d, b) <= 0) return true;
+      }
+    }
+  }
+
   return getTokenSamplePoints(token).some((point) => {
     return shape.contains(point.x - origin.x, point.y - origin.y);
   });
@@ -1372,7 +1603,7 @@ function filterAreaTargets({
     .filter((token) => token?.actor)
     .filter((token) => game.user.isGM || !token.document?.hidden)
     .filter((token) => isBurst
-      ? getTokenGridDistance(attackerToken, token) <= selectedSize + 0.001
+      ? getBurstTokenDistance(attackerToken, token) <= selectedSize + 0.001
       : templateContainsToken(templateObject, token))
     .filter((token) => {
       const sameToken = token.id === attackerToken?.id;
@@ -2828,14 +3059,18 @@ export async function runAreaAttackWorkflow({
     return { handled: false };
   }
 
-  if (!canvas?.ready || !canvas?.scene || !attackerToken) {
-    return { handled: false };
-  }
-
   const normalizedTags = [...new Set(
     areaTags.map(normalizeAreaTag).filter(Boolean)
   )];
   if (!normalizedTags.length) return { handled: false };
+
+  if (!canvas?.ready || !canvas?.scene || !attackerToken) {
+    ui.notifications.warn(text(
+      "Coloque o Token do atacante na cena ativa para posicionar o Ataque em Área.",
+      "Place the attacker's Token in the active Scene to position the Area Attack."
+    ));
+    return { handled: true, result: null };
+  }
 
   const forcedTag = normalizeAreaTag(attackOptions?.areaAttackForcedTag ?? "");
   const mode = forcedTag
@@ -2900,6 +3135,7 @@ export async function runAreaAttackWorkflow({
         attackerToken,
         tag,
         size: configuration.size,
+        width: configuration.width,
         requestId
       });
       const normalizedTag = normalizeAreaTag(tag);
@@ -3255,19 +3491,9 @@ export async function runAreaAttackWorkflow({
         : "awaitingAccuracy";
       await updateProgressMessage();
 
-      const zonerChoice = getZonerChoice(qualityAttackModifier);
-      const originalFunctionType = String(
-        attackItem?.system?.baseTags?.functionType ?? "damage"
-      ).trim().toLowerCase();
-      const friendlyFireActive = Boolean(
-        configuration.targetMode === "all" &&
-        originalFunctionType === "support" &&
-        zonerChoice === "friendlyfire"
+      const targetOverrides = getAreaTargetOverrides(
+        attacker, token.actor, attackItem, qualityAttackModifier, configuration.targetMode
       );
-      const targetIsAlly = areActorsAllies(attacker, token.actor);
-      const functionTypeOverride = friendlyFireActive
-        ? (targetIsAlly ? "support" : "damage")
-        : "";
 
       const result = await resolveTarget(token, {
         ...attackOptions,
@@ -3325,9 +3551,7 @@ export async function runAreaAttackWorkflow({
           accuracyPenalty: 0,
           templateId: templateDocument.id,
           progressMessageId: progressMessage?.id ?? "",
-          friendlyFireActive,
-          functionTypeOverride,
-          suppressEffectTags: Boolean(friendlyFireActive && !targetIsAlly)
+          ...targetOverrides
         }
       });
 

@@ -13,6 +13,7 @@ import {
   normalizeKey
 } from "../rules/quality-automation.js";
 import { getTokenGridDistance } from "./positioning.js";
+import { qualityIsBoundToAttack } from "./effect-qualities.js";
 
 const SYSTEM_ID = "digimon-digital-adventures";
 const STATE_PATH = "system.combat.digizoidGainForce";
@@ -81,28 +82,8 @@ function attackTags(attackItem, qualityTags = []) {
   return tags;
 }
 
-function attackIdentityKeys(attackItem) {
-  return new Set([
-    attackItem?.id,
-    attackItem?.system?.wizard?.attackKey,
-    attackItem?.flags?.[SYSTEM_ID]?.wizardAttackKey,
-    attackItem?.flags?.[SYSTEM_ID]?.enemyBuilderAttackKey
-  ].map((entry) => String(entry ?? "").trim()).filter(Boolean));
-}
-
 function qualitySelectedAttack(quality, attackItem) {
-  if (!quality || !attackItem) return false;
-  const keys = attackIdentityKeys(attackItem);
-  const choices = [
-    ...(Array.isArray(quality.system?.choices?.selectedRanks) ? quality.system.choices.selectedRanks : []),
-    ...(Array.isArray(quality.system?.choices?.selected) ? quality.system.choices.selected : [])
-  ];
-  return choices.some((choice) => {
-    const direct = String(choice?.attackId ?? choice?.attackItemId ?? choice?.itemId ?? choice?.attackKey ?? "").trim();
-    const key = String(choice?.key ?? choice?.value ?? "").trim();
-    const keyAttack = key.includes(":") ? key.slice(0, key.indexOf(":")) : key;
-    return keys.has(direct) || keys.has(keyAttack) || keys.has(key);
-  });
+  return qualityIsBoundToAttack(quality, attackItem);
 }
 
 function tokenForActor(actor) {

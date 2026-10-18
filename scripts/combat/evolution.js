@@ -1,7 +1,7 @@
 import { getDDASetting } from "../settings.js";
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
 import { syncPartnerOwnershipFromTamer } from "../utils/ownership.js";
-import { runDigimonTokenEvolutionTransition } from "../tokens/digimon-token-scale.js";
+import { getDigimonTokenScaleForSize, runDigimonTokenEvolutionTransition } from "../tokens/digimon-token-scale.js";
 import { clearClashStateForActor } from "./clash.js";
 import { getDdaTokenPath } from "../data/dda-portrait-and-manual-digimon-data.js";
 import {
@@ -2948,7 +2948,14 @@ function buildSnapshotItemsFromActor(actor) {
 async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateActor = null, tamerActor = null, previousFormActor = null, transitionType = "formChange", continuedHybridState = null }) {
   if (!partnerActor || !snapshot) return null;
 
-  const normalized = normalizeFormSnapshot(snapshot, formTemplateActor ?? partnerActor);
+  // A legacy snapshot without this field uses its own template's setting,
+  // never the persistent Actor's override from the outgoing form.
+  const formTokenGridSize = snapshot.tokenGridSize ?? (
+    formTemplateActor && formTemplateActor.uuid !== partnerActor.uuid
+      ? formTemplateActor.flags?.[DDA_SYSTEM_ID]?.tokenGridSizeOverride
+      : 0
+  ) ?? 0;
+  const normalized = normalizeFormSnapshot({ ...snapshot, tokenGridSize: formTokenGridSize }, formTemplateActor ?? partnerActor);
   const partnerSystem = partnerActor.system ?? {};
   const previousFormUuid = String(
     partnerSystem.evolution?.currentFormUuid ||
@@ -3063,6 +3070,10 @@ async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateAc
   const portraitImg = String(normalized.portraitImg || normalized.img || "icons/svg/mystery-man.svg");
   const tokenImg = String(normalized.tokenImg || normalized.img || portraitImg || "icons/svg/mystery-man.svg");
   const actorImg = String(normalized.img || partnerActor.img || "icons/svg/mystery-man.svg");
+  const tokenGridSizeOverride = Number(normalized.tokenGridSize ?? 0);
+  const nextTokenSize = tokenGridSizeOverride > 0
+    ? Math.max(0.5, Math.round(tokenGridSizeOverride * 2) / 2)
+    : getDigimonTokenScaleForSize(normalized.size);
   const portraitWasManuallySelected = Boolean(
     normalized.wizard?.portraitManuallySelected ||
     normalized.wizard?.portraitSource === "manual"
@@ -3105,13 +3116,13 @@ const shouldUsePortraitFlag = Boolean(
       ? { [`flags.${DDA_SYSTEM_ID}.digivicePortraitManual`]: true }
       : { [`flags.${DDA_SYSTEM_ID}.-=digivicePortraitManual`]: null }),
     "prototypeToken.texture.src": tokenImg,
-    ...(Number(normalized.tokenGridSize ?? 0) > 0
+    "prototypeToken.width": nextTokenSize,
+    "prototypeToken.height": nextTokenSize,
+    ...(tokenGridSizeOverride > 0
       ? {
-          "prototypeToken.width": Number(normalized.tokenGridSize),
-          "prototypeToken.height": Number(normalized.tokenGridSize),
-          [`flags.${DDA_SYSTEM_ID}.tokenGridSizeOverride`]: Number(normalized.tokenGridSize)
+          [`flags.${DDA_SYSTEM_ID}.tokenGridSizeOverride`]: nextTokenSize
         }
-      : {}),
+      : { [`flags.${DDA_SYSTEM_ID}.-=tokenGridSizeOverride`]: null }),
     "system.evolution.portraitImg": portraitImg,
     "system.evolution.tokenImg": tokenImg,
 

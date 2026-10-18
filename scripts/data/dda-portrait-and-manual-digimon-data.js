@@ -2,6 +2,8 @@
 // Generated from the current portrait review (810 approved assignments).
 // Keep this file when regenerating the large V6 JSON: it is the durable manual overlay.
 
+import { DDA_STATIC_TOKEN_PATHS_BY_KEY } from "./digimon-static-token-manifest.generated.js";
+
 const DDA_SYSTEM_ID = "digimon-digital-adventures";
 const DDA_ASSET_ROOT = `systems/${DDA_SYSTEM_ID}/assets/digimon`;
 
@@ -954,6 +956,13 @@ function normalizeDdaTokenLookupKey(value = "") {
     .trim();
 }
 
+const DDA_BUILTIN_TOKEN_INDEX = new Map(
+  Object.entries(DDA_STATIC_TOKEN_PATHS_BY_KEY).map(([key, paths]) => [
+    normalizeDdaTokenLookupKey(key),
+    paths.find(path => /\.(webp|png|jpe?g)$/i.test(path)) ?? ""
+  ])
+);
+
 async function getDdaTokenIndex() {
   if (ddaTokenIndexPromise) return ddaTokenIndexPromise;
 
@@ -1004,19 +1013,23 @@ export async function getDdaTokenPath({
   species = "",
   aliases = []
 } = {}) {
-  const tokenIndex = await getDdaTokenIndex();
-
   const candidates = [
     key,
     name,
     species,
     ...(Array.isArray(aliases) ? aliases : [])
-  ];
+  ].map(normalizeDdaTokenLookupKey).filter(Boolean);
 
-  for (const candidate of candidates) {
-    const lookupKey = normalizeDdaTokenLookupKey(candidate);
-    if (!lookupKey) continue;
+  // Shipped artwork must not depend on a player's file-browser permissions.
+  // Keep the exact manifest path, including filename capitalization.
+  for (const lookupKey of candidates) {
+    const tokenPath = DDA_BUILTIN_TOKEN_INDEX.get(lookupKey);
+    if (tokenPath) return tokenPath;
+  }
 
+  const tokenIndex = await getDdaTokenIndex();
+
+  for (const lookupKey of candidates) {
     const tokenPath = tokenIndex.get(lookupKey);
     if (tokenPath) return tokenPath;
   }

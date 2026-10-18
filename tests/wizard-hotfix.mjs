@@ -45,7 +45,7 @@ async function load(relative, importedNames=[]) {
     const code=fs.readFileSync(new URL(ref.identifier),'utf8');
     const match=[...code.matchAll(/import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["']/g)].find(m=>m[2]===specifier);
     const names=match?match[1].split(',').map(n=>n.trim().split(/\s+as\s+/)[0]).filter(Boolean):[];
-    return load(fileURLToPath(target).slice(fileURLToPath(root).length),names);
+    return load(fileURLToPath(target).slice(fileURLToPath(root).length).replaceAll("\\", "/"),names);
   });
   return module;
 }

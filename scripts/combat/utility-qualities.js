@@ -1,4 +1,5 @@
 import {
+  EFFECT_TAGS,
   areActorsAllies,
   areActorsAlliesForQualities,
   findQuality,
@@ -1323,20 +1324,28 @@ export async function resolveWardEmblemAfterAttack({ attacker, results = [] } = 
   const hasHoly = hasQuality(attacker, "holyWard");
   const hasDark = hasQuality(attacker, "darkEmblem");
   if (!hasHoly && !hasDark) return null;
-  const positive = new Set(["haste", "immune", "shield", "regen", "tailwind", "bastion", "sharpen", "sturdy", "nimble"]);
-  const negative = new Set(["fear", "doom", "stun", "blind", "dot", "burn", "freeze", "poison", "ruin", "root", "frail", "paralyze", "pacify", "dull", "distract", "heavy", "confuse"]);
+  const positive = new Set([
+    ...Object.keys(EFFECT_TAGS).filter((tag) => EFFECT_TAGS[tag].type === "positive"),
+    "haste", "immune", "shield", "bastion", "zero"
+  ]);
+  const negative = new Set([
+    ...Object.keys(EFFECT_TAGS).filter((tag) => ["negative", "damage"].includes(EFFECT_TAGS[tag].type)),
+    "fear", "doom", "stun", "blind", "dot"
+  ]);
   const holyEligible = hasHoly && results.some((result) => [...qualifyingWardTags(result)].some((tag) => positive.has(tag)) && result.hit);
   const darkEligible = hasDark && results.some((result) => [...qualifyingWardTags(result)].some((tag) => negative.has(tag)) && result.hit);
   if (!holyEligible && !darkEligible) return null;
   const state = getState(attacker);
   const roundKey = `${getCombatId()}:${getCombatRound()}`;
   if (state.wardEmblem?.usedRoundKey === roundKey) return null;
-  const lastKind = state.wardEmblem?.lastKind ?? "";
-  const lastTurnKey = state.wardEmblem?.lastTurnKey ?? "";
+  const hasBalance = hasQuality(attacker, "chaoticBalance");
+  const previousRoundKey = `${getCombatId()}:${getCombatRound() - 1}`;
+  const usedPreviousRound = state.wardEmblem?.usedRoundKey === previousRoundKey;
+  const lastKind = usedPreviousRound ? state.wardEmblem?.lastKind ?? "" : "";
   const current = currentTurnKey(attacker);
   let choices = [];
-  if (holyEligible && !(lastKind === "holy" && lastTurnKey && lastTurnKey !== current)) choices.push(["holy", text("Proteção Sagrada", "Holy Ward")]);
-  if (darkEligible && !(lastKind === "dark" && lastTurnKey && lastTurnKey !== current)) choices.push(["dark", text("Emblema Sombrio", "Dark Emblem")]);
+  if (holyEligible && !(hasBalance && lastKind === "holy")) choices.push(["holy", text("Proteção Sagrada", "Holy Ward")]);
+  if (darkEligible && !(hasBalance && lastKind === "dark")) choices.push(["dark", text("Emblema Sombrio", "Dark Emblem")]);
   if (!choices.length) return null;
   const kind = choices.length === 1 ? choices[0][0] : await foundry.applications.api.DialogV2.prompt({
     classes: ["dda", "dda-utility-quality-window"], window: { title: text("Equilíbrio Caótico", "Chaotic Balance") },
@@ -1351,7 +1360,7 @@ export async function resolveWardEmblemAfterAttack({ attacker, results = [] } = 
   if (!confirmed) return null;
   const target = await chooseAttackResultTarget(results, kind === "holy" ? text("Alvo da Cura", "Healing Target") : text("Alvo do Dano", "Damage Target"));
   if (!target) return null;
-  const alternatingBonus = hasQuality(attacker, "chaoticBalance") && lastKind && lastKind !== kind ? 1 : 0;
+  const alternatingBonus = hasBalance && lastKind && lastKind !== kind ? 1 : 0;
   const amount = 2 + alternatingBonus;
   if (kind === "holy") await healActor(target, amount);
   else await applyDamage(target, amount, { unalterable: true, attacker, damageSourceKind: "quality", damageLabel: text("Emblema Sombrio", "Dark Emblem") });
