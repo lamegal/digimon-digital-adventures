@@ -684,6 +684,7 @@
   "DDA.TormentSheet.BlocksCombatActions": "Blocks combat actions",
   "DDA.Warning.EndTurnOnlyForDigimonNpc": "End Turn is only available for Digimon and NPCs.",
   "DDA.EndTurn.Title": "End Turn",
+  "DDA.EndTurn.Failed": "Could not end the turn. Check the connection and try again.",
   "DDA.EndTurn.ActorEndedTurn": "{actor} ended their turn.",
   "DDA.EndTurn.ActionsRestoredTo": "Actions restored to {actions}.",
   "DDA.EndTurn.RestoredActionsTo": "restored Actions to {actions}.",

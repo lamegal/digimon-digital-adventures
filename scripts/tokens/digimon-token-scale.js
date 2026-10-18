@@ -1,4 +1,27 @@
 const MODULE_ID = "digimon-digital-adventures";
+const TOKEN_SIZE_UPDATE_OPTIONS = { animate: false, ddaTokenAppearance: true };
+
+async function updateSceneTokenAppearances(scene, updates) {
+  await scene.updateEmbeddedDocuments("Token", updates, { ...TOKEN_SIZE_UPDATE_OPTIONS });
+
+  for (const update of updates) {
+    const document = scene.tokens.get?.(update._id) ??
+      scene.tokens.find((token) => token.id === update._id);
+    if (typeof document?.clearMovementHistory !== "function") continue;
+
+    // V13 ruler waypoints retain their own dimensions. Redrawing the current
+    // Token does not retire a 2x2 trail left by its outgoing form. Start a new
+    // native trail only when its dimensions disagree with the destination.
+    // DDA's spent movement and Action accounting live in separate flags/data.
+    const history = document.movementHistory ?? [];
+    if (history.some((waypoint) =>
+      (waypoint.width > 0 && waypoint.width !== update.width) ||
+      (waypoint.height > 0 && waypoint.height !== update.height)
+    )) {
+      await document.clearMovementHistory();
+    }
+  }
+}
 
 const DIGIMON_SIZE_ORDER = [
   "small",
@@ -195,10 +218,12 @@ export async function applyDigimonTokenScaleToActorAndPlacedTokens(actor, humanS
     }
 
     if (updates.length > 0) {
-      await scene.updateEmbeddedDocuments("Token", updates);
+      await updateSceneTokenAppearances(scene, updates);
       updatedSceneTokens += updates.length;
     }
   }
+
+  for (const token of getPlacedTokensForActor(actor)) refreshTokenFootprint(token);
 
   return {
     actor: true,
@@ -217,6 +242,19 @@ function getPlacedTokensForActor(actor) {
       token?.actor?.id === actor.id ||
       token?.actor?.uuid === actor.uuid;
   }) ?? [];
+}
+
+function refreshTokenFootprint(token) {
+  if (!token) return;
+  // V13 animates prepared dimensions independently of the saved Token data.
+  // Reset them before refreshing the footprint, selection border and hit area.
+  token.stopAnimation?.({ reset: true });
+  if (token.renderFlags?.set) {
+    token.renderFlags.set({ refreshSize: true, refreshShape: true, refreshRuler: true });
+    token.applyRenderFlags?.();
+  } else {
+    token.refresh?.();
+  }
 }
 
 function sleep(ms = 0) {
@@ -501,14 +539,14 @@ export async function applyDigimonTokenAppearanceToActorAndPlacedTokens(actor, o
     }
 
     if (updates.length > 0) {
-      await scene.updateEmbeddedDocuments("Token", updates);
+      await updateSceneTokenAppearances(scene, updates);
       updatedSceneTokens += updates.length;
     }
   }
 
   for (const token of canvas?.tokens?.placeables ?? []) {
     if (!tokenDocumentBelongsToActor(token.document, actor)) continue;
-    token.refresh?.();
+    refreshTokenFootprint(token);
   }
 
   return {
@@ -605,6 +643,16 @@ export async function runDigimonTokenEvolutionTransition(actor, changeCallback, 
     });
 
     tokens = getPlacedTokensForActor(actor);
+    // The Token update recalculates the mesh scale for the destination form.
+    // Animate/restore that scale, rather than putting the outgoing form's
+    // dimensions back when the transition finishes.
+    for (const [id, nextState] of captureTokenVisualState(tokens)) {
+      const previousState = originalState.get(id);
+      originalState.set(id, {
+        ...nextState,
+        alpha: previousState?.alpha ?? nextState.alpha
+      });
+    }
 
     if (tokens.length) {
       applyDigivolutionStep(tokens, effects, originalState, {
@@ -667,6 +715,9 @@ export async function runDigimonTokenEvolutionTransition(actor, changeCallback, 
   } finally {
     tokens = getPlacedTokensForActor(actor);
     restoreTokenVisualState(tokens, originalState);
+    // The final visual restore must not leave an outgoing animation's size or
+    // cached selection geometry on the destination form.
+    for (const token of tokens) refreshTokenFootprint(token);
 
     for (const effect of effects.values()) {
       destroyDigivolutionEffect(effect);
@@ -710,7 +761,7 @@ export async function applyHumanScalingToAllDigimonTokens(humanScaling = null) {
     }
 
     if (updates.length > 0) {
-      await scene.updateEmbeddedDocuments("Token", updates);
+      await updateSceneTokenAppearances(scene, updates);
       updatedSceneTokens += updates.length;
     }
   }
@@ -753,6 +804,29 @@ export async function confirmApplyHumanScalingToAllDigimonTokens(humanScaling = 
 }
 
 export function registerDigimonTokenScaleHooks() {
+  Hooks.on("updateToken", (document, _changed, options = {}) => {
+    if (!options.ddaTokenAppearance || !isDigimonLikeActor(document.actor)) return;
+    // Run on every client, including players observing a GM's form change.
+    refreshTokenFootprint(document.object ?? canvas?.tokens?.get?.(document.id));
+  });
+
+  Hooks.on("preCreateActor", (actor, data) => {
+    if (!isDigimonLikeActor(actor)) return;
+    const width = data.prototypeToken?.width ?? data["prototypeToken.width"];
+    const height = data.prototypeToken?.height ?? data["prototypeToken.height"];
+    if (width !== undefined && height !== undefined) return;
+
+    const tokenSize = getDigimonTokenScale({
+      type: actor.type,
+      system: { ...actor.system, ...data.system },
+      flags: { ...actor.flags, ...data.flags }
+    });
+    const update = {};
+    if (width === undefined) update["prototypeToken.width"] = height ?? tokenSize;
+    if (height === undefined) update["prototypeToken.height"] = width ?? tokenSize;
+    actor.updateSource(update);
+  });
+
   Hooks.on("updateActor", async (actor, changed) => {
     if (!game.user.isGM) return;
     if (!isDigimonLikeActor(actor)) return;

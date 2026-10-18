@@ -117,17 +117,15 @@ export class DDACharacterSheet extends DDACharacterSheetBase {
 
   /**
    * ApplicationV2 native action handler for the sheet End Turn button.
-   * Keeping this in DEFAULT_OPTIONS.actions avoids stale/manual listeners
-   * after HandlebarsApplicationMixin replaces sheet HTML on re-render.
+   * The explicit button binding below also handles templates cached from an
+   * older build, and stops the delegated action from executing a second time.
    *
    * @this {DDACharacterSheet}
    * @param {PointerEvent} event
    * @param {HTMLElement} _target
    */
   static async _onEndTurnAction(event, _target) {
-    event.preventDefault();
-    event.stopPropagation();
-    return endTamerTurn(this.actor);
+    return this._onEndTurn(event);
   }
 
   static PARTS = {
@@ -354,6 +352,7 @@ return context;
     }
 
     this._ensureTamerEndTurnButton(html);
+    this._bindTamerEndTurnButtons(root);
     this._lockTamerProgressionInputs(html);
     html.find(".item-create").on("click", this._onItemCreate.bind(this));
     html.find(".item-edit").on("click", this._onItemEdit.bind(this));
@@ -477,6 +476,13 @@ html.find(".dda-device-button").on("dblclick", (event) => {
   );
 }
 
+  _bindTamerEndTurnButtons(root) {
+    for (const button of root.querySelectorAll(".end-turn-tamer")) {
+      if (button.dataset.ddaEndTurnBound === "true") continue;
+      button.dataset.ddaEndTurnBound = "true";
+      button.addEventListener("click", event => void this._onEndTurn(event));
+    }
+  }
 
 
   _lockTamerProgressionInputs(html) {
@@ -1428,8 +1434,18 @@ const confirmed = await DialogV2.confirm({
 
 async _onEndTurn(event) {
   event.preventDefault();
+  event.stopPropagation();
 
-  await endTamerTurn(this.actor);
+  if (this._ddaEndTurnInFlight) return;
+  this._ddaEndTurnInFlight = true;
+  try {
+    return await endTamerTurn(this.actor);
+  } catch (error) {
+    console.error("DDA | Could not end the Tamer turn from the sheet.", error);
+    ui.notifications.error(game.i18n.localize("DDA.EndTurn.Failed"));
+  } finally {
+    this._ddaEndTurnInFlight = false;
+  }
 }
 
 async _onOpenTamerActionMenu(event) {

@@ -1,5 +1,6 @@
 import {
   EFFECT_TAGS,
+  areActorsAlliesForQualities,
   findQuality,
   getActorDerivedStat,
   getActorSv,
@@ -66,14 +67,15 @@ function getAttackIdentityKeys(attackItem) {
 }
 
 function getChoiceAttackId(choice = {}) {
-  const key = String(choice?.key ?? "").trim();
+  const key = String(choice?.key || choice?.value || "").trim();
   const separator = key.indexOf(":");
   return String(
-    choice?.attackId ??
-    choice?.attackItemId ??
-    choice?.itemId ??
-    choice?.attackKey ??
-    (separator > 0 ? key.slice(0, separator) : "")
+    choice?.attackId ||
+    choice?.attackItemId ||
+    choice?.itemId ||
+    choice?.attackKey ||
+    choice?.id ||
+    (separator > 0 ? key.slice(0, separator) : key)
   ).trim();
 }
 
@@ -93,7 +95,7 @@ function choiceMatchesAttack(choice = {}, attackItem = null) {
   const attackKeys = getAttackIdentityKeys(attackItem);
   const attackId = getChoiceAttackId(choice);
 
-  if (attackId && attackKeys.has(String(attackId))) {
+  if (attackKeys.has(String(choice?.key || choice?.value || "").trim()) || (attackId && attackKeys.has(String(attackId)))) {
     return true;
   }
 
@@ -117,7 +119,7 @@ function choiceMatchesAttack(choice = {}, attackItem = null) {
   return siblings.length <= 1;
 }
 
-function qualityIsBoundToAttack(quality, attackItem, expectedTag = "") {
+export function qualityIsBoundToAttack(quality, attackItem, expectedTag = "") {
   if (!quality || !attackItem) return false;
   const tag = normalizeEffectTag(expectedTag);
   const choices = [
@@ -137,8 +139,13 @@ function qualityIsBoundToAttack(quality, attackItem, expectedTag = "") {
     if (!choiceMatchesAttack(choice, attackItem)) return false;
     if (!tag) return true;
 
+    const key = String(choice.key || choice.value || "").trim();
+    const separator = key.indexOf(":");
     const choiceTag = normalizeEffectTag(
-      choice.effectTag ?? choice.attackTag ?? String(choice.key ?? "").split(":").at(-1)
+      choice.effectTag || choice.attackTag || choice.grantedTag ||
+      (separator > 0 && !getAttackIdentityKeys(attackItem).has(key)
+        ? key.slice(separator + 1)
+        : normalizeEffectTag(key) === tag ? key : "")
     );
 
     return !choiceTag || choiceTag === tag;
@@ -159,6 +166,33 @@ export function findProtectingShieldQualityForAttack(actor, attackItem) {
 
 export function findInspiringGuidanceQualityForAttack(actor, attackItem) {
   return findEffectQualityForAttack(actor, attackItem, "inspiringGuidance", "guiding");
+}
+
+/** Support payloads granted by a purchased Attack Quality. */
+export function getBoundAttackEffectTags(actor, attackItem) {
+  if (!actor || !attackItem) return [];
+  const tags = new Set();
+  const isSupport = String(attackItem.system?.baseTags?.functionType ?? "").trim().toLowerCase() === "support";
+
+  for (const quality of actor.items ?? []) {
+    if (quality?.type !== "quality") continue;
+    const modifier = quality.system?.attackModifier ?? {};
+    // An Effect pool lists every option in grantsTags. Only its purchased
+    // selection may resolve those options; never grant the entire catalog.
+    if (quality.system?.choices?.type === "effectTagPerRank" ||
+        modifier.appliesTo === "oneAttackPerPurchasedEffect") continue;
+
+    const isProtectingShield = qualityMatches(quality, "protectingShield");
+    if (!isSupport && !isProtectingShield) continue;
+    const fixedTags = isProtectingShield
+      ? ["shield"]
+      : [modifier.effectTag, ...(Array.isArray(modifier.grantsTags) ? modifier.grantsTags : [])];
+    for (const value of fixedTags) {
+      const tag = normalizeEffectTag(value);
+      if (EFFECT_TAG_SET.has(tag) && qualityIsBoundToAttack(quality, attackItem, tag)) tags.add(tag);
+    }
+  }
+  return [...tags];
 }
 
 function attackQualityTags(attackItem) {
@@ -267,7 +301,10 @@ export function validateEffectAttackDeclaration({
     };
   }
 
-  if (definition.requiresDamage && functionType !== "damage") {
+  const codeWizardDamageTagBypass = Boolean(
+    attacker?.system?.qualityFeatures?.dataSpecialization?.codeWizardDamageTagBypass
+  );
+  if (definition.requiresDamage && functionType !== "damage" && !codeWizardDamageTagBypass) {
     return {
       ok: false,
       message: text(
@@ -716,6 +753,20 @@ async function chooseGuidanceResult(results, isArea) {
   });
 }
 
+function appliedGuidanceEffects(result) {
+  // An explicit empty resolution means the Effect was denied or otherwise
+  // failed to apply. Older results may omit the resolution altogether.
+  const resolvedTags = result?.appliedEffectResolution?.applied;
+  const actuallyApplied = Array.isArray(resolvedTags)
+    ? new Set(resolvedTags.map(normalizeEffectTag))
+    : null;
+  return (result?.effectApplication?.applied ?? []).filter((effect) => {
+    const tag = normalizeEffectTag(effect.tag);
+    return (!actuallyApplied || actuallyApplied.has(tag)) &&
+      String(effect.effectType ?? EFFECT_TAGS[tag]?.type ?? "").toLowerCase() === "positive";
+  });
+}
+
 export async function resolveInspiringGuidanceAfterAttack({
   attacker,
   attackItem,
@@ -724,19 +775,14 @@ export async function resolveInspiringGuidanceAfterAttack({
   isArea = false
 } = {}) {
   const quality = findInspiringGuidanceQualityForAttack(attacker, attackItem);
-  if (!quality) return null;
+  if (!quality || String(attackItem?.system?.baseTags?.functionType ?? "").toLowerCase() !== "support") return null;
 
   const eligible = results.filter((result) => {
-    const actuallyApplied = new Set(
-      (result?.appliedEffectResolution?.applied ?? []).map(normalizeEffectTag)
-    );
-    const applied = (result?.effectApplication?.applied ?? []).filter((effect) => {
-      return !actuallyApplied.size || actuallyApplied.has(normalizeEffectTag(effect.tag));
-    });
     return Boolean(
       result?.hit &&
       result?.defender &&
-      applied.some((effect) => String(effect.effectType ?? EFFECT_TAGS[normalizeEffectTag(effect.tag)]?.type ?? "").toLowerCase() === "positive")
+      areActorsAlliesForQualities(attacker, result.defender) &&
+      appliedGuidanceEffects(result).length
     );
   });
   if (!eligible.length) return null;
@@ -765,13 +811,7 @@ export async function resolveInspiringGuidanceAfterAttack({
   }
 
   if (guidingDice > 0) {
-    const actuallyApplied = new Set(
-      (selected?.appliedEffectResolution?.applied ?? []).map(normalizeEffectTag)
-    );
-    const appliedEffect = selected.effectApplication.applied.find((effect) => {
-      const isApplied = !actuallyApplied.size || actuallyApplied.has(normalizeEffectTag(effect.tag));
-      return isApplied && String(effect.effectType ?? EFFECT_TAGS[normalizeEffectTag(effect.tag)]?.type ?? "").toLowerCase() === "positive";
-    });
+    const appliedEffect = appliedGuidanceEffects(selected)[0];
     await clearGuidanceFromSource(attacker.uuid, selected.defender.uuid);
     await selected.defender.update({
       "system.combat.guidingDice": {
