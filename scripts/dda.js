@@ -9,6 +9,7 @@ import { DDACharacterSheet } from "./sheets/character-sheet.js";
 import { DDADigimonSheet } from "./sheets/digimon-sheet.js";
 import { DDAGroupSheet } from "./sheets/group-sheet.js";
 import { DDAItemSheet } from "./sheets/item-sheet.js";
+import { registerDDAPrototypeTokenForms } from "./apps/dda-prototype-token-config.js";
 import {
   bindDamageApplicationButtons,
   registerDamageApplicationSocket
@@ -155,6 +156,7 @@ Hooks.once("init", async function () {
   await loadDDAFlatTranslations();
 
     registerDDASettings();
+  registerDDAPrototypeTokenForms();
   registerOwnershipSyncHooks();
   registerDdaGmToolsControls();
   registerEnemyDigimonWizardDirectoryButton();

@@ -1,7 +1,11 @@
 import { getDDASetting } from "../settings.js";
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
 import { syncPartnerOwnershipFromTamer } from "../utils/ownership.js";
-import { getDigimonTokenScaleForSize, runDigimonTokenEvolutionTransition } from "../tokens/digimon-token-scale.js";
+import {
+  getDigimonTokenScaleForSize, runDigimonTokenEvolutionTransition,
+  getStoredDigimonTokenAppearance, normalizeDigimonTokenAppearance,
+  getDigimonTokenDimensions, applyDigimonTokenAppearanceToActorAndPlacedTokens
+} from "../tokens/digimon-token-scale.js";
 import { clearClashStateForActor } from "./clash.js";
 import { getDdaTokenPath } from "../data/dda-portrait-and-manual-digimon-data.js";
 import {
@@ -1310,6 +1314,103 @@ async function resolveCurrentFormWizardActors(
   return null;
 }
 
+/** Read-only size overview: opening it must not reset Mode Change or rewrite builds. */
+export async function getPartnerTokenSizeContext(sourceActor) {
+  const actors = await resolveCurrentFormWizardActors(sourceActor);
+  if (!actors) return null;
+  const { partnerActor } = actors;
+  const currentReference = String(partnerActor.system?.evolution?.currentFormUuid || partnerActor.system?.evolution?.sourceFormUuid || partnerActor.uuid);
+  const byReference = new Map();
+  for (const [key, snapshot] of Object.entries(partnerActor.system?.evolution?.formSnapshots ?? {})) {
+    if (!snapshot?.sourceFormUuid) continue;
+    byReference.set(snapshot.sourceFormUuid, { ...foundry.utils.deepClone(snapshot), key });
+  }
+  const live = buildFormSnapshotFromActor(partnerActor, { sourceFormUuid: currentReference });
+  const previous = byReference.get(currentReference);
+  const modeActive = Boolean(partnerActor.system?.combat?.qualityModeChange?.active);
+  byReference.set(currentReference, modeActive && previous
+    ? { ...previous, tokenAppearance: live.tokenAppearance, tokenGridSize: live.tokenGridSize }
+    : { ...previous, ...live, key: previous?.key || live.key, wizard: { ...previous?.wizard, ...live.wizard } });
+
+  const unavailable = new Set();
+  // A legacy Actor without a baseline snapshot cannot serialize a temporary
+  // Mode/Superior Mode overlay as its permanent build.
+  if (modeActive && !previous) unavailable.add(currentReference);
+  for (const node of partnerActor.system?.evolutionGraph?.nodes ?? []) {
+    const reference = String(node.actorUuid || node.uuid || node.sourceFormUuid || "").trim();
+    if (!reference || byReference.has(reference) || (node.hidden && !game.user?.isGM)) continue;
+    const template = await resolveActor(reference);
+    if (template && ["digimon", "npc"].includes(template.type)) {
+      byReference.set(reference, buildFormSnapshotFromActor(template, { sourceFormUuid: reference }));
+    } else {
+      // Never create a partial build that could replace an inaccessible template.
+      byReference.set(reference, buildFormSnapshotFromGraphNode({ ...node, actorUuid: reference }, null));
+      unavailable.add(reference);
+    }
+  }
+  const rows = Array.from(byReference.values()).map(snapshot => {
+    const appearance = getDigimonTokenDimensions({ type: "digimon", system: { size: snapshot.size },
+      flags: { [DDA_SYSTEM_ID]: { tokenGridSizeOverride: snapshot.tokenGridSize, tokenAppearance: snapshot.tokenAppearance } } });
+    const defaultSize = getDigimonTokenScaleForSize(snapshot.size);
+    return { key: snapshot.key || getFormSnapshotKey(snapshot.sourceFormUuid), reference: snapshot.sourceFormUuid,
+      name: snapshot.species || snapshot.sourceFormName || snapshot.name, stage: snapshot.stage,
+      current: snapshot.sourceFormUuid === currentReference, editable: !unavailable.has(snapshot.sourceFormUuid),
+      unavailableLabel: snapshot.sourceFormUuid === currentReference && modeActive
+        ? "DDA.TokenSizes.EndModeFirst" : "DDA.TokenSizes.PrepareFirst",
+      width: appearance.width, height: appearance.height, scaleX: Math.abs(appearance.scaleX), scaleY: Math.abs(appearance.scaleY),
+      defaultWidth: defaultSize, defaultHeight: defaultSize, snapshot };
+  }).sort((a, b) => Number(a.snapshot.stageValue ?? 0) - Number(b.snapshot.stageValue ?? 0) || String(a.name).localeCompare(String(b.name)));
+  return { ...actors, currentReference, rows, canEdit: Boolean(game.user?.isGM || partnerActor.isOwner) };
+}
+
+export async function savePartnerTokenSizes(sourceActor, changes = []) {
+  const context = await getPartnerTokenSizeContext(sourceActor);
+  if (!context?.canEdit) throw new Error(localize("DDA.TokenSizes.NoPermission"));
+  if (!Array.isArray(changes)) throw new Error(localize("DDA.TokenSizes.Invalid"));
+  const { partnerActor } = context;
+  const snapshots = foundry.utils.deepClone(partnerActor.system?.evolution?.formSnapshots ?? {});
+  const seen = new Set();
+  let activeAppearance;
+  let activeGridSize;
+  for (const change of changes) {
+    const row = context.rows.find(row => row.reference === change.reference);
+    if (!row?.editable || seen.has(change.reference)) throw new Error(localize("DDA.TokenSizes.Unavailable"));
+    seen.add(change.reference);
+    let appearance = null;
+    if (!change.reset) {
+      const values = [change.width, change.height, change.scaleX, change.scaleY].map(Number);
+      if (values.some(value => !Number.isFinite(value) || value <= 0) ||
+          values.slice(0, 2).some(value => value < 0.5 || Math.abs(value * 2 - Math.round(value * 2)) > 1e-6)) {
+        throw new Error(localize("DDA.TokenSizes.Invalid"));
+      }
+      const previous = row.snapshot.tokenAppearance;
+      appearance = { width: values[0], height: values[1],
+        scaleX: values[2] * (typeof change.flipX === "boolean" ? (change.flipX ? -1 : 1) : Math.sign(previous?.scaleX ?? 1)),
+        scaleY: values[3] * (typeof change.flipY === "boolean" ? (change.flipY ? -1 : 1) : Math.sign(previous?.scaleY ?? 1)) };
+    }
+    const gridSize = appearance?.width ?? 0;
+    snapshots[row.key] = { ...foundry.utils.deepClone(snapshots[row.key] ?? row.snapshot), key: row.key,
+      tokenAppearance: appearance, tokenGridSize: gridSize, updatedAt: new Date().toISOString() };
+    if (row.current) { activeAppearance = appearance; activeGridSize = gridSize; }
+  }
+  if (!changes.length) return context;
+  const updates = { "system.evolution.formSnapshots": snapshots };
+  if (activeAppearance !== undefined) {
+    Object.assign(updates, activeAppearance
+      ? { [`flags.${DDA_SYSTEM_ID}.tokenAppearance`]: activeAppearance }
+      : { [`flags.${DDA_SYSTEM_ID}.-=tokenAppearance`]: null });
+    Object.assign(updates, activeGridSize > 0
+      ? { [`flags.${DDA_SYSTEM_ID}.tokenGridSizeOverride`]: activeGridSize }
+      : { [`flags.${DDA_SYSTEM_ID}.-=tokenGridSizeOverride`]: null });
+    // Reset texture scale explicitly when returning this form to defaults.
+    updates["prototypeToken.texture.scaleX"] = activeAppearance?.scaleX ?? 1;
+    updates["prototypeToken.texture.scaleY"] = activeAppearance?.scaleY ?? 1;
+  }
+  await partnerActor.update(updates);
+  if (activeAppearance !== undefined) await applyDigimonTokenAppearanceToActorAndPlacedTokens(partnerActor);
+  return context;
+}
+
 export async function getCurrentPartnerFormWizardContext(
   sourceActor
 ) {
@@ -2342,6 +2443,7 @@ function normalizeFormSnapshot(snapshot, fallbackActor = null) {
         0
       )
     ),
+    tokenAppearance: normalizeDigimonTokenAppearance(snapshot?.tokenAppearance),
     type: String(snapshot?.type || fallbackActor?.system?.type || ""),
     attribute: String(snapshot?.attribute || fallbackActor?.system?.attribute || "data"),
     field: String(snapshot?.field || fallbackActor?.system?.field || "none"),
@@ -2609,12 +2711,16 @@ function buildPseudoActorFromFormSnapshot(snapshot, partnerActor = null) {
       img: normalized.img || normalized.portraitImg || "icons/svg/mystery-man.svg",
       flags: {
         [DDA_SYSTEM_ID]: {
-          digivicePortrait: normalized.portraitImg || normalized.img || "icons/svg/mystery-man.svg"
+          digivicePortrait: normalized.portraitImg || normalized.img || "icons/svg/mystery-man.svg",
+          tokenGridSizeOverride: normalized.tokenGridSize,
+          tokenAppearance: normalized.tokenAppearance
         }
       },
   prototypeToken: {
       texture: {
-        src: normalized.tokenImg || normalized.portraitImg || normalized.img || "icons/svg/mystery-man.svg"
+        src: normalized.tokenImg || normalized.portraitImg || normalized.img || "icons/svg/mystery-man.svg",
+        scaleX: normalized.tokenAppearance?.scaleX ?? 1,
+        scaleY: normalized.tokenAppearance?.scaleY ?? 1
       }
     },
     system: {
@@ -2800,6 +2906,7 @@ function buildFormSnapshotFromActor(actor, options = {}) {
       0,
       Number(actor?.flags?.[DDA_SYSTEM_ID]?.tokenGridSizeOverride ?? 0)
     ),
+    tokenAppearance: getStoredDigimonTokenAppearance(actor),
     type: system.type ?? "",
     attribute: system.attribute ?? "data",
     field: system.field ?? "none",
@@ -2955,7 +3062,11 @@ async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateAc
       ? formTemplateActor.flags?.[DDA_SYSTEM_ID]?.tokenGridSizeOverride
       : 0
   ) ?? 0;
-  const normalized = normalizeFormSnapshot({ ...snapshot, tokenGridSize: formTokenGridSize }, formTemplateActor ?? partnerActor);
+  const formTokenAppearance = snapshot.tokenAppearance !== undefined ? snapshot.tokenAppearance : (
+    formTemplateActor && formTemplateActor.uuid !== partnerActor.uuid
+      ? getStoredDigimonTokenAppearance(formTemplateActor) : null
+  );
+  const normalized = normalizeFormSnapshot({ ...snapshot, tokenGridSize: formTokenGridSize, tokenAppearance: formTokenAppearance }, formTemplateActor ?? partnerActor);
   const partnerSystem = partnerActor.system ?? {};
   const previousFormUuid = String(
     partnerSystem.evolution?.currentFormUuid ||
@@ -3074,6 +3185,7 @@ async function applyPartnerFormSnapshot({ partnerActor, snapshot, formTemplateAc
   const nextTokenSize = tokenGridSizeOverride > 0
     ? Math.max(0.5, Math.round(tokenGridSizeOverride * 2) / 2)
     : getDigimonTokenScaleForSize(normalized.size);
+  const nextTokenAppearance = normalized.tokenAppearance;
   const portraitWasManuallySelected = Boolean(
     normalized.wizard?.portraitManuallySelected ||
     normalized.wizard?.portraitSource === "manual"
@@ -3116,8 +3228,13 @@ const shouldUsePortraitFlag = Boolean(
       ? { [`flags.${DDA_SYSTEM_ID}.digivicePortraitManual`]: true }
       : { [`flags.${DDA_SYSTEM_ID}.-=digivicePortraitManual`]: null }),
     "prototypeToken.texture.src": tokenImg,
-    "prototypeToken.width": nextTokenSize,
-    "prototypeToken.height": nextTokenSize,
+    "prototypeToken.width": nextTokenAppearance?.width ?? nextTokenSize,
+    "prototypeToken.height": nextTokenAppearance?.height ?? nextTokenSize,
+    "prototypeToken.texture.scaleX": nextTokenAppearance?.scaleX ?? 1,
+    "prototypeToken.texture.scaleY": nextTokenAppearance?.scaleY ?? 1,
+    ...(nextTokenAppearance
+      ? { [`flags.${DDA_SYSTEM_ID}.tokenAppearance`]: nextTokenAppearance }
+      : { [`flags.${DDA_SYSTEM_ID}.-=tokenAppearance`]: null }),
     ...(tokenGridSizeOverride > 0
       ? {
           [`flags.${DDA_SYSTEM_ID}.tokenGridSizeOverride`]: nextTokenSize

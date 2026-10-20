@@ -4529,6 +4529,8 @@ _initializeFormSnapshotData() {
   );
   this._refreshFormAppearanceOptions();
 
+  this._ddaInitialFormTokenSize = this.data.formAppearance.tokenSize;
+
   /*
    * A forma futura pode ser preparada antes de o Estágio ser liberado e sem
    * gastar EP. Nesse fluxo o catálogo completo precisa continuar visível:
@@ -4683,6 +4685,9 @@ tokenImg:
     stageValue: this._getStageValue(stageKey),
     size: this.data.formAppearance?.size || existingSnapshot.size || formTemplateActor?.system?.size || partnerActor.system?.size || stageData?.maxSize || "medium",
     tokenGridSize: Number(this.data.formAppearance?.tokenSize ?? existingSnapshot.tokenGridSize ?? 1),
+    tokenAppearance: existingSnapshot.tokenAppearance && Number(this.data.formAppearance?.tokenSize) !== Number(this._ddaInitialFormTokenSize)
+      ? { ...existingSnapshot.tokenAppearance, width: Number(this.data.formAppearance.tokenSize), height: Number(this.data.formAppearance.tokenSize) }
+      : existingSnapshot.tokenAppearance ?? null,
     type: this.data.identity.type || formTemplateActor?.system?.type || partnerActor.system?.type || "",
     attribute: this.data.identity.attribute || formTemplateActor?.system?.attribute || partnerActor.system?.attribute || "data",
     field: this.data.identity.field || formTemplateActor?.system?.field || partnerActor.system?.field || "none",
