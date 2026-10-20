@@ -857,7 +857,7 @@ async function chooseDigimonTarget(tamer, { partnerOnly = false } = {}) {
       {
         action: "cancel",
         label: localize("DDA.Button.Cancel", "Cancelar"),
-        callback: () => null
+        callback: () => false
       }
     ],
     rejectClose: false,
@@ -1006,7 +1006,7 @@ async function promptPoolActionOptions(tamer, actionKey, baseAttributeKey) {
       {
         action: "cancel",
         label: localize("DDA.Button.Cancel", "Cancelar"),
-        callback: () => null
+        callback: () => false
       }
     ],
     rejectClose: false,
@@ -1279,14 +1279,14 @@ async function useDirect(tamer) {
       {
         action: "cancel",
         label: localize("DDA.Button.Cancel", "Cancelar"),
-        callback: () => null
+        callback: () => false
       }
     ],
     rejectClose: false,
     modal: true
   });
 
-  if (!result) return null;
+  if (!result || typeof result !== "object") return null;
   if (!(await spendActions(tamer, result.actionCost))) return null;
   await revealHiddenFromCreatureInteraction(tamer, "direct");
 
@@ -1672,7 +1672,7 @@ async function chooseEnemyDigimonTarget() {
           "DDA.Button.Cancel",
           "Cancelar"
         ),
-        callback: () => null
+        callback: () => false
       }
     ],
     rejectClose: false,
@@ -2305,7 +2305,7 @@ async function promptHoldOptions(
           "DDA.Button.Cancel",
           "Cancelar"
         ),
-        callback: () => null
+        callback: () => false
       }
     ],
     rejectClose: false,
@@ -3207,7 +3207,7 @@ async function promptTeamworkSetup(
           "DDA.Button.Cancel",
           "Cancelar"
         ),
-        callback: () => null
+        callback: () => false
       }
     ],
     rejectClose: false,
@@ -3855,7 +3855,7 @@ async function chooseTeamworkHelperActor(
           "DDA.Button.Cancel",
           "Cancelar"
         ),
-        callback: () => null
+        callback: () => false
       }
     ],
     rejectClose: false,
@@ -3956,7 +3956,7 @@ async function chooseTeamworkHelperSkill(
           "DDA.Button.Cancel",
           "Cancelar"
         ),
-        callback: () => null
+        callback: () => false
       }
     ],
     rejectClose: false,

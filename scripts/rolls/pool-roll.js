@@ -194,7 +194,8 @@ const preparedOptions =
   let lowRerollDeclaration = null;
 
   const dialogData = await getPoolDialogData(actor, statKey, stat, preparedOptions);
-  if (!dialogData) return;
+  if (!dialogData || typeof dialogData !== "object") return;
+  if (typeof options.beforeRoll === "function" && !(await options.beforeRoll())) return;
   if (options.omniscientHoldDodgeId) {
     await consumeOmniscientHoldDodge(actor, options.omniscientHoldDodgeId);
   }

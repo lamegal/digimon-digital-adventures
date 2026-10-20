@@ -96,6 +96,34 @@ function getDigimonTokenGridSizeOverride(actor) {
   );
 }
 
+export function normalizeDigimonTokenAppearance(value) {
+  if (!value || typeof value !== "object") return null;
+  const dimension = value => Number.isFinite(Number(value)) && Number(value) >= 0.5
+    ? Math.round(Number(value) * 2) / 2 : null;
+  const scale = value => Number.isFinite(Number(value)) && Number(value) !== 0 ? Number(value) : 1;
+  return { width: dimension(value.width), height: dimension(value.height), scaleX: scale(value.scaleX), scaleY: scale(value.scaleY) };
+}
+
+export function getStoredDigimonTokenAppearance(actor) {
+  const saved = normalizeDigimonTokenAppearance(actor?.flags?.[MODULE_ID]?.tokenAppearance);
+  if (saved) return saved;
+  const texture = actor?.prototypeToken?._source?.texture ?? actor?.prototypeToken?.texture ?? {};
+  if ((texture.scaleX ?? 1) === 1 && (texture.scaleY ?? 1) === 1) return null;
+  return normalizeDigimonTokenAppearance({ scaleX: texture.scaleX, scaleY: texture.scaleY });
+}
+
+export function getDigimonTokenDimensions(actor, humanScaling = null) {
+  const appearance = getStoredDigimonTokenAppearance(actor);
+  const size = getDigimonTokenGridSizeOverride(actor) ?? getDigimonTokenScaleForSize(actor?.system?.size, humanScaling);
+  return { width: appearance?.width ?? size, height: appearance?.height ?? size,
+    scaleX: appearance?.scaleX ?? 1, scaleY: appearance?.scaleY ?? 1 };
+}
+
+export function getDigimonTokenAppearanceUpdates(actor, humanScaling = null) {
+  const { width, height, scaleX, scaleY } = getDigimonTokenDimensions(actor, humanScaling);
+  return { width, height, "texture.scaleX": scaleX, "texture.scaleY": scaleY };
+}
+
 export function getDigimonTokenScaleForSize(
   sizeKey = "medium",
   humanScaling = null
@@ -149,6 +177,9 @@ export function getDigimonTokenScale(
 ) {
   if (!isDigimonLikeActor(actor)) return 1;
 
+  const appearance = normalizeDigimonTokenAppearance(actor?.flags?.[MODULE_ID]?.tokenAppearance);
+  if (appearance?.width) return appearance.width;
+
   const override =
     getDigimonTokenGridSizeOverride(actor);
 
@@ -169,12 +200,8 @@ export function getDigimonTokenScale(
 export async function applyDigimonTokenScaleToActor(actor, humanScaling = null) {
   if (!isDigimonLikeActor(actor)) return false;
 
-  const tokenSize = getDigimonTokenScale(actor, humanScaling);
-
-  await actor.update({
-    "prototypeToken.width": tokenSize,
-    "prototypeToken.height": tokenSize
-  });
+  const updates = getDigimonTokenAppearanceUpdates(actor, humanScaling);
+  await actor.update(Object.fromEntries(Object.entries(updates).map(([key, value]) => [`prototypeToken.${key}`, value])));
 
   return true;
 }
@@ -187,12 +214,8 @@ export async function applyDigimonTokenScaleToActorAndPlacedTokens(actor, humanS
     game.settings.get(MODULE_ID, "humanScaling") ??
     "medium";
 
-  const tokenSize = getDigimonTokenScale(actor, scaling);
-
-  await actor.update({
-    "prototypeToken.width": tokenSize,
-    "prototypeToken.height": tokenSize
-  });
+  const appearanceUpdates = getDigimonTokenAppearanceUpdates(actor, scaling);
+  await actor.update(Object.fromEntries(Object.entries(appearanceUpdates).map(([key, value]) => [`prototypeToken.${key}`, value])));
 
   let updatedSceneTokens = 0;
 
@@ -212,8 +235,7 @@ export async function applyDigimonTokenScaleToActorAndPlacedTokens(actor, humanS
 
       updates.push({
         _id: token.id,
-        width: tokenSize,
-        height: tokenSize
+        ...appearanceUpdates
       });
     }
 
@@ -508,13 +530,11 @@ export async function applyDigimonTokenAppearanceToActorAndPlacedTokens(actor, o
     game.settings.get(MODULE_ID, "humanScaling") ??
     "medium";
 
-  const tokenSize = getDigimonTokenScale(actor, scaling);
+  const appearanceUpdates = getDigimonTokenAppearanceUpdates(actor, scaling);
+  const tokenSize = appearanceUpdates.width;
   const textureSrc = getActorTokenTextureSource(actor, options.textureSrc);
 
-  const actorUpdates = {
-    "prototypeToken.width": tokenSize,
-    "prototypeToken.height": tokenSize
-  };
+  const actorUpdates = Object.fromEntries(Object.entries(appearanceUpdates).map(([key, value]) => [`prototypeToken.${key}`, value]));
 
   if (textureSrc) {
     actorUpdates["prototypeToken.texture.src"] = textureSrc;
@@ -532,8 +552,7 @@ export async function applyDigimonTokenAppearanceToActorAndPlacedTokens(actor, o
 
       updates.push({
         _id: token.id,
-        width: tokenSize,
-        height: tokenSize,
+        ...appearanceUpdates,
         ...(textureSrc ? { "texture.src": textureSrc } : {})
       });
     }
@@ -751,12 +770,9 @@ export async function applyHumanScalingToAllDigimonTokens(humanScaling = null) {
 
       if (!isDigimonLikeActor(actor)) continue;
 
-      const tokenSize = getDigimonTokenScale(actor, scaling);
-
       updates.push({
         _id: token.id,
-        width: tokenSize,
-        height: tokenSize
+        ...getDigimonTokenAppearanceUpdates(actor, scaling)
       });
     }
 
@@ -816,14 +832,14 @@ export function registerDigimonTokenScaleHooks() {
     const height = data.prototypeToken?.height ?? data["prototypeToken.height"];
     if (width !== undefined && height !== undefined) return;
 
-    const tokenSize = getDigimonTokenScale({
+    const tokenDimensions = getDigimonTokenDimensions({
       type: actor.type,
       system: { ...actor.system, ...data.system },
       flags: { ...actor.flags, ...data.flags }
     });
     const update = {};
-    if (width === undefined) update["prototypeToken.width"] = height ?? tokenSize;
-    if (height === undefined) update["prototypeToken.height"] = width ?? tokenSize;
+    if (width === undefined) update["prototypeToken.width"] = height ?? tokenDimensions.width;
+    if (height === undefined) update["prototypeToken.height"] = width ?? tokenDimensions.height;
     actor.updateSource(update);
   });
 

@@ -132,6 +132,18 @@ save.data.statAllocation.damage.spent+=7;save.formContext.partnerActor.system.ad
 await save._onSaveFormSnapshot(event);equal(savedSnapshot.creation.dp.remaining,-7);equal(save.data.validation.errors.length,0);
 ok(save.data.validation.warnings.length>0);equal(savedSnapshot.items[0]._id,'attack1');
 
+// Reopening and saving a form keeps its rectangular footprint and image scale.
+save.formContext.snapshot.tokenAppearance={width:1,height:2,scaleX:1.4,scaleY:0.9};
+save.data.formAppearance={size:'medium',tokenSize:1};save._ddaInitialFormTokenSize=1;
+await save._onSaveFormSnapshot(event);
+equal(savedSnapshot.tokenAppearance.width,1);equal(savedSnapshot.tokenAppearance.height,2);
+equal(savedSnapshot.tokenAppearance.scaleX,1.4);equal(savedSnapshot.tokenAppearance.scaleY,0.9);
+// An explicit square-size change in the existing wizard still takes effect.
+save.data.formAppearance.tokenSize=2;
+await save._onSaveFormSnapshot(event);
+equal(savedSnapshot.tokenAppearance.width,2);equal(savedSnapshot.tokenAppearance.height,2);
+equal(savedSnapshot.tokenAppearance.scaleX,1.4);
+
 // Buying and ranking a Quality must both work with a negative budget.
 const purchase=makeWizard();purchase.data.qualities.positive=[];purchase.data.statAllocation.damage.spent+=5;
 purchase.formContext.partnerActor.system.advancement.sharedQualityDp.allocated=0;

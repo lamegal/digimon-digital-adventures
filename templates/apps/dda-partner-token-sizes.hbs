@@ -1,0 +1,55 @@
+<section class="dda-token-sizes {{#if embedded}}tab {{tab.cssClass}}{{/if}}" {{#if embedded}}data-tab="{{tab.id}}" data-group="{{tab.group}}"{{/if}}>
+  <header class="dda-token-sizes__header">
+    <span>{{partnerName}}</span>
+    <h2>{{localize "DDA.TokenSizes.Title"}}</h2>
+    <p>{{localize "DDA.TokenSizes.Help"}}</p>
+    <p class="dda-token-sizes__hint">{{localize "DDA.TokenSizes.ScaleHelp"}}</p>
+  </header>
+  <div class="dda-token-sizes__body">
+    {{#if ready}}
+      <table>
+        <thead><tr>
+          <th>{{localize "DDA.TokenSizes.Form"}}</th>
+          <th>{{localize "DDA.TokenSizes.Footprint"}}</th>
+          <th>{{localize "DDA.TokenSizes.Visual"}}</th>
+          <th><span class="sr-only">{{localize "DDA.TokenSizes.Default"}}</span></th>
+        </tr></thead>
+        <tbody>
+          {{#each rows}}
+            <tr data-token-size-reference="{{reference}}" class="{{#if current}}is-current{{/if}}">
+              <td class="dda-token-sizes__form">
+                <strong>{{name}}</strong><span>{{stageLabel}}</span>
+                {{#if current}}<em>{{localize "DDA.TokenSizes.Current"}}</em>{{/if}}
+                {{#unless editable}}<small>{{localize unavailableLabel}}</small>{{/unless}}
+              </td>
+              <td>
+                <div class="dda-token-sizes__pair">
+                  <input type="number" data-size-field="width" value="{{width}}" min="0.5" step="0.5" required aria-label="{{localize 'DDA.TokenSizes.Width'}}" {{#unless canEdit}}disabled{{/unless}}>
+                  <span>×</span>
+                  <input type="number" data-size-field="height" value="{{height}}" min="0.5" step="0.5" required aria-label="{{localize 'DDA.TokenSizes.Height'}}" {{#unless canEdit}}disabled{{/unless}}>
+                </div>
+                <small data-size-summary="footprint">{{width}} × {{height}}</small>
+              </td>
+              <td>
+                <div class="dda-token-sizes__pair">
+                  <input type="number" data-size-field="scaleX" value="{{scaleX}}" min="0.01" step="any" required aria-label="{{localize 'DDA.TokenSizes.ScaleX'}}" {{#unless canEdit}}disabled{{/unless}}>
+                  <span>×</span>
+                  <input type="number" data-size-field="scaleY" value="{{scaleY}}" min="0.01" step="any" required aria-label="{{localize 'DDA.TokenSizes.ScaleY'}}" {{#unless canEdit}}disabled{{/unless}}>
+                </div>
+                <small data-size-summary="visual">{{scaleX}} × {{scaleY}}</small>
+              </td>
+              <td><button type="button" data-action="resetSize" title="{{localize 'DDA.TokenSizes.DefaultHint'}}" {{#unless canEdit}}disabled{{/unless}}><i class="fas fa-undo"></i> {{localize "DDA.TokenSizes.Default"}}</button></td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}<p>{{localize "DDA.TokenSizes.Unavailable"}}</p>{{/if}}
+  </div>
+  <footer class="dda-token-sizes__footer">
+    <p>{{localize "DDA.TokenSizes.SaveHelp"}}</p>
+    {{#unless embedded}}<div>
+      <button type="button" data-action="cancelSizes"><i class="fas fa-times"></i> {{localize "DDA.Button.Cancel"}}</button>
+      <button type="button" data-action="saveSizes" {{#unless canEdit}}disabled{{/unless}}><i class="fas fa-save"></i> {{localize "DDA.TokenSizes.Save"}}</button>
+    </div>{{/unless}}
+  </footer>
+</section>

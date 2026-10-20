@@ -2012,8 +2012,8 @@ async useQualityFromHud(itemId) {
 /**
  * Public bridge for the same Derived Stat workflow used by the full sheet.
  */
-async rollDerivedStatFromHud(statKey) {
-  return this._rollDerivedStatCheck(String(statKey ?? ""));
+async rollDerivedStatFromHud(statKey, options = {}) {
+  return this._rollDerivedStatCheck(String(statKey ?? ""), options);
 }
 
 async #onQualityToggleActive(event) {
@@ -2530,7 +2530,8 @@ async _promptDerivedStatCheckOptions(statKey) {
       {
         action: "cancel",
         label: localize("DDA.Button.Cancel"),
-        callback: () => null
+        // DialogV2.wait substitutes the action name for a nullish return.
+        callback: () => false
       }
     ],
     rejectClose: false
@@ -2538,7 +2539,7 @@ async _promptDerivedStatCheckOptions(statKey) {
 }
 
 
-async _rollDerivedStatCheck(statKey) {
+async _rollDerivedStatCheck(statKey, { beforeRoll } = {}) {
   const stat = this.actor.system.derivedStats?.[statKey];
 
   if (!stat) {
@@ -2547,7 +2548,8 @@ async _rollDerivedStatCheck(statKey) {
   }
 
   const options = await this._promptDerivedStatCheckOptions(statKey);
-  if (!options) return;
+  if (!options || typeof options !== "object") return null;
+  if (typeof beforeRoll === "function" && !(await beforeRoll())) return null;
 
 const statLabel = localizeMaybe(stat.displayLabel ?? stat.label ?? `DDA.DerivedStat.${String(statKey).toUpperCase()}`);
 const derivedValue = Number(stat.total ?? stat.value ?? 0);
@@ -2616,6 +2618,8 @@ const skillBonusLine = skillKey
       </div>
     `
   });
+
+  return { roll, total, tn, success, criticalSuccess, criticalFailure, outcome, skillKey, skillBonus, modifier };
 }
 
 

@@ -262,7 +262,7 @@ async function choose(title, label, entries) {
       {
         action: "cancel",
         label: text("Cancelar", "Cancel"),
-        callback: () => null
+        callback: () => false
       }
     ],
     rejectClose: false
@@ -336,14 +336,34 @@ async function useAttack(actor, holdBack = false, options = {}) {
   return rollAttack(actor, attack, { ...options, holdBack });
 }
 
-async function useCheck(actor, requestedStatKey = "") {
-  const stats = Object.entries(actor.system?.mainStats ?? {})
+async function useCheck(actor, requestedStatKey = "", { checkType = "" } = {}) {
+  if (!checkType) {
+    checkType = requestedStatKey ? "pool" : await choose(
+      text("Teste do Digimon", "Digimon Check"),
+      localize("DDA.DigimonAction.Check.Type"),
+      [
+        { value: "pool", label: localize("DDA.DigimonAction.Check.Pool") },
+        { value: "skill", label: localize("DDA.DigimonAction.Check.Skill") }
+      ]
+    );
+  }
+  if (!["pool", "skill"].includes(checkType)) return null;
+
+  const isSkillCheck = checkType === "skill";
+  const availableStats = isSkillCheck ? actor.system?.derivedStats : actor.system?.mainStats;
+  const stats = Object.entries(availableStats ?? {})
     .filter(([, value]) => value && typeof value === "object")
-    .map(([key, value]) => ({ value: key, label: value.label ? game.i18n.localize(value.label) : key }));
+    .map(([key, value]) => ({ value: key, label: value.label ? game.i18n.localize(value.label) : key.toUpperCase() }));
   const statKey = requestedStatKey || await choose(text("Teste do Digimon", "Digimon Check"), text("Atributo", "Stat"), stats);
-  if (!statKey || !(await spendActions(actor, 2))) return null;
+  if (!statKey || !availableStats?.[statKey] || !checkActorActionSpend(actor, 2)) return null;
+
+  // Pay only after Roll is confirmed; cancellation must preserve Actions.
+  const beforeRoll = () => spendActions(actor, 2);
+  if (isSkillCheck) {
+    return actor.sheet?.rollDerivedStatFromHud?.(statKey, { beforeRoll }) ?? null;
+  }
   const { rollPool } = await import("../rolls/pool-roll.js");
-  return rollPool(actor, statKey, { externalLabel: text("Teste — 2 Ações", "Check — 2 Actions") });
+  return rollPool(actor, statKey, { externalLabel: text("Teste — 2 Ações", "Check — 2 Actions"), beforeRoll });
 }
 
 export function getDigimonAvailableStances(actor) {
@@ -1365,7 +1385,7 @@ export async function getDigimonActionMenuDefinition(actor) {
     attack: (options = {}) => useAttack(actor, false, options),
     difficultMove: () => useMove(actor, true),
     holdBack: (options = {}) => useAttack(actor, true, options),
-    check: (options = {}) => useCheck(actor, options.statKey ?? ""),
+    check: (options = {}) => useCheck(actor, options.statKey ?? "", options),
     stance: (options = {}) => hasTacticalAdaptation(actor)
       ? useTacticalAdaptationChange(actor, { stance: options.stance ?? "" })
       : changeDigimonStance(actor, { stance: options.stance ?? "" }),

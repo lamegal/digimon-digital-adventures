@@ -275,7 +275,7 @@ export async function rollTamerCheck(
         options
       );
 
-  if (!dialogData) return null;
+  if (!dialogData || typeof dialogData !== "object") return null;
 
   const attributeKey = String(
     attributeKeyOverride ||
@@ -2001,7 +2001,8 @@ function getTamerCheckDialogData(
         label: i18n.localize(
           "DDA.Button.Cancel"
         ),
-        callback: () => null
+        // A nullish callback falls back to the action string in DialogV2.wait.
+        callback: () => false
       }
     ],
 

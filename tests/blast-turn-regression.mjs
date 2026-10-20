@@ -9,7 +9,8 @@ const root = new URL('../', import.meta.url);
 const real = [
   'scripts/rolls/attack-roll.js', 'scripts/combat/area-attacks/area-attack-controller.js',
   'scripts/combat/evolution.js', 'scripts/tokens/digimon-token-scale.js',
-  'scripts/sheets/character-sheet.js'
+  'scripts/sheets/character-sheet.js', 'scripts/apps/dda-partner-token-sizes.js',
+  'scripts/sheets/digimon-sheet.js', 'scripts/apps/dda-prototype-token-config.js'
 ];
 const baseline = process.env.DDA_TEST_BASELINE === '1';
 const sources = new Map(real.map(path => [new URL(path, root).href, baseline
@@ -35,7 +36,13 @@ function updatePath(object, path, value) {
 async function fixture() {
   const state = { warnings: [], errors: [], dialogs: [], hooks: [], endCalls: 0, endHandler: null, dialogHandler: () => null };
   let id = 0;
-  class App {}
+  class App {
+    constructor({ document } = {}) { this.actor = document; }
+    async _prepareContext() { return {}; }
+    _onRender() {}
+    _getHeaderControls() { return [{ action: 'configure' }]; }
+    async close() { this.closed = true; }
+  }
   const game = { user: { id: 'gm', isGM: true, targets: { first: () => undefined } },
     users: [], actors: [], scenes: [], combat: null, system: { id: 'digimon-digital-adventures' },
     settings: { get: (scope, key) => key === 'humanScaling' ? 'medium' : false },
@@ -59,7 +66,8 @@ async function fixture() {
     getActorSv: () => 3, hasQuality: () => false,
     normalizeKey: value => String(value ?? '').normalize('NFD').replace(/[^a-zA-Z0-9]/g, '').toLowerCase(),
     resolveDigimonPortraitSources: s => [s.img || 'form.webp'],
-    endTamerTurn: async actor => { state.endCalls++; return state.endHandler?.(actor); }
+    endTamerTurn: async actor => { state.endCalls++; return state.endHandler?.(actor); },
+    getDigimonStageLabel: key => key
   };
   const context = vm.createContext({
     console: { ...console, warn() {}, error: (...args) => state.errors.push(args) },
@@ -73,9 +81,35 @@ async function fixture() {
     ui: { notifications: { warn: message => state.warnings.push(message), error: message => state.errors.push(message), info() {} } },
     Hooks: { once() {}, on: (name, callback) => state.hooks.push({ name, callback }) }, window: { setTimeout: fn => { fn(); return 1; } },
     ChatMessage: { getSpeaker: () => ({}), create: async () => ({ id: 'chat' }) },
-    fromUuid: async () => null, setTimeout, clearTimeout
+    fromUuid: async uuid => state.documents?.get(uuid) ?? null, setTimeout, clearTimeout
   });
   vm.runInContext('Math.clamp = (value, min, max) => Math.min(max, Math.max(min, value));', context);
+  class NativePrototypeTokenConfig extends App {
+    static PARTS = Object.fromEntries(['tabs', 'identity', 'appearance', 'vision', 'light', 'resources', 'footer'].map(key => [key, { template: `core/${key}.hbs` }]));
+    static DEFAULT_OPTIONS = { actions: { assignToken() {} }, form: { closeOnSubmit: true, handler: async function (...args) {
+      state.nativeCalls ??= []; state.nativeCalls.push({ app: this, args });
+      if (state.failNativeSave) throw Error('native validation failed');
+      if (state.vetoNativeSave) return false;
+      for (const [key, value] of Object.entries(args[2]?.object ?? {})) updatePath(this.actor, `prototypeToken.${key}`, value);
+      return 'native saved';
+    } } };
+    constructor({ actor }) {
+      super(); this.actor = actor; this.tabGroups = { sheet: 'identity' }; this.position = { width: 600, height: 550 };
+      this.options = this._initializeApplicationOptions({});
+      this.element = { classList: { toggle() {} }, querySelectorAll: () => [] };
+    }
+    _initializeApplicationOptions(options) { return { ...NativePrototypeTokenConfig.DEFAULT_OPTIONS, ...options }; }
+    _configureRenderOptions(options) { options.parts ??= Object.keys(this.constructor.PARTS); }
+    _getTabsConfig() { return { initial: 'identity', tabs: ['identity', 'appearance', 'vision', 'light', 'resources'].map(id => ({ id })) }; }
+    async _prepareContext() { return { nativeValue: 'retained', tabs: Object.fromEntries(['identity', 'appearance'].map(id => [id, { id, group: 'sheet', active: id === this.tabGroups.sheet }])) }; }
+    async _preparePartContext(id, context) { return { ...context, nativePart: id }; }
+    async _onFirstRender() { state.nativeFirstRender = true; }
+    _onRender() { state.nativeRender = true; }
+    setPosition(position) { Object.assign(this.position, position); }
+  }
+  context.CONFIG.Token = { prototypeSheetClass: NativePrototypeTokenConfig };
+  context.foundry.applications.sheets.PrototypeTokenConfig = NativePrototypeTokenConfig;
+  state.NativePrototypeTokenConfig = NativePrototypeTokenConfig;
   const modules = new Map();
   async function load(url) {
     const key = new URL(url, root).href;
@@ -85,7 +119,7 @@ async function fixture() {
       let code = sources.get(key);
       if (key.endsWith('/attack-roll.js')) code += '\nexport { getDirectAreaAttackTags, getSelectedAttackAreaTagsForQuality, getAppliedAttackQualityModifier, getAttackEffectApplication, applyAttackEffectTags };';
       if (key.endsWith('/area-attack-controller.js')) code += '\nexport { normalizeAreaTag, promptAreaConfiguration, getAreaSizeBounds };';
-      if (key.endsWith('/evolution.js')) code += '\nexport { applyPartnerFormSnapshot, normalizeFormSnapshot };';
+      if (key.endsWith('/evolution.js')) code += '\nexport { applyPartnerFormSnapshot, normalizeFormSnapshot, buildFormSnapshotFromActor, buildPseudoActorFromFormSnapshot };';
       module = new vm.SourceTextModule(code, { context, identifier: key,
         importModuleDynamically: async (path, ref) => {
           const m = await load(new URL(path, ref.identifier));
@@ -106,7 +140,7 @@ async function fixture() {
     if (m.status === 'unlinked') await m.link(linker);
     await m.evaluate(); return m.namespace;
   }
-  const actor = { id: 'partner', uuid: 'Actor.partner', type: 'digimon', name: 'Partner', img: 'partner.webp', items: [],
+  const actor = { id: 'partner', uuid: 'Actor.partner', documentName: 'Actor', isOwner: true, type: 'digimon', name: 'Partner', img: 'partner.webp', items: [],
     system: { stage: 'adult', size: 'huge', mainStats: {}, combat: {}, resources: {}, effects: { active: [] },
       derivedStats: { bit: { total: 4 }, cpu: { total: 4 }, ram: { total: 4 }, dos: { total: 4 } },
       evolution: {}, evolutionGraph: { nodes: [], edges: [] } },
@@ -478,3 +512,381 @@ test('a successful support BLAST can apply Advanced Effect POISON to two enemies
     assert.equal(defender.system.effects.active[0].sourceActorUuid, f.actor.uuid);
   }
 });
+
+const scope = 'digimon-digital-adventures';
+function setupSizedForms(f) {
+  f.actor.system.evolution.currentFormUuid = 'Actor.child';
+  f.actor.system.size = 'medium';
+  f.actor.prototypeToken.width = f.actor.prototypeToken.height = 1;
+  f.actor.system.evolution.formSnapshots = {
+    Actor_child: { ...form('child', 'medium'), key: 'Actor_child', species: 'Blucomon', creation: { dp: { spent: 7 } } },
+    Actor_adult: { ...form('adult', 'huge'), key: 'Actor_adult', species: 'Paledramon', wizard: { preparedFutureForm: true }, items: [{ type: 'attack', name: 'Retained Attack' }] }
+  };
+}
+
+test('token size overview reads every snapshot without mutating forms, Tokens or active Mode Change', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  f.actor.system.combat.qualityModeChange = { active: true };
+  const before = structuredClone({ system: f.actor.system, flags: f.actor.flags, prototype: f.actor.prototypeToken, token: f.token.document.width });
+  const e = await f.get('scripts/combat/evolution.js');
+  const overview = await e.getPartnerTokenSizeContext(f.actor);
+  assert.equal(overview.rows.length, 2);
+  assert.equal(overview.rows.find(r => r.current).reference, 'Actor.child');
+  assert.equal(overview.rows.find(r => r.reference === 'Actor.adult').width, 2);
+  assert.deepEqual(structuredClone({ system: f.actor.system, flags: f.actor.flags, prototype: f.actor.prototypeToken, token: f.token.document.width }), before);
+});
+
+test('saving inactive form sizes changes only that snapshot and preserves its build and availability', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  const e = await f.get('scripts/combat/evolution.js');
+  const prototype = structuredClone(f.actor.prototypeToken);
+  const child = structuredClone(f.actor.system.evolution.formSnapshots.Actor_child);
+  await e.savePartnerTokenSizes(f.actor, [{ reference: 'Actor.adult', width: 2, height: 3, scaleX: 1.4, scaleY: 1.2 }]);
+  const stored = f.actor.system.evolution.formSnapshots.Actor_adult;
+  assert.equal(stored.tokenAppearance.width, 2); assert.equal(stored.tokenAppearance.height, 3);
+  assert.equal(stored.tokenAppearance.scaleX, 1.4); assert.equal(stored.items[0].name, 'Retained Attack');
+  assert.equal(stored.wizard.preparedFutureForm, true);
+  assert.deepEqual(structuredClone(f.actor.prototypeToken), prototype);
+  assert.deepEqual(structuredClone(f.actor.system.evolution.formSnapshots.Actor_child), child);
+});
+
+test('saving the active form updates prototype, placed footprint and visual scale independently', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  const e = await f.get('scripts/combat/evolution.js');
+  await e.savePartnerTokenSizes(f.actor, [{ reference: 'Actor.child', width: 1, height: 2, scaleX: 1.5, scaleY: 0.8 }]);
+  assert.equal(f.actor.prototypeToken.width, 1); assert.equal(f.actor.prototypeToken.height, 2);
+  assert.equal(f.token.document.width, 1); assert.equal(f.token.document.height, 2);
+  assert.equal(f.token.document.texture.scaleX, 1.5); assert.equal(f.token.document.texture.scaleY, 0.8);
+  assert.equal(f.actor.system.evolution.formSnapshots.Actor_child.creation.dp.spent, 7);
+});
+
+test('per-form rectangular footprints and image scales survive repeated evolution and regression', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  const e = await f.get('scripts/combat/evolution.js');
+  const s = await f.get('scripts/tokens/digimon-token-scale.js');
+  await e.savePartnerTokenSizes(f.actor, [
+    { reference: 'Actor.child', width: 1, height: 1, scaleX: 0.9, scaleY: 0.8 },
+    { reference: 'Actor.adult', width: 2, height: 3, scaleX: 1.4, scaleY: 1.2 }
+  ]);
+  for (const [key, width, height, sx, sy] of [
+    ['Actor_adult', 2, 3, 1.4, 1.2], ['Actor_child', 1, 1, 0.9, 0.8],
+    ['Actor_adult', 2, 3, 1.4, 1.2], ['Actor_child', 1, 1, 0.9, 0.8]
+  ]) {
+    const snapshot = f.actor.system.evolution.formSnapshots[key];
+    await s.runDigimonTokenEvolutionTransition(f.actor, () => e.applyPartnerFormSnapshot({ partnerActor: f.actor, snapshot }));
+    assert.equal(f.token.document.width, width); assert.equal(f.token.document.height, height);
+    assert.equal(f.token.document.texture.scaleX, sx); assert.equal(f.token.document.texture.scaleY, sy);
+    const overview = await e.getPartnerTokenSizeContext(f.actor);
+    const current = overview.rows.find(r => r.current);
+    assert.equal(current.width, width); assert.equal(current.height, height); assert.equal(current.scaleX, sx);
+  }
+});
+
+test('legacy destination forms clear the previous form image scale and rectangular override', async () => {
+  const f = await fixture(); const e = await f.get('scripts/combat/evolution.js');
+  f.actor.flags[scope].tokenAppearance = { width: 2, height: 3, scaleX: 1.5, scaleY: 0.8 };
+  f.actor.prototypeToken.texture.scaleX = 1.5; f.actor.prototypeToken.texture.scaleY = 0.8;
+  await e.applyPartnerFormSnapshot({ partnerActor: f.actor, snapshot: form('child', 'medium'), formTemplateActor: f.actor });
+  assert.equal(f.actor.flags[scope].tokenAppearance, undefined);
+  assert.equal(f.actor.prototypeToken.width, 1); assert.equal(f.actor.prototypeToken.height, 1);
+  assert.equal(f.actor.prototypeToken.texture.scaleX, 1); assert.equal(f.actor.prototypeToken.texture.scaleY, 1);
+});
+
+test('snapshot normalization and pseudo Actor round trips preserve independent dimensions and flips', async () => {
+  const f = await fixture(); const e = await f.get('scripts/combat/evolution.js');
+  const snapshot = { ...form('adult', 'huge'), tokenAppearance: { width: 2, height: 3, scaleX: -1.4, scaleY: 0.9 } };
+  const normalized = e.normalizeFormSnapshot(snapshot);
+  const pseudo = e.buildPseudoActorFromFormSnapshot(normalized, f.actor);
+  const captured = e.buildFormSnapshotFromActor(pseudo);
+  assert.deepEqual(structuredClone(captured.tokenAppearance), snapshot.tokenAppearance);
+});
+
+test('Default restores automatic footprint and 1 x 1 visual scale for only its selected form', async () => {
+  const f = await fixture(); setupSizedForms(f); const e = await f.get('scripts/combat/evolution.js');
+  await e.savePartnerTokenSizes(f.actor, [
+    { reference: 'Actor.child', width: 2, height: 3, scaleX: 1.4, scaleY: 1.2 },
+    { reference: 'Actor.adult', width: 4, height: 4, scaleX: 2, scaleY: 2 }
+  ]);
+  await e.savePartnerTokenSizes(f.actor, [{ reference: 'Actor.child', reset: true }]);
+  assert.equal(f.actor.flags[scope].tokenAppearance, undefined);
+  assert.equal(f.actor.flags[scope].tokenGridSizeOverride, undefined);
+  assert.equal(f.token.document.width, 1); assert.equal(f.token.document.height, 1);
+  assert.equal(f.token.document.texture.scaleX, 1); assert.equal(f.token.document.texture.scaleY, 1);
+  assert.equal(f.actor.system.evolution.formSnapshots.Actor_adult.tokenAppearance.width, 4);
+});
+
+test('appearance save validates every row before writing and rejects non-owners', async () => {
+  const f = await fixture(); setupSizedForms(f); const e = await f.get('scripts/combat/evolution.js');
+  const before = structuredClone(f.actor.system.evolution.formSnapshots);
+  for (const value of [0, -1, NaN, Infinity, 0.25, 1.2]) {
+    await assert.rejects(e.savePartnerTokenSizes(f.actor, [
+      { reference: 'Actor.adult', width: 2, height: 2, scaleX: 1, scaleY: 1 },
+      { reference: 'Actor.child', width: value, height: 1, scaleX: 1, scaleY: 1 }
+    ]));
+    assert.deepEqual(structuredClone(f.actor.system.evolution.formSnapshots), before);
+  }
+  f.game.user.isGM = false; f.actor.isOwner = false;
+  await assert.rejects(e.savePartnerTokenSizes(f.actor, [{ reference: 'Actor.child', reset: true }]));
+  assert.deepEqual(structuredClone(f.actor.system.evolution.formSnapshots), before);
+});
+
+test('graph templates without snapshots are read without writes and saved with their complete build', async () => {
+  const f = await fixture(); setupSizedForms(f); const e = await f.get('scripts/combat/evolution.js');
+  const template = { ...f.actor, uuid: 'Actor.ultimate', id: 'ultimate', name: 'Ultimate',
+    system: { ...structuredClone(f.actor.system), size: 'colossal', stage: 'ultimate' },
+    items: [{ id: 'attack', type: 'attack', name: 'Template Attack', toObject: () => ({ type: 'attack', name: 'Template Attack', system: {} }) }] };
+  f.state.documents = new Map([['Actor.ultimate', template]]);
+  f.actor.system.evolutionGraph.nodes = [{ actorUuid: 'Actor.ultimate', stage: 'ultimate' }];
+  const overview = await e.getPartnerTokenSizeContext(f.actor);
+  assert.equal(overview.rows.length, 3); assert.equal(Object.keys(f.actor.system.evolution.formSnapshots).length, 2);
+  await e.savePartnerTokenSizes(f.actor, [{ reference: 'Actor.ultimate', width: 4, height: 5, scaleX: 1, scaleY: 1 }]);
+  const stored = f.actor.system.evolution.formSnapshots.Actor_ultimate;
+  assert.equal(stored.items[0].name, 'Template Attack'); assert.equal(stored.tokenAppearance.height, 5);
+});
+
+test('the hidden sheet header keeps its native controls without the inaccessible size entry', async () => {
+  const f = await fixture(); const { DDADigimonSheet } = await f.get('scripts/sheets/digimon-sheet.js');
+  const sheet = new DDADigimonSheet({ document: f.actor });
+  const controls = sheet._getHeaderControls();
+  assert.equal(controls[0].action, 'configure');
+  assert.equal(controls.some(control => control.action === 'partnerTokenSizes'), false);
+});
+
+for (const lang of ['pt-BR', 'en']) {
+  test(`${lang}: size window translates every template label and cancellation writes nothing`, async () => {
+    const f = await fixture(); setupSizedForms(f);
+    const strings = JSON.parse(fs.readFileSync(new URL(`lang/${lang}.json`, root), 'utf8'));
+    f.game.i18n.lang = lang; f.game.i18n.localize = key => strings[key] ?? key;
+    const template = fs.readFileSync(new URL('templates/apps/dda-partner-token-sizes.hbs', root), 'utf8');
+    for (const [, key] of template.matchAll(/localize ["']([^"']+)["']/g)) assert.ok(strings[key], `Missing ${key}`);
+    const { DDAPartnerTokenSizes } = await f.get('scripts/apps/dda-partner-token-sizes.js');
+    const app = new DDAPartnerTokenSizes(f.actor);
+    const before = structuredClone(f.actor.system.evolution.formSnapshots);
+    const view = await app._prepareContext();
+    assert.equal(view.rows.length, 2); assert.equal(app.title, strings['DDA.TokenSizes.Title']);
+    DDAPartnerTokenSizes._onCancel.call(app, { preventDefault() {} });
+    assert.equal(app.closed, true); assert.deepEqual(structuredClone(f.actor.system.evolution.formSnapshots), before);
+  });
+}
+
+function sizeWindowRow(reference, values = {}) {
+  const inputs = Object.fromEntries(Object.entries({ width: 1, height: 1, scaleX: 1, scaleY: 1, ...values })
+    .map(([key, value]) => [key, { dataset: { sizeField: key }, value: String(value), reportValidity: () => true }]));
+  const summaries = { footprint: { textContent: '' }, visual: { textContent: '' } };
+  return { dataset: { tokenSizeReference: reference, dirty: 'true' }, inputs, summaries,
+    querySelector(selector) {
+      const field = selector.match(/data-size-field='([^']+)'/);
+      return field ? inputs[field[1]] : summaries[selector.includes('footprint') ? 'footprint' : 'visual'];
+    }, querySelectorAll: () => Object.values(inputs) };
+}
+
+test('size window Save persists edited rows only and closes after applying active dimensions', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  const { DDAPartnerTokenSizes } = await f.get('scripts/apps/dda-partner-token-sizes.js');
+  const app = new DDAPartnerTokenSizes(f.actor); await app._prepareContext();
+  const row = sizeWindowRow('Actor.child', { width: 1, height: 2, scaleX: 1.5, scaleY: 0.9 });
+  const buttons = [{ disabled: false }, { disabled: true }];
+  app.element = { querySelectorAll: selector => selector === 'button' ? buttons : [row] };
+  const adult = structuredClone(f.actor.system.evolution.formSnapshots.Actor_adult);
+  await DDAPartnerTokenSizes._onSave.call(app, { preventDefault() {} });
+  assert.equal(app.closed, true); assert.equal(f.token.document.height, 2); assert.equal(f.token.document.texture.scaleX, 1.5);
+  assert.deepEqual(structuredClone(f.actor.system.evolution.formSnapshots.Actor_adult), adult);
+  assert.equal(buttons[1].disabled, true);
+});
+
+test('size window Default edits only its draft until Save; Cancel discards the draft', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  const { DDAPartnerTokenSizes } = await f.get('scripts/apps/dda-partner-token-sizes.js');
+  const app = new DDAPartnerTokenSizes(f.actor); await app._prepareContext();
+  const row = sizeWindowRow('Actor.adult', { width: 5, height: 5, scaleX: 2, scaleY: 2 });
+  const before = structuredClone(f.actor.system.evolution.formSnapshots);
+  DDAPartnerTokenSizes._onReset.call(app, { preventDefault() {} }, { closest: () => row });
+  assert.equal(Number(row.inputs.width.value), 2); assert.equal(Number(row.inputs.height.value), 2);
+  assert.equal(row.dataset.reset, 'true'); assert.equal(row.summaries.footprint.textContent, '2 × 2');
+  DDAPartnerTokenSizes._onCancel.call(app, { preventDefault() {} });
+  assert.deepEqual(structuredClone(f.actor.system.evolution.formSnapshots), before);
+});
+
+test('existing footprint repair routine respects the new rectangular and visual settings', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  f.actor.flags[scope].tokenAppearance = { width: 1, height: 2, scaleX: -1.4, scaleY: 0.9 };
+  const s = await f.get('scripts/tokens/digimon-token-scale.js');
+  await s.applyDigimonTokenScaleToActorAndPlacedTokens(f.actor);
+  assert.equal(f.token.document.width, 1); assert.equal(f.token.document.height, 2);
+  assert.equal(f.token.document.texture.scaleX, -1.4); assert.equal(f.token.document.texture.scaleY, 0.9);
+});
+
+test('graph-only unresolved forms are listed but cannot write an incomplete evolution build', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  f.actor.system.evolutionGraph.nodes = [{ actorUuid: 'Actor.missing', name: 'Missing form', size: 'colossal' }];
+  const e = await f.get('scripts/combat/evolution.js');
+  const data = await e.getPartnerTokenSizeContext(f.actor);
+  const row = data.rows.find(row => row.reference === 'Actor.missing');
+  assert.equal(row.editable, false);
+  await assert.rejects(e.savePartnerTokenSizes(f.actor, [{ reference: 'Actor.missing', width: 4, height: 4, scaleX: 1, scaleY: 1 }]));
+  assert.equal(Object.keys(f.actor.system.evolution.formSnapshots).length, 2);
+});
+
+test('active Mode Change preserves the underlying snapshot size and build when editing appearance', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  f.actor.system.size = 'colossal';
+  f.actor.system.combat.qualityModeChange = { active: true, defaultSize: 'medium' };
+  const e = await f.get('scripts/combat/evolution.js');
+  const overview = await e.getPartnerTokenSizeContext(f.actor);
+  assert.equal(overview.rows.find(row => row.current).defaultWidth, 1);
+  await e.savePartnerTokenSizes(f.actor, [{ reference: 'Actor.child', width: 1, height: 1, scaleX: 1.5, scaleY: 1.5 }]);
+  assert.equal(f.actor.system.evolution.formSnapshots.Actor_child.size, 'medium');
+  assert.equal(f.actor.system.size, 'colossal');
+  assert.equal(f.actor.system.combat.qualityModeChange.active, true);
+});
+
+test('Mode Change without a baseline snapshot cannot save a temporary overlay as a permanent form', async () => {
+  const f = await fixture(); setupSizedForms(f);
+  delete f.actor.system.evolution.formSnapshots.Actor_child;
+  f.actor.system.combat.qualityModeChange = { active: true };
+  const e = await f.get('scripts/combat/evolution.js');
+  const data = await e.getPartnerTokenSizeContext(f.actor);
+  assert.equal(data.rows.find(row => row.current).editable, false);
+  await assert.rejects(e.savePartnerTokenSizes(f.actor, [{ reference: 'Actor.child', width: 1, height: 1, scaleX: 1, scaleY: 1 }]));
+  assert.equal(f.actor.system.evolution.formSnapshots.Actor_child, undefined);
+});
+
+test('Prototype Token Forms registration preserves the configured base and runs only once', async () => {
+  const f = await fixture();
+  const module = await f.get('scripts/apps/dda-prototype-token-config.js');
+  const Native = f.context.CONFIG.Token.prototypeSheetClass;
+  const placedTokenConfig = class PlacedTokenConfig {};
+  f.context.CONFIG.Token.sheetClass = placedTokenConfig;
+  module.registerDDAPrototypeTokenForms();
+  const Registered = f.context.CONFIG.Token.prototypeSheetClass;
+  assert.notEqual(Registered, Native);
+  assert.equal(Registered.prototype instanceof Native, true);
+  assert.equal(Registered.ddaTokenForms, true);
+  assert.equal(f.context.CONFIG.Token.sheetClass, placedTokenConfig);
+  module.registerDDAPrototypeTokenForms();
+  assert.equal(f.context.CONFIG.Token.prototypeSheetClass, Registered);
+  const bootstrap = fs.readFileSync(new URL('scripts/dda.js', root), 'utf8');
+  assert.match(bootstrap, /import \{ registerDDAPrototypeTokenForms \} from "\.\/apps\/dda-prototype-token-config\.js"/);
+  assert.match(bootstrap, /registerDDAPrototypeTokenForms\(\);/);
+});
+
+async function prototypeFixture() {
+  const f = await fixture(); setupSizedForms(f);
+  const module = await f.get('scripts/apps/dda-prototype-token-config.js');
+  const Config = module.createDDAPrototypeTokenConfig(f.state.NativePrototypeTokenConfig);
+  const app = new Config({ actor: f.actor });
+  const context = await app._prepareContext();
+  await app._preparePartContext('ddaForms', context, {});
+  return { ...f, app, Config, prototypeModule: module };
+}
+function attachSizeRows(app, rows) {
+  app.element = { classList: { toggle() {} }, querySelectorAll: selector => selector.includes('data-token-size-reference') ? rows : [] };
+}
+
+test('Prototype Token adds a real Forms tab and preserves every native part, tab and footer', async () => {
+  const f = await prototypeFixture();
+  const { app, Config } = f;
+  const keys = Object.keys(Config.PARTS);
+  assert.equal(keys.at(-1), 'footer'); assert.ok(keys.includes('ddaForms'));
+  for (const key of ['tabs', 'identity', 'appearance', 'vision', 'light', 'resources', 'footer']) assert.equal(Config.PARTS[key], f.state.NativePrototypeTokenConfig.PARTS[key]);
+  const config = app._getTabsConfig('sheet');
+  assert.equal(config.tabs.at(-1).id, 'ddaForms'); assert.equal(config.tabs.filter(tab => tab.id === 'ddaForms').length, 1);
+  app.tabGroups.sheet = 'ddaForms';
+  const context = await app._prepareContext();
+  assert.equal(context.nativeValue, 'retained'); assert.equal(context.tabs.ddaForms.cssClass, 'active');
+  const view = await app._preparePartContext('ddaForms', context, {});
+  assert.equal(view.embedded, true); assert.equal(view.rows.length, 2); assert.equal(view.tab.group, 'sheet');
+  assert.equal((await app._preparePartContext('vision', context, {})).nativePart, 'vision');
+  await app._onFirstRender(context, {});
+  assert.equal(f.state.nativeFirstRender, true); assert.ok(app.position.width >= 870);
+});
+
+test('native Prototype Token Save saves form settings and regular fields in the same submission', async () => {
+  const f = await prototypeFixture();
+  attachSizeRows(f.app, [sizeWindowRow('Actor.child', { width: 1, height: 2, scaleX: 1.5, scaleY: 0.9 }),
+    sizeWindowRow('Actor.adult', { width: 3, height: 3, scaleX: 1.2, scaleY: 1.2 })]);
+  const event = {}, form = {}, data = { object: { name: 'New Token name', 'light.bright': 10, 'sight.enabled': true } };
+  assert.equal(await f.app.options.form.handler.call(f.app, event, form, data), 'native saved');
+  assert.equal(f.state.nativeCalls.length, 1); assert.equal(f.state.nativeCalls[0].app, f.app);
+  assert.equal(f.state.nativeCalls[0].args[2], data);
+  assert.equal(f.actor.prototypeToken.name, 'New Token name'); assert.equal(f.actor.prototypeToken.light.bright, 10);
+  assert.equal(f.actor.prototypeToken.sight.enabled, true);
+  assert.equal(f.actor.system.evolution.formSnapshots.Actor_child.tokenAppearance.height, 2);
+  assert.equal(f.actor.system.evolution.formSnapshots.Actor_adult.tokenAppearance.width, 3);
+  assert.equal(f.token.document.height, 2); assert.equal(f.token.document.texture.scaleX, 1.5);
+});
+
+test('native Appearance size and flip edits also persist in the current form snapshot', async () => {
+  const f = await prototypeFixture();
+  const data = { object: { width: 2, height: 3, 'texture.scaleX': -1.5, 'texture.scaleY': 0.8 } };
+  await f.app.options.form.handler.call(f.app, {}, {}, data);
+  const stored = f.actor.system.evolution.formSnapshots.Actor_child.tokenAppearance;
+  assert.equal(stored.width, 2); assert.equal(stored.height, 3); assert.equal(stored.scaleX, -1.5); assert.equal(stored.scaleY, 0.8);
+  assert.equal(f.token.document.width, 2); assert.equal(f.token.document.height, 3); assert.equal(f.token.document.texture.scaleX, -1.5);
+});
+
+test('Forms dimensions win over stale native size fields while native flip edits are retained', async () => {
+  const f = await prototypeFixture();
+  attachSizeRows(f.app, [sizeWindowRow('Actor.child', { width: 1, height: 2, scaleX: 1.4, scaleY: 0.9 })]);
+  await f.app.options.form.handler.call(f.app, {}, {}, { object: { width: 1, height: 1, 'texture.scaleX': -1, 'texture.scaleY': 1 } });
+  assert.equal(f.token.document.width, 1); assert.equal(f.token.document.height, 2);
+  assert.equal(f.token.document.texture.scaleX, -1.4); assert.equal(f.token.document.texture.scaleY, 0.9);
+});
+
+test('closing Prototype Token with draft changes writes neither native fields nor snapshots', async () => {
+  const f = await prototypeFixture();
+  attachSizeRows(f.app, [sizeWindowRow('Actor.child', { width: 5, height: 5 })]);
+  const before = structuredClone(f.actor.system.evolution.formSnapshots);
+  await f.app.close();
+  assert.equal(f.state.nativeCalls, undefined); assert.deepEqual(structuredClone(f.actor.system.evolution.formSnapshots), before);
+});
+
+test('invalid Forms data prevents both native and snapshot writes', async () => {
+  const f = await prototypeFixture();
+  const row = sizeWindowRow('Actor.child'); row.inputs.width.reportValidity = () => false;
+  attachSizeRows(f.app, [row]);
+  await assert.rejects(f.app.options.form.handler.call(f.app, {}, {}, { object: { name: 'Not saved' } }));
+  assert.equal(f.state.nativeCalls, undefined); assert.equal(f.actor.prototypeToken.name, undefined);
+});
+
+test('a failed or vetoed native submission does not write form snapshots', async () => {
+  for (const kind of ['failNativeSave', 'vetoNativeSave']) {
+    const f = await prototypeFixture(); f.state[kind] = true;
+    attachSizeRows(f.app, [sizeWindowRow('Actor.child', { width: 3 })]);
+    const before = structuredClone(f.actor.system.evolution.formSnapshots);
+    const request = f.app.options.form.handler.call(f.app, {}, {}, { object: {} });
+    if (kind === 'failNativeSave') await assert.rejects(request); else assert.equal(await request, false);
+    assert.deepEqual(structuredClone(f.actor.system.evolution.formSnapshots), before);
+  }
+});
+
+test('a form change while Prototype Token was open prevents stale settings from overwriting the new form', async () => {
+  const f = await prototypeFixture(); f.actor.system.evolution.currentFormUuid = 'Actor.adult';
+  await assert.rejects(f.app.options.form.handler.call(f.app, {}, {}, { object: { width: 1 } }));
+  assert.equal(f.state.nativeCalls, undefined);
+});
+
+test('Tamer and non-Digimon NPC Prototype Token configuration retains only native parts and submit behavior', async () => {
+  for (const type of ['character', 'npc']) {
+    const f = await fixture(); f.actor.type = type; f.actor.system.isDigimon = false;
+    const module = await f.get('scripts/apps/dda-prototype-token-config.js');
+    const Config = module.createDDAPrototypeTokenConfig(f.state.NativePrototypeTokenConfig);
+    const app = new Config({ actor: f.actor });
+    const options = {}; app._configureRenderOptions(options);
+    assert.equal(options.parts.includes('ddaForms'), false);
+    const context = await app._prepareContext(); assert.equal(context.tabs.ddaForms, undefined);
+    assert.equal(app._getTabsConfig('sheet').tabs.some(tab => tab.id === 'ddaForms'), false);
+    await app.options.form.handler.call(app, {}, {}, { object: { name: 'Tamer Token' } });
+    assert.equal(f.actor.prototypeToken.name, 'Tamer Token'); assert.equal(f.state.nativeCalls.length, 1);
+  }
+});
+
+for (const lang of ['pt-BR', 'en']) {
+  test(`${lang}: Prototype Token Forms label and error messages exist`, async () => {
+    const strings = JSON.parse(fs.readFileSync(new URL(`lang/${lang}.json`, root), 'utf8'));
+    assert.equal(strings['DDA.TokenSizes.Tab'], lang === 'en' ? 'Forms' : 'Formas');
+    assert.ok(strings['DDA.TokenSizes.FormChanged']);
+    const template = fs.readFileSync(new URL('templates/apps/dda-partner-token-sizes.hbs', root), 'utf8');
+    assert.match(template, /data-tab="\{\{tab.id\}\}"/); assert.match(template, /unless embedded/);
+  });
+}

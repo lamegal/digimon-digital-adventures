@@ -877,7 +877,7 @@ function digimonActionAttacks(actor, definition, actionKey = "attack") {
 
 function digimonActionChecks(actor, definition) {
   const stats = actor?.system?.mainStats ?? {};
-  return Object.entries(stats)
+  const pools = Object.entries(stats)
     .filter(([, value]) => value && typeof value === "object")
     .map(([key, value]) => ({
       key: `action-check-${key}`,
@@ -885,8 +885,53 @@ function digimonActionChecks(actor, definition) {
       icon: HUD_ICONS.d20,
       tone: "tactical",
       cost: "2A",
-      handler: () => definition.execute("check", { statKey: key })
+      handler: () => definition.execute("check", { statKey: key, checkType: "pool" })
     }));
+
+  const derived = actor?.system?.derivedStats ?? {};
+  const skills = ["bit", "dos", "ram", "cpu"]
+    .filter(key => derived[key])
+    .map(key => ({
+      key: `action-skill-check-${key}`,
+      label: localizeMaybe(derived[key].displayLabel ?? derived[key].label, key.toUpperCase()),
+      short: key.toUpperCase(),
+      icon: HUD_ICONS.d20,
+      tone: "tactical",
+      cost: "2A",
+      handler: () => definition.execute("check", { statKey: key, checkType: "skill" })
+    }));
+
+  const withCheckBack = children => [
+    {
+      key: "__checksBack",
+      label: localizeMaybe("DDA.DigimonAction.Check.Back"),
+      icon: HUD_ICONS.previous,
+      tone: "tactical",
+      children: () => withActionsBack(actor, digimonActionChecks(actor, definition))
+    },
+    ...children
+  ];
+
+  return [
+    {
+      key: "action-check-pool",
+      label: localizeMaybe("DDA.DigimonAction.Check.Pool"),
+      icon: HUD_ICONS.stats,
+      tone: "tactical",
+      cost: "2A",
+      disabled: !pools.length,
+      children: () => withCheckBack(pools)
+    },
+    {
+      key: "action-check-skill",
+      label: localizeMaybe("DDA.DigimonAction.Check.Skill"),
+      icon: HUD_ICONS.d20,
+      tone: "tactical",
+      cost: "2A",
+      disabled: !skills.length,
+      children: () => withCheckBack(skills)
+    }
+  ];
 }
 
 async function digimonActionStances(actor, definition) {
