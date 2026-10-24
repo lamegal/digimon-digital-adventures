@@ -1,3 +1,4 @@
+import { emitDdaActivity } from "../utils/activity-events.js";
 import { withDDAMovementContext } from "../canvas/movement-context.js";
 import { rollPool } from "./pool-roll.js";
 import { getTamerCheckOutcome } from "./check-roll.js";
@@ -4052,6 +4053,9 @@ if (!qualityAttackModifier.sneakSuppressInterrupts && !attackOptions.suppressTar
   });
 }
 
+emitDdaActivity("attack", { actor: attacker, target: defender, attackItemId: attackItem.id,
+  area: Boolean(areaAttackDeclaration?.active || areaBatch?.active), hit,
+  accuracy: accuracySuccesses, dodge: dodgeSuccesses });
 return {
   attacker,
   defender,

@@ -1,3 +1,4 @@
+import { emitDdaActivity } from "../utils/activity-events.js";
 import { DDADigimonDatabase } from "../data/digimon-database.js";
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
 import { getCanonicalQualityRankData } from "../rules/quality-rank-limits.js";
@@ -8426,6 +8427,7 @@ const tokenCandidates = await getTokenCandidates(
       });
     }
 
+    emitDdaActivity("npcCreated", { wizard: this, actor });
     ui.notifications.info(text(
       `${actor.name} foi criado como Digimon inimigo.`,
       `${actor.name} was created as an enemy Digimon.`

@@ -676,7 +676,7 @@ function digimonStatSubmenuItems(actor) {
   if (Object.keys(actor?.system?.derivedStats ?? {}).length) {
     output.push({
       key: "derived",
-      label: text("Derived Stats", "Derived Stats"),
+      label: localizeMaybe("DDA.DigimonSheet.DerivedStats"),
       icon: HUD_ICONS.d20,
       short: "BIT+",
       children: async () => digimonDerivedSubmenuItems(actor)
@@ -1058,27 +1058,27 @@ async function environmentQuickItems(actor, token) {
       cost: state.sight === "unobscured" ? "OK" : state.sight === "obscured" ? "OBS" : "BLIND",
       active: state.sight !== "unobscured",
       children: () => withEnvironmentBack(actor, token, [
-        { key: "sight-clear", label: "Unobscured", icon: HUD_ICONS.visibility, active: state.sight === "unobscured", handler: () => update({ sight: "unobscured" }) },
-        { key: "sight-obscured", label: "Obscured", icon: HUD_ICONS.visibility, active: state.sight === "obscured", handler: () => update({ sight: "obscured" }) },
-        { key: "sight-blinded", label: "Blinded", icon: HUD_ICONS.hidden, active: state.sight === "blinded", handler: () => update({ sight: "blinded" }) }
+        { key: "sight-clear", label: text("Visão livre", "Unobscured"), icon: HUD_ICONS.visibility, active: state.sight === "unobscured", handler: () => update({ sight: "unobscured" }) },
+        { key: "sight-obscured", label: text("Obscurecido", "Obscured"), icon: HUD_ICONS.visibility, active: state.sight === "obscured", handler: () => update({ sight: "obscured" }) },
+        { key: "sight-blinded", label: text("Cego", "Blinded"), icon: HUD_ICONS.hidden, active: state.sight === "blinded", handler: () => update({ sight: "blinded" }) }
       ])
     },
     {
       key: "environment-cover",
-      label: "Cover",
+      label: text("Cobertura", "Cover"),
       icon: HUD_ICONS.guard,
       tone: "tactical",
       cost: state.cover === "major" ? "+2" : state.cover === "partial" ? "+1" : "0",
       active: state.cover !== "none",
       children: () => withEnvironmentBack(actor, token, [
-        { key: "cover-none", label: text("Sem Cover", "No Cover"), icon: HUD_ICONS.guard, active: state.cover === "none", handler: () => update({ cover: "none" }) },
-        { key: "cover-partial", label: text("Cover Parcial (+1)", "Partial Cover (+1)"), icon: HUD_ICONS.guard, active: state.cover === "partial", handler: () => update({ cover: "partial" }) },
-        { key: "cover-major", label: text("Cover Maior (+2)", "Major Cover (+2)"), icon: HUD_ICONS.guard, active: state.cover === "major", handler: () => update({ cover: "major" }) }
+        { key: "cover-none", label: text("Sem cobertura", "No Cover"), icon: HUD_ICONS.guard, active: state.cover === "none", handler: () => update({ cover: "none" }) },
+        { key: "cover-partial", label: text("Cobertura parcial (+1)", "Partial Cover (+1)"), icon: HUD_ICONS.guard, active: state.cover === "partial", handler: () => update({ cover: "partial" }) },
+        { key: "cover-major", label: text("Cobertura maior (+2)", "Major Cover (+2)"), icon: HUD_ICONS.guard, active: state.cover === "major", handler: () => update({ cover: "major" }) }
       ])
     },
     {
       key: "environment-hidden",
-      label: "Hidden",
+      label: localizeMaybe("DDA.Status.Hidden"),
       icon: HUD_ICONS.hidden,
       tone: "tactical",
       cost: state.hidden ? "ON" : "OFF",
@@ -1087,7 +1087,7 @@ async function environmentQuickItems(actor, token) {
     },
     {
       key: "environment-submerged",
-      label: "Submerged",
+      label: localizeMaybe("DDA.Status.Submerged"),
       icon: HUD_ICONS.movement,
       tone: "movement",
       cost: state.submerged ? "ON" : "OFF",

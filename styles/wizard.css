@@ -1511,6 +1511,25 @@
   accent-color: #51bdf2;
 }
 
+/* Render one native checkmark for the Tamer's partner-creation option. */
+html body :is(.window-app, .application).dda-tamer-wizard
+.dda-wizard-chain-option input[type="checkbox"][data-path="postCreate.createDigimon"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
+html body :is(.window-app, .application).dda-tamer-wizard
+.dda-wizard-chain-option input[type="checkbox"][data-path="postCreate.createDigimon"]::before,
+html body :is(.window-app, .application).dda-tamer-wizard
+.dda-wizard-chain-option input[type="checkbox"][data-path="postCreate.createDigimon"]::after {
+  content: none !important;
+  display: none !important;
+}
+
 .dda-wizard-chain-option strong {
   display: block;
   color: #ffffff;

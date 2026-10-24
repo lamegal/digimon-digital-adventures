@@ -603,6 +603,59 @@ function getSelectedQualityChoiceLabel(itemSystem = {}) {
   ).trim();
 }
 
+function normalizeLegacyTamerLabels(system) {
+  const groups = {
+    attributes: {
+      agility: ["Agility", "Agilidade"],
+      body: ["Body", "Corpo"],
+      charisma: ["Charisma", "Carisma"],
+      intelligence: ["Intelligence", "Inteligência"],
+      willpower: ["Willpower", "Vontade", "Força de Vontade"]
+    },
+    skills: {
+      evade: ["Evade", "Evasão", "Esquiva"],
+      precision: ["Precision", "Precisão"],
+      stealth: ["Stealth", "Furtividade"],
+      athletics: ["Athletics", "Atletismo"],
+      endurance: ["Endurance", "Resistência"],
+      featsOfStrength: ["FeatsOfStrength", "Feats of Strength", "Proezas de Força"],
+      manipulate: ["Manipulate", "Manipular", "Manipulação"],
+      performance: ["Performance"],
+      persuasion: ["Persuasion", "Persuasão"],
+      decipherIntent: ["DecipherIntent", "Decipher Intent", "Decifrar Intenção"],
+      survival: ["Survival", "Sobrevivência"],
+      knowledge: ["Knowledge", "Conhecimento"],
+      awareness: ["Awareness", "Percepção"],
+      bravery: ["Bravery", "Bravura"],
+      fortitude: ["Fortitude"]
+    }
+  };
+
+  const normalize = value => String(value ?? "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  for (const [group, definitions] of Object.entries(groups)) {
+    const prefix = group === "attributes" ? "TamerAttribute" : "TamerSkill";
+
+    for (const [id, aliases] of Object.entries(definitions)) {
+      const stat = system[group]?.[id];
+      if (!stat || typeof stat !== "object") continue;
+
+      const label = String(stat.label ?? "").trim();
+      const labelKey = `DDA.${prefix}.${aliases[0]}`;
+
+      if (
+        !label ||
+        label === labelKey ||
+        [id, ...aliases].some(alias => normalize(alias) === normalize(label))
+      ) {
+        stat.label = labelKey;
+      }
+    }
+  }
+}
+
 export class DDAActor extends Actor {
   prepareDerivedData() {
     super.prepareDerivedData();
@@ -618,6 +671,7 @@ export class DDAActor extends Actor {
 
   _prepareCharacterData() {
     const system = this.system;
+    normalizeLegacyTamerLabels(system);
 
     const demoralizePenalties = {};
     for (const effect of (Array.isArray(system.effects?.active) ? system.effects.active : [])) {
@@ -4446,11 +4500,15 @@ _prepareDigimonQualityRequirements(system) {
       const maximumStage = itemSystem.stageRequirement?.maximum ?? "";
 
       if (minimumStage && compareStageOrder(stageKey, minimumStage) < 0) {
-        unmet.push(`Estágio mínimo: ${getStageLabel(minimumStage)}`);
+        unmet.push(game.i18n.format("DDA.QualityRequirement.MinimumStage", {
+          stage: getLocalizedLabel(getStageLabel(minimumStage))
+        }));
       }
 
       if (maximumStage && compareStageOrder(stageKey, maximumStage) > 0) {
-        unmet.push(`Estágio máximo: ${getStageLabel(maximumStage)}`);
+        unmet.push(game.i18n.format("DDA.QualityRequirement.MaximumStage", {
+          stage: getLocalizedLabel(getStageLabel(maximumStage))
+        }));
       }
     }
 
@@ -4518,7 +4576,12 @@ if (statRankRequirement.enabled && rankValue > 0) {
 
   if (requiredTotal > 0 && currentTotal < requiredTotal) {
     const statLabel = getLocalizedLabel(statRankRequirement.labelKey ?? statRankRequirement.stat ?? "");
-    unmet.push(`${statLabel} Total ${currentTotal}/${requiredTotal} required for Rank ${rankValue}`);
+    unmet.push(game.i18n.format("DDA.QualityRequirement.StatForRank", {
+      stat: statLabel,
+      current: currentTotal,
+      required: requiredTotal,
+      rank: rankValue
+    }));
   }
 }
 
@@ -4554,7 +4617,10 @@ for (const incompatibleName of incompatibleQualityNames) {
   if (weaponInstinctPair && !isWeaponInstinctConflict(this, item)) continue;
 
   if (hasOwnedQualityReference(incompatibleName)) {
-    incompatible.push(`Incompatível com: ${incompatibleName}`);
+    incompatible.push(game.i18n.format(
+      "DDA.QualityRequirement.Incompatible",
+      { quality: incompatibleName }
+    ));
   }
 }
 
@@ -4562,9 +4628,12 @@ if (coreQualityId === CORE_QUALITY_IDS.dataSpecialization) {
   const invalidChoices = system.qualityFeatures?.dataSpecialization?.invalidChoices ?? [];
   for (const invalidChoice of invalidChoices) {
     const label = invalidChoice.label ?? invalidChoice.key ?? "Data Specialization";
-    unmet.push(invalidChoice.reason === "duplicate"
-      ? `${label}: escolha repetida.`
-      : `${label}: exige Impulso Híbrido disponível.`);
+    unmet.push(game.i18n.format(
+      invalidChoice.reason === "duplicate"
+        ? "DDA.QualityRequirement.DuplicateChoice"
+        : "DDA.QualityRequirement.HybridDrive",
+      { choice: getLocalizedLabel(label) }
+    ));
   }
 }
 
@@ -4573,7 +4642,14 @@ if (coreQualityId === CORE_QUALITY_IDS.advancedMobility) {
   const invalidTypes = (system.qualityFeatures?.advancedMobility?.types ?? [])
     .filter((type) => !extraTypes.has(type));
   for (const type of invalidTypes) {
-    unmet.push(`Mobilidade Avançada exige Movimento Extra: ${type}.`);
+    const movementLabel = game.i18n.localize(
+      `DDA.Movement.${type.charAt(0).toUpperCase()}${type.slice(1)}`
+    );
+
+    unmet.push(game.i18n.format(
+      "DDA.QualityRequirement.ExtraMovement",
+      { type: movementLabel }
+    ));
   }
 }
 

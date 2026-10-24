@@ -1,0 +1,73 @@
+<section class="dda-academy-root">
+  <header class="dda-academy-header">
+    {{{portrait}}}
+    <div class="dda-academy-introduction">
+      <span class="dda-academy-kicker">DIGIMON DIGITAL ADVENTURES</span>
+      <h1>{{localize "DDA.Academy.Title"}}</h1>
+      <p>{{localize "DDA.Academy.Welcome"}}</p>
+      <p class="dda-academy-note">{{localize "DDA.Academy.ProgressHint"}}</p>
+      <p class="dda-academy-note">{{localize "DDA.Academy.GuideHint"}}</p>
+    </div>
+  </header>
+  <div class="dda-academy-actor-selection">
+    <label>{{localize "DDA.Academy.Tamer"}}
+      <select name="academy-tamer">
+        <option value="">{{localize "DDA.Academy.NoActor"}}</option>
+        {{#each tamers}}<option value="{{uuid}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}
+      </select>
+    </label>
+    <label>{{localize "DDA.Academy.Digimon"}}
+      <select name="academy-digimon">
+        <option value="">{{localize "DDA.Academy.NoActor"}}</option>
+        {{#each digimon}}<option value="{{uuid}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}
+      </select>
+    </label>
+    <p>{{localize "DDA.Academy.SelectionHint"}}</p>
+  </div>
+  <div class="dda-academy-chapters">
+    {{#if recommended}}
+      <aside class="dda-academy-route">
+        <div>
+          <small>{{#if chapterCompleted}}{{localize "DDA.Academy.Route.Completed"}}{{else}}{{localize "DDA.Academy.Route.Title"}}{{/if}}</small>
+          <h2>{{localize recommended.titleKey}}</h2>
+          <p>{{localize "DDA.Academy.Route.Hint"}}</p>
+        </div>
+        <button type="button" data-action="continueJourney" data-chapter="{{recommended.id}}">{{localize "DDA.Academy.Route.Continue"}} <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
+      </aside>
+    {{/if}}
+    <h2>{{localize "DDA.Academy.Player"}}</h2>
+    <div class="dda-academy-chapter-grid">
+      {{#each players}}
+        <article class="dda-academy-chapter {{#if completed}}is-completed{{/if}}">
+          <div class="dda-academy-chapter-copy">
+            <h3>{{localize titleKey}}</h3>
+            <p>{{localize descriptionKey}}</p>
+            <small>{{stepCount}} {{localize "DDA.Academy.Steps"}} · {{status}}</small>
+          </div>
+          <div class="dda-academy-chapter-actions">
+            <button type="button" data-action="startChapter" data-chapter="{{id}}"><i class="fas fa-play" aria-hidden="true"></i> {{startLabel}}</button>
+            {{#unless completed}}<button type="button" class="dda-academy-restart" data-action="restartChapter" data-chapter="{{id}}" title="{{localize 'DDA.Academy.Restart'}}" aria-label="{{localize 'DDA.Academy.Restart'}}"><i class="fas fa-rotate-left" aria-hidden="true"></i></button>{{/unless}}
+          </div>
+        </article>
+      {{/each}}
+    </div>
+    {{#if gms.length}}
+      <h2>{{localize "DDA.Academy.GM"}}</h2>
+      <div class="dda-academy-chapter-grid">
+        {{#each gms}}
+          <article class="dda-academy-chapter {{#if completed}}is-completed{{/if}}">
+            <div class="dda-academy-chapter-copy">
+              <h3>{{localize titleKey}}</h3>
+              <p>{{localize descriptionKey}}</p>
+              <small>{{stepCount}} {{localize "DDA.Academy.Steps"}} · {{status}}</small>
+            </div>
+            <div class="dda-academy-chapter-actions">
+              <button type="button" data-action="startChapter" data-chapter="{{id}}"><i class="fas fa-play" aria-hidden="true"></i> {{startLabel}}</button>
+              {{#unless completed}}<button type="button" class="dda-academy-restart" data-action="restartChapter" data-chapter="{{id}}" title="{{localize 'DDA.Academy.Restart'}}" aria-label="{{localize 'DDA.Academy.Restart'}}"><i class="fas fa-rotate-left" aria-hidden="true"></i></button>{{/unless}}
+            </div>
+          </article>
+        {{/each}}
+      </div>
+    {{/if}}
+  </div>
+</section>

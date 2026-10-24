@@ -1,3 +1,4 @@
+import { emitDdaActivity } from "../utils/activity-events.js";
 import {
   getDDASetting
 } from "../settings.js";
@@ -1066,6 +1067,7 @@ export async function rollTamerCheck(
       );
   }
 
+  if (options.createChat !== false) emitDdaActivity("check", { actor, total, outcomeLabel: outcome.label });
   return {
     actor,
     skillKey,

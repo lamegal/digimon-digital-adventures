@@ -1,3 +1,4 @@
+import { emitDdaActivity } from "../utils/activity-events.js";
 import { getPartnerBonusDpAllocation } from "../rules/tamer-progression.js";
 import { DDA_DIGIMON_QUALITIES } from "../data/digimon-qualities.js";
 import { getCanonicalQualityRankData } from "../rules/quality-rank-limits.js";
@@ -4214,6 +4215,7 @@ await this._resolveWizardQualityAttackChoices(actor, createdItems);
 await this._finalizeInitialEvolutionLineForCreatedActor(actor);
 
   await this._linkWithPendingTamer(actor);
+  emitDdaActivity("created", { wizard: this, actor });
 
   ui.notifications.info(text(`${actor.name} foi criado com sucesso.`, `${actor.name} was created successfully.`));
 
@@ -4786,6 +4788,7 @@ coreDiscount: {
 
 
   ui.notifications.info(game.i18n.format("DDA.Info.FormSnapshotSaved", { form: snapshot.name, partner: partnerActor.name }));
+  emitDdaActivity("formSaved", { wizard: this, actor: partnerActor, formName: snapshot.name });
   this.close();
   partnerActor.sheet?.render(true);
   context.tamerActor?.sheet?.render(false);
@@ -8642,13 +8645,15 @@ async _linkWithPendingTamer(digimonActor) {
 async _openTamerWizardAfterCreate(digimonActor) {
   const { DDATamerWizard } = await import("./dda-tamer-wizard.js");
 
-  new DDATamerWizard({
+  const wizard = new DDATamerWizard({
     linkContext: {
       digimonUuid: digimonActor.uuid,
       digimonName: digimonActor.name,
       compatibility: this._getCleanCompatibilityData()
     }
-  }).render(true);
+  });
+  wizard.render(true);
+  emitDdaActivity("wizardOpened", { sourceWizard: this, wizard, role: "tamer" });
 }
 
 async _finalizeInitialEvolutionLineForCreatedActor(actor) {

@@ -1,3 +1,4 @@
+import { emitDdaActivity } from "../utils/activity-events.js";
 import {
   getCampaignLevelSummary,
   getAttributeStartingCap,
@@ -770,6 +771,7 @@ if (tormentItems.length) {
 }
 
 await this._linkWithPendingDigimon(actor);
+emitDdaActivity("created", { wizard: this, actor });
 
 ui.notifications.info(formatI18n("DDA.TamerWizard.Info.Created", { name: actor.name }));
 
@@ -1646,14 +1648,16 @@ const startingStageOverride = String(tamerActor.system?.partner?.startingStageOv
 const defaultStartingStage = String(getWorldSetting("defaultPartnerStartingStage", "child") ?? "child").trim();
 const effectiveStartingStage = startingStageOverride || defaultStartingStage || "child";
 
-new DDADigimonWizard({
+const wizard = new DDADigimonWizard({
   linkContext: {
     tamerUuid: tamerActor.uuid,
     tamerName: tamerActor.name,
     startingStage: effectiveStartingStage,
     compatibility: foundry.utils.deepClone(tamerActor.system?.compatibility ?? null)
   }
-}).render(true);
+});
+wizard.render(true);
+emitDdaActivity("wizardOpened", { sourceWizard: this, wizard, role: "digimon" });
 }
 
   _getGuideData() {
