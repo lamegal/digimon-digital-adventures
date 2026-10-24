@@ -585,11 +585,13 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
   constructor(sourceActor, options = {}) {
     const {
       darkEvolutionMode = false,
+      readOnlyContext = false,
       ...applicationOptions
     } = options ?? {};
 
     super(applicationOptions);
     this.sourceActor = sourceActor ?? null;
+    this.readOnlyContext = Boolean(readOnlyContext);
     this.formContext = null;
     this.darkEvolutionMode = Boolean(
       darkEvolutionMode && game.user?.isGM
@@ -635,7 +637,7 @@ export class DDAPartnerFormPlanner extends DDAPartnerFormPlannerBase {
 
   async _prepareContext(options = {}) {
     const context = await super._prepareContext(options);
-    const formContext = await getCurrentPartnerFormWizardContext(this.sourceActor);
+    const formContext = await getCurrentPartnerFormWizardContext(this.sourceActor, { readOnly: this.readOnlyContext });
 
     if (!formContext) {
       this.formContext = null;

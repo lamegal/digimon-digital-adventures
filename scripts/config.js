@@ -1,7 +1,7 @@
 const MODULE_ID = "digimon-digital-adventures";
 
 function localize(key) {
-  return game?.i18n?.localize(key) ?? key;
+  return key;
 }
 
 export const DDA = {};
@@ -756,3 +756,31 @@ DDA.digimonAttributes = {
   free: localize("DDA.DigimonProfile.Attribute.Free"),
   variable: localize("DDA.DigimonProfile.Attribute.Variable")
 };
+function localizeConfigOnRead(object) {
+  if (!object || typeof object !== "object") return;
+
+  for (const [property, value] of Object.entries(object)) {
+    if (typeof value === "string" && value.startsWith("DDA.")) {
+      let currentValue = value;
+
+      Object.defineProperty(object, property, {
+        enumerable: true,
+        configurable: true,
+
+        get() {
+          return typeof currentValue === "string"
+            ? globalThis.game?.i18n?.localize?.(currentValue) ?? currentValue
+            : currentValue;
+        },
+
+        set(nextValue) {
+          currentValue = nextValue;
+        }
+      });
+    } else {
+      localizeConfigOnRead(value);
+    }
+  }
+}
+
+localizeConfigOnRead(DDA);

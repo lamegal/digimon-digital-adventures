@@ -16,6 +16,7 @@ const baseline = process.env.DDA_TEST_BASELINE === '1';
 const sources = new Map(realFiles.map(path => [new URL(path, root).href, baseline
   ? execFileSync('git', ['show', `HEAD:${path}`], { cwd: root, encoding: 'utf8' })
   : fs.readFileSync(new URL(path, root), 'utf8')]));
+sources.set(new URL('scripts/utils/activity-events.js', root).href, fs.readFileSync(new URL('scripts/utils/activity-events.js', root), 'utf8'));
 const imports = new Map();
 for (const [url, code] of sources) {
   for (const [, names, path] of code.matchAll(/import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["']/g)) {
@@ -35,7 +36,7 @@ function setProperty(object, path, value) {
 
 async function fixture(lang = 'en', action = 'cancel', fields = {}) {
   const translations = JSON.parse(fs.readFileSync(new URL(`lang/${lang}.json`, root), 'utf8'));
-  const state = { dialogs: [], rolls: [], messages: [], updates: [], payments: [], warnings: [], preparations: [], forceResult: undefined };
+  const state = { dialogs: [], rolls: [], messages: [], updates: [], payments: [], activities: [], warnings: [], preparations: [], forceResult: undefined };
   const game = {
     system: { id: 'digimon-digital-adventures' }, combat: { started: true, id: 'combat', round: 1, turn: 0 },
     user: { id: 'owner', isGM: false, targets: new Set() }, actors: [], time: { worldTime: 100 },
@@ -107,7 +108,7 @@ async function fixture(lang = 'en', action = 'cancel', fields = {}) {
       applications: { sheets: { ActorSheetV2: App }, api: { ApplicationV2: App, DialogV2, HandlebarsApplicationMixin: x => x } } },
     CONFIG: { DDA: { targetNumbers: {}, stages: {}, stances: {}, sizes: {} } }, CONST: {},
     ui: { notifications: { warn: message => state.warnings.push(message), error: message => state.warnings.push(message), info() {} } },
-    canvas: { tokens: { placeables: [], controlled: [] } }, Hooks: { on() {}, once() {} },
+    canvas: { tokens: { placeables: [], controlled: [] } }, Hooks: { on() {}, once() {}, callAll(name, event) { if (name === 'ddaActivity') state.activities.push(event); } },
     HTMLElement: class {}, ChatMessage: { getSpeaker: ({ actor }) => ({ actor: actor.id }),
       create: async data => { state.messages.push(data); return { ...data, id: 'message' }; } },
     fromUuid: async uuid => game.actors.find(a => a.uuid === uuid), setTimeout, clearTimeout
@@ -175,6 +176,7 @@ for (const lang of ['pt-BR', 'en']) {
       assert.equal(await useDirect(f.tamer), null);
       assert.equal(f.state.messages.length, 0); assert.equal(f.state.updates.length, 0);
       assert.equal(f.state.payments.length, 0); assert.equal(f.partner.system.effects.active.length, 0);
+      assert.equal(f.state.activities.length, 0, 'Cancel must not report a completed practice activity');
       assert.equal(f.state.dialogs[0].buttons.find(b => b.action === 'cancel').label, f.translations['DDA.Button.Cancel']);
     });
     test(`${lang}: Tamer Skill Check ${action} never rolls or spends resources`, async () => {
@@ -182,6 +184,7 @@ for (const lang of ['pt-BR', 'en']) {
       const { rollTamerCheck } = await f.get('scripts/rolls/check-roll.js');
       assert.equal(await rollTamerCheck(f.tamer, 'awareness'), null);
       assert.equal(f.state.rolls.length, 0); assert.equal(f.state.messages.length, 0); assert.equal(f.state.updates.length, 0);
+      assert.equal(f.state.activities.length, 0);
     });
     test(`${lang}: Digimon Skill Check ${action} never rolls or posts chat`, async () => {
       const f = await fixture(lang, action);
@@ -229,6 +232,7 @@ for (const lang of ['pt-BR', 'en']) {
     assert.equal(f.partner.system.effects.active[0].value, 4);
     assert.equal(f.partner.system.effects.active[0].poolStat, 'accuracy');
     assert.equal(f.state.messages.length, 1); assert.doesNotMatch(f.state.messages[0].content, /undefined|NaN/);
+    assert.equal(f.state.activities.length, 1); assert.equal(f.state.activities[0].kind, 'direct'); assert.equal(f.state.activities[0].target, f.partner);
   });
   test(`${lang}: confirmed Digimon Spec check keeps Skill bonus, modifier and TN`, async () => {
     const f = await fixture(lang, 'roll', { skillKey: 'awareness', modifier: 1, tn: 15 });
@@ -243,6 +247,13 @@ for (const lang of ['pt-BR', 'en']) {
     const result = await rollTamerCheck(f.tamer, 'awareness');
     assert.equal(f.state.rolls.length, 1); assert.equal(f.state.rolls[0].data.modifier, 8);
     assert.equal(f.state.messages.length, 1); assert.equal(result.total, 20);
+    assert.equal(f.state.activities.length, 1); assert.equal(f.state.activities[0].kind, 'check'); assert.equal(f.state.activities[0].total, result.total);
+  });
+  test(`${lang}: a silent internal Check does not claim a visible practice result`, async () => {
+    const f = await fixture(lang, 'roll', { attributeKey: 'intelligence', tn: 15, manualModifier: 1 });
+    const { rollTamerCheck } = await f.get('scripts/rolls/check-roll.js');
+    await rollTamerCheck(f.tamer, 'awareness', { createChat: false });
+    assert.equal(f.state.rolls.length, 1); assert.equal(f.state.messages.length, 0); assert.equal(f.state.activities.length, 0);
   });
   test(`${lang}: confirmed action-bar Pool Check still rolls and charges once`, async () => {
     const f = await fixture(lang, 'roll');

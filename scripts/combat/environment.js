@@ -402,22 +402,22 @@ export async function openCombatEnvironmentDialog(actor) {
     content: `
       <div class="dda-roll-dialog dda-environment-state-dialog">
         <div class="form-group"><label>${text("Visibilidade / visão", "Visibility / sight")}</label><select name="sight">
-          <option value="unobscured" ${state.sight === "unobscured" ? "selected" : ""}>${text("Unobscured", "Unobscured")}</option>
-          <option value="obscured" ${state.sight === "obscured" ? "selected" : ""}>${text("Obscured", "Obscured")}</option>
-          <option value="blinded" ${state.sight === "blinded" ? "selected" : ""}>${text("Blinded", "Blinded")}</option>
+          <option value="unobscured" ${state.sight === "unobscured" ? "selected" : ""}>${text("Visão livre", "Unobscured")}</option>
+          <option value="obscured" ${state.sight === "obscured" ? "selected" : ""}>${text("Obscurecido", "Obscured")}</option>
+          <option value="blinded" ${state.sight === "blinded" ? "selected" : ""}>${text("Cego", "Blinded")}</option>
         </select></div>
-        <div class="form-group"><label>${text("Elemento que causa Obscured", "Element causing Obscured")}</label><select name="obscuredElement">${elementOptions(state.obscuredElement)}</select></div>
-        <label class="dda-tamer-action-check"><input type="checkbox" name="hidden" ${state.hidden ? "checked" : ""}><span>${text("Hidden — não pode ser alvo direto", "Hidden — cannot be directly targeted")}</span></label>
-        <label class="dda-tamer-action-check"><input type="checkbox" name="submerged" ${state.submerged ? "checked" : ""}><span>${text("Submerged", "Submerged")}</span></label>
+        <div class="form-group"><label>${text("Elemento que causa obscurecimento", "Element causing Obscured")}</label><select name="obscuredElement">${elementOptions(state.obscuredElement)}</select></div>
+        <label class="dda-tamer-action-check"><input type="checkbox" name="hidden" ${state.hidden ? "checked" : ""}><span>${text("Escondido — não pode ser alvo direto", "Hidden — cannot be directly targeted")}</span></label>
+        <label class="dda-tamer-action-check"><input type="checkbox" name="submerged" ${state.submerged ? "checked" : ""}><span>${text("Submerso", "Submerged")}</span></label>
         <div class="form-group"><label>${text("Elemento/material da submersão", "Submersion element/material")}</label><select name="submergedElement">${elementOptions(state.submergedElement)}</select></div>
-        <label class="dda-tamer-action-check"><input type="checkbox" name="drowning" ${state.drowning ? "checked" : ""}><span>${text("Sem acesso a ar / Drowning", "No access to air / Drowning")}</span></label>
-        <div class="form-group"><label>${text("Cover", "Cover")}</label><select name="cover">
+        <label class="dda-tamer-action-check"><input type="checkbox" name="drowning" ${state.drowning ? "checked" : ""}><span>${text("Sem acesso a ar / Afogamento", "No access to air / Drowning")}</span></label>
+        <div class="form-group"><label>${text("Cobertura", "Cover")}</label><select name="cover">
           <option value="none" ${state.cover === "none" ? "selected" : ""}>${text("Nenhuma", "None")}</option>
-          <option value="partial" ${state.cover === "partial" ? "selected" : ""}>${text("Parcial (+1 Dodge Success)", "Partial (+1 Dodge Success)")}</option>
-          <option value="major" ${state.cover === "major" ? "selected" : ""}>${text("Quase total (+2 Dodge Successes)", "Near-total (+2 Dodge Successes)")}</option>
+          <option value="partial" ${state.cover === "partial" ? "selected" : ""}>${text("Parcial (+1 sucesso de Esquiva)", "Partial (+1 Dodge Success)")}</option>
+          <option value="major" ${state.cover === "major" ? "selected" : ""}>${text("Quase total (+2 sucessos de Esquiva)", "Near-total (+2 Dodge Successes)")}</option>
         </select></div>
         <p class="hint">${text(
-          "Cover e Obscured não acumulam: a automação usa apenas o maior bônus. Submerged gera Obscured entre participantes em meios diferentes.",
+          "Cobertura e obscurecimento não acumulam: a automação usa apenas o maior bônus. Submersão gera obscurecimento entre participantes em meios diferentes.",
           "Cover and Obscured do not stack: automation uses only the higher bonus. Submerged creates Obscured between participants in different media."
         )}</p>
       </div>`,

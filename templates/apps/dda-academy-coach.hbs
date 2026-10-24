@@ -1,0 +1,18 @@
+<section class="dda-academy-coach-root">
+  <header class="dda-academy-coach-heading">
+    <small>{{progress}}</small>
+    <h2>{{title}}</h2>
+    <p>{{localize "DDA.Academy.Practice.Participants"}}: {{tamerName}} · {{digimonName}}</p>
+  </header>
+  {{{dialogue}}}
+  <div class="dda-academy-coach-feedback is-{{status}}" role="status" aria-live="polite">
+    <p>{{evidence}}</p>
+  </div>
+  <p class="dda-academy-coach-hint">{{hint}}</p>
+  <footer class="dda-academy-coach-controls">
+    <button type="button" data-action="previousLesson" {{#unless hasPrevious}}disabled{{/unless}} aria-label="{{localize 'DDA.Academy.Practice.Previous'}}"><i class="fas fa-arrow-left" aria-hidden="true"></i></button>
+    <button type="button" data-action="nextLesson">{{nextLabel}} <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
+    {{#if canShowControls}}<button type="button" data-action="showControls">{{localize "DDA.Academy.Practice.ShowControls"}}</button>{{/if}}
+    <button type="button" data-action="readTour">{{localize "DDA.Academy.Practice.ReadTour"}}</button>
+  </footer>
+</section>

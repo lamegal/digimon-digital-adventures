@@ -1159,8 +1159,8 @@ export async function consumeDigimonActionPoolEffects(actor, options = {}) {
   return true;
 }
 
-const DIGIMON_ACTION_MENU_ENTRIES = [
-  {
+const getDigimonActionMenuEntries = () => [
+    {
     key: "move",
     titleKey: "DDA.DigimonAction.Move.Title",
     summaryKey: "DDA.DigimonAction.Move.Summary",
@@ -1302,8 +1302,8 @@ export async function getDigimonActionMenuDefinition(actor) {
   }
 
   const baseMenuEntries = evokerMinion
-    ? DIGIMON_ACTION_MENU_ENTRIES.filter((entry) => ["move", "attack", "aid"].includes(entry.key))
-    : DIGIMON_ACTION_MENU_ENTRIES;
+    ? getDigimonActionMenuEntries().filter((entry) => ["move", "attack", "aid"].includes(entry.key))
+    : getDigimonActionMenuEntries();
   const menuEntries = baseMenuEntries.map((entry) => (
     entry.key === "stance" && hasTacticalAdaptation(actor)
       ? { ...entry, cost: text("Livre", "Free") }

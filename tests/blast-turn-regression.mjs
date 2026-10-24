@@ -161,7 +161,7 @@ async function fixture() {
   const attack = { id: 'attack', name: 'Poison mist', type: 'attack', parent: actor,
     system: { baseTags: { rangeType: 'range', functionType: 'support' }, qualityTags: [], range: { total: 5 },
       effectiveLimit: { total: 10 }, effectTag: { enabled: true, tag: 'poison' } } };
-  return { state, context, game, canvas, get, actor, token, attack };
+  return { state, context, game, canvas, get, actor, token, attack, overrides };
 }
 
 for (const tag of ['BLAST', '[BLAST]', 't:blast', '[T:BLAST]', { tag: '[BLAST]' }, { key: 'BLAST' }]) {
@@ -535,6 +535,30 @@ test('token size overview reads every snapshot without mutating forms, Tokens or
   assert.equal(overview.rows.find(r => r.reference === 'Actor.adult').width, 2);
   assert.deepEqual(structuredClone({ system: f.actor.system, flags: f.actor.flags, prototype: f.actor.prototypeToken, token: f.token.document.width }), before);
 });
+
+for (const modeActive of [false, true]) {
+  test(`guided planner context preserves persistent snapshots and Mode Change (active=${modeActive})`, async () => {
+    const f = await fixture(); setupSizedForms(f);
+    f.actor.system.combat.qualityModeChange = { active: modeActive };
+    const before = structuredClone({ system: f.actor.system, flags: f.actor.flags, prototype: f.actor.prototypeToken });
+    f.actor.update = () => assert.fail('A guided planner visit must not update its Actor');
+    f.overrides.resetModeChangeForActor = () => assert.fail('A guided planner visit must not end Mode Change');
+    const merge = (left, right) => {
+      const result = structuredClone(left);
+      for (const [key, value] of Object.entries(right)) {
+        result[key] = value && typeof value === 'object' && !Array.isArray(value)
+          ? merge(result[key] ?? {}, value) : structuredClone(value);
+      }
+      return result;
+    };
+    f.context.foundry.utils.mergeObject = merge;
+    const e = await f.get('scripts/combat/evolution.js');
+    const context = await e.getCurrentPartnerFormWizardContext(f.actor, { readOnly: true });
+    assert.equal(context.partnerActor, f.actor); assert.equal(context.snapshot.sourceFormUuid, 'Actor.child');
+    if (modeActive) assert.equal(context.snapshot.species, 'Blucomon');
+    assert.deepEqual(structuredClone({ system: f.actor.system, flags: f.actor.flags, prototype: f.actor.prototypeToken }), before);
+  });
+}
 
 test('saving inactive form sizes changes only that snapshot and preserves its build and availability', async () => {
   const f = await fixture(); setupSizedForms(f);

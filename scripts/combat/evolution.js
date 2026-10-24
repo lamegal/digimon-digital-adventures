@@ -1412,7 +1412,8 @@ export async function savePartnerTokenSizes(sourceActor, changes = []) {
 }
 
 export async function getCurrentPartnerFormWizardContext(
-  sourceActor
+  sourceActor,
+  { readOnly = false } = {}
 ) {
   const actors =
     await resolveCurrentFormWizardActors(
@@ -1428,7 +1429,8 @@ export async function getCurrentPartnerFormWizardContext(
 
   // Mode Change is a temporary combat overlay. Opening the current-form
   // Wizard must never serialize that overlay into the persistent form build.
-  if (partnerActor.system?.combat?.qualityModeChange?.active) {
+  const modeActive = Boolean(partnerActor.system?.combat?.qualityModeChange?.active);
+  if (modeActive && !readOnly) {
     await resetModeChangeForActor(partnerActor);
   }
 
@@ -1504,8 +1506,11 @@ export async function getCurrentPartnerFormWizardContext(
     { inplace: false, recursive: true }
   );
 
-  await upsertPartnerFormSnapshot(partnerActor, liveSnapshot);
-  const snapshot = getPartnerFormSnapshot(partnerActor, currentFormUuid) ?? liveSnapshot;
+  // Guided visits must neither refresh persistent snapshots nor end Mode Change.
+  if (!readOnly) await upsertPartnerFormSnapshot(partnerActor, liveSnapshot);
+  const snapshot = readOnly
+    ? (modeActive && storedSnapshot ? foundry.utils.deepClone(storedSnapshot) : liveSnapshot)
+    : getPartnerFormSnapshot(partnerActor, currentFormUuid) ?? liveSnapshot;
   formTemplateActor = partnerActor;
 
   const totalBonusDp = Math.max(

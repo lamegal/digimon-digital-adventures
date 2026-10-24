@@ -1,3 +1,4 @@
+import { emitDdaActivity } from "../utils/activity-events.js";
 import {
   getOfficialTamerTalent,
   hasUnlockedOfficialTamerTalent
@@ -1350,6 +1351,7 @@ async function useDirect(tamer) {
 
   target.sheet?.render(false);
 
+  emitDdaActivity("direct", { actor: tamer, target, bonus: result.bonus });
   return {
     action: "direct",
     target,
@@ -5379,8 +5381,8 @@ async function useOfficialCombatSpecialOrder(tamer, talentId) {
   return { talent, ...result };
 }
 
-const TAMER_ACTION_MENU_ENTRIES = [
-  {
+const getTamerActionMenuEntries = () => [
+    {
     key: "move",
     titleKey: "DDA.TamerAction.Move.Title",
     summaryKey: "DDA.TamerAction.Move.Summary",
@@ -5508,8 +5510,8 @@ export async function getTamerActionMenuDefinition(tamer) {
 
   const vanishRestriction = getVanishTamerActionRestriction(tamer);
   const menuEntries = vanishRestriction
-    ? TAMER_ACTION_MENU_ENTRIES.filter((entry) => ["move", "reposition"].includes(entry.key))
-    : [...TAMER_ACTION_MENU_ENTRIES];
+    ? getTamerActionMenuEntries().filter((entry) => ["move", "reposition"].includes(entry.key))
+    : [...getTamerActionMenuEntries()];
 
   const charmContest = !vanishRestriction
     ? await game?.dda?.bossQualities?.getCharmContestData?.(tamer)
